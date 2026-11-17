@@ -1,0 +1,153 @@
+# Research
+
+Findings gathered November 2026. Platform details change quickly; re-verify anything marked
+**validate** before depending on it.
+
+## Requirements
+
+1. **Two-way chat with non-technical users.** The agent must be able to reach out (proactively and
+   on a schedule) and respond to messages, in both group chats and direct messages. At least one
+   participant is non-technical, so the interface must be an ordinary consumer chat app with no
+   accounts, tokens, or setup beyond installing the app.
+2. **Agent runs where secrets live.** Each turn must run in an environment with repo checkout and
+   secrets (e.g. third-party API tokens), able to edit files and open PRs. A technical maintainer reviews
+   and merges PRs; chat participants never touch GitHub.
+3. **Intentional context management.** The maintainer decides, per conversation type, whether the
+   agent sees prior thread context, resumes a full prior session, or starts fresh.
+4. **Repo-level automation.** A repo can declare "run this prompt every week" in version control
+   (see the polytokenizer `quarterly-model-update.yml` workflow for the existing pattern).
+5. **Low fixed cost.** No always-on compute. Pay-per-use API pricing rather than per-seat
+   subscriptions.
+6. **Shared across repos.** One toolkit serves many repos; each repo picks its chat platform.
+
+## Prior attempts
+
+- A personal MCP-enabled agent web frontend, and a self-hosted [OpenClaw](https://openclaw.ai)
+  gateway on EC2 (~$27/month). Both were only usable by the maintainer; the non-technical
+  participant struggled with them. Neither is still running. Lesson: the human-facing surface must
+  be a plain chat app, and anything clever lives behind it.
+
+## Hosted agent products (rejected)
+
+| Product | Why rejected |
+|---|---|
+| Cursor Automations + `@Cursor` Slack bot | Schedules, Slack triggers, and thread subscriptions are built in, but follow-ups require each participant to be on the Cursor team with repo access (paid seat). Context management is opaque. Slack triggers see public channels only. |
+| Claude Code in Slack | Each user must link their own Pro/Max/Ultra Claude account. |
+| Claude Tag (Slack) | Requires a Claude Team or Enterprise plan. |
+
+Both would roughly double existing subscription cost and hide the context-management decisions
+this project wants to own.
+
+## Agent runtime: `anthropics/claude-code-action@v1`
+
+Verified against the action's `action.yml`:
+
+- Outputs `session_id` ("can be used with `--resume` to continue this conversation"),
+  `structured_output` (when `--json-schema` is passed in `claude_args`), `execution_file`,
+  `branch_name`, and `conclusion`.
+- Forwards `ANTHROPIC_BASE_URL` and `ANTHROPIC_CUSTOM_HEADERS` from the calling step's env, plus
+  `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL`. It does **not** forward `ANTHROPIC_AUTH_TOKEN`.
+- Session transcripts live in `~/.claude/projects/<escaped-cwd>/<session_id>.jsonl` on the
+  runner, which is discarded after each job. Resuming across runs means persisting that file
+  externally and restoring it before the next run. The checkout path
+  (`/home/runner/work/<repo>/<repo>`) is stable within a repo, so the escaped-cwd directory name is
+  stable too. **Validate.**
+- `show_full_output` dumps every message, including tool results, into the job log. Keep it off.
+
+### OpenRouter
+
+OpenRouter's [Claude Code integration guide](https://openrouter.ai/docs/guides/guides/claude-code-integration)
+has a GitHub Action section: pass the OpenRouter key as `anthropic_api_key` and set
+`ANTHROPIC_BASE_URL=https://openrouter.ai/api`. The same guide's CLI instructions say to use
+`ANTHROPIC_AUTH_TOKEN` (sent as `Authorization: Bearer`) and blank `ANTHROPIC_API_KEY`, which the
+action can't do since it doesn't forward `ANTHROPIC_AUTH_TOKEN`. If the documented Action path
+fails, `ANTHROPIC_CUSTOM_HEADERS: "Authorization: Bearer <key>"` is a plausible workaround.
+**Validate** before relying on OpenRouter.
+
+### GitHub Actions cost and visibility
+
+- Free plan: unlimited minutes for public repos, 2,000 minutes/month for private repos.
+- Expected 30–90 s from dispatch to first agent output, so chat replies are not instant.
+- **Logs and artifacts on public repos are public.** `garden` is public. Workflows there must not
+  echo transcripts or prompts, must keep `show_full_output` off, and must store sessions and
+  transcripts outside GitHub (S3), never as artifacts. See the open question in
+  [plan.md](plan.md#open-questions).
+
+## Messaging platforms
+
+The Lambda-only constraint rules out anything that needs a persistent connection to receive
+messages.
+
+| | Telegram | Slack | Discord | Email (SES) |
+|---|---|---|---|---|
+| Setup | BotFather: token + `setWebhook` | Workspace, app (manifest), scopes, event subscription | Dev portal app, server, invite | Domain DNS, SES receipt rule |
+| Cost | Free, full history | Free plan hides history after 90 days; ~$9/mo for 2 users for full history | Free | ~$0 |
+| Receive via webhook | Yes, with a secret-token header | Yes, 3 s ack deadline | **No** — ordinary messages only via the Gateway websocket; HTTP covers slash commands/interactions only | Yes, SES → Lambda |
+| Bot reads history | **No** Bot API for chat history | Yes | Yes | If stored |
+| One identity per repo | One bot per repo, own name/avatar | One app per repo, or one app posting under custom names (`chat:write.customize`) | One app per repo | One address per repo |
+| Conversation unit | Forum topic in a supergroup; reply chains | Thread | Thread | Email thread |
+| Non-technical UX | Good | Feels like work | Busy, gamer-flavored | Familiar but slow |
+
+Also considered and rejected:
+
+- **WhatsApp Cloud API:** Meta business verification, dedicated number, paid templates for
+  outbound messages outside the 24 h window, limited group support.
+- **Signal, iMessage:** no official bot API; require an always-on relay (signal-cli, a Mac running
+  BlueBubbles).
+- **SMS (Twilio):** carrier registration, clumsy group texts, no threads.
+- **Matrix, Zulip:** harder sell for non-technical users; Matrix bots typically hold a sync
+  connection open.
+
+Decision: **Telegram for household repos, Slack for personal projects**, selectable per repo.
+
+### Telegram specifics (verified against core.telegram.org)
+
+- "Bots can't start conversations with users. A user must either add them to a group or send them
+  a message first." DMs require each person to tap Start on each bot once; groups do not.
+- Bots never see messages from other bots, so per-repo bots in one group can't loop on each other.
+- Privacy mode (default on) limits group visibility to commands, replies to the bot, and mentions.
+  Bots added as **group admins** always receive all messages.
+- `createForumTopic` in a supergroup requires the bot to be an admin with `can_manage_topics`.
+- Bot API 9.3 added topics in private chats, but since Bot API 10.0 (May 2026) sending into an
+  existing private-chat topic fails with "message thread not found"
+  ([tdlib/telegram-bot-api#847](https://github.com/tdlib/telegram-bot-api/issues/847)). Avoid DM
+  topics; use reply chains in DMs.
+
+## Chat SDK (`vercel/chat`)
+
+[Chat SDK](https://github.com/vercel/chat) (MIT, actively maintained) is a TypeScript framework
+with one bot API and per-platform adapters, including `@chat-adapter/telegram` and
+`@chat-adapter/slack`. Using it keeps platform code out of this repo and makes the platform a
+per-repo configuration choice.
+
+Relevant details from the Telegram adapter README:
+
+- Webhook mode requires `secretToken`; polling mode exists for local development.
+- Telegram has no history API, so `persistThreadHistory` (default `true`) saves incoming messages
+  and the bot's own posts in the state adapter. `thread.messages` then returns earlier turns. The
+  bot's replies must therefore be posted **through the SDK** to appear in that history.
+- Webhook updates are deduplicated for 24 h through the state adapter; if state is unavailable the
+  adapter returns 503 so Telegram retries. Durable shared state is required on serverless.
+- Not supported on Telegram: slash commands (as an SDK feature), modals, listing threads.
+
+State adapters published by the project: Redis, ioredis, Postgres, in-memory. Community: Convex,
+Cloudflare Durable Objects. There is **no DynamoDB adapter**. The `StateAdapter` interface is
+about 15 methods (key-value get/set/delete, list append, locks, a per-thread queue,
+subscriptions). See the open question in [plan.md](plan.md#open-questions).
+
+The SDK's webhook handlers take a web `Request` and return a `Response`. Lambda function URLs
+deliver a different event shape, so the receiver needs a small request/response conversion, and
+any work after the response must instead finish before returning, because Lambda freezes the
+process once the handler returns.
+
+## Sources
+
+- claude-code-action `action.yml`: <https://github.com/anthropics/claude-code-action/blob/main/action.yml>
+- OpenRouter Claude Code guide: <https://openrouter.ai/docs/guides/guides/claude-code-integration>
+- Telegram bots intro and features: <https://core.telegram.org/bots>, <https://core.telegram.org/bots/features>
+- Telegram Bot API: <https://core.telegram.org/bots/api>
+- Discord webhook events (limited set, no `MESSAGE_CREATE`): <https://docs.discord.com/developers/events/webhook-events>
+- Chat SDK: <https://github.com/vercel/chat>, <https://chat-sdk.dev/docs>
+- Cursor Automations: <https://cursor.com/docs/cloud-agent/automations>
+- Cursor Slack integration: <https://cursor.com/docs/integrations/slack>
+- Claude Code in Slack: <https://code.claude.com/docs/en/slack>
