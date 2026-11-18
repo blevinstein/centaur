@@ -13,23 +13,26 @@ Unblocks: everything below.
 
 - [x] Copy `parameters.example.json` to `parameters-prod.json` and fill in the values (see
       [docs/deploy.md](docs/deploy.md) for where to find each). The file is gitignored.
-- [ ] Check whether the account already has a GitHub OIDC provider (an account can have only one).
+- [x] Check whether the account already has a GitHub OIDC provider (an account can have only one).
       If so, set `ExistingOidcProviderArn` in `parameters-prod.json` to its ARN.
-- [ ] Run `npm run deploy-prod`. It deploys the stack in two passes (bucket first, then the
+- [x] Run `npm run deploy-prod`. It deploys the stack in two passes (bucket first, then the
       Lambda) and prints the outputs: function name, function URL, role ARN and session bucket.
-- [ ] If the function fails on cold start, check its CloudWatch logs and report what you see.
+- [x] If the function fails on cold start, check its CloudWatch logs and report what you see.
 
 ## 2. Create the test bot and its secrets
 
-- [ ] In BotFather, run `/newbot` for a test bot.
-- [ ] `centaur bot add <bot> --platform telegram` with the bot token.
-- [ ] Create a fine-grained GitHub PAT limited to the test repo with Contents: write, and store
+- [x] In BotFather, run `/newbot` for a test bot.
+- [x] `centaur bot add <bot> --platform telegram` with the bot token.
+- [x] Create a fine-grained GitHub PAT limited to the test repo with Contents: write, and store
       it with `centaur github-token set`.
-- [ ] Create a test supergroup with Topics enabled and add the bot as admin with Manage Topics.
-- [ ] Send one message in the group, find its chat ID in the receiver's logs, and run
-      `centaur chat add <name> <id>`.
-- [ ] `centaur user add <you> --telegram <your id>` (your ID appears in the "not enrolled" reply
-      or log).
+- [x] Create a test supergroup with Topics enabled and add the bot as admin with Manage Topics.
+- [ ] Send one message in the group, and before the webhook is set (section 3) read the chat and
+      your user ID from Telegram's pending updates:
+      `TOKEN=$(aws ssm get-parameter --name /centaur/bots/<bot>/token --with-decryption --query Parameter.Value --output text)`
+      then `curl -s "https://api.telegram.org/bot$TOKEN/getUpdates" | jq '.result[].message | {chat: .chat.id, from: .from.id}'`.
+      Once a webhook is set, `getUpdates` stops working and the receiver logs unknown chat IDs
+      instead.
+- [ ] `centaur chat add <name> <chat id>` and `centaur user add <you> --telegram <your id>`.
 
 ## 3. Wire a test consumer repo
 
