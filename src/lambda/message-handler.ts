@@ -1,6 +1,7 @@
 import { emoji, type Logger, type Message, type Thread } from "chat";
 import type { RespondTo } from "../config/index.js";
 import type { AccessResolver } from "./access.js";
+import type { AccessRequester } from "./access-requests.js";
 import type { RepositoryDispatcher } from "./github.js";
 import { isAddressed, ownsMessage, type ThreadMetadata } from "./ownership.js";
 import type { Bot } from "./registry.js";
@@ -11,6 +12,7 @@ export const REFUSAL_TEXT = "Sorry, you aren't enrolled to talk to me.";
 export interface MessageHandlerDeps {
   bot: Bot;
   resolveAccess: AccessResolver;
+  requestAccess: AccessRequester;
   resolveRespondTo: () => Promise<RespondTo>;
   dispatcher: RepositoryDispatcher;
   logger: Pick<Logger, "info" | "warn" | "error">;
@@ -19,6 +21,7 @@ export interface MessageHandlerDeps {
 export function createMessageHandler({
   bot,
   resolveAccess,
+  requestAccess,
   resolveRespondTo,
   dispatcher,
   logger,
@@ -32,12 +35,19 @@ export function createMessageHandler({
 
     const access = await resolveAccess();
     const chatId = thread.channelId.slice(bot.platform.length + 1);
+    const userId = message.author.userId;
+    const addressed = isAddressed(thread, message);
+    if ((!thread.isDM && access.blockedChatIds.has(chatId)) || access.blockedUserIds.has(userId)) {
+      logger.info("ignoring message from blocked subject", { ...where, chatId, userId });
+      return;
+    }
     if (!thread.isDM && !access.chatIds.has(chatId)) {
+      if (addressed && (await requestAccess("chat", thread, message))) return;
       if (refusable) logger.warn("ignoring message from unknown chat", { ...where, chatId });
       return;
     }
-    const userId = message.author.userId;
     if (!access.userIds.has(userId)) {
+      if (addressed && (await requestAccess("user", thread, message))) return;
       if (refusable) {
         logger.warn("refusing unknown sender", { ...where, chatId, userId });
         await thread.post(REFUSAL_TEXT);

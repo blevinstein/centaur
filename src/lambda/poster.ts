@@ -1,7 +1,7 @@
 import { type Adapter, type Chat, emoji, type Logger, type StateAdapter } from "chat";
 import { z } from "zod";
 import { alias, type Platform } from "../config/index.js";
-import { registeredChatIds } from "./access.js";
+import { createAccessResolver } from "./access.js";
 import type { OidcVerifier } from "./oidc.js";
 import { BOT_CREATED_STATE, type ThreadMetadata } from "./ownership.js";
 import { chatParameter, type ParameterStore } from "./parameters.js";
@@ -113,8 +113,8 @@ export function createPoster(deps: PosterDeps) {
     chat: PosterChat,
     target: { destination?: string | undefined; fromThreadId?: string | undefined },
   ) => {
-    const entry = await readRegistryEntry(stateFor(""), bot.name);
     if (target.destination !== undefined) {
+      const entry = await readRegistryEntry(stateFor(""), bot.name);
       const chatId =
         registeredChats(entry).includes(target.destination) &&
         (await params.get(chatParameter(target.destination)));
@@ -124,7 +124,8 @@ export function createPoster(deps: PosterDeps) {
     }
     const origin = chat.thread(target.fromThreadId as string);
     const chatId = origin.channelId.slice(bot.platform.length + 1);
-    if (!origin.isDM && !(await registeredChatIds(params, entry)).has(chatId)) {
+    const { chatIds } = await createAccessResolver(bot, params, stateFor(""))();
+    if (!origin.isDM && !chatIds.has(chatId)) {
       throw new Error(`bot "${bot.name}" is not registered for chat ${chatId}`);
     }
     return chatId;

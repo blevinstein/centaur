@@ -194,6 +194,25 @@ describe("poster start-thread", () => {
       expect(telegram.createForumTopic).not.toHaveBeenCalled();
     });
 
+    it("accepts an approved chat and refuses a blocked one", async () => {
+      const { poster, telegram, thread } = await posterSetup({
+        parameters: {
+          "/centaur/bots/garden/approved-chats/-100777": "{}",
+          [`/centaur/bots/garden/blocked/chat/${HOUSEHOLD_CHAT_ID}`]: "{}",
+        },
+      });
+      Object.assign(thread, { channelId: "telegram:-100777" });
+      await poster(fromThread("-100777"));
+      Object.assign(thread, { channelId: `telegram:${HOUSEHOLD_CHAT_ID}` });
+
+      await expect(poster(fromThread(HOUSEHOLD_CHAT_ID))).rejects.toThrow(/not registered/);
+      expect(telegram.createForumTopic).toHaveBeenCalledExactlyOnceWith(
+        "tg-token",
+        "-100777",
+        "fresh",
+      );
+    });
+
     it("accepts the chat of a legacy entry", async () => {
       const { poster, registryState, telegram } = await posterSetup();
       await registryState.set("registry:garden", LEGACY_ENTRY);

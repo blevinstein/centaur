@@ -45,6 +45,7 @@ export const PARAMETERS: Record<string, string> = {
 
 export const GROUP_CHAT_ID = "-100500";
 export const ALLOWED_USER_ID = "1001";
+export const GROUP_CHAT_TITLE = "Garden Club";
 export const STRANGER_USER_ID = "9999";
 export const MESSAGE_TEXT = "the tomatoes have yellow leaves";
 
@@ -75,6 +76,8 @@ export const accessFor = (overrides: Partial<Access> = {}): (() => Promise<Acces
   const access = {
     userIds: new Set([ALLOWED_USER_ID]),
     chatIds: new Set([GROUP_CHAT_ID]),
+    blockedUserIds: new Set<string>(),
+    blockedChatIds: new Set<string>(),
     ...overrides,
   };
   return vi.fn(async () => access);
@@ -91,6 +94,7 @@ export function fakeThread(
     isDM,
     state: Promise.resolve(state),
     post: vi.fn(async () => ({})),
+    channel: { fetchMetadata: vi.fn(async () => ({ name: GROUP_CHAT_TITLE })) },
     adapter: { addReaction },
   };
   return { thread: thread as unknown as Thread<ThreadMetadata>, post: thread.post, addReaction };
@@ -102,6 +106,7 @@ export const fakeMessage = (
     isMention?: boolean;
     isBot?: boolean | "unknown";
     isMe?: boolean;
+    fullName?: string;
   } = {},
 ) =>
   ({
@@ -110,6 +115,7 @@ export const fakeMessage = (
     isMention: overrides.isMention ?? false,
     author: {
       userId: overrides.userId ?? ALLOWED_USER_ID,
+      fullName: overrides.fullName ?? "Pat Example",
       isBot: overrides.isBot ?? false,
       isMe: overrides.isMe ?? false,
     },

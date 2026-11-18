@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { RespondTo } from "../src/config/index.js";
+import type { AccessRequester } from "../src/lambda/access-requests.js";
 import { createMessageHandler, REFUSAL_TEXT } from "../src/lambda/message-handler.js";
 import {
   accessFor,
@@ -8,6 +9,7 @@ import {
   fakeMessage,
   fakeThread,
   GARDEN_BOT,
+  GROUP_CHAT_ID,
   MESSAGE_TEXT,
   STRANGER_USER_ID,
 } from "./helpers/receiver-fixtures.js";
@@ -15,14 +17,16 @@ import {
 function setup(access = accessFor(), respondTo: RespondTo = "mention") {
   const dispatcher = fakeDispatcher();
   const logger = fakeLogger();
+  const requestAccess = vi.fn<AccessRequester>(async () => false);
   const handle = createMessageHandler({
     bot: GARDEN_BOT,
     resolveAccess: access,
+    requestAccess,
     resolveRespondTo: async () => respondTo,
     dispatcher,
     logger,
   });
-  return { handle, dispatcher, logger, access };
+  return { handle, dispatcher, logger, access, requestAccess };
 }
 
 describe("message handler", () => {
@@ -118,6 +122,70 @@ describe("message handler", () => {
 
     expect(logger.error).toHaveBeenCalled();
     expect(dispatcher.dispatch).toHaveBeenCalledOnce();
+  });
+
+  describe("access requests", () => {
+    it.each([
+      ["chat", { chatId: "-100777" }, {}],
+      ["user", {}, { userId: STRANGER_USER_ID }],
+    ] as const)(
+      "asks for a %s request instead of refusing an addressed message",
+      async (kind, threadOptions, messageOptions) => {
+        const { handle, dispatcher, requestAccess } = setup();
+        requestAccess.mockResolvedValue(true);
+        const { thread, post } = fakeThread(threadOptions);
+        const message = fakeMessage({ isMention: true, ...messageOptions });
+
+        await handle(thread, message);
+
+        expect(requestAccess).toHaveBeenCalledExactlyOnceWith(kind, thread, message);
+        expect(post).not.toHaveBeenCalled();
+        expect(dispatcher.dispatch).not.toHaveBeenCalled();
+      },
+    );
+
+    it("never requests access for unaddressed messages", async () => {
+      const { handle, requestAccess } = setup(accessFor(), "all");
+
+      await handle(fakeThread({ chatId: "-100777" }).thread, fakeMessage());
+      await handle(fakeThread().thread, fakeMessage({ userId: STRANGER_USER_ID }));
+
+      expect(requestAccess).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["chat", accessFor({ blockedChatIds: new Set([GROUP_CHAT_ID]) }), {}],
+      [
+        "user",
+        accessFor({ blockedUserIds: new Set([STRANGER_USER_ID]) }),
+        { userId: STRANGER_USER_ID },
+      ],
+    ] as const)(
+      "ignores a blocked %s before any reply or request",
+      async (_kind, access, messageOptions) => {
+        const { handle, dispatcher, requestAccess } = setup(access);
+        const { thread, post, addReaction } = fakeThread();
+
+        await handle(thread, fakeMessage({ isMention: true, ...messageOptions }));
+
+        expect(requestAccess).not.toHaveBeenCalled();
+        expect(post).not.toHaveBeenCalled();
+        expect(addReaction).not.toHaveBeenCalled();
+        expect(dispatcher.dispatch).not.toHaveBeenCalled();
+      },
+    );
+
+    it("keeps today's behavior when no request is created", async () => {
+      const { handle } = setup();
+      const unknownUser = fakeThread();
+      const unknownChat = fakeThread({ chatId: "-100777" });
+
+      await handle(unknownUser.thread, fakeMessage({ userId: STRANGER_USER_ID, isMention: true }));
+      await handle(unknownChat.thread, fakeMessage({ isMention: true }));
+
+      expect(unknownUser.post).toHaveBeenCalledExactlyOnceWith(REFUSAL_TEXT);
+      expect(unknownChat.post).not.toHaveBeenCalled();
+    });
   });
 
   describe("respond_to: all", () => {

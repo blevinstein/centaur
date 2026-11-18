@@ -3,6 +3,11 @@ import { createTelegramAdapter } from "@chat-adapter/telegram";
 import { type Adapter, Chat, type Logger, type StateAdapter } from "chat";
 import type { Platform } from "../config/index.js";
 import { createAccessResolver } from "./access.js";
+import { createAccessDecisions } from "./access-decisions.js";
+import { createAccessRequestStore } from "./access-request-store.js";
+import { createAccessRequester } from "./access-requests.js";
+import { ADMIN_CHANNELS } from "./admin-channel.js";
+import { registerAdminHandlers } from "./admin-handlers.js";
 import type { RepositoryDispatcher } from "./github.js";
 import { createMessageHandler } from "./message-handler.js";
 import type { ThreadMetadata } from "./ownership.js";
@@ -47,13 +52,37 @@ export function createBotChat({
   logger,
 }: BotChatDeps) {
   const chat = createChat({ bot, botState, logger });
+  const resolveAccess = createAccessResolver(bot, params, registryState);
+  const channel = ADMIN_CHANNELS[bot.platform];
+  const store = createAccessRequestStore(botState);
   const handle = createMessageHandler({
     bot,
-    resolveAccess: createAccessResolver(bot, params, registryState),
+    resolveAccess,
+    requestAccess: createAccessRequester({
+      bot,
+      params,
+      store,
+      channel,
+      messenger: chat,
+      logger,
+    }),
     resolveRespondTo: () => readRespondTo(registryState, bot.name),
     dispatcher,
     logger,
   });
+  registerAdminHandlers(
+    chat,
+    channel,
+    createAccessDecisions({
+      bot,
+      params,
+      store,
+      channel,
+      invalidateAccess: resolveAccess.invalidate,
+      postToThread: (threadId, text) => chat.thread(threadId).post(text),
+      logger,
+    }),
+  );
   chat.onDirectMessage(handle);
   chat.onNewMention(handle);
   chat.onSubscribedMessage(handle);
