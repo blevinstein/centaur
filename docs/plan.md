@@ -1,7 +1,8 @@
 # Plan
 
-Design for the first version. Sketches of config and file formats are illustrative; names will
-settle during implementation.
+Design of the system as built. The config and file snippets here are examples; the reference
+pages ([config](config.md), [cli](cli.md), [poster](poster.md), [workflows](workflows.md)) are
+authoritative for fields, flags and operations.
 
 ## Architecture
 
@@ -68,7 +69,8 @@ in the diagram because it's invoked over IAM, not a public URL.
 ### Poster Lambda
 
 Invoked by the workflow (`aws lambda invoke`, using a role assumed via GitHub OIDC; no stored AWS
-keys). Inputs: bot, thread ID, reply text, optional "start a new thread" flag and title. Posting
+keys). Operations: `post` (bot, thread ID, text), `start-thread` (a `destination` chat alias or the
+originating thread, with an optional title), `read`, `unreact` and `register`. Posting
 through the SDK means the bot's own messages are recorded in state, so the transcript stays
 complete. Also exposes a read operation that returns a thread's transcript, so workflows never
 need direct access to the state store, an `unreact` operation that clears the 👀 reactions when a
@@ -82,48 +84,28 @@ One agent turn:
 1. Check out the consumer repo; read its `.centaur.yml`.
 2. Assemble context according to the thread's [context policy](#context-management).
 3. Run `claude-code-action` with the consumer repo's tool allowlist and a `--json-schema` that
-   requires `reply` (text for chat) and optionally `new_thread_title`. When the bot's `respond_to`
-   is `all`, `reply` becomes optional and the agent may instead return `ignore: true` to stay
-   silent.
+   requires `reply` (text for chat) and optionally `new_thread_title`, `pr_title` and `pr_body`.
+   When the bot's `respond_to` is `all`, `reply` becomes optional and the agent may instead return
+   `ignore: true` to stay silent. Model, effort, turn and budget limits come from `.centaur.yml`
+   (see [config](config.md)).
 4. Invoke the poster with `structured_output.reply`, unless the agent ignored the messages (the
    marker still advances and the session is still saved; an opened pull request is still linked).
    Then remove the 👀 reactions from the processed messages, also after a failure notice.
-5. If files changed, open a PR (`peter-evans/create-pull-request`, as in polytokenizer) and
-   include the link in the chat reply. Agents never push to the default branch.
+5. If files changed, open a PR (`peter-evans/create-pull-request`, as in polytokenizer) titled and
+   described from the agent's `pr_title` and `pr_body`, and include the link in the chat reply.
+   Agents never push to the default branch.
 6. Save the session file to S3 when the policy is `resume`.
 
-`concurrency: centaur-<thread>` serializes turns per thread. GitHub keeps only the newest pending
+`concurrency: centaur-<bot>-<thread>` serializes turns per thread. GitHub keeps only the newest pending
 run per concurrency group, so each turn processes **all** unprocessed messages since the thread's
 last-processed marker, not just the message that triggered it.
 
 ### Consumer repo workflow (in each repo, a few lines)
 
-```yaml
-on:
-  repository_dispatch:
-    types: [centaur-message]
-  schedule:
-    - cron: "0 15 * * 6"   # Saturday morning: post this week's garden tasks
-  push:
-    branches: [main]
-    paths: [.centaur.yml]
-  workflow_dispatch:
-
-jobs:
-  register:
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    uses: <owner>/centaur/.github/workflows/register.yml@main
-    secrets: inherit
-  turn:
-    if: github.event_name != 'push'
-    uses: <owner>/centaur/.github/workflows/agent-turn.yml@main
-    with:
-      prompt_name: weekly-tasks
-    secrets: inherit
-```
-
-A manual `workflow_dispatch` registers and also runs the scheduled prompt, which doubles as a
-setup check.
+The caller has three jobs: `register` (on pushes touching `.centaur.yml` and on manual dispatch),
+`message` (on `repository_dispatch` of type `centaur-message`) and one per scheduled prompt. The
+full file is in [workflows.md](workflows.md#caller-workflow). A manual `workflow_dispatch` registers
+and also runs the scheduled prompt, which doubles as a setup check.
 
 A scheduled run starts a **new thread** (a new Telegram topic, or a new top-level Slack message)
 in the prompt's `destination` chat (an alias that must resolve to a chat approved for the bot) with a `fresh` context, and replies to it continue as normal conversation.
@@ -156,6 +138,9 @@ prompts:
     destination: household      # chat alias; the chat must be approved for the bot
 ```
 
+The remaining fields (`handle`, `effort`, `max_turns`, `max_budget_usd`, per-prompt `file` and
+`context`) are in [config.md](config.md).
+
 Names in `.centaur.yml` are aliases; the real IDs never appear in any repo, so a public consumer
 repo reveals only aliases. The file carries no allowlist (`allow` and `chats` are validation
 errors); who may talk to the bot is decided only by the admin.
@@ -181,7 +166,7 @@ parameter.
 
 ## Context management
 
-Each thread has a policy, set when the thread starts and stored in thread metadata.
+Each thread has a context policy.
 
 | Policy | Agent sees | Stored state | Use for |
 |---|---|---|---|
@@ -189,10 +174,12 @@ Each thread has a policy, set when the thread starts and stored in thread metada
 | `transcript` | Above plus the thread's chat messages, rendered into the prompt | Chat SDK history (already persisted) | Default for conversations; cheap and easy to inspect |
 | `resume` | The full prior Claude session, including tool calls and results | Session `.jsonl` in S3, keyed by thread | Multi-turn work where earlier tool results matter (e.g. building a plan over several replies) |
 
-- Defaults come from `.centaur.yml`; a scheduled prompt may override.
-- In-chat overrides: `/new` (start a fresh thread), `/resume` and `/transcript` (switch the
+- Defaults come from `.centaur.yml` (`context.default`, and `context.scheduled` or the prompt's
+  own `context` for scheduled runs).
+- In-chat overrides: `/new` (start a new thread), `/resume` and `/transcript` (switch the
   current thread's policy). Telegram slash commands aren't an SDK feature, so these are parsed
-  from message text.
+  from message text. The thread's policy is not stored: each turn takes the latest `/resume` or
+  `/transcript` in the thread, else the default (see [workflows.md](workflows.md#context-policies)).
 - Long `resume` sessions rely on Claude Code's automatic compaction. Add a per-thread turn or
   token cap later if costs warrant it.
 - **Durable memory is the repo.** Anything that should outlive a thread (preferences, inventory,
@@ -234,7 +221,7 @@ DMs with a bot are always that bot's; DMs use reply chains, not topics (see
 - **Least-privilege tools.** Each repo's `allowed_tools` is an explicit allowlist, as in
   polytokenizer's workflow.
 - **Changes only via PR.** Agent output is reviewed before it becomes durable. This replaces
-  `garden`'s current "push to main" convention for automated runs.
+  a "push to main" convention for automated runs.
 - **Prompt injection.** Fetched web pages (plant care guides, weather sites) are untrusted input. The allowlist
   and PR review are the backstops; avoid giving agents tools that send data elsewhere.
 - **GitHub credential for dispatch.** A fine-grained PAT limited to the participating repos,
@@ -351,32 +338,37 @@ nothing. The Lambda role can write only the approved and blocked paths, `admin/*
 only `admin-claim/*`. The admin DM contains
 names and IDs but never message content.
 
-## Validation plan
+## Validation
 
-Ordered by risk. Each experiment answers a question that could change the design.
+Ordered by risk; each experiment answered a question that could change the design. Results are in
+[research.md](research.md) and [HUMAN_TODO.md](HUMAN_TODO.md).
 
-1. **Agent runtime.** On an `experiment/*` branch of this repo (a `workflow_dispatch` stub on
-   `main` makes the branch's workflow dispatchable), run `claude-code-action` twice via
-   `workflow_dispatch`:
-   - through OpenRouter (documented Action path, then the custom-header workaround if needed) and
-     through Anthropic directly;
-   - capture `session_id`, upload the session file to S3, restore it in the second run, and confirm
-     `--resume` continues the conversation;
-   - confirm `--json-schema` yields a usable `structured_output`.
-2. **Chat SDK on Lambda.** Deploy the receiver with one Telegram bot and the chosen state backend.
-   Measure webhook-to-dispatch latency; confirm dedupe and history persistence across cold starts.
-3. **End-to-end Telegram.** Message → dispatch → turn → reply, in a test supergroup with topics.
-   Confirm bot-created topics, admin visibility, and the routing rules with two bots present.
-4. **Scheduled outreach.** A cron run posts a new topic; a human reply continues it under the
-   `transcript` policy.
-5. **Slack.** One personal-project repo on Slack, using an app manifest to reduce setup.
+1. **Agent runtime (validated).** `claude-code-action` runs under `workflow_dispatch` on an
+   `experiment/*` branch (a `workflow_dispatch` stub on `main` makes the branch's workflow
+   dispatchable). Both the Anthropic API and OpenRouter work through the documented Action path
+   (`anthropic_api_key` plus `ANTHROPIC_BASE_URL`), `--json-schema` yields a usable
+   `structured_output`, and a session file restored from S3 lets `--resume` continue the
+   conversation.
+2. **Chat SDK on Lambda (validated).** The receiver runs on the deployed stack with a Telegram bot
+   and the DynamoDB state adapter; dedupe, history and thread state persist across invocations.
+3. **End-to-end Telegram (validated).** Message, dispatch, turn and reply in a test supergroup with
+   topics took about 47 s from dispatch to posted reply. Bot-created topics, replies in them
+   without a mention, `respond_to: all` and the 👀 reaction work. Routing with two bots in one
+   group is not yet verified.
+4. **Scheduled outreach (validated).** A scheduled prompt starts a new topic, and a human reply
+   continues it under the `transcript` policy.
+5. **Slack (not validated).** One personal-project repo on Slack, using an app manifest to reduce
+   setup; no manifest exists yet.
 
-After validation, the first real use is a weekly `garden` check-in: each Saturday, post the
+The first real use is a weekly `garden` check-in: each Saturday, post the
 week's tasks from the season's `SCHEDULE.md`, take reports in the topic ("the tomatoes have
 yellow leaves", "beds 3 and 4 are mulched"), then open a PR updating the care, pest, and schedule
 files.
 
-## Open questions
+## Decisions and open questions
+
+Open items are tracked in [HUMAN_TODO.md](../HUMAN_TODO.md#decisions-waiting-on-you) and the
+[TODO.md](../TODO.md) backlog.
 
 1. **State backend (decided).** A DynamoDB `StateAdapter` (19 methods, pay-per-request, stays in
    AWS), written here and possibly contributed upstream. Chosen for cost over hosted Postgres
@@ -389,11 +381,11 @@ files.
    Sensitive repos stay private.
 3. **One Slack app per repo vs one app with per-message names.** Per-repo apps mirror the Telegram
    model; a single app is less setup.
-4. **Progress messages mid-turn.** V1 posts once at the end. Later: a poster MCP tool so the agent
-   can ask a question or post progress during a long turn.
-5. **Agent-scheduled follow-ups** ("remind us Thursday if the beds aren't mulched"). Likely
-   EventBridge Scheduler one-off schedules that dispatch a turn; out of scope for v1.
-6. **Infra placement.** This repo ships a standalone CloudFormation template that imports
+4. **Progress messages mid-turn (not built).** A turn posts once at the end. A poster MCP tool
+   would let the agent ask a question or post progress during a long turn.
+5. **Agent-scheduled follow-ups (not built)** ("remind us Thursday if the beds aren't mulched").
+   Likely EventBridge Scheduler one-off schedules that dispatch a turn.
+6. **Infra placement (decided).** This repo ships a standalone CloudFormation template that imports
    nothing, so others can deploy it. Each deployer runs it from their own private infra repo,
    which holds the parameter overrides. A function URL is enough unless a custom domain on an
    existing ALB is wanted.
