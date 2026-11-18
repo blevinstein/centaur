@@ -178,6 +178,14 @@ own tests, and `state-memory`'s are the best behavioral template. Everything map
 awkward methods are `appendToList`, `enqueue`, `dequeue` and `queueDepth` (atomic trim and
 counters). Decision in [plan.md](plan.md#open-questions).
 
+The adapter in `src/dynamodb-state/` uses one pay-per-request table (`pk`/`sk`, TTL attribute
+`ttl` in epoch seconds, plus `expiresAt` in ms filtered at read time). Lock, dedupe, subscription,
+key-value, and `dequeue` operations are single conditional writes. `appendToList` and `enqueue`
+write the entry and then trim, so a reader can briefly see more than `maxLength` entries, but the
+newest entries are never lost. A 44-test suite ported from `state-memory` passes against both
+`@chat-adapter/state-memory` and DynamoDB Local. Not yet exercised by `Chat` itself or on a
+deployed table.
+
 The SDK's webhook handlers take a web `Request` and return a `Response`. Lambda function URLs
 deliver a different event shape, so the receiver needs a small request/response conversion, and
 any work after the response must instead finish before returning, because Lambda freezes the

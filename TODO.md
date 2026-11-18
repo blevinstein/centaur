@@ -31,8 +31,13 @@ off as they land, and record findings that change the design back into `docs/`.
 
 - [x] Choose the language and tooling for the Lambda and CLI (TypeScript, to match Chat SDK) and
       set up the package with lint, typecheck, and tests.
-- [ ] Write a DynamoDB `StateAdapter` for the Chat SDK (19 methods, see `docs/research.md`) with
+- [x] Write a DynamoDB `StateAdapter` for the Chat SDK (19 methods, see `docs/research.md`) with
       tests, starting from `state-memory`'s test suite.
+- [ ] Run `Chat` end to end against the DynamoDB adapter and a deployed table, checking how the
+      core uses the `appendToList` TTL, `maxLength`, and expired queue entries.
+- [ ] Add the state table (mirroring `stateTableInput`: pay-per-request, TTL on `ttl`) and its
+      IAM access to `infra/centaur.yml`; make `chat` a runtime dependency once a Lambda consumes
+      the package.
 - [ ] CloudFormation template: receiver/poster Lambda with a function URL, state backend, S3
       session bucket, SSM parameter paths, and the GitHub OIDC provider and role. The role's
       trust is limited by a `GitHubOwner` parameter. The template imports nothing.
