@@ -52,8 +52,9 @@ in the diagram because it's invoked over IAM, not a public URL.
   3. Reject chats other than the repo's `destination` (ignored silently) and senders not on the
      bot's allowlist (see [Security](#security)); unknown senders get a refusal and only their IDs
      are logged.
-  4. Persist the message (the SDK's `persistThreadHistory` does this) and add a 👀 reaction. A
-     failed reaction is logged and does not block the dispatch.
+  4. Persist the message (the SDK's `persistThreadHistory` does this) and add a 👀 reaction, which
+     the workflow removes when the turn finishes. A failed reaction is logged and does not block
+     the dispatch.
   5. Send a `repository_dispatch` of type `centaur-message` to the bot's repo with payload
      `{bot, thread_id, message_id}`. The message text stays out of GitHub so it never lands in
      public logs.
@@ -68,7 +69,8 @@ Invoked by the workflow (`aws lambda invoke`, using a role assumed via GitHub OI
 keys). Inputs: bot, thread ID, reply text, optional "start a new thread" flag and title. Posting
 through the SDK means the bot's own messages are recorded in state, so the transcript stays
 complete. Also exposes a read operation that returns a thread's transcript, so workflows never
-need direct access to the state store, and the `register` operation (see
+need direct access to the state store, an `unreact` operation that clears the 👀 reactions when a
+turn is done, and the `register` operation (see
 [Registration](#registration)).
 
 ### Shared workflow (`centaur/.github/workflows/agent-turn.yml`, `workflow_call`)
@@ -83,6 +85,7 @@ One agent turn:
    silent.
 4. Invoke the poster with `structured_output.reply`, unless the agent ignored the messages (the
    marker still advances and the session is still saved; an opened pull request is still linked).
+   Then remove the 👀 reactions from the processed messages, also after a failure notice.
 5. If files changed, open a PR (`peter-evans/create-pull-request`, as in polytokenizer) and
    include the link in the chat reply. Agents never push to the default branch.
 6. Save the session file to S3 when the policy is `resume`.

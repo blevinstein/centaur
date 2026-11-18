@@ -14,6 +14,7 @@ to a repo (secrets plus `bots/<bot>/repo`) for every operation except `register`
 | `post` | `bot`, `threadId`, `text` | `{ messageId }` |
 | `start-thread` | `bot`, `text`, optional `title` | `{ threadId }` |
 | `read` | `bot`, `threadId` | `{ messages: [{ id, userId, userName, fromBot, text, sentAt }] }`, oldest first |
+| `unreact` | `bot`, `threadId`, `messageIds` (1 to 50) | `{ results: [{ messageId, removed }] }` |
 | `register` | `token` (GitHub OIDC JWT), `config` (`.centaur.yml` text) | `{ bot, repo }` |
 
 All thread operations go through the bot's own Chat instance and state prefix (`bot:<bot>:`), so
@@ -32,6 +33,20 @@ The destination chat is the bot's registered `destination` (registry entry, then
 
 The thread is marked `createdByBot` (`BOT_CREATED_STATE` in `src/lambda/ownership.ts`) so the
 receiver's ownership rule accepts human replies in it.
+
+## `unreact`
+
+Removes the bot's 👀 reaction (the one the receiver adds when it accepts a message) from each listed
+message, through the adapter's `removeReaction`. A failure on one message is logged with the bot,
+thread and message ID (never message content) and reported as `removed: false`; the remaining
+messages are still processed, so the call only throws for an invalid request or an unknown bot.
+
+- **Slack:** removes only the `eyes` reaction. A message that has no such reaction reports
+  `removed: false`.
+- **Telegram:** `setMessageReaction` replaces the bot's own reaction list, and the Chat SDK adapter
+  clears it with an empty list, ignoring the emoji. That drops any other reaction the bot set on
+  the message, but never other users' reactions; the bot only ever sets 👀. Removal is idempotent.
+- Reactions on Telegram business-account threads are unsupported and report `removed: false`.
 
 ## `register`
 

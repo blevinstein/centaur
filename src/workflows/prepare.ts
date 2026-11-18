@@ -5,7 +5,8 @@ import { alias, type CentaurConfig, type ContextPolicy } from "../config/index.j
 import type { PosterClient, ThreadStore } from "./aws.js";
 import { parseConfigOrThrow, readConfigText } from "./config-file.js";
 import { buildPrompt, replySchema } from "./prompt.js";
-import { type ChatMessage, planTurn } from "./transcript.js";
+import { clearReactions, type ReactionSource } from "./reactions.js";
+import { type ChatMessage, pendingMessages, planTurn } from "./transcript.js";
 
 export const TURN_DIR = ".centaur-turn";
 export const PROMPT_FILE = `${TURN_DIR}/prompt.md`;
@@ -22,6 +23,7 @@ export interface TurnState {
   threadId?: string;
   policy: ContextPolicy;
   marker?: string;
+  source?: ReactionSource;
   sessionDirectory: string;
 }
 
@@ -47,6 +49,7 @@ interface Turn {
   threadId?: string;
   policy: ContextPolicy;
   marker?: string;
+  source?: ReactionSource;
   prompt: string;
   resumeSessionId?: string;
   canStaySilent?: boolean;
@@ -89,9 +92,15 @@ async function chatTurn(
     threadId,
   });
   const marker = messages.at(-1)?.id;
+  const lastProcessed = await store.readMarker();
+  const source: ReactionSource = {
+    bot: config.bot,
+    threadId,
+    messageIds: pendingMessages(messages, lastProcessed).map((m) => m.id),
+  };
   const plan = planTurn({
     messages,
-    marker: await store.readMarker(),
+    marker: lastProcessed,
     defaultPolicy: config.context.default,
   });
   const post = (text: string) =>
@@ -106,6 +115,7 @@ async function chatTurn(
     case "ack":
       await post(`Context policy for this thread: ${plan.policy}.`);
       await markProcessed();
+      await clearReactions(deps.poster, source);
       return undefined;
     case "new-thread": {
       await post(NEW_THREAD_ACK);
@@ -116,11 +126,13 @@ async function chatTurn(
           bot: config.bot,
           text: NEW_THREAD_OPENING,
         });
+        await clearReactions(deps.poster, source);
         return undefined;
       }
       return {
         mode: "start-thread",
         policy: config.context.default,
+        source,
         prompt: buildPrompt({ messages: plan.seed }),
       };
     }
@@ -135,6 +147,7 @@ async function chatTurn(
         mode: "reply",
         threadId,
         policy: plan.policy,
+        source,
         ...(marker ? { marker } : {}),
         ...(resumeSessionId ? { resumeSessionId } : {}),
         ...(canStaySilent ? { canStaySilent } : {}),
@@ -193,6 +206,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     sessionDirectory: directory,
     ...(turn.threadId ? { threadId: turn.threadId } : {}),
     ...(turn.marker ? { marker: turn.marker } : {}),
+    ...(turn.source ? { source: turn.source } : {}),
   };
   await mkdir(join(deps.workspace, TURN_DIR), { recursive: true });
   await writeFile(join(deps.workspace, PROMPT_FILE), turn.prompt);

@@ -108,8 +108,16 @@ Commands: `register`, `prepare`, `finish`, `notify-failure`.
    it (`post`, or `start-thread` for scheduled prompts and `/new`), advances the marker and saves the
    session for `resume` threads. When the agent returned `ignore: true` nothing is posted unless a
    pull request was opened, in which case only its link is posted;  the marker and session are still saved.
-5. On failure, `notify-failure` posts a generic notice with the run URL; the marker is not
-   advanced, so the messages are retried on the next turn.
+   Last, it removes the 👀 reaction (`unreact`) from every message the turn processed, so a message
+   that still shows 👀 is still being worked on.
+5. On failure, `notify-failure` posts a generic notice with the run URL, then removes the 👀
+   reactions; the marker is not advanced, so the messages are retried on the next turn.
+
+`prepare` records the thread and the IDs of the pending messages (IDs only, no content) in
+`.centaur-turn/state.json` for `finish` and `notify-failure`. Turns that end in `prepare`
+(acknowledged policy commands, a bare `/new`) clear the reactions there. Removing reactions is
+best-effort: a failure is logged as a warning and never fails the job or holds back the reply. If
+`prepare` itself fails before writing the state, the reactions stay.
 
 `concurrency: centaur-<bot>-<thread>` serializes turns per thread; scheduled runs use the run id.
 

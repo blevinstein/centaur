@@ -1,4 +1,4 @@
-import type { Adapter, Chat, StateAdapter } from "chat";
+import { type Adapter, type Chat, emoji, type Logger, type StateAdapter } from "chat";
 import { z } from "zod";
 import { alias, type Platform } from "../config/index.js";
 import type { OidcVerifier } from "./oidc.js";
@@ -9,6 +9,7 @@ import { type Bot, botStatePrefix, loadBot, readRegistryEntry } from "./registry
 import type { TelegramApi } from "./telegram.js";
 
 const TOPIC_NAME_MAX = 128;
+export const UNREACT_MAX_MESSAGES = 50;
 
 const text = z.string().min(1);
 const threadId = z.string().min(1);
@@ -22,6 +23,12 @@ export const posterRequestSchema = z.discriminatedUnion("operation", [
     title: z.string().min(1).max(TOPIC_NAME_MAX).optional(),
   }),
   z.strictObject({ operation: z.literal("read"), bot: alias, threadId }),
+  z.strictObject({
+    operation: z.literal("unreact"),
+    bot: alias,
+    threadId,
+    messageIds: z.array(z.string().min(1)).min(1).max(UNREACT_MAX_MESSAGES),
+  }),
   z.strictObject({ operation: z.literal("register"), token: z.string().min(1), config: text }),
 ]);
 
@@ -39,6 +46,7 @@ export interface PosterDeps {
   telegram: TelegramApi;
   oidc: OidcVerifier;
   functionUrl: string;
+  logger: Pick<Logger, "warn">;
 }
 
 interface OpenedThread {
@@ -67,7 +75,7 @@ const THREAD_OPENERS: Record<Platform, ThreadOpener> = {
 const firstLine = (value: string) => value.trim().split("\n")[0]?.slice(0, TOPIC_NAME_MAX) ?? "";
 
 export function createPoster(deps: PosterDeps) {
-  const { params, stateFor, chatFor, telegram } = deps;
+  const { params, stateFor, chatFor, telegram, logger } = deps;
   const register = createRegister({
     params,
     registryState: stateFor(""),
@@ -132,6 +140,26 @@ export function createPoster(deps: PosterDeps) {
           });
         }
         return { messages };
+      }
+      case "unreact": {
+        const { bot, chat } = await openChat(request.bot);
+        const thread = chat.thread(request.threadId);
+        const results = [];
+        for (const messageId of request.messageIds) {
+          try {
+            await thread.adapter.removeReaction(thread.id, messageId, emoji.eyes);
+            results.push({ messageId, removed: true });
+          } catch (error) {
+            logger.warn("failed to remove reaction", {
+              bot: bot.name,
+              threadId: request.threadId,
+              messageId,
+              error,
+            });
+            results.push({ messageId, removed: false });
+          }
+        }
+        return { results };
       }
     }
   };

@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { finish, notifyFailure } from "../src/workflows/finish.js";
 import { PROMPT_FILE, type PrepareDeps, prepare, STATE_FILE } from "../src/workflows/prepare.js";
 import {
@@ -64,7 +64,12 @@ describe("prepare", () => {
     const text = await prompt(root);
     expect(text).toContain("Earlier messages in this thread");
     expect(text).toContain("Sam: new");
-    expect(await state(root)).toMatchObject({ mode: "reply", policy: "transcript", marker: "3" });
+    expect(await state(root)).toMatchObject({
+      mode: "reply",
+      policy: "transcript",
+      marker: "3",
+      source: { bot: "sprout", threadId: THREAD, messageIds: ["3"] },
+    });
   });
 
   it.each([
@@ -176,7 +181,7 @@ describe("prepare", () => {
   it("acknowledges a bare policy command and marks it processed", async () => {
     const { deps, aws } = await setup([message("1", "/transcript")]);
     expect(await prepare(deps())).toMatchObject({ skip: true });
-    expect(aws.requests.at(-1)).toMatchObject({ operation: "post", threadId: THREAD });
+    expect(aws.requests.map((r) => r.operation)).toEqual(["read", "post", "unreact"]);
     expect(aws.objects.get(`${THREAD_PREFIX}last-processed`)).toBe("1");
   });
 
@@ -192,7 +197,12 @@ describe("prepare", () => {
   it("opens an empty thread for a bare /new without running the agent", async () => {
     const { deps, aws } = await setup([message("1", "/new")]);
     expect(await prepare(deps())).toMatchObject({ skip: true });
-    expect(aws.requests.map((r) => r.operation)).toEqual(["read", "post", "start-thread"]);
+    expect(aws.requests.map((r) => r.operation)).toEqual([
+      "read",
+      "post",
+      "start-thread",
+      "unreact",
+    ]);
   });
 
   it("builds a scheduled turn from the named prompt", async () => {
@@ -235,13 +245,63 @@ describe("finish", () => {
       storeFor: aws.storeFor,
     });
 
-    expect(aws.requests.at(-1)).toMatchObject({
+    expect(aws.requests.at(-2)).toMatchObject({
       operation: "post",
       threadId: THREAD,
       text: "Done.\n\nPull request: https://example.test/pr/1",
     });
     expect(aws.objects.get(`${THREAD_PREFIX}last-processed`)).toBe("1");
     expect(aws.objects.get(`${THREAD_PREFIX}s1.jsonl`)).toBe("data");
+    expect(aws.requests.map((r) => r.operation)).toEqual(["read", "post", "unreact"]);
+    expect(aws.requests.at(-1)).toEqual({
+      operation: "unreact",
+      bot: "sprout",
+      threadId: THREAD,
+      messageIds: ["1"],
+    });
+  });
+
+  it("clears the reactions of every pending message, not the bot's own", async () => {
+    const { deps, aws, root, executionFile, writeExecution } = await setup([
+      message("1", "old"),
+      botMessage("2", "r"),
+      message("3", "a"),
+      message("4", "b"),
+    ]);
+    await prepare(deps());
+    await writeExecution({ structured_output: { reply: "ok" } });
+
+    await finish({ workspace: root, executionFile, poster: aws.poster, storeFor: aws.storeFor });
+
+    expect(aws.requests.at(-1)).toMatchObject({ operation: "unreact", messageIds: ["3", "4"] });
+  });
+
+  it("still succeeds when clearing reactions fails, logging nothing from the chat", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { deps, aws, root, executionFile, writeExecution } = await setup([
+      message("1", "secret plans"),
+    ]);
+    const failing = createFakeAws((request) => {
+      if (request.operation === "unreact") throw new Error("secret plans");
+      return {};
+    });
+    await prepare(deps());
+    await writeExecution({ structured_output: { reply: "secret reply" } });
+
+    await finish({
+      workspace: root,
+      executionFile,
+      poster: failing.poster,
+      storeFor: aws.storeFor,
+    });
+
+    expect(failing.requests.map((r) => r.operation)).toEqual(["post", "unreact"]);
+    expect(aws.objects.get(`${THREAD_PREFIX}last-processed`)).toBe("1");
+    expect(warn).toHaveBeenCalledOnce();
+    const logged = JSON.stringify(warn.mock.calls);
+    expect(logged).toContain("could not clear reactions");
+    expect(logged).not.toContain("secret");
+    warn.mockRestore();
   });
 
   it("starts a thread for scheduled turns and keys the session by the new thread", async () => {
@@ -260,6 +320,7 @@ describe("finish", () => {
 
     await finish({ workspace: root, executionFile, poster: aws.poster, storeFor: aws.storeFor });
 
+    expect(aws.requests.map((r) => r.operation)).toEqual(["start-thread"]);
     expect(aws.requests.at(-1)).toMatchObject({
       operation: "start-thread",
       text: "Tasks",
@@ -284,7 +345,8 @@ describe("finish", () => {
       storeFor: aws.storeFor,
     });
 
-    expect(aws.requests.at(-1)).toMatchObject({
+    expect(aws.requests.map((r) => r.operation)).toEqual(["read", "post", "unreact"]);
+    expect(aws.requests.at(-2)).toMatchObject({
       operation: "post",
       text: "Pull request: https://example.test/pr/2",
     });
@@ -307,7 +369,7 @@ describe("finish", () => {
       storeFor: aws.storeFor,
     });
 
-    expect(aws.requests.map((r) => r.operation)).toEqual(["read"]);
+    expect(aws.requests.map((r) => r.operation)).toEqual(["read", "unreact"]);
     expect(aws.objects.get(`${THREAD_PREFIX}last-processed`)).toBe("1");
     expect(aws.objects.get(`${THREAD_PREFIX}s3.jsonl`)).toBe("data");
   });
@@ -357,10 +419,27 @@ describe("notifyFailure", () => {
       poster: aws.poster,
       runUrl: "https://example.test/run/1",
     });
-    expect(aws.requests.at(-1)).toMatchObject({
+    expect(aws.requests.at(-2)).toMatchObject({
       operation: "post",
       text: expect.stringContaining("https://example.test/run/1"),
     });
+    expect(aws.requests.at(-1)).toMatchObject({ operation: "unreact", messageIds: ["1"] });
+    expect(aws.objects.size).toBe(0);
+  });
+
+  it("clears reactions even when the notice cannot be posted", async () => {
+    const { deps, aws, root } = await setup([message("1", "hi")]);
+    await prepare(deps());
+    const broken = createFakeAws((request) => {
+      if (request.operation === "post") throw new Error("down");
+      return {};
+    });
+
+    await expect(
+      notifyFailure({ workspace: root, poster: broken.poster, runUrl: "https://example.test/r" }),
+    ).rejects.toThrow(/post failed/);
+
+    expect(broken.requests.map((r) => r.operation)).toEqual(["post", "unreact"]);
     expect(aws.objects.size).toBe(0);
   });
 });

@@ -159,3 +159,64 @@ describe("poster read", () => {
     });
   });
 });
+
+describe("poster unreact", () => {
+  it("removes the eyes reaction from each message through the bot's chat", async () => {
+    const { poster, removeReaction, thread } = await posterSetup();
+
+    const result = await poster({
+      operation: "unreact",
+      bot: "garden",
+      threadId: GARDEN_THREAD,
+      messageIds: ["1", "2"],
+    });
+
+    expect(result).toEqual({
+      results: [
+        { messageId: "1", removed: true },
+        { messageId: "2", removed: true },
+      ],
+    });
+    expect(removeReaction).toHaveBeenCalledTimes(2);
+    expect(removeReaction).toHaveBeenCalledWith(thread.id, "1", expect.objectContaining({}));
+    expect(thread.post).not.toHaveBeenCalled();
+  });
+
+  it("logs a failed message by ID and carries on with the rest", async () => {
+    const { poster, removeReaction, logger } = await posterSetup();
+    removeReaction.mockRejectedValueOnce(new Error("no_reaction"));
+
+    const result = await poster({
+      operation: "unreact",
+      bot: "garden",
+      threadId: GARDEN_THREAD,
+      messageIds: ["1", "2"],
+    });
+
+    expect(result).toEqual({
+      results: [
+        { messageId: "1", removed: false },
+        { messageId: "2", removed: true },
+      ],
+    });
+    expect(logger.warn).toHaveBeenCalledWith(
+      "failed to remove reaction",
+      expect.objectContaining({ bot: "garden", threadId: GARDEN_THREAD, messageId: "1" }),
+    );
+  });
+
+  it.each([
+    ["no messages", { messageIds: [] }],
+    ["too many messages", { messageIds: Array.from({ length: 51 }, (_, i) => String(i + 1)) }],
+    ["an empty message ID", { messageIds: [""] }],
+    ["extra fields", { messageIds: ["1"], text: "hi" }],
+    ["an unknown bot", { messageIds: ["1"], bot: "nobody" }],
+  ])("rejects %s", async (_name, overrides) => {
+    const { poster, removeReaction } = await posterSetup();
+
+    await expect(
+      poster({ operation: "unreact", bot: "garden", threadId: GARDEN_THREAD, ...overrides }),
+    ).rejects.toThrow();
+    expect(removeReaction).not.toHaveBeenCalled();
+  });
+});

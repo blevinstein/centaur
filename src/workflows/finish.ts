@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import type { PosterClient, ThreadStore } from "./aws.js";
 import { STATE_FILE, type TurnState } from "./prepare.js";
+import { clearReactions } from "./reactions.js";
 
 const resultMessage = z.object({
   type: z.literal("result"),
@@ -81,17 +82,23 @@ export async function finish(deps: FinishDeps) {
   if (state.policy === "resume" && result.sessionId) {
     await store.saveSession(state.sessionDirectory, result.sessionId);
   }
+  await clearReactions(deps.poster, state.source);
 }
 
 export async function notifyFailure(
   deps: Pick<FinishDeps, "workspace" | "poster"> & { runUrl: string },
 ) {
   const state = await readState(deps.workspace);
-  if (state.mode !== "reply" || !state.threadId) return;
-  await deps.poster.call({
-    operation: "post",
-    bot: state.bot,
-    threadId: state.threadId,
-    text: `That turn failed. Details are in the workflow run: ${deps.runUrl}`,
-  });
+  try {
+    if (state.mode === "reply" && state.threadId) {
+      await deps.poster.call({
+        operation: "post",
+        bot: state.bot,
+        threadId: state.threadId,
+        text: `That turn failed. Details are in the workflow run: ${deps.runUrl}`,
+      });
+    }
+  } finally {
+    await clearReactions(deps.poster, state.source);
+  }
 }

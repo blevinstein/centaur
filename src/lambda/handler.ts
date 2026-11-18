@@ -61,6 +61,7 @@ async function buildPoster() {
       audience: requiredEnv("OIDC_AUDIENCE"),
     }),
     functionUrl,
+    logger,
   });
 }
 

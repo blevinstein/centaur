@@ -62,7 +62,10 @@ export const fakeTelegram = () => ({
 
 export function fakePosterChat(transcript: unknown[] = []) {
   const state: ThreadMetadata = {};
+  const removeReaction = vi.fn(async () => {});
   const thread = {
+    id: "telegram:-100500:77",
+    adapter: { removeReaction },
     post: vi.fn(async () => ({ id: "sent-1" })),
     setState: vi.fn(async (next: ThreadMetadata) => {
       Object.assign(state, next);
@@ -77,7 +80,14 @@ export function fakePosterChat(transcript: unknown[] = []) {
     thread: vi.fn(() => thread),
     channel: vi.fn(() => ({ post: channelPost })),
   };
-  return { chat: chat as unknown as PosterChat, chatMock: chat, thread, channelPost, state };
+  return {
+    chat: chat as unknown as PosterChat,
+    chatMock: chat,
+    thread,
+    removeReaction,
+    channelPost,
+    state,
+  };
 }
 
 export async function posterSetup(
@@ -98,6 +108,7 @@ export async function posterSetup(
   const telegram = fakeTelegram();
   const oidc = fakeOidc();
   const posting = fakePosterChat(options.transcript);
+  const logger = { warn: vi.fn() };
   const stateFor = vi.fn((prefix: string) => (prefix === "" ? registryState : createMemoryState()));
   const chatFor = vi.fn(() => posting.chat);
   const poster = createPoster({
@@ -107,6 +118,7 @@ export async function posterSetup(
     telegram,
     oidc,
     functionUrl: FUNCTION_URL,
+    logger,
   });
-  return { poster, params, registryState, telegram, oidc, chatFor, stateFor, ...posting };
+  return { poster, logger, params, registryState, telegram, oidc, chatFor, stateFor, ...posting };
 }
