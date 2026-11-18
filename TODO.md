@@ -127,12 +127,16 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
 
 - [ ] Access requests record the chat title as `(unknown)` for an approved Telegram group; check
       whether the title is available on the request (and shown in the admin DM) and store it.
-- [ ] Approvals create aliases: approving a chat or user through an access request also records a
-      global alias (`/centaur/chats/<alias>` or `/centaur/users/<alias>/<platform>`) from the
-      title or display name (numeric suffix on collision), shown in the admin DM, so scheduled
-      prompt destinations and `allow` resolve without `centaur chat add` / `centaur user add`.
-      Add `--alias` to `centaur access approve`, then drop the manual commands from the onboarding
-      docs and keep them as an escape hatch.
+- [ ] Remove the allowlists from `.centaur.yml`; access is only the admin's approvals.
+      Drop `allow` and `chats` (strict schema errors pointing at `centaur access` and the admin
+      flow); access = admin (implicit) + per-bot approved chats/users in SSM, blocked wins;
+      `respond_to: all` applies to every approved chat of the bot. A prompt's `destination` stays
+      a required chat alias that must resolve to a chat approved for the bot, so approvals create
+      the alias (from the chat title, numeric suffix on collision; shown in the admin DM;
+      `--alias` on `centaur access approve`). Remove user aliases (`centaur user add|list`,
+      `/centaur/users/*`, the IAM read) and keep `centaur chat add|list` for aliases only.
+      Update registry entries (`register` stops writing `allow`/`chats`; stored legacy entries
+      still read), the receiver, docs and the two consumer configs, and re-register.
 
 ## Later
 
