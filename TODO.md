@@ -151,3 +151,8 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
 - [ ] Agent-scheduled follow-ups via EventBridge Scheduler.
 - [ ] Per-thread turn or token caps for `resume` sessions.
 - [ ] Contribute the DynamoDB state adapter upstream, if we write one.
+- [ ] Additional MCP servers configurable in `.centaur.yml`: a schema section listing servers
+      (name, command and args, or URL, plus env), written into the turn's MCP config for
+      `claude-code-action`, with secrets referenced by name from repo secrets and never inline.
+      Decide how `allowed_tools` names them (`mcp__<server>__*`) and how a consumer repo trusts
+      the servers it lists.
