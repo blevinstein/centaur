@@ -211,4 +211,5 @@ centaur bot add garden --platform telegram
 - [docs/poster.md](docs/poster.md): the Lambda operations workflows invoke.
 - [docs/research.md](docs/research.md): requirements and options considered.
 
-Development: see [AGENTS.md](AGENTS.md). Tasks: [TODO.md](TODO.md).
+Development: see [AGENTS.md](AGENTS.md). Tasks: [TODO.md](TODO.md). Licensed under the
+[MIT License](LICENSE).

@@ -139,8 +139,7 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
 - [x] **[HUMAN APPROVAL]** Garden PR #7: the first `weekly-tasks` run opened it with the old
       generic title. Merge or close it, then re-run `weekly-tasks` to check the agent-written title
       and body.
-- [ ] **[HUMAN APPROVAL]** Choose a license; the public repo has no `LICENSE` file. An agent can
-      write the file once you pick.
+- [x] **[HUMAN APPROVAL]** Choose a license: MIT (`LICENSE`).
 
 ## 9. Follow-ups
 
