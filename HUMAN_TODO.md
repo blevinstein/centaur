@@ -103,3 +103,7 @@ Unblocked by section 4.
       agent. Run `gh secret set ANTHROPIC_API_KEY -R <owner>/garden` and paste the key.
 - [ ] **A second bot for `garden`.** Create it in BotFather and run `centaur bot add garden
       --platform telegram`; also create the household group and enroll the household member.
+- [ ] **License.** The repo is public and has no `LICENSE` file. Choose one and add it (an agent can
+      write the file once you pick).
+- [ ] **Garden PR #7.** The first `weekly-tasks` run opened it with the old generic title. Merge or
+      close it, then re-run `weekly-tasks` to check the agent-written title and body.

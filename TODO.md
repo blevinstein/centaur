@@ -100,6 +100,10 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
 
 ## Follow-ups
 
+- [ ] Align alias naming: the CLI accepts aliases matching `[a-z0-9][a-z0-9-]*` but the config
+      schema's prompt `destination` allows underscores, so such an alias cannot be created with
+      `centaur access approve --alias`. Make the CLI and schema use one pattern (allowing `_` in
+      the CLI is the smaller change) and update `docs/cli.md` and `docs/config.md`.
 - [ ] Close the first-registration race on `bots/<bot>/repo` with a conditional `PutParameter`.
 - [ ] Add a routing test for `src/lambda/handler.ts`.
 - [ ] Cache SSM reads in the receiver; each accepted message makes 1 to 3 SSM calls.
