@@ -28,3 +28,10 @@
   layout is in `docs/plan.md`. Never accept secrets as flags.
 - `npm run bundle:lambda` builds the Lambda to `dist/lambda/index.mjs`; `scripts/deploy.sh`
   (`npm run deploy-prod`) bundles, uploads and deploys the stack (see `docs/deploy.md`).- Biome covers code and JSON only; Markdown and YAML are not auto-formatted.
+- Chat SDK slash commands (`onSlashCommand`) bypass the message handler and its allowlist, so each
+  slash handler authorizes itself and falls back to `processMessage` for anything it doesn't own.
+- The Lambda `ParameterStore` (`src/lambda/parameters.ts`) and the CLI one
+  (`src/cli/parameter-store.ts`) are separate interfaces; adding a method means updating
+  `fakeParameterStore` (`test/helpers/receiver-fixtures.ts`) or `FakeParameterStore`.
+- Run `npm run lint:cfn` after IAM or template changes; set up with `python3 -m venv .venv &&
+  .venv/bin/pip install -r requirements-dev.txt`.

@@ -290,7 +290,8 @@ Why this is safe: the code has enough entropy that guessing is infeasible, and e
 allows at most 5 wrong attempts (counted in the state table per claim, then the claim is deleted),
 so online guessing cannot succeed; only the hash is stored, so reading SSM does not reveal a live
 code; the window is short and a claim is single-use; an absent, expired, wrong-bot or non-DM
-attempt is treated as an ordinary message, so nobody learns whether a claim exists; nothing logs
+attempt (including a bare `/start`) is processed as an ordinary message, so an unknown user
+tapping **Start** still creates an access request and nobody learns whether a claim exists; nothing logs
 the code or hash, only the claimant's ID. Whoever can run the CLI already controls the stack, so
 the claim adds no new authority. Anyone who sees the link before the owner uses it can take the
 admin role, so open it right away or `--cancel` it. The admin is allowed in every bot on its

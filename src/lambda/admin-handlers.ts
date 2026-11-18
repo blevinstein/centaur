@@ -6,7 +6,7 @@ import { CLAIM_COMMANDS } from "./admin-claims.js";
 import type { BotChat } from "./chat.js";
 
 export function registerAdminHandlers(
-  chat: Pick<BotChat, "onReaction" | "onSlashCommand">,
+  chat: Pick<BotChat, "onReaction" | "onSlashCommand" | "processMessage">,
   channel: AdminChannel,
   decisions: AccessDecisions,
   claimAdmin: AdminClaimer,
@@ -22,12 +22,21 @@ export function registerAdminHandlers(
   });
   chat.onSlashCommand(CLAIM_COMMANDS, async (event) => {
     const code = event.text.trim().split(/\s+/)[0];
-    if (!code) return;
-    const reply = await claimAdmin({
-      userId: event.user.userId,
-      isDM: event.adapter.isDM?.(event.channel.id) ?? false,
-      code,
-    });
-    if (reply) await event.channel.post(reply);
+    const reply = code
+      ? await claimAdmin({
+          userId: event.user.userId,
+          isDM: event.adapter.isDM?.(event.channel.id) ?? false,
+          code,
+        })
+      : undefined;
+    if (reply) {
+      await event.channel.post(reply);
+      return;
+    }
+    await chat.processMessage(
+      event.adapter,
+      event.channel.id,
+      event.adapter.parseMessage(event.raw),
+    );
   });
 }
