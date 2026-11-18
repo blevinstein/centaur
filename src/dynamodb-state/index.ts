@@ -41,15 +41,18 @@ const FREE_OR_EXPIRED = "attribute_not_exists(pk) OR expiresAt <= :now";
 export interface DynamoDbStateOptions {
   tableName: string;
   client?: DynamoDBDocumentClient;
+  keyPrefix?: string;
 }
 
 export class DynamoDbStateAdapter implements StateAdapter {
   private readonly tableName: string;
   private readonly client: DynamoDBDocumentClient;
+  private readonly keyPrefix: string;
   private lastSortMs = 0;
 
-  constructor({ tableName, client }: DynamoDbStateOptions) {
+  constructor({ tableName, client, keyPrefix = "" }: DynamoDbStateOptions) {
     this.tableName = tableName;
+    this.keyPrefix = keyPrefix;
     this.client = client ?? DynamoDBDocumentClient.from(new DynamoDBClient({}));
   }
 
@@ -58,22 +61,22 @@ export class DynamoDbStateAdapter implements StateAdapter {
   async disconnect(): Promise<void> {}
 
   async subscribe(threadId: string): Promise<void> {
-    await this.putItem({ pk: pk("sub", threadId), sk: SINGLETON_SK });
+    await this.putItem({ pk: this.pk("sub", threadId), sk: SINGLETON_SK });
   }
 
   async unsubscribe(threadId: string): Promise<void> {
-    await this.deleteItem(pk("sub", threadId), SINGLETON_SK);
+    await this.deleteItem(this.pk("sub", threadId), SINGLETON_SK);
   }
 
   async isSubscribed(threadId: string): Promise<boolean> {
-    return (await this.getItem(pk("sub", threadId))) !== undefined;
+    return (await this.getItem(this.pk("sub", threadId))) !== undefined;
   }
 
   async acquireLock(threadId: string, ttlMs: number): Promise<Lock | null> {
     const lock: Lock = { threadId, token: randomUUID(), expiresAt: Date.now() + ttlMs };
     const acquired = await this.ifConditionHolds(() =>
       this.putItem(
-        { pk: pk("lock", threadId), sk: SINGLETON_SK, token: lock.token },
+        { pk: this.pk("lock", threadId), sk: SINGLETON_SK, token: lock.token },
         lock.expiresAt,
         true,
       ),
@@ -87,7 +90,7 @@ export class DynamoDbStateAdapter implements StateAdapter {
       this.client.send(
         new UpdateCommand({
           TableName: this.tableName,
-          Key: { pk: pk("lock", lock.threadId), sk: SINGLETON_SK },
+          Key: { pk: this.pk("lock", lock.threadId), sk: SINGLETON_SK },
           UpdateExpression: "SET expiresAt = :expiresAt, #ttl = :ttl",
           ConditionExpression: "#token = :token AND expiresAt > :now",
           ExpressionAttributeNames: { "#ttl": "ttl", "#token": "token" },
@@ -104,7 +107,7 @@ export class DynamoDbStateAdapter implements StateAdapter {
 
   async releaseLock(lock: Lock): Promise<void> {
     await this.ifConditionHolds(() =>
-      this.deleteItem(pk("lock", lock.threadId), SINGLETON_SK, {
+      this.deleteItem(this.pk("lock", lock.threadId), SINGLETON_SK, {
         ConditionExpression: "#token = :token",
         ExpressionAttributeNames: { "#token": "token" },
         ExpressionAttributeValues: { ":token": lock.token },
@@ -113,17 +116,17 @@ export class DynamoDbStateAdapter implements StateAdapter {
   }
 
   async forceReleaseLock(threadId: string): Promise<void> {
-    await this.deleteItem(pk("lock", threadId), SINGLETON_SK);
+    await this.deleteItem(this.pk("lock", threadId), SINGLETON_SK);
   }
 
   async get<T = unknown>(key: string): Promise<T | null> {
-    const item = await this.getItem(pk("kv", key));
+    const item = await this.getItem(this.pk("kv", key));
     return item && !isExpired(item) ? (JSON.parse(item.value as string) as T) : null;
   }
 
   async set<T = unknown>(key: string, value: T, ttlMs?: number): Promise<void> {
     await this.putItem(
-      { pk: pk("kv", key), sk: SINGLETON_SK, value: JSON.stringify(value) },
+      { pk: this.pk("kv", key), sk: SINGLETON_SK, value: JSON.stringify(value) },
       expiryFrom(ttlMs),
     );
   }
@@ -131,7 +134,7 @@ export class DynamoDbStateAdapter implements StateAdapter {
   async setIfNotExists(key: string, value: unknown, ttlMs?: number): Promise<boolean> {
     return this.ifConditionHolds(() =>
       this.putItem(
-        { pk: pk("kv", key), sk: SINGLETON_SK, value: JSON.stringify(value) },
+        { pk: this.pk("kv", key), sk: SINGLETON_SK, value: JSON.stringify(value) },
         expiryFrom(ttlMs),
         true,
       ),
@@ -139,7 +142,7 @@ export class DynamoDbStateAdapter implements StateAdapter {
   }
 
   async delete(key: string): Promise<void> {
-    await this.deleteItem(pk("kv", key), SINGLETON_SK);
+    await this.deleteItem(this.pk("kv", key), SINGLETON_SK);
   }
 
   async appendToList(
@@ -147,7 +150,7 @@ export class DynamoDbStateAdapter implements StateAdapter {
     value: unknown,
     options?: { maxLength?: number; ttlMs?: number },
   ): Promise<void> {
-    const listPk = pk("list", key);
+    const listPk = this.pk("list", key);
     const sk = this.nextEntrySortKey();
     const expiresAt = expiryFrom(options?.ttlMs);
     const previousHeader = await this.putItem({ pk: listPk, sk: SINGLETON_SK }, expiresAt);
@@ -162,7 +165,7 @@ export class DynamoDbStateAdapter implements StateAdapter {
   }
 
   async getList<T = unknown>(key: string): Promise<T[]> {
-    const [header, ...entries] = await this.queryItems(pk("list", key));
+    const [header, ...entries] = await this.queryItems(this.pk("list", key));
     if (!header || header.sk !== SINGLETON_SK || isExpired(header)) {
       return [];
     }
@@ -171,7 +174,7 @@ export class DynamoDbStateAdapter implements StateAdapter {
 
   async enqueue(threadId: string, entry: QueueEntry, maxSize: number): Promise<number> {
     return this.pushEntry(
-      pk("queue", threadId),
+      this.pk("queue", threadId),
       this.nextEntrySortKey(),
       entry,
       entry.expiresAt,
@@ -180,7 +183,7 @@ export class DynamoDbStateAdapter implements StateAdapter {
   }
 
   async dequeue(threadId: string): Promise<QueueEntry | null> {
-    const queuePk = pk("queue", threadId);
+    const queuePk = this.pk("queue", threadId);
     for (;;) {
       const [oldest] = await this.queryItems(queuePk, 1);
       if (!oldest) {
@@ -198,13 +201,17 @@ export class DynamoDbStateAdapter implements StateAdapter {
   }
 
   async queueDepth(threadId: string): Promise<number> {
-    return (await this.queryItems(pk("queue", threadId))).length;
+    return (await this.queryItems(this.pk("queue", threadId))).length;
   }
 
   /**
    * Writes one entry, then deletes entries beyond `maxLength` (oldest first), or all entries but
    * the new one when `replaceExisting` is set. Returns the number of entries kept.
    */
+  private pk(kind: string, id: string): string {
+    return `${this.keyPrefix}${kind}:${id}`;
+  }
+
   private async pushEntry(
     partitionKey: string,
     sk: string,
@@ -306,10 +313,6 @@ export class DynamoDbStateAdapter implements StateAdapter {
 
 export function createDynamoDbState(options: DynamoDbStateOptions): DynamoDbStateAdapter {
   return new DynamoDbStateAdapter(options);
-}
-
-function pk(kind: string, id: string): string {
-  return `${kind}:${id}`;
 }
 
 function expiryFrom(ttlMs?: number): number | undefined {

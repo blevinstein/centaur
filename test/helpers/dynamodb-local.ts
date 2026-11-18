@@ -9,7 +9,7 @@ import { inject } from "vitest";
 import { createDynamoDbState } from "../../src/dynamodb-state/index.js";
 import { stateTableInput, TTL_ATTRIBUTE } from "../../src/dynamodb-state/table.js";
 
-export async function createAdapterOnFreshTable() {
+export async function createFreshTable() {
   const tableName = `state-${randomUUID()}`;
   const client = new DynamoDBClient({
     endpoint: inject("dynamodbEndpoint"),
@@ -23,5 +23,9 @@ export async function createAdapterOnFreshTable() {
       TimeToLiveSpecification: { AttributeName: TTL_ATTRIBUTE, Enabled: true },
     }),
   );
-  return createDynamoDbState({ tableName, client: DynamoDBDocumentClient.from(client) });
+  return { tableName, client: DynamoDBDocumentClient.from(client) };
+}
+
+export async function createAdapterOnFreshTable() {
+  return createDynamoDbState(await createFreshTable());
 }
