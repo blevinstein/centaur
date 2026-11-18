@@ -1,6 +1,6 @@
 # TODO
 
-Tasks in priority order, following the validation plan in [docs/plan.md](docs/plan.md#validation-plan).
+Tasks agents can do, in priority order, following the validation plan in [docs/plan.md](docs/plan.md#validation-plan).
 Earlier sections retire the most risk; finish them before building on their results. Check items
 off as they land, and record findings that change the design back into `docs/`.
 
@@ -35,7 +35,6 @@ off as they land, and record findings that change the design back into `docs/`.
       tests, starting from `state-memory`'s test suite.
 - [x] Run `Chat` end to end against the DynamoDB adapter on DynamoDB Local, checking how the
       core uses the `appendToList` TTL, `maxLength`, and expired queue entries.
-- [ ] Repeat that run against a deployed table.
 - [x] Add the state table (mirroring `stateTableInput`: pay-per-request, TTL on `ttl`) and its
       IAM access to `infra/centaur.yml`; make `chat` a runtime dependency once a Lambda consumes
       the package.
@@ -69,41 +68,32 @@ off as they land, and record findings that change the design back into `docs/`.
 
 ## 6. Shared workflows
 
-- [ ] `register.yml` (`workflow_call`): parse `.centaur.yml` and invoke `register`.
-- [ ] `agent-turn.yml` (`workflow_call`):
-  - [ ] Read `.centaur.yml` and the thread's context policy.
-  - [ ] Assemble context for `fresh`, `transcript`, and `resume`.
-  - [ ] Process all messages since the thread's last-processed marker.
-  - [ ] Run the agent, post the reply via the poster, open a PR when files changed.
-  - [ ] Per-thread `concurrency` group.
-  - [ ] Keep message content out of logs and artifacts.
-- [ ] In-chat commands: `/new`, `/resume`, `/transcript`.
+- [x] `register.yml` (`workflow_call`): parse `.centaur.yml` and invoke `register`.
+- [x] `agent-turn.yml` (`workflow_call`):
+  - [x] Read `.centaur.yml` and the thread's context policy.
+  - [x] Assemble context for `fresh`, `transcript`, and `resume`.
+  - [x] Process all messages since the thread's last-processed marker.
+  - [x] Run the agent, post the reply via the poster, open a PR when files changed.
+  - [x] Per-thread `concurrency` group.
+  - [x] Keep message content out of logs and artifacts.
+- [x] In-chat commands: `/new`, `/resume`, `/transcript`.
 - [x] Define and validate the `.centaur.yml` schema.
 
 ## 7. End-to-end on Telegram
 
-- [ ] Create a test bot and a test supergroup with topics; promote the bot to admin with
-      Manage Topics.
-- [ ] Message → dispatch → turn → reply round trip; measure latency.
-- [ ] Two bots in one group: confirm the ownership rules route messages correctly.
-- [ ] Scheduled run creates a new topic; a reply continues it under `transcript`.
-- [ ] Walk through `docs/onboarding.md` as written and fix anything that's wrong.
+Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
 
 ## 8. First consumer: `garden`
 
 - [ ] Add `.centaur.yml`, `.centaur/persona.md`, and `.centaur/prompts/weekly-tasks.md`.
 - [ ] Add the caller workflow with the Saturday schedule.
 - [ ] Update `garden`'s `AGENTS.md` so automated runs open PRs instead of pushing to `main`.
-- [ ] Onboard the household group and enroll both users.
 
 ## 9. Slack
 
 - [ ] App manifest template with the required scopes and event URL.
-- [ ] Decide one app per repo vs one shared app with per-message names.
-- [ ] Onboard one personal-project repo on Slack.
-- [ ] Slack expects an HTTP 200 within about 3 seconds, but the receiver awaits the reaction and
-      dispatch before responding, and a cold start adds SSM reads. Measure it and, if needed,
-      acknowledge first and finish in the background.
+- [ ] If Slack's 3-second acknowledgement limit is missed (see [HUMAN_TODO.md](HUMAN_TODO.md)),
+      acknowledge first and finish the reaction and dispatch in the background.
 
 ## Follow-ups
 

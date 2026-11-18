@@ -8,6 +8,12 @@
 - A branch checked out in another worktree can't be checked out here; reuse that worktree or
   remove it first.
 
+## Task lists
+
+- [TODO.md](TODO.md) holds work agents can do. [HUMAN_TODO.md](HUMAN_TODO.md) holds what only the
+  maintainer can do (accounts, live bots, decisions). When work stalls on a human step, add it to
+  `HUMAN_TODO.md` and keep it out of `TODO.md`.
+
 ## Development
 
 - TypeScript (ESM, Node 24 to match the Lambda runtime; see `.nvmrc`). Run `npm ci` once.
