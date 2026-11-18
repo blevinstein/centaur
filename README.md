@@ -9,6 +9,7 @@ Status: **design phase**; the agent runtime is validated and infrastructure is n
 - [docs/research.md](docs/research.md) — requirements, options considered, and findings.
 - [docs/plan.md](docs/plan.md) — architecture, configuration, context management, and the
   validation plan.
+- [docs/cli.md](docs/cli.md) — the `centaur` CLI for bots, users, and chats in SSM.
 - [docs/onboarding.md](docs/onboarding.md) — setup flow for each chat platform and for adding a
   new repo.
 

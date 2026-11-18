@@ -20,7 +20,7 @@ message first." That shapes the flow:
    (e.g. "Garden Helper") and a username ending in `bot`.
 2. Set the profile so it's recognizable in the group: `/setuserpic`, `/setdescription`,
    `/setabouttext`.
-3. Store the token in SSM with the CLI in this repo (e.g. `centaur bot add garden --platform
+3. Store the token in SSM with the [CLI](cli.md) in this repo (e.g. `centaur bot add garden --platform
    telegram`). It prompts for the token and generates the webhook secret.
 4. Push the consumer repo's `.centaur.yml` (see [Adding a repo](#adding-a-repo)). Its `register`
    job binds the bot to the repo and calls `setWebhook` with `url=<function URL>/telegram/<bot>`
