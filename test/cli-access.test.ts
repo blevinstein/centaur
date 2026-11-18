@@ -51,17 +51,23 @@ describe("access", () => {
     expect(await cli.store.get(`/centaur/bots/garden/approved-${kind}s/42`)).toBeUndefined();
   });
 
-  it("blocks and unblocks, keeping approvals untouched", async () => {
+  it("blocks by removing the approval, and unblocking does not restore it", async () => {
     const cli = await harnessWithBot();
     await cli.run("access", "approve", "garden", "user", "42");
 
     await cli.run("access", "block", "garden", "user", "42");
+    expect(await cli.store.get("/centaur/bots/garden/approved-users/42")).toBeUndefined();
     await cli.run("access", "list", "garden");
-    expect(cli.output.at(-1)).toMatch(/^approved {2}user {2}42 {2}- {2}.*\nblocked {2}user {2}42/);
-    expect(await cli.store.get("/centaur/bots/garden/approved-users/42")).toBeDefined();
+    expect(cli.output.at(-1)).toMatch(/^blocked {2}user {2}42/);
 
     await cli.run("access", "unblock", "garden", "user", "42");
-    expect(await cli.store.get("/centaur/bots/garden/blocked/user/42")).toBeUndefined();
+    expect(cli.store.names()).toEqual([BOT_PLATFORM]);
+  });
+
+  it("blocks a subject that was never approved", async () => {
+    const cli = await harnessWithBot();
+    await cli.run("access", "block", "garden", "chat", "-1");
+    expect(await cli.store.get("/centaur/bots/garden/blocked/chat/-1")).toBeDefined();
   });
 
   it("says when nothing is approved or blocked", async () => {

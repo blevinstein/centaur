@@ -119,9 +119,10 @@ Deletes the approval. Refuses if there is none. It does not remove baseline acce
 
 ### `centaur access block <bot> <chat|user> <id>` / `centaur access unblock <bot> <chat|user> <id>`
 
-`block` writes `/centaur/bots/<bot>/blocked/<kind>/<id>`; a blocked subject is ignored even if it
-is in `.centaur.yml` or approved, and gets no reply or request. `unblock` deletes the entry and
-refuses if there is none.
+`block` writes `/centaur/bots/<bot>/blocked/<kind>/<id>` and deletes the subject's approval; a
+blocked subject is ignored even if it is in `.centaur.yml`, and gets no reply or request. `unblock`
+deletes the block and refuses if there is none; the subject is then unapproved and can request
+access again (baseline access from `.centaur.yml` returns).
 
 ### `centaur access list <bot>`
 

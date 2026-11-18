@@ -58,11 +58,12 @@ export function registerAccessCommands(program: Command, context: CliContext): v
     }),
   );
 
-  subjectCommand("block", "Block a chat or user; blocked wins over every approval").action(
+  subjectCommand("block", "Block a chat or user and remove its approval").action(
     run(async (bot, kind, id) => {
       await context.store.put(blockedParameter(bot, kind, id), encodeEntry(undefined), {
         secure: false,
       });
+      await context.store.delete([approvedParameter(bot, kind, id)]);
       return `Blocked ${kind} ${id} for bot "${bot}".`;
     }),
   );

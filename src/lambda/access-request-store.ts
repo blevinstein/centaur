@@ -28,6 +28,7 @@ export interface AccessRequestLimits {
 const requestKey = (id: string) => `access-request:${id}`;
 const claimKey = (id: string) => `access-request-claim:${id}`;
 const subjectKey = (kind: AccessKind, subjectId: string) => `access-subject:${kind}:${subjectId}`;
+const noticeKey = (kind: AccessKind, subjectId: string) => `access-notice:${kind}:${subjectId}`;
 const messageKey = (messageId: string) => `access-request-message:${messageId}`;
 const RATE_KEY = "access-request-rate";
 
@@ -57,8 +58,14 @@ export function createAccessRequestStore(
     claimSubject: (kind: AccessKind, subjectId: string) =>
       state.setIfNotExists(subjectKey(kind, subjectId), true, ttlMs),
 
-    releaseSubject: (kind: AccessKind, subjectId: string) =>
-      state.delete(subjectKey(kind, subjectId)),
+    async releaseSubject(kind: AccessKind, subjectId: string) {
+      await state.delete(subjectKey(kind, subjectId));
+      await state.delete(noticeKey(kind, subjectId));
+    },
+
+    /** True only the first time it is called for the subject's pending request. */
+    claimPendingNotice: (kind: AccessKind, subjectId: string) =>
+      state.setIfNotExists(noticeKey(kind, subjectId), true, ttlMs),
 
     async create(fields: Omit<AccessRequest, "id" | "createdAt">): Promise<AccessRequest> {
       for (let attempt = 0; attempt < ID_ATTEMPTS; attempt++) {

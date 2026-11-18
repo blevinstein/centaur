@@ -66,7 +66,7 @@ export function createAccessRequester({
     const subjectId = kind === "chat" ? chatId : requesterId;
 
     if (!(await store.claimSubject(kind, subjectId))) {
-      await thread.post(PENDING_TEXT);
+      if (await store.claimPendingNotice(kind, subjectId)) await thread.post(PENDING_TEXT);
       return true;
     }
     if (await store.overLimit()) {

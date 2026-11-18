@@ -294,7 +294,7 @@ instance, and drops the cache when it records a decision, so the instance that h
 decision applies it at once and others within 30 seconds.
 
 **Limits.** One pending request per (bot, kind, subject); repeats get "My admin hasn't answered
-yet." and no new notification. At most 10 new requests per bot per hour; beyond that requests are
+yet." once per pending request, are then ignored silently, and never trigger a new notification. At most 10 new requests per bot per hour; beyond that requests are
 dropped silently with an `info` log. Requests expire after 7 days. A blocked subject triggers no
 reply, no notification and no request. Request IDs are six random characters (`node:crypto`),
 case-insensitive, and checked for uniqueness when created.

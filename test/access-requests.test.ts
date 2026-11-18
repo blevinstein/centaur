@@ -73,6 +73,11 @@ describe("access requester", () => {
 
     expect(h.adminPost).toHaveBeenCalledOnce();
     expect(second.post).toHaveBeenCalledExactlyOnceWith(PENDING_TEXT);
+
+    const third = fakeThread();
+    await h.requestAccess("chat", third.thread, fakeMessage({ isMention: true }));
+    expect(h.adminPost).toHaveBeenCalledOnce();
+    expect(third.post).not.toHaveBeenCalled();
   });
 
   it("tracks chat and user requests as separate subjects", async () => {
