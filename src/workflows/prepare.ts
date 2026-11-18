@@ -7,6 +7,7 @@ import {
   type ContextPolicy,
   PROVIDER_SETTINGS,
 } from "../config/index.js";
+import { threadKey } from "../thread-key.js";
 import type { AttachmentDownloader, PosterClient, ThreadStore } from "./aws.js";
 import { parseConfigOrThrow, readConfigText } from "./config-file.js";
 import { buildPrompt, replySchema } from "./prompt.js";
@@ -262,7 +263,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   return {
     skip: false,
     thread_id: turn.threadId ?? "",
-    branch: `centaur/${config.bot}-${safeRef(turn.threadId ?? `${deps.promptName ?? "new"}-${deps.runId}`)}`,
+    branch: `centaur/${config.bot}-${turn.threadId ? threadKey(config.bot, turn.threadId) : safeRef(`${deps.promptName ?? "new"}-${deps.runId}`)}`,
     base_url: PROVIDER_SETTINGS[config.provider].base_url ?? "",
     api_key_secret: PROVIDER_SETTINGS[config.provider].api_key_secret,
     claude_args: buildClaudeArgs({

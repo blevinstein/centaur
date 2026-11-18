@@ -47,7 +47,7 @@ permissions:
   pull-requests: write
   id-token: write
 concurrency:
-  group: centaur-${{ github.event.client_payload.bot }}-${{ github.event.client_payload.thread_id }}
+  group: centaur-${{ github.event.client_payload.bot }}-${{ github.event.client_payload.thread_key }}
   cancel-in-progress: false
 jobs:
   turn:
@@ -180,7 +180,11 @@ followed by a footer linking the workflow run and naming the bot and the schedul
 thread ID). When a field is missing or empty the title is `Centaur agent changes` (with `: <prompt
 name>` for scheduled prompts) and the body is the footer alone.
 
-`concurrency: centaur-<bot>-<thread>` serializes turns per thread; scheduled runs use the run id.
+`concurrency: centaur-<bot>-<thread key>` serializes turns per thread, where the thread key is the
+first 12 hex characters of a SHA-256 over the bot and thread ID (`src/thread-key.ts`), computed by
+the receiver and carried in the dispatch payload as `thread_key`. The PR branch is
+`centaur/<bot>-<thread key>` and stays the same across a thread's turns; scheduled runs use
+`<prompt>-<run id>` for the branch and need no group.
 
 ### Context policies
 
@@ -223,7 +227,9 @@ message is pending.
 - `show_full_output` is off, nothing is uploaded as an artifact, and the OIDC token is masked.
 - Poster errors report only the error type (`register` also its message, which describes config
   problems).
-- Thread IDs (chat IDs) do appear in the concurrency group name and in pull request branch names.
+- Thread IDs (chat IDs) do not appear in the concurrency group name or in pull request branch
+  names; both use the hashed thread key. The dispatch payload still carries the raw `thread_id`,
+  which GitHub does not show in the Actions UI or logs.
 
 ## Not implemented
 

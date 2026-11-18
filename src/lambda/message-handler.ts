@@ -1,5 +1,6 @@
 import { emoji, type Logger, type Message, type Thread } from "chat";
 import type { RespondTo } from "../config/index.js";
+import { threadKey } from "../thread-key.js";
 import type { AccessResolver } from "./access.js";
 import type { AccessRequester } from "./access-requests.js";
 import { type AdminClaimer, CLAIM_MESSAGE } from "./admin-claims.js";
@@ -94,6 +95,7 @@ export function createMessageHandler({
     await dispatcher.dispatch(bot.repo, DISPATCH_EVENT_TYPE, {
       bot: bot.name,
       thread_id: thread.id,
+      thread_key: threadKey(bot.name, thread.id),
       message_id: message.id,
     });
   };

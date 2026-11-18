@@ -161,7 +161,13 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
       action (`npm ci && npm run build`), `.nvmrc`/Corepack pinning, the docs that say `npm run`,
       and the `bin` and `deploy-prod` scripts. Verify lint, typecheck, tests, the Lambda bundle and
       `actionlint` still pass.
-- [ ] Stop exposing thread IDs (Telegram chat and topic IDs) in the per-thread concurrency group
+- [ ] **[HUMAN APPROVAL]** Roll out `thread_key` in this order, since a workflow that uses it
+      against a receiver that doesn't send it yet puts all of a bot's threads in one concurrency
+      group and drops pending turns: (1) deploy the receiver (`npm run deploy-prod`), (2) update
+      `garden`'s `.github/workflows/centaur-message.yml` to use `thread_key` in its concurrency
+      group, (3) merge or close open `centaur/<bot>-<raw thread id>` PRs, and (4) confirm on a real
+      run that the raw `thread_id` doesn't show in the Actions UI or logs.
+- [x] Stop exposing thread IDs (Telegram chat and topic IDs) in the per-thread concurrency group
       name and the `centaur/<bot>-<thread>` PR branch name; use a short hash. Needed before any
       public consumer repo such as `garden`.
 - [x] Admin claim flow so the owner never looks up their own ID (`centaur admin claim <bot>`; see

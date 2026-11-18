@@ -44,6 +44,10 @@
 - The receiver's `ParameterStore` is wrapped by `createCachedParameterStore`
   (`src/lambda/cached-parameters.ts`, 30s). `getByPath` and admin-claim reads are deliberately
   uncached; the poster and register paths use the raw store.
+- The dispatch payload carries `thread_key` (`src/thread-key.ts`, the 12-hex hash of bot and thread
+  ID), which the concurrency group and the PR branch use instead of raw thread IDs. A new public
+  name that would embed a thread ID must use `threadKey`, and a payload change must also update
+  `centaur-message.yml`, the template in `docs/workflows.md`, and `docs/plan.md`.
 - A new field in the agent's structured output goes in three places: `replySchema`
   (`src/workflows/prompt.ts`), `resultMessage` and `extractResult` (`src/workflows/finish.ts`), and
   `docs/workflows.md`. The PR step in `.github/actions/turn/action.yml` reads the `pr-details` outputs.

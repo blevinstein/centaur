@@ -59,7 +59,7 @@ in the diagram because it's invoked over IAM, not a public URL.
      the workflow removes when the turn finishes. A failed reaction is logged and does not block
      the dispatch.
   5. Send a `repository_dispatch` of type `centaur-message` to the bot's repo with payload
-     `{bot, thread_id, message_id}`. The message text stays out of GitHub so it never lands in
+     `{bot, thread_id, thread_key, message_id}`. The message text stays out of GitHub so it never lands in
      public logs.
 - Must finish before returning: Lambda freezes after the response, so no post-response work.
   Dispatching to GitHub is a single fast API call.
@@ -96,7 +96,8 @@ One agent turn:
    Agents never push to the default branch.
 6. Save the session file to S3 when the policy is `resume`.
 
-`concurrency: centaur-<bot>-<thread>` serializes turns per thread. GitHub keeps only the newest pending
+`concurrency: centaur-<bot>-<thread key>` serializes turns per thread (the key is a short hash, so
+the chat and topic IDs stay out of the group name and the PR branch). GitHub keeps only the newest pending
 run per concurrency group, so each turn processes **all** unprocessed messages since the thread's
 last-processed marker, not just the message that triggered it.
 

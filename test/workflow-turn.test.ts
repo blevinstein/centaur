@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { threadKey } from "../src/thread-key.js";
 import { finish, notifyFailure } from "../src/workflows/finish.js";
 import {
   MAX_PROMPT_IMAGES,
@@ -62,8 +63,9 @@ describe("prepare", () => {
     expect(out).toMatchObject({
       skip: false,
       thread_id: THREAD,
-      branch: "centaur/sprout-telegram--100-7",
+      branch: `centaur/sprout-${threadKey("sprout", THREAD)}`,
     });
+    expect(out.branch).not.toContain("100");
     expect(out.claude_args).toContain('--allowedTools "Read,Edit"');
     expect(out.claude_args).toContain("--append-system-prompt-file .centaur/persona.md");
     expect(out.claude_args).toContain("--json-schema");

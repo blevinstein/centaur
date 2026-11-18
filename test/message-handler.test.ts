@@ -7,6 +7,7 @@ import {
   createMessageHandler,
   REFUSAL_TEXT,
 } from "../src/lambda/message-handler.js";
+import { threadKey } from "../src/thread-key.js";
 import {
   accessFor,
   fakeAttachments,
@@ -51,6 +52,7 @@ describe("message handler", () => {
     expect(dispatcher.dispatch).toHaveBeenCalledExactlyOnceWith("octo/garden", "centaur-message", {
       bot: "garden",
       thread_id: thread.id,
+      thread_key: threadKey("garden", thread.id),
       message_id: message.id,
     });
     expect(JSON.stringify(dispatcher.dispatch.mock.calls)).not.toContain(MESSAGE_TEXT);
