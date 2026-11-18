@@ -13,6 +13,8 @@ Unblocks: everything below.
 
 - [ ] Copy `parameters.example.json` to `parameters-prod.json` and fill in the values (see
       [docs/deploy.md](docs/deploy.md) for where to find each). The file is gitignored.
+- [ ] Check whether the account already has a GitHub OIDC provider (an account can have only one).
+      If so, set `ExistingOidcProviderArn` in `parameters-prod.json` to its ARN.
 - [ ] Run `npm run deploy-prod`. It deploys the stack in two passes (bucket first, then the
       Lambda) and prints the outputs: function name, function URL, role ARN and session bucket.
 - [ ] If the function fails on cold start, check its CloudWatch logs and report what you see.
