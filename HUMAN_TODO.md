@@ -52,11 +52,13 @@ Use a scratch repo first; `garden` comes after this works.
 - [x] Message the bot in a topic: message → dispatch → turn → reply. Measured on the test group:
       about 47 s from dispatch to posted reply (queue 4 s, runtime setup 7 s, agent 27 s, post 3 s).
       The receiver's own response took under a second per request.
-- [ ] Run the scheduled prompt with `workflow_dispatch`; confirm it opens a new topic, then reply
-      and confirm the transcript carries over.
+- [x] Run the scheduled prompt with `workflow_dispatch`; it opened a new topic (checked in the state
+      table: thread marked `createdByBot`, the bot's post in the topic's history).
+- [ ] Reply in that topic (no mention needed) and confirm the reply carries the topic's context.
 - [ ] Add a second bot to the same group and confirm the ownership rules route messages correctly.
-- [ ] Repeat the `Chat`-against-DynamoDB run on the deployed table (a real message through the
-      deployed receiver is enough; check the table items afterwards).
+- [x] Repeat the `Chat`-against-DynamoDB run on the deployed table. Items checked: per-bot key
+      prefixes, TTLs on dedupe, webhook-update and history entries, unprefixed `registry:<bot>`,
+      and `thread-state` for the bot-created topic.
 - [ ] Walk through [docs/onboarding.md](docs/onboarding.md) as written and report anything wrong.
 - [ ] Report anything from the "verify on first live run" list in `docs/workflows.md` that breaks.
       Worked in the test repo: `execution_file` output shape, `repository_dispatch` with
