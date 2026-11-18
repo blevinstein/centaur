@@ -1,0 +1,39 @@
+name: Centaur register
+
+on:
+  workflow_call:
+    inputs:
+      centaur_repository:
+        description: Repository holding these workflows; defaults to the called workflow's repository.
+        type: string
+        default: ""
+      centaur_ref:
+        description: Ref of centaur_repository to build scripts from; defaults to the called workflow's commit.
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  register:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CENTAUR_FUNCTION_NAME: ${{ vars.CENTAUR_FUNCTION_NAME }}
+      CENTAUR_OIDC_AUDIENCE: ${{ vars.CENTAUR_OIDC_AUDIENCE }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.centaur_repository || job.workflow_repository }}
+          ref: ${{ inputs.centaur_ref || job.workflow_sha }}
+          path: .centaur-runtime
+          persist-credentials: false
+      - uses: ./.centaur-runtime/.github/actions/setup-runtime
+        with:
+          role-arn: ${{ vars.CENTAUR_ROLE_ARN }}
+          region: ${{ vars.CENTAUR_AWS_REGION }}
+      - name: Register the bot
+        run: node .centaur-runtime/dist/workflows/cli.js register

@@ -110,7 +110,7 @@ jobs:
     if: github.event_name != 'push'
     uses: <owner>/centaur/.github/workflows/agent-turn.yml@main
     with:
-      schedule_prompt: .centaur/prompts/weekly-tasks.md
+      prompt_name: weekly-tasks
     secrets: inherit
 ```
 

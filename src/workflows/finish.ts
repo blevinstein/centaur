@@ -1,0 +1,85 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { z } from "zod";
+import type { PosterClient, ThreadStore } from "./aws.js";
+import { STATE_FILE, type TurnState } from "./prepare.js";
+
+const resultMessage = z.object({
+  type: z.literal("result"),
+  session_id: z.string().optional(),
+  structured_output: z.object({
+    reply: z.string().min(1),
+    new_thread_title: z.string().min(1).optional(),
+  }),
+});
+
+export function extractResult(executionFileText: string) {
+  const entries = JSON.parse(executionFileText) as { type?: string }[];
+  const last = entries.findLast((entry) => entry.type === "result");
+  const parsed = resultMessage.safeParse(last);
+  if (!parsed.success) throw new Error("the agent produced no structured reply");
+  return {
+    reply: parsed.data.structured_output.reply,
+    title: parsed.data.structured_output.new_thread_title,
+    sessionId: parsed.data.session_id,
+  };
+}
+
+export interface FinishDeps {
+  workspace: string;
+  executionFile: string;
+  pullRequestUrl?: string | undefined;
+  poster: PosterClient;
+  storeFor: (bot: string, threadId: string) => ThreadStore;
+}
+
+const readState = async (workspace: string) =>
+  JSON.parse(await readFile(join(workspace, STATE_FILE), "utf8")) as TurnState;
+
+async function deliver(
+  poster: PosterClient,
+  state: TurnState,
+  text: string,
+  title: string | undefined,
+) {
+  if (state.mode === "reply" && state.threadId) {
+    await poster.call({ operation: "post", bot: state.bot, threadId: state.threadId, text });
+    return state.threadId;
+  }
+  const started = await poster.call<{ threadId: string }>({
+    operation: "start-thread",
+    bot: state.bot,
+    text,
+    ...(title ? { title } : {}),
+  });
+  return started.threadId;
+}
+
+export async function finish(deps: FinishDeps) {
+  const state = await readState(deps.workspace);
+  const result = extractResult(await readFile(deps.executionFile, "utf8"));
+  const text = deps.pullRequestUrl
+    ? `${result.reply}\n\nPull request: ${deps.pullRequestUrl}`
+    : result.reply;
+
+  const threadId = await deliver(deps.poster, state, text, result.title);
+
+  const store = deps.storeFor(state.bot, threadId);
+  if (state.marker) await store.writeMarker(state.marker);
+  if (state.policy === "resume" && result.sessionId) {
+    await store.saveSession(state.sessionDirectory, result.sessionId);
+  }
+}
+
+export async function notifyFailure(
+  deps: Pick<FinishDeps, "workspace" | "poster"> & { runUrl: string },
+) {
+  const state = await readState(deps.workspace);
+  if (state.mode !== "reply" || !state.threadId) return;
+  await deps.poster.call({
+    operation: "post",
+    bot: state.bot,
+    threadId: state.threadId,
+    text: `That turn failed. Details are in the workflow run: ${deps.runUrl}`,
+  });
+}
