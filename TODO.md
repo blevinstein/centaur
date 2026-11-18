@@ -127,9 +127,12 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
 
 - [ ] Access requests record the chat title as `(unknown)` for an approved Telegram group; check
       whether the title is available on the request (and shown in the admin DM) and store it.
-- [ ] A chat approved through an access request has no alias, so a scheduled prompt's
-      `destination: <alias>` can't resolve it until `centaur chat add <alias> <id>` is run. Let
-      `chats`/`destination` aliases resolve approved chats (or have approval offer an alias).
+- [ ] Approvals create aliases: approving a chat or user through an access request also records a
+      global alias (`/centaur/chats/<alias>` or `/centaur/users/<alias>/<platform>`) from the
+      title or display name (numeric suffix on collision), shown in the admin DM, so scheduled
+      prompt destinations and `allow` resolve without `centaur chat add` / `centaur user add`.
+      Add `--alias` to `centaur access approve`, then drop the manual commands from the onboarding
+      docs and keep them as an escape hatch.
 
 ## Later
 
