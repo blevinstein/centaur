@@ -138,6 +138,17 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
       Update registry entries (`register` stops writing `allow`/`chats`; stored legacy entries
       still read), the receiver, docs and the two consumer configs, and re-register.
 
+- [ ] Rewrite `README.md` for public consumption; it is badly out of date (still says design
+      phase). Cover: what centaur is and the architecture in one picture, a short demo of a chat
+      exchange and the PR it produces, how a repo adopts it (the three files `.centaur.yml`,
+      persona and prompts, the caller workflow, the repo variables and secret), a quick start for
+      the maintainer (deploy, bot, admin claim, register), the safety model (admin approval, no
+      content in GitHub logs, cost caps), and links into `docs/`.
+- [ ] Draft a logo: a centaur crossed with a cat (nodding to the GitHub Octocat). Produce a few
+      SVG concepts and a README header; the maintainer picks one. Don't reuse GitHub's Octocat
+      artwork directly: its usage guidelines restrict modification, so make an original
+      centaur-cat hybrid.
+
 ## Later
 
 - [ ] Poster MCP tool for mid-turn questions and progress messages.
