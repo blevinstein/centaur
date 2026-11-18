@@ -1,5 +1,5 @@
 import type { StateAdapter } from "chat";
-import { type CentaurConfig, PLATFORMS, type Platform, type RespondTo } from "../config/index.js";
+import { PLATFORMS, type Platform, type RespondTo } from "../config/index.js";
 import { botParameter, PARAMETER_ROOT, type ParameterStore } from "./parameters.js";
 
 export interface Bot {
@@ -12,11 +12,12 @@ export interface Bot {
 
 export type BotSecrets = Omit<Bot, "repo">;
 
-export type RegistryEntry = Pick<CentaurConfig, "allow" | "chats"> & {
+export interface RegistryEntry {
   respond_to?: RespondTo;
-  /** Written by registrations that predate `chats`; read as a one-item chat list. */
+  /** Stored by registrations that predate approval-only access; `chats` is still honored and any `allow` is ignored. */
+  chats?: string[];
   destination?: string;
-};
+}
 
 export const registeredChats = (entry: RegistryEntry | null): string[] =>
   entry?.chats ?? (entry?.destination ? [entry.destination] : []);

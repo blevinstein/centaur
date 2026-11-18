@@ -8,34 +8,60 @@ import {
   registryStateWith,
 } from "./helpers/receiver-fixtures.js";
 
-const baseline = { garden: { allow: ["maintainer"], chats: ["household"] } };
+const legacy = { garden: { allow: ["maintainer"], chats: ["household"] } };
 
-const resolverWith = async (extra: Record<string, string>, ttlMs?: number) => {
+const resolverWith = async (
+  extra: Record<string, string>,
+  { entries = legacy, ttlMs }: { entries?: Record<string, unknown>; ttlMs?: number } = {},
+) => {
   const params = fakeParameterStore({ ...PARAMETERS, ...extra });
-  const resolve = createAccessResolver(
-    GARDEN_BOT,
-    params,
-    await registryStateWith(baseline),
-    ttlMs,
-  );
+  const resolve = createAccessResolver(GARDEN_BOT, params, await registryStateWith(entries), ttlMs);
   return { params, resolve };
 };
 
 describe("effective access", () => {
-  it("unions the baseline with approved chats and users", async () => {
-    const { resolve } = await resolverWith({
-      "/centaur/bots/garden/approved-chats/-100900": "{}",
-      "/centaur/bots/garden/approved-users/2002": "{}",
-      "/centaur/bots/other/approved-users/3003": "{}",
-    });
+  it("unions the admin with approved chats and users of this bot only", async () => {
+    const { resolve } = await resolverWith(
+      {
+        "/centaur/admin/telegram": "5001",
+        "/centaur/bots/garden/approved-chats/-100900": "{}",
+        "/centaur/bots/garden/approved-users/2002": "{}",
+        "/centaur/bots/other/approved-users/3003": "{}",
+      },
+      { entries: {} },
+    );
 
     const access = await resolve();
 
-    expect(access.chatIds).toEqual(new Set(["-100500", "-100900"]));
-    expect(access.userIds).toEqual(new Set(["1001", "2002"]));
+    expect(access.chatIds).toEqual(new Set(["-100900"]));
+    expect(access.userIds).toEqual(new Set(["5001", "2002"]));
   });
 
-  it("lets a block win over the baseline and over approvals", async () => {
+  it.each([
+    ["chats", { chats: ["household", "workshop", "unknown"] }, new Set(["-100500", "-100900"])],
+    ["a destination", { destination: "household" }, new Set(["-100500"])],
+    [
+      "chats over a destination",
+      { chats: ["workshop"], destination: "household" },
+      new Set(["-100900"]),
+    ],
+    ["no chats", {}, new Set()],
+  ])("honors the chats a legacy registry entry stores as %s", async (_name, entry, chatIds) => {
+    const { resolve } = await resolverWith(
+      { "/centaur/chats/workshop": "-100900" },
+      { entries: { garden: { allow: ["maintainer"], ...entry } } },
+    );
+
+    expect((await resolve()).chatIds).toEqual(chatIds);
+  });
+
+  it("ignores the users a legacy registry entry lists", async () => {
+    const { resolve } = await resolverWith({ "/centaur/users/maintainer/telegram": "1001" });
+
+    expect((await resolve()).userIds.size).toBe(0);
+  });
+
+  it("lets a block win over legacy chats and approvals", async () => {
     const { resolve } = await resolverWith({
       "/centaur/bots/garden/approved-users/2002": "{}",
       "/centaur/bots/garden/blocked/user/2002": "{}",

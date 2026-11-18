@@ -1,6 +1,7 @@
 import {
   DeleteParameterCommand,
   GetParameterCommand,
+  ParameterAlreadyExists,
   ParameterNotFound,
   PutParameterCommand,
   paginateGetParametersByPath,
@@ -13,13 +14,14 @@ export interface ParameterStore {
   get(name: string): Promise<string | undefined>;
   getByPath(path: string): Promise<Record<string, string>>;
   put(name: string, value: string): Promise<void>;
+  /** Creates the parameter only if it does not exist; false when it already does. */
+  putIfAbsent(name: string, value: string): Promise<boolean>;
   delete(name: string): Promise<void>;
 }
 
 export const botParameter = (bot: string, key: string) => `${PARAMETER_ROOT}/bots/${bot}/${key}`;
-export const userParameter = (name: string, platform: string) =>
-  `${PARAMETER_ROOT}/users/${name}/${platform}`;
-export const chatParameter = (name: string) => `${PARAMETER_ROOT}/chats/${name}`;
+export const CHATS_PREFIX = `${PARAMETER_ROOT}/chats`;
+export const chatParameter = (name: string) => `${CHATS_PREFIX}/${name}`;
 export const FUNCTION_URL_PARAMETER = `${PARAMETER_ROOT}/function-url`;
 export const GITHUB_TOKEN_PARAMETER = `${PARAMETER_ROOT}/github/token`;
 
@@ -43,6 +45,17 @@ export function createSsmParameterStore(client = new SSMClient({})): ParameterSt
       await client.send(
         new PutParameterCommand({ Name: name, Value: value, Type: "String", Overwrite: true }),
       );
+    },
+    putIfAbsent: async (name, value) => {
+      try {
+        await client.send(
+          new PutParameterCommand({ Name: name, Value: value, Type: "String", Overwrite: false }),
+        );
+        return true;
+      } catch (error) {
+        if (error instanceof ParameterAlreadyExists) return false;
+        throw error;
+      }
     },
     delete: async (name) => {
       try {

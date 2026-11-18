@@ -1,7 +1,6 @@
 export const minimalConfig = `
 bot: garden
 platform: telegram
-allow: [maintainer]
 provider: anthropic
 model: sonnet
 allowed_tools: Read,Edit
@@ -10,8 +9,6 @@ allowed_tools: Read,Edit
 export const fullConfig = `
 bot: garden
 platform: telegram
-chats: [household, workshop]
-allow: [maintainer, spouse]
 respond_to: all
 context:
   default: resume
@@ -33,8 +30,7 @@ prompts:
     destination: workshop
 `;
 
-const BASE =
-  "bot: a\nplatform: slack\nallow: [x]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read";
+const BASE = "bot: a\nplatform: slack\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read";
 
 export const withExtra = (line: string) => `${BASE}\n${line}`;
 
@@ -48,46 +44,28 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
   ["handle with an @", withExtra('handle: "@garden_bot"'), "handle", /without the @/],
   [
     "unknown respond_to value",
-    "bot: a\nplatform: slack\nallow: [x]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\nrespond_to: some",
+    "bot: a\nplatform: slack\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\nrespond_to: some",
     "respond_to",
     /./,
   ],
+  ...["allow: [x]", "chats: [h]", "allow: []", "chats: []"].map(
+    (line) =>
+      [
+        `${line.split(":")[0]} (${line})`,
+        withExtra(line),
+        line.split(":")[0] as string,
+        /access is managed by admin approval.*`centaur access`/,
+      ] as [string, string, string, RegExp],
+  ),
   [
-    "respond_to all without chats",
-    withExtra("respond_to: all"),
-    "chats",
-    /required when respond_to is all/,
-  ],
-  ["an empty chats list", withExtra("chats: []"), "chats", /at least one chat/],
-  ["a duplicate chat", withExtra("chats: [h, h]"), "chats", /must not list a chat twice/],
-  ["an invalid chat alias", withExtra("chats: [Household]"), "chats[0]", /lowercase alias/],
-  [
-    "a top-level destination",
-    withExtra("destination: h"),
-    "destination",
-    /no longer a top-level key.*`chats`/,
-  ],
-  [
-    "a prompt destination outside chats",
-    withExtra("chats: [h]\nprompts: {weekly: {destination: other}}"),
+    "a prompt without a destination",
+    withExtra("prompts: {weekly: {}}"),
     "prompts.weekly.destination",
-    /"other" must be one of the chats/,
-  ],
-  [
-    "a prompt without destination among several chats",
-    withExtra("chats: [h, w]\nprompts: {weekly: {}}"),
-    "prompts.weekly.destination",
-    /required when the bot lists several chats/,
-  ],
-  [
-    "a prompt destination without chats",
-    withExtra("prompts: {weekly: {destination: h}}"),
-    "prompts.weekly.destination",
-    /must be one of the chats/,
+    /./,
   ],
   [
     "an invalid prompt destination alias",
-    withExtra("chats: [h]\nprompts: {weekly: {destination: H}}"),
+    withExtra("prompts: {weekly: {destination: H}}"),
     "prompts.weekly.destination",
     /lowercase alias/,
   ],
@@ -95,13 +73,13 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
   ["malformed YAML", "bot: [unclosed", "(root)", /invalid YAML/],
   [
     "missing model",
-    "bot: a\nplatform: slack\nallow: [x]\nprovider: anthropic\nallowed_tools: Read",
+    "bot: a\nplatform: slack\nprovider: anthropic\nallowed_tools: Read",
     "model",
     /./,
   ],
   [
     "missing provider",
-    "bot: a\nplatform: slack\nallow: [x]\nmodel: sonnet\nallowed_tools: Read",
+    "bot: a\nplatform: slack\nmodel: sonnet\nallowed_tools: Read",
     "provider",
     /./,
   ],
@@ -113,62 +91,50 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
   ],
   [
     "missing bot",
-    "platform: slack\nallow: [a]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read",
+    "platform: slack\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read",
     "bot",
     /./,
   ],
   [
     "unknown platform",
-    "bot: a\nplatform: irc\nallow: [x]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read",
+    "bot: a\nplatform: irc\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read",
     "platform",
     /./,
   ],
   [
     "uppercase bot alias",
-    "bot: Garden\nplatform: slack\nallow: [x]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read",
+    "bot: Garden\nplatform: slack\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read",
     "bot",
     /lowercase alias/,
   ],
   [
-    "empty allow list",
-    "bot: a\nplatform: slack\nallow: []\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read",
-    "allow",
-    /at least one user/,
-  ],
-  [
     "bad context policy",
-    "bot: a\nplatform: slack\nallow: [x]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\ncontext: {default: sticky}",
+    "bot: a\nplatform: slack\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\ncontext: {default: sticky}",
     "context.default",
     /./,
   ],
   [
     "unknown key",
-    "bot: a\nplatform: slack\nallow: [x]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\nextra: 1",
+    "bot: a\nplatform: slack\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\nextra: 1",
     "(root)",
     /unrecognized key/i,
   ],
-  ["missing allowed_tools", "bot: a\nplatform: slack\nallow: [x]", "allowed_tools", /./],
+  ["missing allowed_tools", "bot: a\nplatform: slack", "allowed_tools", /./],
   [
     "empty tool list",
-    'bot: a\nplatform: slack\nallow: [x]\nallowed_tools: " , "',
+    'bot: a\nplatform: slack\nallowed_tools: " , "',
     "allowed_tools",
     /at least one tool/,
   ],
   [
     "persona escaping the repo",
-    "bot: a\nplatform: slack\nallow: [x]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\npersona: ../secret.md",
+    "bot: a\nplatform: slack\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\npersona: ../secret.md",
     "persona",
     /relative path inside the repo/,
   ],
   [
-    "prompts without chats",
-    withExtra("prompts: {weekly: {}}"),
-    "chats",
-    /required when prompts are defined/,
-  ],
-  [
     "bad prompt context",
-    withExtra("chats: [h]\nprompts: {weekly: {context: nope}}"),
+    withExtra("prompts: {weekly: {context: nope, destination: h}}"),
     "prompts.weekly.context",
     /./,
   ],

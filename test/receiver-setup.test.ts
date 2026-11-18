@@ -5,7 +5,6 @@ import { loadBots, readRespondTo } from "../src/lambda/registry.js";
 import {
   fakeParameterStore,
   GARDEN_BOT,
-  PARAMETERS,
   registryStateWith,
   SLACK_BOT,
 } from "./helpers/receiver-fixtures.js";
@@ -21,35 +20,6 @@ describe("loadBots", () => {
 
 describe("createAccessResolver", () => {
   it.each([
-    [
-      "several chats",
-      { chats: ["household", "workshop", "unknown"] },
-      new Set(["-100500", "-100900"]),
-    ],
-    ["a single chat", { chats: ["workshop"] }, new Set(["-100900"])],
-    ["a legacy destination", { destination: "household" }, new Set(["-100500"])],
-    [
-      "chats over a legacy destination",
-      { chats: ["workshop"], destination: "household" },
-      new Set(["-100900"]),
-    ],
-    ["no chats", {}, new Set()],
-  ])(
-    "maps registered user and chat names to platform IDs for %s",
-    async (_name, chats, chatIds) => {
-      const state = await registryStateWith({
-        garden: { allow: ["maintainer", "spouse", "nobody"], ...chats },
-      });
-      const params = fakeParameterStore({ ...PARAMETERS, "/centaur/chats/workshop": "-100900" });
-
-      const access = await createAccessResolver(GARDEN_BOT, params, state)();
-
-      expect(access.userIds).toEqual(new Set(["1001", "1002"]));
-      expect(access.chatIds).toEqual(chatIds);
-    },
-  );
-
-  it.each([
     ["an entry written before respond_to existed", { allow: ["maintainer"] }, "mention"],
     ["an entry that names respond_to", { allow: ["maintainer"], respond_to: "all" }, "all"],
     ["no entry", undefined, "mention"],
@@ -59,7 +29,7 @@ describe("createAccessResolver", () => {
     await expect(readRespondTo(state, "garden")).resolves.toBe(expected);
   });
 
-  it("allows nobody when the bot has no registry entry", async () => {
+  it("allows nobody when the bot has no registry entry and no approvals", async () => {
     const access = await createAccessResolver(
       GARDEN_BOT,
       fakeParameterStore(),

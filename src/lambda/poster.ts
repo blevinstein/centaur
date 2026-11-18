@@ -6,13 +6,7 @@ import type { OidcVerifier } from "./oidc.js";
 import { BOT_CREATED_STATE, type ThreadMetadata } from "./ownership.js";
 import { chatParameter, type ParameterStore } from "./parameters.js";
 import { createRegister } from "./register.js";
-import {
-  type Bot,
-  botStatePrefix,
-  loadBot,
-  readRegistryEntry,
-  registeredChats,
-} from "./registry.js";
+import { type Bot, botStatePrefix, loadBot } from "./registry.js";
 import type { TelegramApi } from "./telegram.js";
 
 const TOPIC_NAME_MAX = 128;
@@ -113,20 +107,31 @@ export function createPoster(deps: PosterDeps) {
     chat: PosterChat,
     target: { destination?: string | undefined; fromThreadId?: string | undefined },
   ) => {
+    const { chatIds, blockedChatIds } = await createAccessResolver(bot, params, stateFor(""))();
+    const approve = (chatId: string) => `centaur access approve ${bot.name} chat ${chatId}`;
     if (target.destination !== undefined) {
-      const entry = await readRegistryEntry(stateFor(""), bot.name);
-      const chatId =
-        registeredChats(entry).includes(target.destination) &&
-        (await params.get(chatParameter(target.destination)));
-      if (!chatId)
-        throw new Error(`bot "${bot.name}" has no registered chat "${target.destination}"`);
+      const chatId = await params.get(chatParameter(target.destination));
+      if (!chatId) {
+        throw new Error(
+          `unknown chat alias "${target.destination}"; approve the chat under that name with \`centaur access approve ${bot.name} chat <id> --alias ${target.destination}\``,
+        );
+      }
+      if (blockedChatIds.has(chatId)) {
+        throw new Error(`chat "${target.destination}" is blocked for bot "${bot.name}"`);
+      }
+      if (!chatIds.has(chatId)) {
+        throw new Error(
+          `chat "${target.destination}" is not approved for bot "${bot.name}"; the maintainer must approve it with \`${approve(chatId)}\``,
+        );
+      }
       return chatId;
     }
     const origin = chat.thread(target.fromThreadId as string);
     const chatId = origin.channelId.slice(bot.platform.length + 1);
-    const { chatIds } = await createAccessResolver(bot, params, stateFor(""))();
     if (!origin.isDM && !chatIds.has(chatId)) {
-      throw new Error(`bot "${bot.name}" is not registered for chat ${chatId}`);
+      throw new Error(
+        `chat ${chatId} is not approved for bot "${bot.name}"; the maintainer must approve it with \`${approve(chatId)}\``,
+      );
     }
     return chatId;
   };

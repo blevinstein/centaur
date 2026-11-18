@@ -110,23 +110,16 @@ describe("bot remove and unbind", () => {
   });
 });
 
-describe("user add and chat add", () => {
-  it("records per-platform user IDs, updating existing ones", async () => {
-    const cli = createCliHarness();
-    await cli.run("user", "add", "spouse", "--telegram", "111", "--slack", "U1");
-    await cli.run("user", "add", "spouse", "--telegram", "222");
-    expect(cli.store.entries.get("/centaur/users/spouse/telegram")).toEqual({
-      value: "222",
-      secure: false,
-    });
-    expect(await cli.store.get("/centaur/users/spouse/slack")).toBe("U1");
+describe("removed user commands", () => {
+  it.each([
+    ["user", "add", "spouse", "--telegram", "1"],
+    ["user", "list"],
+  ])("rejects %j", async (...args) => {
+    await expect(createCliHarness().run(...args)).rejects.toThrow(/unknown command 'user'/);
   });
+});
 
-  it("requires at least one platform ID", async () => {
-    const cli = createCliHarness();
-    await expect(cli.run("user", "add", "spouse")).rejects.toThrow(/at least one/);
-  });
-
+describe("chat add", () => {
   it("records a named chat", async () => {
     const cli = createCliHarness();
     await cli.run("chat", "add", "household", "-1001234");
@@ -151,18 +144,6 @@ describe("github-token", () => {
     await cli.run("github-token", "set");
     await cli.run("github-token", "remove");
     expect(cli.store.names()).toEqual([]);
-  });
-
-  it("lists users sorted by name with their platform IDs", async () => {
-    const cli = createCliHarness();
-    await cli.run("user", "list");
-    expect(cli.output.at(-1)).toBe("No users registered.");
-
-    await cli.run("user", "add", "spouse", "--telegram", "111", "--slack", "U1");
-    await cli.run("user", "add", "maintainer", "--telegram", "222");
-    await cli.run("user", "list");
-
-    expect(cli.output.at(-1)).toBe("maintainer  telegram=222\nspouse  slack=U1  telegram=111");
   });
 
   it("lists chats sorted by name", async () => {

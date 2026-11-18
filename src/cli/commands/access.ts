@@ -11,8 +11,16 @@ import {
   encodeEntry,
   subjectIdOf,
 } from "../../lambda/access-entries.js";
+import { proposeChatAlias } from "../../lambda/chat-aliases.js";
+import { knownChatAliases } from "../chat-aliases.js";
 import type { CliContext } from "../context.js";
-import { CliError, type Platform, requireBotPlatform } from "../registry.js";
+import {
+  CliError,
+  chatParameter,
+  type Platform,
+  parseName,
+  requireBotPlatform,
+} from "../registry.js";
 
 function parseKind(value: string): AccessKind {
   if (!ACCESS_KINDS.includes(value as AccessKind)) {
@@ -35,13 +43,19 @@ export function registerAccessCommands(program: Command, context: CliContext): v
     kind: AccessKind;
     id: string;
     name?: string | undefined;
+    alias?: string | undefined;
   }
 
   const run =
     (action: (subject: Subject) => Promise<string>) =>
-    async (bot: string, kind: string, id: string, options: { name?: string } = {}) => {
+    async (
+      bot: string,
+      kind: string,
+      id: string,
+      options: { name?: string; alias?: string } = {},
+    ) => {
       const platform = await requireBotPlatform(context.store, bot);
-      context.log(await action({ bot, platform, kind: parseKind(kind), id, name: options.name }));
+      context.log(await action({ bot, platform, kind: parseKind(kind), id, ...options }));
     };
 
   const remove = async (name: string, what: string) => {
@@ -49,14 +63,37 @@ export function registerAccessCommands(program: Command, context: CliContext): v
     await context.store.delete([name]);
   };
 
+  const chatAliasFor = async (
+    id: string,
+    name: string | undefined,
+    requested: string | undefined,
+  ) => {
+    const known = await knownChatAliases(context.store);
+    if (requested === undefined) return proposeChatAlias(known, id, name);
+    parseName("alias", requested);
+    const holder = known[chatParameter(requested)];
+    if (holder !== undefined && holder !== id) {
+      throw new CliError(`Alias "${requested}" already names chat ${holder}.`);
+    }
+    return requested;
+  };
+
   subjectCommand("approve", "Approve a chat or user (kind: chat or user)")
-    .option("--name <name>", "display name to record")
+    .option("--name <name>", "display name to record; a chat's alias defaults to a slug of it")
+    .option("--alias <alias>", "chat alias to create (chats only)")
     .action(
-      run(async ({ bot, kind, id, name }) => {
-        await context.store.put(approvedParameter(bot, kind, id), encodeEntry(name), {
-          secure: false,
-        });
-        return `Approved ${kind} ${id} for bot "${bot}".`;
+      run(async ({ bot, kind, id, name, alias }) => {
+        if (kind === "user" && alias !== undefined) {
+          throw new CliError("--alias applies to chats only.");
+        }
+        const chatAlias = kind === "chat" ? await chatAliasFor(id, name, alias) : undefined;
+        if (chatAlias) await context.store.put(chatParameter(chatAlias), id, { secure: false });
+        await context.store.put(
+          approvedParameter(bot, kind, id),
+          encodeEntry({ name, alias: chatAlias }),
+          { secure: false },
+        );
+        return `Approved ${kind} ${id} for bot "${bot}"${chatAlias ? ` as "${chatAlias}"` : ""}.`;
       }),
     );
 
@@ -72,7 +109,7 @@ export function registerAccessCommands(program: Command, context: CliContext): v
       if (kind === "user" && id === (await context.store.get(adminParameter(platform)))) {
         throw new CliError(`Cannot block ${id}: they are the admin for ${platform}.`);
       }
-      await context.store.put(blockedParameter(bot, kind, id), encodeEntry(undefined), {
+      await context.store.put(blockedParameter(bot, kind, id), encodeEntry(), {
         secure: false,
       });
       await context.store.delete([approvedParameter(bot, kind, id)]);
@@ -99,8 +136,9 @@ export function registerAccessCommands(program: Command, context: CliContext): v
       const lines: string[] = [];
       for (const { label, kind, prefix } of sections) {
         for (const parameter of (await context.store.listNames(prefix)).sort()) {
-          const { name, at } = decodeEntry((await context.store.get(parameter)) ?? "");
-          lines.push([label, kind, subjectIdOf(parameter), name ?? "-", at].join("  "));
+          const { name, alias, at } = decodeEntry((await context.store.get(parameter)) ?? "");
+          const columns = [label, kind, subjectIdOf(parameter), name ?? "-", at];
+          lines.push([...columns, ...(alias ? [`alias=${alias}`] : [])].join("  "));
         }
       }
       context.log(

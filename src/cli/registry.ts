@@ -1,7 +1,7 @@
-import { GITHUB_TOKEN_PARAMETER } from "../lambda/parameters.js";
+import { chatParameter, GITHUB_TOKEN_PARAMETER } from "../lambda/parameters.js";
 import type { ParameterStore } from "./parameter-store.js";
 
-export { GITHUB_TOKEN_PARAMETER };
+export { chatParameter, GITHUB_TOKEN_PARAMETER };
 
 export class CliError extends Error {}
 
@@ -45,9 +45,6 @@ export function selectedPlatformIds(options: Record<string, string | boolean | u
 
 export const botPrefix = (bot: string) => `/centaur/bots/${bot}/`;
 export const botParameter = (bot: string, key: string) => `${botPrefix(bot)}${key}`;
-export const userParameter = (user: string, platform: Platform) =>
-  `/centaur/users/${user}/${platform}`;
-export const chatParameter = (chat: string) => `/centaur/chats/${chat}`;
 
 export async function requireBotPlatform(store: ParameterStore, bot: string): Promise<Platform> {
   const platform = await store.get(botParameter(bot, "platform"));

@@ -114,7 +114,7 @@ describe("prepare", () => {
   it("never offers silence for scheduled turns", async () => {
     const { deps, root } = await setup(
       [],
-      configText("respond_to: all\nprompts: {weekly: {context: fresh}}"),
+      configText("respond_to: all\nprompts: {weekly: {context: fresh, destination: household}}"),
     );
 
     const out = await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
@@ -232,8 +232,11 @@ describe("prepare", () => {
     expect(aws.requests[2]).toMatchObject({ fromThreadId: THREAD });
   });
 
-  it("builds a scheduled turn from the named prompt, defaulting to the only chat", async () => {
-    const { deps, root } = await setup([], configText("prompts: {weekly: {context: resume}}"));
+  it("builds a scheduled turn from the named prompt", async () => {
+    const { deps, root } = await setup(
+      [],
+      configText("prompts: {weekly: {context: resume, destination: household}}"),
+    );
     const out = await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
     expect(out.branch).toBe("centaur/sprout-weekly-42");
     expect(await prompt(root)).toContain("Post this week's tasks.");
@@ -244,10 +247,10 @@ describe("prepare", () => {
     });
   });
 
-  it("uses the prompt's own destination when the bot lists several chats", async () => {
+  it("uses the prompt's own destination", async () => {
     const { deps, root } = await setup(
       [],
-      configText("prompts: {weekly: {destination: workshop}}", "[household, workshop]"),
+      configText("prompts: {weekly: {destination: workshop}}"),
     );
 
     await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
@@ -349,7 +352,7 @@ describe("finish", () => {
   it("starts a thread for scheduled turns and keys the session by the new thread", async () => {
     const { deps, aws, root, executionFile, writeExecution } = await setup(
       [],
-      configText("prompts: {weekly: {context: resume}}"),
+      configText("prompts: {weekly: {context: resume, destination: household}}"),
     );
     const out = await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
     expect(out.claude_args).not.toContain("--resume");
@@ -433,7 +436,7 @@ describe("finish", () => {
   it("refuses to stay silent when there is no thread to stay silent in", async () => {
     const { deps, aws, root, executionFile, writeExecution } = await setup(
       [],
-      configText("prompts: {weekly: {}}"),
+      configText("prompts: {weekly: {destination: household}}"),
     );
     await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
     await writeExecution({ structured_output: { ignore: true } });

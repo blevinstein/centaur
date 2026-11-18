@@ -16,8 +16,20 @@ export const TOPIC_ID = 77;
 export const SLACK_POST_THREAD_ID = "slack:C0123:1700000000.000100";
 
 export const WORKSHOP_CHAT_ID = "-100900";
-export const REGISTERED_ENTRY = { allow: ["maintainer"], chats: ["household", "workshop"] };
-export const LEGACY_ENTRY = { allow: ["maintainer"], destination: "household" };
+export const REGISTERED_ENTRY = { respond_to: "mention" };
+export const LEGACY_CHATS_ENTRY = { allow: ["maintainer"], chats: ["household", "workshop"] };
+export const LEGACY_DESTINATION_ENTRY = { allow: ["maintainer"], destination: "household" };
+
+export const approvedChat = (bot: string, chatId: string) =>
+  `/centaur/bots/${bot}/approved-chats/${chatId}`;
+export const APPROVALS: Record<string, string> = {
+  [approvedChat("garden", HOUSEHOLD_CHAT_ID)]: "{}",
+  [approvedChat("garden", WORKSHOP_CHAT_ID)]: "{}",
+  [approvedChat("notes", SLACK_CHANNEL_ID)]: "{}",
+};
+
+export const blockedChat = (bot: string, chatId: string) =>
+  `/centaur/bots/${bot}/blocked/chat/${chatId}`;
 
 export const ORPHAN_PARAMETERS: Record<string, string> = {
   "/centaur/bots/sprout/platform": "telegram",
@@ -30,8 +42,6 @@ export const configText = (overrides: Record<string, string | undefined> = {}) =
   Object.entries({
     bot: "sprout",
     platform: "telegram",
-    chats: "[household]",
-    allow: "[maintainer]",
     provider: "anthropic",
     model: "sonnet",
     allowed_tools: "Read",
@@ -98,21 +108,20 @@ export function fakePosterChat(transcript: unknown[] = []) {
 }
 
 export async function posterSetup(
-  options: { parameters?: Record<string, string>; transcript?: unknown[] } = {},
+  options: { parameters?: Record<string, string>; transcript?: unknown[]; approved?: boolean } = {},
 ) {
+  const { approved = true } = options;
   const params = fakeParameterStore({
     ...PARAMETERS,
     "/centaur/chats/notes-channel": SLACK_CHANNEL_ID,
     "/centaur/chats/workshop": WORKSHOP_CHAT_ID,
+    ...(approved ? APPROVALS : {}),
     ...options.parameters,
   });
   const registryState = createMemoryState();
   await registryState.connect();
   await registryState.set("registry:garden", REGISTERED_ENTRY);
-  await registryState.set("registry:notes", {
-    allow: ["maintainer"],
-    chats: ["notes-channel"],
-  });
+  await registryState.set("registry:notes", REGISTERED_ENTRY);
   const telegram = fakeTelegram();
   const oidc = fakeOidc();
   const posting = fakePosterChat(options.transcript);

@@ -22,11 +22,22 @@ export const adminParameter = (platform: string) => `${PARAMETER_ROOT}/admin/${p
 export const subjectIdOf = (parameterName: string) =>
   parameterName.slice(parameterName.lastIndexOf("/") + 1);
 
-const entrySchema = z.object({ name: z.string().optional(), at: z.string() });
+const entrySchema = z.object({
+  name: z.string().optional(),
+  alias: z.string().optional(),
+  at: z.string(),
+});
 export type AccessEntry = z.infer<typeof entrySchema>;
 
-export const encodeEntry = (name: string | undefined, at = new Date()) =>
-  JSON.stringify({ ...(name ? { name } : {}), at: at.toISOString() });
+export const encodeEntry = (
+  { name, alias }: { name?: string | undefined; alias?: string | undefined } = {},
+  at = new Date(),
+) =>
+  JSON.stringify({
+    ...(name ? { name } : {}),
+    ...(alias ? { alias } : {}),
+    at: at.toISOString(),
+  });
 
 export function decodeEntry(value: string): AccessEntry {
   try {

@@ -3,7 +3,7 @@ import { readRegistryEntry } from "../src/lambda/registry.js";
 import {
   configText,
   FUNCTION_URL,
-  LEGACY_ENTRY,
+  LEGACY_CHATS_ENTRY,
   ORPHAN_PARAMETERS,
   posterSetup,
   REGISTERED_ENTRY,
@@ -25,11 +25,7 @@ describe("register", () => {
     expect(result).toEqual({ bot: "sprout", repo: "octo/sprout" });
     expect(oidc.verify).toHaveBeenCalledWith("jwt");
     expect(params.values["/centaur/bots/sprout/repo"]).toBe("octo/sprout");
-    expect(await readRegistryEntry(registryState, "sprout")).toEqual({
-      allow: ["maintainer"],
-      chats: ["household"],
-      respond_to: "mention",
-    });
+    expect(await readRegistryEntry(registryState, "sprout")).toEqual({ respond_to: "mention" });
     expect(telegram.setWebhook).toHaveBeenCalledExactlyOnceWith(
       "sprout-token",
       `${FUNCTION_URL.replace(/\/$/, "")}/telegram/sprout`,
@@ -61,38 +57,27 @@ describe("register", () => {
     expect(telegram.setWebhook).not.toHaveBeenCalled();
   });
 
-  it("omits chats from the registry entry when the config has none", async () => {
+  it("replaces a legacy entry that lists chats and users", async () => {
     const { poster, registryState } = await posterSetup({ parameters: ORPHAN_PARAMETERS });
+    await registryState.set("registry:sprout", LEGACY_CHATS_ENTRY);
 
-    await register(poster, configText({ chats: undefined }));
+    await register(poster);
 
-    expect(await readRegistryEntry(registryState, "sprout")).toEqual({
-      allow: ["maintainer"],
-      respond_to: "mention",
-    });
+    expect(await readRegistryEntry(registryState, "sprout")).toEqual({ respond_to: "mention" });
   });
 
-  it("stores every chat, and replaces a legacy destination entry", async () => {
-    const { poster, registryState } = await posterSetup({ parameters: ORPHAN_PARAMETERS });
-    await registryState.set("registry:sprout", LEGACY_ENTRY);
+  it.each(["allow: [maintainer]", "chats: [household]"])(
+    "rejects a config with the removed key %s",
+    async (line) => {
+      const { poster, registryState } = await posterSetup({ parameters: ORPHAN_PARAMETERS });
+      const [key, value] = line.split(": ") as [string, string];
 
-    await register(poster, configText({ chats: "[household, workshop]" }));
-
-    expect(await readRegistryEntry(registryState, "sprout")).toEqual({
-      allow: ["maintainer"],
-      respond_to: "mention",
-      chats: ["household", "workshop"],
-    });
-  });
-
-  it("rejects the legacy top-level destination key", async () => {
-    const { poster, registryState } = await posterSetup({ parameters: ORPHAN_PARAMETERS });
-
-    await expect(
-      register(poster, configText({ chats: undefined, destination: "household" })),
-    ).rejects.toThrow(/destination: .*`chats`/);
-    expect(await readRegistryEntry(registryState, "sprout")).toBeNull();
-  });
+      await expect(register(poster, configText({ [key]: value }))).rejects.toThrow(
+        new RegExp(`${key}: .*admin approval.*centaur access`),
+      );
+      expect(await readRegistryEntry(registryState, "sprout")).toBeNull();
+    },
+  );
 
   it("stores respond_to from the config in the registry entry", async () => {
     const { poster, registryState } = await posterSetup({ parameters: ORPHAN_PARAMETERS });
@@ -131,7 +116,7 @@ describe("register", () => {
       const { poster, params } = await posterSetup({ parameters: ORPHAN_PARAMETERS });
 
       await expect(register(poster, "bot: sprout\nplatform: irc")).rejects.toThrow(
-        /platform:.*\nallow:.*\nprovider:.*\nmodel:.*\nallowed_tools:/,
+        /platform:.*\nprovider:.*\nmodel:.*\nallowed_tools:/,
       );
       expect(params.values["/centaur/bots/sprout/repo"]).toBeUndefined();
     });

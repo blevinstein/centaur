@@ -16,6 +16,7 @@ export interface AccessRequest {
   kind: AccessKind;
   subjectId: string;
   subjectName: string;
+  alias?: string;
   threadId: string;
   createdAt: string;
 }

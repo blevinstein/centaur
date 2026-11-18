@@ -38,8 +38,6 @@ export const PARAMETERS: Record<string, string> = {
   "/centaur/bots/partial/platform": "slack",
   "/centaur/bots/partial/token": "t",
   "/centaur/bots/partial/repo": "octo/partial",
-  "/centaur/users/maintainer/telegram": "1001",
-  "/centaur/users/spouse/telegram": "1002",
   "/centaur/chats/household": "-100500",
 };
 
@@ -60,6 +58,11 @@ export const fakeParameterStore = (
       Object.fromEntries(Object.entries(values).filter(([name]) => name.startsWith(`${path}/`))),
     put: async (name, value) => {
       values[name] = value;
+    },
+    putIfAbsent: async (name, value) => {
+      if (name in values) return false;
+      values[name] = value;
+      return true;
     },
     delete: async (name) => {
       delete values[name];
@@ -87,9 +90,19 @@ export const accessFor = (overrides: Partial<Access> = {}): (() => Promise<Acces
 };
 
 export function fakeThread(
-  overrides: { isDM?: boolean; state?: ThreadMetadata | null; chatId?: string } = {},
+  overrides: {
+    isDM?: boolean;
+    state?: ThreadMetadata | null;
+    chatId?: string;
+    title?: string | null;
+  } = {},
 ) {
-  const { isDM = false, state = null, chatId = GROUP_CHAT_ID } = overrides;
+  const {
+    isDM = false,
+    state = null,
+    chatId = GROUP_CHAT_ID,
+    title = GROUP_CHAT_TITLE,
+  } = overrides;
   const addReaction = vi.fn(async () => {});
   const thread = {
     id: `telegram:${chatId}:7`,
@@ -97,10 +110,17 @@ export function fakeThread(
     isDM,
     state: Promise.resolve(state),
     post: vi.fn(async () => ({})),
-    channel: { fetchMetadata: vi.fn(async () => ({ name: GROUP_CHAT_TITLE })) },
-    adapter: { addReaction },
+    adapter: {
+      addReaction,
+      fetchThread: vi.fn(async () => ({ channelName: title ?? undefined })),
+    },
   };
-  return { thread: thread as unknown as Thread<ThreadMetadata>, post: thread.post, addReaction };
+  return {
+    thread: thread as unknown as Thread<ThreadMetadata>,
+    post: thread.post,
+    addReaction,
+    fetchThread: thread.adapter.fetchThread,
+  };
 }
 
 export const fakeMessage = (

@@ -1,7 +1,5 @@
 bot: centaur-test
 platform: telegram
-chats: [blevinstein]
-allow: [blevinstein]
 respond_to: all
 context:
   default: transcript
@@ -10,4 +8,5 @@ model: sonnet
 allowed_tools: "Read,Glob,Grep"
 persona: .centaur/persona.md
 prompts:
-  hello: {}
+  hello:
+    destination: blevinstein

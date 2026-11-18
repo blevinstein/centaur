@@ -167,7 +167,7 @@ describe("access decisions by command", () => {
     );
     const denyReply = await denied.decisions.fromCommand(command("/deny", denied.requestId()));
 
-    expect(approveReply).toBe(`Approved chat ${approved.requestId()}.`);
+    expect(approveReply).toBe(`Approved chat ${approved.requestId()} as "garden-club".`);
     expect(approved.params.values["/centaur/bots/garden/approved-chats/-100500"]).toBeDefined();
     expect(denyReply).toContain("Denied and blocked user");
     expect(denied.params.values["/centaur/bots/garden/blocked/user/9999"]).toBeDefined();
@@ -196,5 +196,82 @@ describe("access decisions by command", () => {
     expect(await h.decisions.fromCommand(command(name, h.requestId(), overrides))).toBeUndefined();
 
     expect(h.params.values["/centaur/bots/garden/approved-users/9999"]).toBeUndefined();
+  });
+});
+
+describe("chat aliases on approval", () => {
+  const ALIAS_PARAMETER = `/centaur/chats/garden-club`;
+  const approvedEntry = (h: Awaited<ReturnType<typeof pendingRequest>>) =>
+    JSON.parse(h.params.values[`/centaur/bots/garden/approved-chats/${GROUP_CHAT_ID}`] as string);
+
+  it("records the proposed alias globally and on the approved entry", async () => {
+    const h = await pendingRequest("chat");
+
+    await h.decisions.fromReaction(h.reaction("👍"));
+
+    expect(h.params.values[ALIAS_PARAMETER]).toBe(GROUP_CHAT_ID);
+    expect(approvedEntry(h)).toMatchObject({ name: GROUP_CHAT_TITLE, alias: "garden-club" });
+  });
+
+  it("never overwrites an alias that appeared after the request, taking the next free name", async () => {
+    const h = await pendingRequest("chat");
+    h.params.values[ALIAS_PARAMETER] = "-1";
+
+    await h.decisions.fromReaction(h.reaction("👍"));
+
+    expect(h.params.values[ALIAS_PARAMETER]).toBe("-1");
+    expect(h.params.values[`${ALIAS_PARAMETER}-2`]).toBe(GROUP_CHAT_ID);
+    expect(approvedEntry(h)).toMatchObject({ alias: "garden-club-2" });
+  });
+
+  it("keeps an alias that already names the chat", async () => {
+    const h = await pendingRequest("chat");
+    h.params.values[ALIAS_PARAMETER] = GROUP_CHAT_ID;
+
+    await h.decisions.fromReaction(h.reaction("👍"));
+
+    expect(Object.keys(h.params.values).filter((name) => name.includes("garden-club"))).toEqual([
+      ALIAS_PARAMETER,
+    ]);
+    expect(approvedEntry(h)).toMatchObject({ alias: "garden-club" });
+  });
+
+  it("derives an alias from the chat ID for a request stored without one", async () => {
+    const h = await accessHarness();
+    const request = await h.store.create({
+      kind: "chat",
+      subjectId: GROUP_CHAT_ID,
+      subjectName: GROUP_CHAT_TITLE,
+      threadId: "telegram:-100500:7",
+    });
+
+    const reply = await h.decisions.fromCommand(command("/approve", request.id));
+
+    expect(reply).toBe(COMMAND_REPLIES.approve(request, "chat-0500"));
+    expect(h.params.values["/centaur/chats/chat-0500"]).toBe(GROUP_CHAT_ID);
+  });
+
+  it.each([
+    ["a denied chat", "chat", "👎"],
+    ["an approved user", "user", "👍"],
+  ] as const)("creates no alias for %s", async (_name, kind, emoji) => {
+    const h = await pendingRequest(kind);
+
+    await h.decisions.fromReaction(h.reaction(emoji));
+
+    expect(
+      Object.keys(h.params.values).filter((name) => name.startsWith("/centaur/chats/")),
+    ).toEqual([]);
+  });
+
+  it("stores no half-done approval when the alias cannot be recorded", async () => {
+    const h = await pendingRequest("chat");
+    vi.spyOn(h.params, "putIfAbsent").mockRejectedValueOnce(new Error("throttled"));
+
+    await expect(h.decisions.fromReaction(h.reaction("👍"))).rejects.toThrow("throttled");
+
+    expect(h.params.values[`/centaur/bots/garden/approved-chats/${GROUP_CHAT_ID}`]).toBeUndefined();
+    await h.decisions.fromReaction(h.reaction("👍"));
+    expect(approvedEntry(h)).toMatchObject({ alias: "garden-club" });
   });
 });

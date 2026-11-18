@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { BOT_CREATED_STATE, ownsMessage } from "../src/lambda/ownership.js";
 import {
+  blockedChat,
   HOUSEHOLD_CHAT_ID,
-  LEGACY_ENTRY,
+  LEGACY_CHATS_ENTRY,
+  LEGACY_DESTINATION_ENTRY,
   posterSetup,
   SLACK_CHANNEL_ID,
   SLACK_POST_THREAD_ID,
@@ -118,7 +120,7 @@ describe("poster start-thread", () => {
     expect(telegram.createForumTopic).not.toHaveBeenCalled();
   });
 
-  it("starts the topic in whichever registered chat the destination names", async () => {
+  it("starts the topic in whichever approved chat the destination names", async () => {
     const { poster, telegram } = await posterSetup();
 
     await poster({ ...START_HOUSEHOLD, destination: "workshop", text: "x" });
@@ -127,34 +129,62 @@ describe("poster start-thread", () => {
   });
 
   it.each([
-    ["a chat the bot did not register", { destination: "notes-channel" }, undefined],
     [
-      "a registered chat missing from SSM",
-      { destination: "household" },
-      "/centaur/chats/household",
+      "an unknown alias",
+      { destination: "attic" },
+      {},
+      /unknown chat alias "attic".*centaur access approve garden chat <id> --alias attic/,
     ],
-  ])("rejects %s as the destination", async (_name, overrides, missingParameter) => {
-    const { poster, params, telegram } = await posterSetup();
-    if (missingParameter) delete params.values[missingParameter];
+    [
+      "an alias whose chat is not approved",
+      { destination: "attic" },
+      { "/centaur/chats/attic": "-100777" },
+      /not approved for bot "garden".*centaur access approve garden chat -100777/,
+    ],
+    [
+      "an alias approved only for another bot",
+      { destination: "notes-channel" },
+      {},
+      /not approved for bot "garden"/,
+    ],
+    [
+      "a blocked chat",
+      { destination: "household" },
+      { [blockedChat("garden", HOUSEHOLD_CHAT_ID)]: "{}" },
+      /chat "household" is blocked/,
+    ],
+  ])("rejects %s as the destination", async (_name, overrides, parameters, message) => {
+    const { poster, telegram } = await posterSetup({ parameters });
 
-    await expect(poster({ ...START_HOUSEHOLD, text: "x", ...overrides })).rejects.toThrow();
+    await expect(poster({ ...START_HOUSEHOLD, text: "x", ...overrides })).rejects.toThrow(message);
     expect(telegram.createForumTopic).not.toHaveBeenCalled();
   });
 
-  it("reads a legacy entry's destination as its only chat", async () => {
-    const { poster, registryState, telegram } = await posterSetup();
-    await registryState.set("registry:garden", LEGACY_ENTRY);
+  describe("with a legacy registry entry that still lists chats", () => {
+    it("honors the listed chats without approvals", async () => {
+      const { poster, registryState, telegram } = await posterSetup({ approved: false });
+      await registryState.set("registry:garden", LEGACY_CHATS_ENTRY);
 
-    await poster({ ...START_HOUSEHOLD, text: "x" });
-    await expect(
-      poster({ ...START_HOUSEHOLD, destination: "workshop", text: "x" }),
-    ).rejects.toThrow(/no registered chat "workshop"/);
+      await poster({ ...START_HOUSEHOLD, destination: "workshop", text: "x" });
 
-    expect(telegram.createForumTopic).toHaveBeenCalledExactlyOnceWith(
-      "tg-token",
-      HOUSEHOLD_CHAT_ID,
-      "x",
-    );
+      expect(telegram.createForumTopic).toHaveBeenCalledExactlyOnceWith(
+        "tg-token",
+        WORKSHOP_CHAT_ID,
+        "x",
+      );
+    });
+
+    it("reads a legacy destination as its only chat", async () => {
+      const { poster, registryState, telegram } = await posterSetup({ approved: false });
+      await registryState.set("registry:garden", LEGACY_DESTINATION_ENTRY);
+
+      await poster({ ...START_HOUSEHOLD, text: "x" });
+      await expect(
+        poster({ ...START_HOUSEHOLD, destination: "workshop", text: "x" }),
+      ).rejects.toThrow(/not approved for bot "garden"/);
+
+      expect(telegram.createForumTopic).toHaveBeenCalledOnce();
+    });
   });
 
   describe("from a thread", () => {
@@ -166,8 +196,8 @@ describe("poster start-thread", () => {
     });
 
     it.each([
-      ["the first registered chat", HOUSEHOLD_CHAT_ID],
-      ["another registered chat", WORKSHOP_CHAT_ID],
+      ["the first approved chat", HOUSEHOLD_CHAT_ID],
+      ["another approved chat", WORKSHOP_CHAT_ID],
     ])("starts the topic in %s", async (_name, chatId) => {
       const { poster, telegram, thread } = await posterSetup();
       Object.assign(thread, { channelId: `telegram:${chatId}` });
@@ -186,11 +216,13 @@ describe("poster start-thread", () => {
       expect(telegram.createForumTopic).toHaveBeenCalledWith("tg-token", "4242", "fresh");
     });
 
-    it("refuses a group chat the bot did not register", async () => {
+    it("refuses a group chat that is not approved", async () => {
       const { poster, telegram, thread } = await posterSetup();
       Object.assign(thread, { channelId: "telegram:-100777" });
 
-      await expect(poster(fromThread("-100777"))).rejects.toThrow(/not registered for chat/);
+      await expect(poster(fromThread("-100777"))).rejects.toThrow(
+        /chat -100777 is not approved.*centaur access approve garden chat -100777/,
+      );
       expect(telegram.createForumTopic).not.toHaveBeenCalled();
     });
 
@@ -205,7 +237,7 @@ describe("poster start-thread", () => {
       await poster(fromThread("-100777"));
       Object.assign(thread, { channelId: `telegram:${HOUSEHOLD_CHAT_ID}` });
 
-      await expect(poster(fromThread(HOUSEHOLD_CHAT_ID))).rejects.toThrow(/not registered/);
+      await expect(poster(fromThread(HOUSEHOLD_CHAT_ID))).rejects.toThrow(/not approved/);
       expect(telegram.createForumTopic).toHaveBeenCalledExactlyOnceWith(
         "tg-token",
         "-100777",
@@ -214,8 +246,8 @@ describe("poster start-thread", () => {
     });
 
     it("accepts the chat of a legacy entry", async () => {
-      const { poster, registryState, telegram } = await posterSetup();
-      await registryState.set("registry:garden", LEGACY_ENTRY);
+      const { poster, registryState, telegram } = await posterSetup({ approved: false });
+      await registryState.set("registry:garden", LEGACY_DESTINATION_ENTRY);
 
       await poster(fromThread(HOUSEHOLD_CHAT_ID));
 

@@ -197,3 +197,69 @@ describe("access requester", () => {
     expect(await h.store.read(id.toUpperCase())).toMatchObject({ id });
   });
 });
+
+describe("access request chat title and alias", () => {
+  const request = async (
+    h: Awaited<ReturnType<typeof accessHarness>>,
+    thread = fakeThread().thread,
+  ) => {
+    await h.requestAccess("chat", thread, strangerMessage());
+    return h.store.read(h.requestId());
+  };
+
+  it("shows the proposed alias in the admin message and stores it on the request", async () => {
+    const h = await accessHarness();
+
+    const stored = await request(h);
+
+    expect(h.adminText()).toContain("Alias: garden-club");
+    expect(stored).toMatchObject({ subjectName: GROUP_CHAT_TITLE, alias: "garden-club" });
+  });
+
+  it("reads the title through the adapter's thread lookup, not the channel lookup", async () => {
+    const h = await accessHarness();
+    const { thread, fetchThread } = fakeThread();
+
+    await request(h, thread);
+
+    expect(fetchThread).toHaveBeenCalledExactlyOnceWith(thread.id);
+  });
+
+  it.each([
+    ["the title is not known", { title: null, fails: false }],
+    ["the lookup fails", { title: GROUP_CHAT_TITLE, fails: true }],
+  ])("falls back to the chat ID when %s", async (_name, { title, fails }) => {
+    const h = await accessHarness();
+    const { thread, fetchThread } = fakeThread({ title });
+    if (fails) fetchThread.mockRejectedValue(new Error("chat not found"));
+
+    const stored = await request(h, thread);
+
+    expect(h.adminText()).toContain(`Chat: (unknown) (${GROUP_CHAT_ID})`);
+    expect(h.adminText()).toContain("Alias: chat-0500");
+    expect(stored).toMatchObject({ subjectName: "(unknown)", alias: "chat-0500" });
+  });
+
+  it("proposes a numeric suffix when the alias names another chat", async () => {
+    const h = await accessHarness();
+    await h.params.put("/centaur/chats/garden-club", "-1");
+
+    expect(await request(h)).toMatchObject({ alias: "garden-club-2" });
+  });
+
+  it("proposes the alias that already names the chat", async () => {
+    const h = await accessHarness();
+    await h.params.put("/centaur/chats/household", GROUP_CHAT_ID);
+
+    expect(await request(h)).toMatchObject({ alias: "household" });
+  });
+
+  it("proposes no alias for a user request", async () => {
+    const h = await accessHarness();
+
+    await h.requestAccess("user", fakeThread().thread, strangerMessage());
+
+    expect(h.adminText()).not.toContain("Alias:");
+    expect(await h.store.read(h.requestId())).not.toHaveProperty("alias");
+  });
+});

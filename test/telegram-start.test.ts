@@ -47,12 +47,13 @@ async function startUpdate(
   const params = fakeParameterStore({
     ...PARAMETERS,
     [ADMIN_PARAMETER]: ADMIN_ID,
+    "/centaur/bots/garden/approved-users/1001": "{}",
     ...(claim ? { [CLAIM_PARAMETER]: encodeClaim("garden", CLAIM_CODE, claim) } : {}),
   });
   const dispatcher = fakeDispatcher();
   const state = createMemoryState();
   await state.connect();
-  await writeRegistryEntry(state, "garden", { allow: ["maintainer"] });
+  await writeRegistryEntry(state, "garden", {});
   const handler = await createReceiver({
     params,
     stateFor: () => state,

@@ -6,7 +6,7 @@ import {
   blockedPrefix,
   subjectIdOf,
 } from "./access-entries.js";
-import { chatParameter, type ParameterStore, userParameter } from "./parameters.js";
+import { chatParameter, type ParameterStore } from "./parameters.js";
 import { type Bot, readRegistryEntry, registeredChats } from "./registry.js";
 import { cachedFor } from "./ttl-cache.js";
 
@@ -43,31 +43,20 @@ export function createAccessResolver(
   const blocked = (kind: AccessKind) => idsUnder(params, blockedPrefix(bot.name, kind));
   const load = async (): Promise<Access> => {
     const entry = await readRegistryEntry(registryState, bot.name);
-    const [
-      baselineUsers,
-      baselineChats,
-      approvedChats,
-      blockedChatIds,
-      approvedUsers,
-      blockedUsers,
-      adminId,
-    ] = await Promise.all([
-      lookup(
-        params,
-        (entry?.allow ?? []).map((name) => userParameter(name, bot.platform)),
-      ),
-      lookup(params, registeredChats(entry).map(chatParameter)),
-      approved("chat"),
-      blocked("chat"),
-      approved("user"),
-      blocked("user"),
-      params.get(adminParameter(bot.platform)),
-    ]);
+    const [legacyChats, approvedChats, blockedChatIds, approvedUsers, blockedUsers, adminId] =
+      await Promise.all([
+        lookup(params, registeredChats(entry).map(chatParameter)),
+        approved("chat"),
+        blocked("chat"),
+        approved("user"),
+        blocked("user"),
+        params.get(adminParameter(bot.platform)),
+      ]);
     const admins = new Set(adminId ? [adminId] : []);
     const blockedUserIds = without(blockedUsers, admins);
     return {
-      chatIds: without(new Set([...baselineChats, ...approvedChats]), blockedChatIds),
-      userIds: without(new Set([...baselineUsers, ...approvedUsers, ...admins]), blockedUserIds),
+      chatIds: without(new Set([...legacyChats, ...approvedChats]), blockedChatIds),
+      userIds: without(new Set([...approvedUsers, ...admins]), blockedUserIds),
       blockedChatIds,
       blockedUserIds,
     };

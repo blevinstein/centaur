@@ -9,7 +9,6 @@ describe("parseCentaurConfig", () => {
       config: {
         bot: "garden",
         platform: "telegram",
-        allow: ["maintainer"],
         respond_to: "mention",
         max_turns: 30,
         context: { default: "transcript", scheduled: "fresh" },
@@ -28,8 +27,6 @@ describe("parseCentaurConfig", () => {
       config: {
         bot: "garden",
         platform: "telegram",
-        chats: ["household", "workshop"],
-        allow: ["maintainer", "spouse"],
         respond_to: "all",
         handle: "garden_helper_bot",
         effort: "low",
@@ -56,28 +53,12 @@ describe("parseCentaurConfig", () => {
     });
   });
 
-  it("defaults a prompt's destination to the only chat", () => {
-    const result = parseCentaurConfig(withExtra("chats: [household]\nprompts: {weekly: {}}"));
-    expect(result).toMatchObject({
+  it("accepts respond_to all and prompts without any chat list", () => {
+    expect(
+      parseCentaurConfig(withExtra("respond_to: all\nprompts: {weekly: {destination: household}}")),
+    ).toMatchObject({
       ok: true,
-      config: { prompts: { weekly: { destination: "household" } } },
-    });
-  });
-
-  it("accepts a prompt destination among several chats", () => {
-    const result = parseCentaurConfig(
-      withExtra("chats: [a, b]\nprompts: {weekly: {destination: b}}"),
-    );
-    expect(result).toMatchObject({
-      ok: true,
-      config: { prompts: { weekly: { destination: "b" } } },
-    });
-  });
-
-  it("accepts a DM-only bot with no chats and no prompts", () => {
-    expect(parseCentaurConfig(withExtra("respond_to: mention"))).toMatchObject({
-      ok: true,
-      config: { prompts: {} },
+      config: { respond_to: "all", prompts: { weekly: { destination: "household" } } },
     });
   });
 
