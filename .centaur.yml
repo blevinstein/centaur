@@ -1,0 +1,10 @@
+bot: centaur-test
+platform: telegram
+destination: blevinstein
+allow: [blevinstein]
+context:
+  default: transcript
+allowed_tools: "Read,Glob,Grep"
+persona: .centaur/persona.md
+prompts:
+  hello: {}

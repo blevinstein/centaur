@@ -54,6 +54,17 @@ default token do not trigger other workflows.
 To run a different prompt per schedule, add one job per prompt, or pass `prompt_name` from an
 expression keyed on `github.event.schedule`.
 
+## This repo as a test consumer
+
+This repo is its own consumer, for end-to-end testing: `.centaur.yml` binds the `centaur-test` bot
+and `.github/workflows/centaur.yml` calls the shared workflows locally (`uses:
+./.github/workflows/...`) with `centaur_repository` and `centaur_ref` set to the current
+repository and commit. Its agent is read-only (`Read,Glob,Grep`).
+
+Run **Actions > Centaur > Run workflow** with `action: register` to bind the bot, or `action:
+hello` to start a thread from `.centaur/prompts/hello.md`. Messages sent to the bot dispatch
+`centaur-message` and are answered by the `message` job.
+
 ## Variables and secrets
 
 Set as repository or organization **variables**:
