@@ -13,6 +13,8 @@ const resultMessage = z.object({
       reply: z.string().min(1).optional(),
       ignore: z.boolean().optional(),
       new_thread_title: z.string().min(1).optional(),
+      pr_title: z.string().optional(),
+      pr_body: z.string().optional(),
     })
     .refine((output) => (output.reply !== undefined) !== (output.ignore === true)),
 });
@@ -25,6 +27,8 @@ export function extractResult(executionFileText: string) {
   return {
     reply: parsed.data.structured_output.reply,
     title: parsed.data.structured_output.new_thread_title,
+    prTitle: parsed.data.structured_output.pr_title,
+    prBody: parsed.data.structured_output.pr_body,
     sessionId: parsed.data.session_id,
   };
 }

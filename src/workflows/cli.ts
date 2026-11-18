@@ -5,6 +5,7 @@ import { createPosterClient, createThreadStore } from "./aws.js";
 import { finish, notifyFailure } from "./finish.js";
 import { maskValue, writeOutputs } from "./github-output.js";
 import { prepare } from "./prepare.js";
+import { describePullRequest } from "./pull-request.js";
 import { oidcTokenFetcher, registerRepo } from "./register.js";
 
 const env = (name: string) => {
@@ -55,6 +56,15 @@ program.command("prepare").action(async () => {
     base_url: outputs.base_url,
     api_key_secret: outputs.api_key_secret,
   });
+});
+
+program.command("pr-details").action(async () => {
+  const details = await describePullRequest({
+    workspace: workspace(),
+    executionFile: env("EXECUTION_FILE"),
+    runUrl: env("RUN_URL"),
+  });
+  await writeOutputs(env("GITHUB_OUTPUT"), { ...details });
 });
 
 program.command("finish").action(() =>

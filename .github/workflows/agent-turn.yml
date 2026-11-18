@@ -72,6 +72,14 @@ jobs:
           prompt: Read .centaur-turn/prompt.md and follow it.
           claude_args: ${{ steps.prepare.outputs.claude_args }}
 
+      - name: Describe pull request
+        id: pr_details
+        if: steps.prepare.outputs.skip != 'true'
+        env:
+          EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node .centaur-runtime/dist/workflows/cli.js pr-details
+
       - name: Open pull request
         id: pr
         if: steps.prepare.outputs.skip != 'true'
@@ -79,9 +87,9 @@ jobs:
         with:
           token: ${{ github.token }}
           branch: ${{ steps.prepare.outputs.branch }}
-          commit-message: Centaur agent changes
-          title: Centaur agent changes
-          body: Opened by [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+          commit-message: ${{ steps.pr_details.outputs.title }}
+          title: ${{ steps.pr_details.outputs.title }}
+          body: ${{ steps.pr_details.outputs.body }}
 
       - name: Post reply
         if: steps.prepare.outputs.skip != 'true'

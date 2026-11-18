@@ -28,6 +28,7 @@ export interface TurnState {
   mode: "reply" | "start-thread";
   bot: string;
   threadId?: string;
+  promptName?: string;
   start?: StartTarget;
   policy: ContextPolicy;
   marker?: string;
@@ -228,6 +229,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     bot: config.bot,
     policy: turn.policy,
     sessionDirectory: directory,
+    ...(deps.promptName ? { promptName: deps.promptName } : {}),
     ...(turn.threadId ? { threadId: turn.threadId } : {}),
     ...(turn.start ? { start: turn.start } : {}),
     ...(turn.marker ? { marker: turn.marker } : {}),

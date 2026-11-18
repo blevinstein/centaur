@@ -92,19 +92,21 @@ centaur repo must be readable by the consumer's `GITHUB_TOKEN` (public, or grant
 runtime directory and `.centaur-turn/` are added to `.git/info/exclude` so they never land in a pull
 request.
 
-Commands: `register`, `prepare`, `finish`, `notify-failure`.
+Commands: `register`, `prepare`, `pr-details`, `finish`, `notify-failure`.
 
 ## Agent turn
 
 1. `prepare` reads `.centaur.yml`, reads the thread from the poster (`read`), determines the
    unprocessed messages and the context policy, and writes the prompt to `.centaur-turn/prompt.md`.
-   It outputs the `claude_args` (model and tuning flags, `--allowedTools`, `--json-schema` requiring `reply` (or, for `respond_to: all` threads, `reply` or `ignore: true`), persona
+   It outputs the `claude_args` (model and tuning flags, `--allowedTools`, `--json-schema` requiring `reply` (or, for `respond_to: all` threads, `reply` or `ignore: true`; optionally `pr_title` and `pr_body`), persona
    via `--append-system-prompt-file`, `--resume <id>`). When there is nothing to do (everything
    processed, or only a `/resume` or `/transcript` command, which is acknowledged in the thread),
    the remaining steps are skipped.
 2. `claude-code-action` runs with a constant prompt telling it to read the prompt file. If
    `allowed_tools` lacks `Read`, `Read(./.centaur-turn/**)` is added so it can.
-3. `create-pull-request` opens (or updates) `centaur/<bot>-<thread>` when files changed.
+3. `pr-details` builds the pull request title and body from the agent's optional `pr_title` and
+   `pr_body` structured output (see below). `create-pull-request` then opens (or updates)
+   `centaur/<bot>-<thread>` when files changed, using the title as both commit message and title.
 4. `finish` takes the reply from the action's execution file, appends the pull request link, posts
    it (`post`, or `start-thread` for scheduled prompts and `/new`; `prepare` records the target in
    the turn state: the prompt's `destination` alias, which the poster resolves to a chat approved for the bot, or the originating thread for `/new`), advances the marker and saves the
@@ -120,6 +122,14 @@ Commands: `register`, `prepare`, `finish`, `notify-failure`.
 (acknowledged policy commands, a bare `/new`) clear the reactions there. Removing reactions is
 best-effort: a failure is logged as a warning and never fails the job or holds back the reply. If
 `prepare` itself fails before writing the state, the reactions stay.
+
+The schema also accepts optional `pr_title` and `pr_body`, which the prompt tells the agent to set
+when it edits files. `pr-details` treats them as untrusted: the title is flattened to one line and
+cut to 100 characters, the body is cut to 4000 characters, control characters are removed, and both
+reach `create-pull-request` as step outputs passed to action inputs, never interpolated into a shell script. The body is
+followed by a footer linking the workflow run and naming the bot and the scheduled prompt (never the
+thread ID). When a field is missing or empty the title is `Centaur agent changes` (with `: <prompt
+name>` for scheduled prompts) and the body is the footer alone.
 
 `concurrency: centaur-<bot>-<thread>` serializes turns per thread; scheduled runs use the run id.
 
