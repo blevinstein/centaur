@@ -97,6 +97,13 @@ describe("bot remove and unbind", () => {
     await expect(cli.run("bot", command, "ghost")).rejects.toThrow(message);
   });
 
+  it("removes orphan parameters left without a platform", async () => {
+    const cli = await addBoundBot();
+    await cli.store.delete(["/centaur/bots/other/platform"]);
+    await cli.run("bot", "remove", "other");
+    expect(cli.store.names().filter((name) => name.includes("/other/"))).toEqual([]);
+  });
+
   it("unbind fails for an unbound bot", async () => {
     const cli = await addBoundBot();
     await expect(cli.run("bot", "unbind", "other")).rejects.toThrow(/not bound/);
@@ -124,5 +131,25 @@ describe("user add and chat add", () => {
     const cli = createCliHarness();
     await cli.run("chat", "add", "household", "-1001234");
     expect(await cli.store.get("/centaur/chats/household")).toBe("-1001234");
+  });
+});
+
+describe("github-token", () => {
+  it("stores the token as a secure parameter without printing it", async () => {
+    const cli = createCliHarness({ "github-token": "ghp_secret" });
+    await cli.run("github-token", "set");
+    expect(cli.store.entries.get("/centaur/github/token")).toEqual({
+      value: "ghp_secret",
+      secure: true,
+    });
+    expect(cli.output.join("\n")).not.toContain("ghp_secret");
+  });
+
+  it("removes the token, and fails when none is stored", async () => {
+    const cli = createCliHarness({ "github-token": "ghp_secret" });
+    await expect(cli.run("github-token", "remove")).rejects.toThrow(/No GitHub token/);
+    await cli.run("github-token", "set");
+    await cli.run("github-token", "remove");
+    expect(cli.store.names()).toEqual([]);
   });
 });

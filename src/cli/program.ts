@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { registerAllowlistCommands } from "./commands/allowlist.js";
 import { registerBotCommands } from "./commands/bot.js";
+import { registerGithubTokenCommands } from "./commands/github-token.js";
 import type { CliContext } from "./context.js";
 
 export function buildProgram(context: CliContext): Command {
@@ -10,5 +11,6 @@ export function buildProgram(context: CliContext): Command {
   });
   registerBotCommands(program, context);
   registerAllowlistCommands(program, context);
+  registerGithubTokenCommands(program, context);
   return program;
 }

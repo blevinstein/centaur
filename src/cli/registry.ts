@@ -1,4 +1,7 @@
+import { GITHUB_TOKEN_PARAMETER } from "../lambda/parameters.js";
 import type { ParameterStore } from "./parameter-store.js";
+
+export { GITHUB_TOKEN_PARAMETER };
 
 export class CliError extends Error {}
 

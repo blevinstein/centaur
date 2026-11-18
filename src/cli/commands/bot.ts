@@ -46,12 +46,13 @@ export function registerBotCommands(program: Command, context: CliContext): void
     .command("remove <bot>")
     .description("Delete a bot's secrets from SSM")
     .action(async (name: string) => {
-      await requireBotPlatform(context.store, name);
+      const names = await context.store.listNames(botPrefix(name));
+      if (names.length === 0) throw new CliError(`Unknown bot "${name}".`);
       const repo = await boundRepo(context, name);
       if (repo) {
         throw new CliError(`Bot "${name}" is bound to ${repo}; run "centaur bot unbind" first.`);
       }
-      await context.store.delete(await context.store.listNames(botPrefix(name)));
+      await context.store.delete(names);
       context.log(`Removed bot "${name}".`);
     });
 

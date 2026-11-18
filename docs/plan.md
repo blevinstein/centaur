@@ -281,6 +281,7 @@ IDs and names are plain `String`.
 | `bots/<bot>/repo` | String | `register` operation; cleared by `centaur bot unbind` |
 | `users/<name>/<platform>` | String | `centaur user add` |
 | `chats/<name>` | String | `centaur chat add` |
+| `github/token` | SecureString | `centaur github-token set` |
 
 `bots/<bot>/repo` is the bot's binding: the `owner/repo` that registered it. `register` must
 refuse to overwrite it with a different repo, and `centaur bot remove` refuses while it is set.

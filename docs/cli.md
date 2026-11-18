@@ -1,7 +1,7 @@
 # CLI
 
 The `centaur` CLI manages the SSM parameters the deployed Lambda reads: bot secrets, named users,
-and named chats. The parameter names and types are listed in [SSM parameter
+named chats, and the GitHub token. The parameter names and types are listed in [SSM parameter
 layout](plan.md#ssm-parameter-layout); this page covers usage.
 
 ## Install and run
@@ -50,8 +50,9 @@ parameter is written and the bot can simply be added again.
 
 ### `centaur bot remove <bot>`
 
-Deletes every parameter under `/centaur/bots/<bot>/`. Other bots whose names share a prefix (e.g.
-`garden-2`) are untouched. Refuses if the bot is unknown or still bound to a repo.
+Deletes every parameter under `/centaur/bots/<bot>/`, including leftovers when `platform` is
+missing. Other bots whose names share a prefix (e.g. `garden-2`) are untouched. Refuses if no
+parameters exist for the bot or it is still bound to a repo.
 
 ### `centaur bot unbind <bot>`
 
@@ -81,12 +82,27 @@ Telegram supergroup IDs are negative; that is accepted as-is.
 centaur chat add household -1001234567890
 ```
 
+### `centaur github-token set`
+
+Stores the GitHub token the receiver uses to dispatch workflows as the `SecureString`
+`/centaur/github/token`, overwriting any existing value. The secret is read as described in
+[Supplying secrets](#supplying-secrets), from `CENTAUR_BOT_GITHUB_TOKEN`. The command prints only
+`Stored the GitHub token.`.
+
+```sh
+CENTAUR_BOT_GITHUB_TOKEN=ghp_xxx centaur github-token set
+```
+
+### `centaur github-token remove`
+
+Deletes `/centaur/github/token`. Refuses if no token is stored.
+
 ## Supplying secrets
 
 For each secret the CLI needs, in order:
 
 1. The environment variable `CENTAUR_BOT_<NAME>`, where `<NAME>` is the secret name uppercased
-   with `-` replaced by `_`: `CENTAUR_BOT_TOKEN` and `CENTAUR_BOT_SIGNING_SECRET`. An empty
+   with `-` replaced by `_`: `CENTAUR_BOT_TOKEN`, `CENTAUR_BOT_SIGNING_SECRET`, and `CENTAUR_BOT_GITHUB_TOKEN`. An empty
    variable counts as unset.
 2. If stdin is not a terminal, one line per remaining secret, in the order of the table above
    (Slack: token, then signing secret).
@@ -109,7 +125,8 @@ Errors are printed to stderr and the exit code is 1.
 | `Invalid <kind> name "<x>"` | Name outside the pattern above. |
 | `Unknown platform "<x>"` | `--platform` is not `telegram` or `slack`. |
 | `Bot "<x>" already exists; remove it first.` | `bot add` on an existing bot. |
-| `Unknown bot "<x>".` | `bot remove` / `bot unbind` on a bot with no `platform` parameter. |
+| `Unknown bot "<x>".` | `bot remove` on a bot with no parameters, or `bot unbind` on a bot with no `platform` parameter. |
+| `No GitHub token is stored.` | `github-token remove` with nothing stored. |
 | `Bot "<x>" is bound to <repo>; run "centaur bot unbind" first.` | `bot remove` while bound. |
 | `Bot "<x>" is not bound to a repo.` | `bot unbind` on an unbound bot. |
 | `Pass at least one of --telegram, --slack.` | `user add` with no ID flags. |
