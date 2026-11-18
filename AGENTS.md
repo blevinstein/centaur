@@ -10,9 +10,11 @@
 
 ## Task lists
 
-- [TODO.md](TODO.md) holds work agents can do. [HUMAN_TODO.md](HUMAN_TODO.md) holds what only the
-  maintainer can do (accounts, live bots, decisions). When work stalls on a human step, add it to
-  `HUMAN_TODO.md` and keep it out of `TODO.md`.
+- [TODO.md](TODO.md) holds all open work, agent and human. Items needing the maintainer are labeled
+  **[HUMAN ACTION]** (only the maintainer can do it: accounts, credentials, messaging the live bot)
+  or **[HUMAN APPROVAL]** (an agent prepares it, the maintainer approves before it lands: decisions,
+  merges, changes that deploy to CloudFormation). When work stalls on one, add it to `TODO.md` with
+  the label and what it unblocks; don't do or skip it silently.
 
 ## Development
 

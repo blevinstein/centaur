@@ -1,8 +1,20 @@
 # TODO
 
-Tasks agents can do, in priority order, following the validation plan in [docs/plan.md](docs/plan.md#validation).
+Work in priority order, following the validation plan in [docs/plan.md](docs/plan.md#validation).
 Earlier sections retire the most risk; finish them before building on their results. Check items
 off as they land, and record findings that change the design back into `docs/`.
+
+Items that need the maintainer are labeled, and agents must not treat them as done or silently skip
+them:
+
+- **[HUMAN ACTION]**: only the maintainer can do it (an account, credentials, a phone, a live bot,
+  sending a message to the bot). Agents can't take these. When work stalls on one, add it with what
+  it unblocks.
+- **[HUMAN APPROVAL]**: an agent does the work or proposes the answer, but the maintainer must
+  approve it before it lands (a decision, a merge, a change that deploys to CloudFormation). Agents
+  prepare it and stop.
+
+Unlabeled items are free for an agent to complete.
 
 ## 1. Validate the agent runtime
 
@@ -87,13 +99,48 @@ off as they land, and record findings that change the design back into `docs/`.
 
 ## 7. End-to-end on Telegram
 
-Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
+Deploying, the test bot, the scratch consumer repo and the first round trips are done.
+
+- [x] **[HUMAN ACTION]** Deploy the stack (`parameters-prod.json`, OIDC provider check,
+      `npm run deploy-prod`; see [docs/deploy.md](docs/deploy.md)).
+- [x] **[HUMAN ACTION]** Create the test bot in BotFather, `centaur bot add`, store the GitHub PAT
+      with `centaur github-token set`, create the Topics supergroup and add the bot as admin with
+      Manage Topics.
+- [x] **[HUMAN ACTION]** Claim the admin role (`centaur admin claim <bot>`) and approve the group.
+- [x] **[HUMAN ACTION]** Set the test repo's variables and `ANTHROPIC_API_KEY` secret, enable "Allow
+      GitHub Actions to create and approve pull requests", and confirm `bots/<bot>/repo` appears in
+      SSM.
+- [x] **[HUMAN ACTION]** Message the bot in a topic: message, dispatch, turn, reply (about 47 s from
+      dispatch to posted reply: queue 4 s, runtime setup 7 s, agent 27 s, post 3 s).
+- [x] **[HUMAN ACTION]** Run the scheduled prompt with `workflow_dispatch`; it opened a new topic.
+- [x] **[HUMAN ACTION]** Reply in that topic without a mention; the transcript and last-processed
+      marker advanced.
+- [x] Repeat the `Chat`-against-DynamoDB run on the deployed table.
+- [ ] **[HUMAN ACTION]** Walk through [docs/onboarding.md](docs/onboarding.md) as written and
+      report anything wrong.
+- [ ] **[HUMAN ACTION]** Report anything from the "Still unverified" list in `docs/onboarding.md`
+      that breaks. Worked in the test repo: `execution_file` output shape, `repository_dispatch`
+      with `claude-code-action`, and `vars` (caller and called workflow share a repo, so the
+      cross-repo case isn't proven). Not exercised yet: the `job.workflow_*` contexts and a consumer
+      in a different repo.
 
 ## 8. First consumer: `garden`
 
 - [x] Add `.centaur.yml`, `.centaur/persona.md`, and `.centaur/prompts/weekly-tasks.md`.
 - [x] Add the caller workflow with the Saturday schedule.
 - [x] Update `garden`'s `AGENTS.md` so automated runs open PRs instead of pushing to `main`.
+- [ ] **[HUMAN ACTION]** Set the `ANTHROPIC_API_KEY` secret: `gh secret set ANTHROPIC_API_KEY -R
+      <owner>/garden` and paste the key (agents can't copy secret values between repos).
+- [ ] **[HUMAN ACTION]** Create a second bot in BotFather, run `centaur bot add garden --platform
+      telegram`, create the household group and enroll the household member.
+- [ ] **[HUMAN ACTION]** Onboard the household group: claim the admin role (`centaur admin claim
+      <bot>`, open the link), mention the bot in the group, then approve the group and each user
+      from the bot's DM.
+- [ ] **[HUMAN APPROVAL]** Garden PR #7: the first `weekly-tasks` run opened it with the old
+      generic title. Merge or close it, then re-run `weekly-tasks` to check the agent-written title
+      and body.
+- [ ] **[HUMAN APPROVAL]** Choose a license; the public repo has no `LICENSE` file. An agent can
+      write the file once you pick.
 
 ## 9. Follow-ups
 
@@ -130,7 +177,22 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
       artwork directly: its usage guidelines restrict modification, so make an original
       centaur-cat hybrid.
 
-## 10. MCP support
+## 10. Decisions
+
+- [ ] **[HUMAN APPROVAL]** Transcript size bound. The poster returns up to 100 stored messages and a
+      long thread or one huge message goes into the prompt unmodified. Choose a bound (per-message
+      cap, total budget, summarising) and where it lives; see also the transcript item in section 9.
+- [ ] **[HUMAN APPROVAL]** Poster caller check and concurrency cap. Poster operations other than
+      `register` trust any role the GitHub OIDC role allows, so any repo under the owner could act
+      as any bot. Decide when to require a per-repo token (before onboarding any repo that isn't
+      yours) and add a reserved-concurrency cap on the function.
+- [ ] **[HUMAN APPROVAL]** `job.workflow_*` contexts. `actionlint` doesn't know
+      `job.workflow_repository` or `job.workflow_sha`, which the shared workflows use. Decide
+      whether to require the `centaur_repository` and `centaur_ref` inputs instead.
+- [ ] **[HUMAN APPROVAL]** Thread policy storage. A scheduled prompt's context policy isn't
+      remembered for the thread. Decide whether the poster should store it.
+
+## 11. MCP support
 
 - [ ] Poster MCP tool for mid-turn questions and progress messages.
 - [ ] Additional MCP servers configurable in `.centaur.yml`: a schema section listing servers
@@ -139,13 +201,20 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
       Decide how `allowed_tools` names them (`mcp__<server>__*`) and how a consumer repo trusts
       the servers it lists.
 
-## 11. Slack support
+## 12. Slack support
 
 - [ ] App manifest template with the required scopes and event URL.
-- [ ] If Slack's 3-second acknowledgement limit is missed (see [HUMAN_TODO.md](HUMAN_TODO.md)),
-      acknowledge first and finish the reaction and dispatch in the background.
+- [ ] **[HUMAN APPROVAL]** Decide one Slack app per repo vs one shared app with per-message names.
+- [ ] **[HUMAN ACTION]** Onboard one personal-project repo on Slack: create the app from the
+      manifest once it exists, install it, store its secrets, invite the bot.
+- [ ] **[HUMAN ACTION]** Measure the Slack webhook acknowledgement time; Slack expects a 200 within
+      about 3 seconds.
+- [ ] If the 3-second limit is missed, acknowledge first and finish the reaction and dispatch in
+      the background.
 
-## Backlog (do not complete without human approval)
+## Backlog
+
+Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer saying so.
 
 - [ ] Plan for long-running agent turns (>15 mins) which will hit lambda function runtime limits.
       This may happen if we are using MCP tools etc which take a while to respond.
@@ -166,7 +235,7 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
       what the privacy story is for stored personal photos.
 - [ ] Test how a turn behaves when `--max-budget-usd` stops a run before a structured reply.
 - [ ] Two bots in one group: with a second bot from BotFather, confirm the ownership rules route
-      messages correctly (needs the maintainer to create the bot; see `HUMAN_TODO.md` then).
+      messages correctly (**[HUMAN ACTION]**: the maintainer creates the second bot in BotFather).
 - [ ] Agent-scheduled follow-ups via EventBridge Scheduler.
 - [ ] Per-thread turn or token caps for `resume` sessions.
 - [ ] Contribute the DynamoDB state adapter upstream, if we write one.

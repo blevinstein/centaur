@@ -343,7 +343,7 @@ names and IDs but never message content.
 ## Validation
 
 Ordered by risk; each experiment answered a question that could change the design. Results are in
-[research.md](research.md) and [HUMAN_TODO.md](../HUMAN_TODO.md).
+[research.md](research.md) and [TODO.md](../TODO.md).
 
 1. **Agent runtime (validated).** `claude-code-action` runs under `workflow_dispatch` on an
    `experiment/*` branch (a `workflow_dispatch` stub on `main` makes the branch's workflow
@@ -369,8 +369,7 @@ files.
 
 ## Decisions and open questions
 
-Open items are tracked in [HUMAN_TODO.md](../HUMAN_TODO.md#decisions-waiting-on-you) and the
-[TODO.md](../TODO.md) backlog.
+Open items are tracked in [TODO.md](../TODO.md#10-decisions) and its backlog.
 
 1. **State backend (decided).** A DynamoDB `StateAdapter` (19 methods, pay-per-request, stays in
    AWS), written here and possibly contributed upstream. Chosen for cost over hosted Postgres
