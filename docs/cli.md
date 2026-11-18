@@ -136,13 +136,14 @@ AWS errors (expired credentials, missing permissions, wrong region) surface unmo
 
 ## Example: onboarding a Telegram bot
 
-After creating the bot with BotFather (see [onboarding.md](onboarding.md)):
+After creating the bot with BotFather, read the group and user IDs with `getUpdates` before the
+webhook is set (see [onboarding.md](onboarding.md#maintainer-once-per-bot-and-group)):
 
 ```sh
 export AWS_PROFILE=centaur AWS_REGION=us-east-1
 centaur bot add garden --platform telegram      # paste the BotFather token at the hidden prompt
-centaur chat add household -1001234567890       # chat ID from the receiver's logs
-centaur user add spouse --telegram 111222333    # ID from the "not enrolled" reply/log
+centaur chat add household -1001234567890       # group chat ID (negative) from getUpdates
+centaur user add spouse --telegram 111222333    # user ID from getUpdates
 ```
 
 Then push the repo's `.centaur.yml`; its `register` job binds the bot (`bots/garden/repo`) and sets
