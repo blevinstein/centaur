@@ -173,9 +173,6 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
 - [x] Tag billable resources with `Business=Centaur` through stack-level tags in
       `scripts/deploy.sh` (`BUSINESS_TAG` overrides the value); see
       [docs/deploy.md](docs/deploy.md#cost-allocation-tag).
-- [ ] **[HUMAN ACTION]** Activate `Business` as a cost allocation tag in the Billing console (Cost
-      allocation tags, user-defined). Tags only show in Cost Explorer after activation, and not
-      retroactively, so do it soon.
 - [x] Admin claim flow so the owner never looks up their own ID (`centaur admin claim <bot>`; see
       [docs/plan.md](docs/plan.md#access-requests)).
 - [x] Rewrite `README.md` for public consumption; it is badly out of date (still says design
