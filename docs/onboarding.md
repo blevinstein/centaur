@@ -83,7 +83,7 @@ Only the maintainer uses these, so there's no non-technical onboarding.
 
 1. Choose its platform, create the bot, and store its secrets (Telegram or Slack, above).
 2. In the repo:
-   - add `.centaur.yml` (bot, platform, destination, allowed users, context policy defaults,
+   - add `.centaur.yml` ([schema](config.md): bot, platform, destination, allowed users, context policy defaults,
      model, tool allowlist, persona);
    - add `.centaur/persona.md`, and any scheduled prompts under `.centaur/prompts/`;
    - add the short caller workflow in `.github/workflows/` with `repository_dispatch`, any
