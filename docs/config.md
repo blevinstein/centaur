@@ -121,6 +121,8 @@ Failures return `{ ok: false, issues: [{ path, message }] }` with dotted paths s
 `context.default` or `prompts.weekly.context` (`(root)` for document-level problems, including
 invalid YAML). Parsing never throws on bad input.
 
+`centaur config check [path]` runs this parser from the command line; see [CLI](cli.md#centaur-config-check-path).
+
 ## Design decisions
 
 - **zod and `yaml`, no hand-rolled parsing.** The inferred type is the single source of truth

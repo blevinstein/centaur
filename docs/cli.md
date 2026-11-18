@@ -165,6 +165,19 @@ CENTAUR_BOT_GITHUB_TOKEN=ghp_xxx centaur github-token set
 
 Deletes `/centaur/github/token`. Refuses if no token is stored.
 
+### `centaur config check [path]`
+
+Validates a `.centaur.yml` (default: `.centaur.yml` in the current directory) with the same parser
+the receiver and workflows use, and prints `<path> is valid.` or every issue with its dotted path.
+It runs offline: no SSM access or AWS credentials are needed. It does not check that aliases in
+`chats` resolve to anything in SSM. Exits 1 if the file is missing, is not valid YAML, or fails
+the schema; see [Parsing](config.md#parsing).
+
+```sh
+centaur config check
+centaur config check path/to/.centaur.yml
+```
+
 ## Supplying secrets
 
 For each secret the CLI needs, in order:
@@ -194,6 +207,8 @@ Errors are printed to stderr and the exit code is 1.
 | `Unknown platform "<x>"` | `--platform` is not `telegram` or `slack`. |
 | `Bot "<x>" already exists; remove it first.` | `bot add` on an existing bot. |
 | `Unknown bot "<x>".` | `bot remove` on a bot with no parameters, or `bot unbind` on a bot with no `platform` parameter. |
+| `Cannot read <path>: no such file` | `config check` on a path that does not exist. |
+| `<path> is invalid:` followed by issues | `config check` on a file that fails validation. |
 | `No GitHub token is stored.` | `github-token remove` with nothing stored. |
 | `Bot "<x>" is bound to <repo>; run "centaur bot unbind" first.` | `bot remove` while bound. |
 | `Bot "<x>" is not bound to a repo.` | `bot unbind` on an unbound bot. |

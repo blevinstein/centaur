@@ -202,7 +202,7 @@ centaur bot add garden --platform telegram
 - [docs/workflows.md](docs/workflows.md): shared workflows, caller workflow, variables, context
   policies.
 - [docs/deploy.md](docs/deploy.md): CloudFormation stack and deploy script.
-- [docs/cli.md](docs/cli.md): the `centaur` CLI (bots, admin, access, chat aliases).
+- [docs/cli.md](docs/cli.md): the `centaur` CLI (bots, admin, access, chat aliases, config check).
 - [docs/onboarding.md](docs/onboarding.md): setup per platform and per repo.
 - [docs/poster.md](docs/poster.md): the Lambda operations workflows invoke.
 - [docs/research.md](docs/research.md): requirements and options considered.

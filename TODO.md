@@ -153,7 +153,7 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
 - [x] Cache SSM reads in the receiver; each accepted message makes 1 to 3 SSM calls.
 - [x] CLI: clearer error when piped stdin has too few lines (`Missing value for <name>.`).
 - [ ] Decide whether `destination` aliases are checked against SSM at register time.
-- [ ] Add `centaur config check` command wrapping `parseCentaurConfig`, and document it
+- [x] Add `centaur config check` command wrapping `parseCentaurConfig`, and document it
 - [ ] Bound the transcript size rendered into the prompt (per-message cap, total budget). Consider using polytokenizer utils for this (github.com:blevinstein/polytokenizer)
 - [ ] Switch the package manager from npm to yarn or pnpm (pick one; the maintainer's other
       projects use yarn). Replace `package-lock.json` and update everything that calls npm:
