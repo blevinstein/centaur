@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { readRegistryEntry } from "../src/lambda/registry.js";
 import {
   configText,
@@ -75,6 +75,34 @@ describe("register", () => {
     await register(poster, configText({ respond_to: "all" }));
 
     expect(await readRegistryEntry(registryState, "sprout")).toMatchObject({ respond_to: "all" });
+  });
+
+  describe("first-registration race", () => {
+    it("refuses the loser when another repo binds the bot between the read and the write", async () => {
+      const { poster, params, registryState, telegram } = await posterSetup({
+        parameters: ORPHAN_PARAMETERS,
+      });
+      vi.spyOn(params, "putIfAbsent").mockImplementationOnce(async (name) => {
+        params.values[name] = "octo/rival";
+        return false;
+      });
+
+      await expect(register(poster)).rejects.toThrow(/bound to octo\/rival/);
+
+      expect(params.values["/centaur/bots/sprout/repo"]).toBe("octo/rival");
+      expect(await readRegistryEntry(registryState, "sprout")).toBeNull();
+      expect(telegram.setWebhook).not.toHaveBeenCalled();
+    });
+
+    it("lets the same repo through when a concurrent registration of it won the write", async () => {
+      const { poster, params } = await posterSetup({ parameters: ORPHAN_PARAMETERS });
+      vi.spyOn(params, "putIfAbsent").mockImplementationOnce(async (name) => {
+        params.values[name] = "octo/sprout";
+        return false;
+      });
+
+      await expect(register(poster)).resolves.toMatchObject({ repo: "octo/sprout" });
+    });
   });
 
   describe("refusals", () => {

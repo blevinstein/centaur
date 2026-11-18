@@ -160,7 +160,9 @@ The receiver has to map an incoming webhook to a repo without reading every repo
    webhook setup is never a manual step.
 4. Registration fails if the bot's secrets aren't in SSM. Creating them is the maintainer's
    explicit consent that a bot exists; registration only binds it to a repo. A bot already bound
-   to a different repo can't be claimed without first unbinding it with the CLI.
+   to a different repo can't be claimed without first unbinding it with the CLI. The first binding
+   is a create-only `PutParameter` (`Overwrite: false`), so of two repos racing for an unbound bot
+   exactly one wins and the other is refused as a non-owner.
 
 The OIDC role's trust policy is limited to `repo:<owner>/*`, with the owner supplied as a stack
 parameter.

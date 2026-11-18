@@ -41,11 +41,17 @@ export function createRegister({
     if (secrets.platform !== platform) {
       throw new Error(`bot "${bot}" is a ${secrets.platform} bot, not ${platform}`);
     }
-    if (boundRepo && boundRepo !== repository) {
-      throw new Error(`bot "${bot}" is bound to ${boundRepo}; run "centaur bot unbind" first`);
+    // The conditional create makes the first binding atomic: a concurrent registration that lost
+    // the race re-reads the winner's repo and is refused like any other non-owner.
+    const owner =
+      boundRepo ??
+      ((await params.putIfAbsent(repoParameter(bot), repository))
+        ? repository
+        : await params.get(repoParameter(bot)));
+    if (owner !== repository) {
+      throw new Error(`bot "${bot}" is bound to ${owner}; run "centaur bot unbind" first`);
     }
 
-    await params.put(repoParameter(bot), repository);
     await writeRegistryEntry(registryState, bot, { respond_to });
     if (platform === "telegram") {
       await telegram.setWebhook(
