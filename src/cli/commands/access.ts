@@ -86,11 +86,15 @@ export function registerAccessCommands(program: Command, context: CliContext): v
         if (kind === "user" && alias !== undefined) {
           throw new CliError("--alias applies to chats only.");
         }
-        const chatAlias = kind === "chat" ? await chatAliasFor(id, name, alias) : undefined;
+        const stored = decodeEntry(
+          (await context.store.get(approvedParameter(bot, kind, id))) ?? "",
+        );
+        const displayName = name ?? stored.name;
+        const chatAlias = kind === "chat" ? await chatAliasFor(id, displayName, alias) : undefined;
         if (chatAlias) await context.store.put(chatParameter(chatAlias), id, { secure: false });
         await context.store.put(
           approvedParameter(bot, kind, id),
-          encodeEntry({ name, alias: chatAlias }),
+          encodeEntry({ name: displayName, alias: chatAlias }),
           { secure: false },
         );
         return `Approved ${kind} ${id} for bot "${bot}"${chatAlias ? ` as "${chatAlias}"` : ""}.`;

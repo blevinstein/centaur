@@ -4,7 +4,7 @@ import { chatParameter, type ParameterStore } from "./parameters.js";
 const ALIAS_MAX_LENGTH = 40;
 const ALIAS_ATTEMPTS = 50;
 
-export type KnownAliases = Record<string, string>;
+type KnownAliases = Record<string, string>;
 
 export function slugAlias(title: string | undefined, chatId: string): string {
   const slug = (title ?? "")

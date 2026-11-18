@@ -141,7 +141,7 @@ describe("chat aliases on approval", () => {
 
   it("adds a numeric suffix when the derived alias names another chat", async () => {
     const cli = await harnessWithBot();
-    await cli.run("chat", "add", "garden-club", "-1");
+    await cli.store.put("/centaur/chats/garden-club", "-1", { secure: false });
     await cli.run("access", "approve", "garden", "chat", "-100500", "--name", "Garden Club");
 
     expect(await cli.store.get("/centaur/chats/garden-club-2")).toBe("-100500");
@@ -150,7 +150,7 @@ describe("chat aliases on approval", () => {
 
   it("reuses the alias that already names the chat", async () => {
     const cli = await harnessWithBot();
-    await cli.run("chat", "add", "household", "-100500");
+    await cli.store.put("/centaur/chats/household", "-100500", { secure: false });
 
     await cli.run("access", "approve", "garden", "chat", "-100500", "--name", "Garden Club");
 
@@ -161,7 +161,7 @@ describe("chat aliases on approval", () => {
 
   it("refuses an explicit alias that names another chat, changing nothing", async () => {
     const cli = await harnessWithBot();
-    await cli.run("chat", "add", "household", "-1");
+    await cli.store.put("/centaur/chats/household", "-1", { secure: false });
 
     await expect(
       cli.run("access", "approve", "garden", "chat", "-100500", "--alias", "household"),
@@ -179,6 +179,19 @@ describe("chat aliases on approval", () => {
     await expect(
       cli.run("access", "approve", "garden", "chat", "1", "--alias", "Bad Alias"),
     ).rejects.toThrow(/Invalid alias name/);
+  });
+
+  it("renames a chat by approving it again with a new alias, keeping its name", async () => {
+    const cli = await harnessWithBot();
+    await cli.run("access", "approve", "garden", "chat", "-100500", "--name", "Garden Club");
+
+    await cli.run("access", "approve", "garden", "chat", "-100500", "--alias", "household");
+
+    expect(await cli.store.get("/centaur/chats/household")).toBe("-100500");
+    expect(JSON.parse((await cli.store.get(approvedChat("-100500"))) ?? "")).toMatchObject({
+      name: "Garden Club",
+      alias: "household",
+    });
   });
 
   it("keeps the alias when the approval is revoked", async () => {

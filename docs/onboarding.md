@@ -90,8 +90,7 @@ request needed: if you already know an ID, approve it for one bot with `centaur 
 garden chat <id> --name "Household"` (a supergroup's ID is negative, `-100...`; `--alias` picks the
 alias) or `centaur access approve garden user <id>`. The receiver logs the IDs of unknown chats
 and users, so you can read them from its logs. `centaur access list garden` shows what has been
-approved or blocked, and `centaur access revoke|block|unblock` undo it. `centaur chat add <alias>
-<id>` creates or repoints an alias by hand, for example before the chat is approved.
+approved or blocked, and `centaur access revoke|block|unblock` undo it.
 
 ### Household member (non-technical): once
 

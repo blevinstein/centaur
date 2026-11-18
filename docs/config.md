@@ -65,10 +65,6 @@ prompt's `destination` names such an alias. When the run starts, the poster reso
 chat ID and requires that chat to be approved for the bot and not blocked; otherwise it fails with
 the alias and the `centaur access approve` command that fixes it.
 
-Registry entries stored by registrations from before approval-only access may still contain
-`allow`, `chats` or `destination`. The receiver keeps honoring their chats (not their users) until
-the repo registers again, which replaces the entry with just `respond_to`.
-
 Names (`bot`, `destination` entries, prompt names) are lowercase
 aliases matching `[a-z0-9][a-z0-9_-]*`; real IDs never appear in the repo. Paths must be relative
 and stay inside the repo (no leading `/`, no `..`). Unknown keys are errors.

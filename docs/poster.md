@@ -24,8 +24,7 @@ the bot's posts land in the stored transcript the receiver and `read` use.
 
 The destination chat comes from the request, so the poster never needs prompt names. Scheduled
 runs pass `destination`, the prompt's chat alias from `.centaur.yml`. The poster reads its ID from
-`/centaur/chats/<destination>` and requires that chat to be approved for the bot (or listed by a
-stored legacy registry entry) and not blocked. An unknown alias, an unapproved chat or a blocked
+`/centaur/chats/<destination>` and requires that chat to be approved for the bot and not blocked. An unknown alias, an unapproved chat or a blocked
 chat fails the request with an error that names the alias and, for an unapproved chat, the
 `centaur access approve <bot> chat <id>` command that fixes it. `/new` passes `fromThreadId`, the
 thread the command came from, and the new thread starts in that thread's chat, which must be an
@@ -66,7 +65,7 @@ Then it parses `config` with `parseCentaurConfig` and, in order:
 1. requires the bot's `platform`, `token` and webhook/signing secret in SSM, with a platform that
    matches the config;
 2. refuses if `bots/<bot>/repo` holds a different repo (`centaur bot unbind` first);
-3. writes `bots/<bot>/repo`, then the registry entry `registry:<bot>` = `{ respond_to }` (a stored entry that still holds `allow`, `chats` or `destination` is replaced, which ends its legacy access);
+3. writes `bots/<bot>/repo`, then the registry entry `registry:<bot>` = `{ respond_to }`;
 4. for Telegram, calls `setWebhook` with `<FUNCTION_URL>/telegram/<bot>` and the stored webhook
    secret. Slack needs no call.
 
@@ -92,7 +91,7 @@ IAM for the function role: everything the receiver has. `register` writes only
 `/centaur/bots/*/repo`; the receiver's access-request decisions write the approved and blocked paths
 and create chat aliases under `/centaur/chats/*` (without overwriting)
 (see [deploy.md](deploy.md#iam)). `start-thread` resolves access with the same resolver as the
-receiver (admin, approved and blocked chats, legacy registry chats). It needs
+receiver (admin, approved and blocked chats). It needs
 `ssm:GetParametersByPath` on `/centaur/bots` and `/centaur/chats`, `ssm:GetParameter` on
 `/centaur/chats/*`, KMS decrypt, and read/write on the state table.
 

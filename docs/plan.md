@@ -44,10 +44,7 @@ in the diagram because it's invoked over IAM, not a public URL.
 - The registry entry `{respond_to}` for each bot is stored in state under `registry:<bot>` (written
   by `register`); the bound repo is in SSM at `bots/<bot>/repo`. With no entry or no `respond_to`,
   the bot answers `mention`. Access does not come from the entry: it is the admin plus the
-  chats and users approved for the bot in SSM (see [Access requests](#access-requests)). An entry
-  stored before approval-only access may still hold `allow`, `chats` or a single `destination`;
-  its chats (the `destination` as a one-item list) stay approved until the repo registers again,
-  and its `allow` is ignored.
+  chats and users approved for the bot in SSM (see [Access requests](#access-requests)). Any other field in a stored entry is ignored.
 - On a message:
   1. Adapter verifies the request (Telegram secret token, Slack signing secret) and deduplicates.
   2. Decide whether this bot owns the message (see [Routing in a shared Telegram
@@ -281,8 +278,8 @@ is what a prompt's `destination` names. The default is a slug of the chat's titl
 existing alias that already names the chat is reused. The request stores the proposal and the admin
 DM shows it; the approved entry stores the alias that was recorded. The Lambda writes aliases with
 SSM `Overwrite: false` and takes the next free name on a conflict, so it can never replace an
-alias, and its role may write only `/centaur/chats/*`. `centaur access approve --alias` and
-`centaur chat add` are the manual routes.
+alias, and its role may write only `/centaur/chats/*`. `centaur access approve --alias` is the manual route; approving an approved chat again with a new
+`--alias` adds that alias and updates the entry (earlier aliases stay).
 
 When a scheduled run starts a thread, the poster resolves the prompt's alias through SSM and
 requires the chat to be approved for the bot and not blocked; a missing alias, an unapproved chat
@@ -337,8 +334,7 @@ recovered by claiming again.
 | State table (TTL) | `admin-claim-failures:<hash>` | Wrong-code count for that claim. |
 
 Approved and blocked entries live in SSM so the [CLI](cli.md) can list, revoke and unblock them.
-Effective access is the admin plus the approved entries (plus the chats of a stored legacy registry
-entry), minus anything blocked. Blocked wins over everything except the admin user. The receiver caches the resolved access for about 30 seconds per
+Effective access is the admin plus the approved entries, minus anything blocked. Blocked wins over everything except the admin user. The receiver caches the resolved access for about 30 seconds per
 instance, and drops the cache when it records a decision, so the instance that handles the
 decision applies it at once and others within 30 seconds.
 
@@ -419,7 +415,7 @@ IDs and names are plain `String`.
 | `bots/<bot>/blocked/<chat\|user>/<id>` | String (JSON) | access request denial; `centaur access block` |
 | `admin/<platform>` | String | `centaur admin set`; a successful admin claim |
 | `admin-claim/<platform>` | String (JSON) | `centaur admin claim`; deleted on use, failure limit or `--cancel` |
-| `chats/<alias>` | String | access request approval; `centaur access approve`; `centaur chat add` |
+| `chats/<alias>` | String | access request approval; `centaur access approve` |
 | `github/token` | SecureString | `centaur github-token set` |
 
 `bots/<bot>/repo` is the bot's binding: the `owner/repo` that registered it. `register` must

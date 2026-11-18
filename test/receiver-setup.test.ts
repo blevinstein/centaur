@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { createAccessResolver } from "../src/lambda/access.js";
 import { createGitHubDispatcher } from "../src/lambda/github.js";
 import { loadBots, readRespondTo } from "../src/lambda/registry.js";
 import {
@@ -18,25 +17,15 @@ describe("loadBots", () => {
   });
 });
 
-describe("createAccessResolver", () => {
+describe("readRespondTo", () => {
   it.each([
-    ["an entry written before respond_to existed", { allow: ["maintainer"] }, "mention"],
-    ["an entry that names respond_to", { allow: ["maintainer"], respond_to: "all" }, "all"],
+    ["an entry without respond_to", {}, "mention"],
+    ["an entry that names respond_to", { respond_to: "all" }, "all"],
     ["no entry", undefined, "mention"],
   ])("reads respond_to from %s", async (_name, entry, expected) => {
     const state = await registryStateWith(entry ? { garden: entry } : {});
 
     await expect(readRespondTo(state, "garden")).resolves.toBe(expected);
-  });
-
-  it("allows nobody when the bot has no registry entry and no approvals", async () => {
-    const access = await createAccessResolver(
-      GARDEN_BOT,
-      fakeParameterStore(),
-      await registryStateWith({}),
-    )();
-
-    expect(access.userIds.size + access.chatIds.size).toBe(0);
   });
 });
 

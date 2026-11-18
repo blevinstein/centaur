@@ -107,7 +107,7 @@ export function createPoster(deps: PosterDeps) {
     chat: PosterChat,
     target: { destination?: string | undefined; fromThreadId?: string | undefined },
   ) => {
-    const { chatIds, blockedChatIds } = await createAccessResolver(bot, params, stateFor(""))();
+    const { chatIds, blockedChatIds } = await createAccessResolver(bot, params)();
     const approve = (chatId: string) => `centaur access approve ${bot.name} chat ${chatId}`;
     if (target.destination !== undefined) {
       const chatId = await params.get(chatParameter(target.destination));

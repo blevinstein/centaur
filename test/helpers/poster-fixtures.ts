@@ -17,12 +17,10 @@ export const SLACK_POST_THREAD_ID = "slack:C0123:1700000000.000100";
 
 export const WORKSHOP_CHAT_ID = "-100900";
 export const REGISTERED_ENTRY = { respond_to: "mention" };
-export const LEGACY_CHATS_ENTRY = { allow: ["maintainer"], chats: ["household", "workshop"] };
-export const LEGACY_DESTINATION_ENTRY = { allow: ["maintainer"], destination: "household" };
 
 export const approvedChat = (bot: string, chatId: string) =>
   `/centaur/bots/${bot}/approved-chats/${chatId}`;
-export const APPROVALS: Record<string, string> = {
+const APPROVALS: Record<string, string> = {
   [approvedChat("garden", HOUSEHOLD_CHAT_ID)]: "{}",
   [approvedChat("garden", WORKSHOP_CHAT_ID)]: "{}",
   [approvedChat("notes", SLACK_CHANNEL_ID)]: "{}",
@@ -108,14 +106,13 @@ export function fakePosterChat(transcript: unknown[] = []) {
 }
 
 export async function posterSetup(
-  options: { parameters?: Record<string, string>; transcript?: unknown[]; approved?: boolean } = {},
+  options: { parameters?: Record<string, string>; transcript?: unknown[] } = {},
 ) {
-  const { approved = true } = options;
   const params = fakeParameterStore({
     ...PARAMETERS,
     "/centaur/chats/notes-channel": SLACK_CHANNEL_ID,
     "/centaur/chats/workshop": WORKSHOP_CHAT_ID,
-    ...(approved ? APPROVALS : {}),
+    ...APPROVALS,
     ...options.parameters,
   });
   const registryState = createMemoryState();

@@ -14,13 +14,7 @@ export type BotSecrets = Omit<Bot, "repo">;
 
 export interface RegistryEntry {
   respond_to?: RespondTo;
-  /** Stored by registrations that predate approval-only access; `chats` is still honored and any `allow` is ignored. */
-  chats?: string[];
-  destination?: string;
 }
-
-export const registeredChats = (entry: RegistryEntry | null): string[] =>
-  entry?.chats ?? (entry?.destination ? [entry.destination] : []);
 
 const WEBHOOK_SECRET_KEY: Record<Platform, string> = {
   telegram: "webhook-secret",

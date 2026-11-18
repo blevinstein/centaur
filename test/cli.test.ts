@@ -119,11 +119,11 @@ describe("removed user commands", () => {
   });
 });
 
-describe("chat add", () => {
-  it("records a named chat", async () => {
-    const cli = createCliHarness();
-    await cli.run("chat", "add", "household", "-1001234");
-    expect(await cli.store.get("/centaur/chats/household")).toBe("-1001234");
+describe("removed chat add", () => {
+  it("is not a command", async () => {
+    await expect(createCliHarness().run("chat", "add", "household", "-1")).rejects.toThrow(
+      /unknown command 'add'/,
+    );
   });
 });
 
@@ -145,14 +145,16 @@ describe("github-token", () => {
     await cli.run("github-token", "remove");
     expect(cli.store.names()).toEqual([]);
   });
+});
 
-  it("lists chats sorted by name", async () => {
+describe("chat list", () => {
+  it("lists chat aliases sorted by name", async () => {
     const cli = createCliHarness();
     await cli.run("chat", "list");
     expect(cli.output.at(-1)).toBe("No chats registered.");
 
-    await cli.run("chat", "add", "workshop", "-2");
-    await cli.run("chat", "add", "household", "-1");
+    await cli.store.put("/centaur/chats/workshop", "-2", { secure: false });
+    await cli.store.put("/centaur/chats/household", "-1", { secure: false });
     await cli.run("chat", "list");
 
     expect(cli.output.at(-1)).toBe("household  -1\nworkshop  -2");

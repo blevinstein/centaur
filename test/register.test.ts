@@ -3,7 +3,6 @@ import { readRegistryEntry } from "../src/lambda/registry.js";
 import {
   configText,
   FUNCTION_URL,
-  LEGACY_CHATS_ENTRY,
   ORPHAN_PARAMETERS,
   posterSetup,
   REGISTERED_ENTRY,
@@ -55,15 +54,6 @@ describe("register", () => {
 
     expect(params.values["/centaur/bots/inbox/repo"]).toBe("octo/sprout");
     expect(telegram.setWebhook).not.toHaveBeenCalled();
-  });
-
-  it("replaces a legacy entry that lists chats and users", async () => {
-    const { poster, registryState } = await posterSetup({ parameters: ORPHAN_PARAMETERS });
-    await registryState.set("registry:sprout", LEGACY_CHATS_ENTRY);
-
-    await register(poster);
-
-    expect(await readRegistryEntry(registryState, "sprout")).toEqual({ respond_to: "mention" });
   });
 
   it.each(["allow: [maintainer]", "chats: [household]"])(

@@ -3,8 +3,6 @@ import { BOT_CREATED_STATE, ownsMessage } from "../src/lambda/ownership.js";
 import {
   blockedChat,
   HOUSEHOLD_CHAT_ID,
-  LEGACY_CHATS_ENTRY,
-  LEGACY_DESTINATION_ENTRY,
   posterSetup,
   SLACK_CHANNEL_ID,
   SLACK_POST_THREAD_ID,
@@ -160,33 +158,6 @@ describe("poster start-thread", () => {
     expect(telegram.createForumTopic).not.toHaveBeenCalled();
   });
 
-  describe("with a legacy registry entry that still lists chats", () => {
-    it("honors the listed chats without approvals", async () => {
-      const { poster, registryState, telegram } = await posterSetup({ approved: false });
-      await registryState.set("registry:garden", LEGACY_CHATS_ENTRY);
-
-      await poster({ ...START_HOUSEHOLD, destination: "workshop", text: "x" });
-
-      expect(telegram.createForumTopic).toHaveBeenCalledExactlyOnceWith(
-        "tg-token",
-        WORKSHOP_CHAT_ID,
-        "x",
-      );
-    });
-
-    it("reads a legacy destination as its only chat", async () => {
-      const { poster, registryState, telegram } = await posterSetup({ approved: false });
-      await registryState.set("registry:garden", LEGACY_DESTINATION_ENTRY);
-
-      await poster({ ...START_HOUSEHOLD, text: "x" });
-      await expect(
-        poster({ ...START_HOUSEHOLD, destination: "workshop", text: "x" }),
-      ).rejects.toThrow(/not approved for bot "garden"/);
-
-      expect(telegram.createForumTopic).toHaveBeenCalledOnce();
-    });
-  });
-
   describe("from a thread", () => {
     const fromThread = (chatId: string) => ({
       operation: "start-thread" as const,
@@ -243,15 +214,6 @@ describe("poster start-thread", () => {
         "-100777",
         "fresh",
       );
-    });
-
-    it("accepts the chat of a legacy entry", async () => {
-      const { poster, registryState, telegram } = await posterSetup({ approved: false });
-      await registryState.set("registry:garden", LEGACY_DESTINATION_ENTRY);
-
-      await poster(fromThread(HOUSEHOLD_CHAT_ID));
-
-      expect(telegram.createForumTopic).toHaveBeenCalledOnce();
     });
   });
 

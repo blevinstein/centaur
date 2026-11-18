@@ -63,18 +63,6 @@ the bot can be bound to a different repo, or removed. Refuses if the bot is unkn
 centaur bot unbind garden && centaur bot remove garden
 ```
 
-### `centaur chat add <name> <id>`
-
-Records a chat ID as the alias `/centaur/chats/<name>` (plain `String`), overwriting any existing
-value. Approving a chat creates its alias automatically, so this is the manual way to create an
-alias for a chat you have not approved yet, or to repoint one. Telegram supergroup IDs are
-negative; that is accepted as-is. Aliases are only names: a prompt can post to one only once the
-chat is also approved for the bot.
-
-```sh
-centaur chat add household -1001234567890
-```
-
 ### `centaur chat list`
 
 Prints one line per chat alias, `name  id`, sorted by name, or `No chats registered.`.
@@ -126,8 +114,8 @@ Approving a chat also records a global chat alias, `/centaur/chats/<alias>`, and
 approved entry. `--alias` names it (chats only); otherwise it is a slug of `--name` (lowercase
 `[a-z0-9-]`), or `chat-<last 4 digits of the ID>` without a name. A taken name gets a numeric
 suffix (`household-2`), an alias that already names the chat is reused, and an explicit `--alias`
-that names a different chat is refused. Existing aliases are never overwritten. Revoking leaves the
-alias in place.
+that names a different chat is refused. Existing aliases are never overwritten. Approving an approved chat again with a new `--alias` adds that alias and updates the entry,
+keeping its name; earlier aliases stay. Revoking leaves the aliases in place.
 
 ### `centaur access revoke <bot> <chat|user> <id>`
 

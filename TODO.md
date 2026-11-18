@@ -100,7 +100,7 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
 - [ ] Close the first-registration race on `bots/<bot>/repo` with a conditional `PutParameter`.
 - [ ] Add a routing test for `src/lambda/handler.ts`.
 - [ ] Cache SSM reads in the receiver; each accepted message makes 1 to 3 SSM calls.
-- [ ] CLI: warn when `chat add` overwrites an existing value; clearer error when piped
+- [ ] CLI: clearer error when piped
       stdin has too few lines.
 - [ ] Decide whether `destination` aliases are checked against SSM at register time.
 - [ ] Optional `centaur config check` command wrapping `parseCentaurConfig`.

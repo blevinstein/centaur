@@ -53,7 +53,7 @@ export function createBotChat({
   logger,
 }: BotChatDeps) {
   const chat = createChat({ bot, botState, logger });
-  const resolveAccess = createAccessResolver(bot, params, registryState);
+  const resolveAccess = createAccessResolver(bot, params);
   const channel = ADMIN_CHANNELS[bot.platform];
   const store = createAccessRequestStore(botState);
   const claimAdmin = createAdminClaimer({
