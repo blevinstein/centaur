@@ -26,13 +26,13 @@ Unblocks: everything below.
 - [x] Create a fine-grained GitHub PAT limited to the test repo with Contents: write, and store
       it with `centaur github-token set`.
 - [x] Create a test supergroup with Topics enabled and add the bot as admin with Manage Topics.
-- [ ] Send one message in the group, and before the webhook is set (section 3) read the chat and
+- [x] Send one message in the group, and before the webhook is set (section 3) read the chat and
       your user ID from Telegram's pending updates:
       `TOKEN=$(aws ssm get-parameter --name /centaur/bots/<bot>/token --with-decryption --query Parameter.Value --output text)`
       then `curl -s "https://api.telegram.org/bot$TOKEN/getUpdates" | jq '.result[].message | {chat: .chat.id, from: .from.id}'`.
       Once a webhook is set, `getUpdates` stops working and the receiver logs unknown chat IDs
       instead.
-- [ ] `centaur chat add <name> <chat id>` and `centaur user add <you> --telegram <your id>`.
+- [x] `centaur chat add <name> <chat id>` and `centaur user add <you> --telegram <your id>`.
 
 ## 3. Wire a test consumer repo
 
