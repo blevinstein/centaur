@@ -203,8 +203,11 @@ DMs with a bot are always that bot's; DMs use reply chains, not topics (see
   `garden`'s current "push to main" convention for automated runs.
 - **Prompt injection.** Fetched web pages (plant care guides, weather sites) are untrusted input. The allowlist
   and PR review are the backstops; avoid giving agents tools that send data elsewhere.
-- **GitHub credential for dispatch.** A GitHub App installed on participating repos (short-lived
-  installation tokens), or a fine-grained PAT limited to those repos as a stopgap.
+- **GitHub credential for dispatch.** A fine-grained PAT limited to the participating repos,
+  stored in SSM. `repository_dispatch` needs Contents: write, which also allows pushing, so every
+  participating repo protects `main` with branch protection or rulesets. A PAT covers one
+  resource owner and expires (30 days by default), so set a long expiry and a reminder; a GitHub
+  App (1-hour installation tokens, multiple owners) is the upgrade path.
 
 ## Validation plan
 
@@ -233,17 +236,15 @@ files.
 
 ## Open questions
 
-1. **State backend.** Options:
-   - write a DynamoDB `StateAdapter` (~15 methods, stays in AWS, pay-per-request);
-   - use a free hosted Redis (Upstash) or Postgres (Neon) with an existing adapter;
-   - leave the Chat SDK on its in-memory adapter and keep our own DynamoDB state. This is
-     **not viable**: it would lose dedupe and history across Lambda instances.
-
-   Leaning toward DynamoDB, ideally contributed upstream, but it's custom code to maintain.
-2. **Where turns execute for public repos.** `garden` is public, so its Actions logs are public.
-   Options: keep turns in each repo and rely on the no-content-in-logs rules; make `garden`
-   private; or run all turns in a private `centaur` executor that checks out the target repo
-   (needs a cross-repo token, which the GitHub App provides anyway).
+1. **State backend (decided).** A DynamoDB `StateAdapter` (19 methods, pay-per-request, stays in
+   AWS), written here and possibly contributed upstream. Chosen for cost over hosted Postgres
+   (Neon with `@chat-adapter/state-pg`), which needs no custom code and is the fallback. Hosted
+   Redis (Upstash) is the other fallback. Leaving the Chat SDK on its in-memory adapter is
+   **not viable**: it would lose dedupe and history across Lambda instances.
+2. **Where turns execute for public repos (decided).** Turns run in each consumer repo's own
+   Actions, so a public repo's logs are public. That is acceptable for low-sensitivity repos such
+   as `garden`, provided credentials are never exposed and message content stays out of logs.
+   Sensitive repos stay private.
 3. **One Slack app per repo vs one app with per-message names.** Per-repo apps mirror the Telegram
    model; a single app is less setup.
 4. **Progress messages mid-turn.** V1 posts once at the end. Later: a poster MCP tool so the agent

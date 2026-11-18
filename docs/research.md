@@ -52,6 +52,18 @@ Verified against the action's `action.yml`:
   externally and restoring it before the next run. The checkout path
   (`/home/runner/work/<repo>/<repo>`) is stable within a repo, so the escaped-cwd directory name is
   stable too.
+- Persisting the session file to S3 through a GitHub OIDC role (no stored AWS keys) and restoring
+  it before the action step lets `--resume <session_id>` continue the conversation. The resumed
+  run keeps the same session id and appends to the same file. The restore step takes about 4 s,
+  the upload about 1 s.
+- `--resume` finds the session even when the file is restored under a different escaped-cwd
+  directory, so the checkout path need not match, though restoring to the matching path is the
+  safe default. A session id that is not found fails the run (`error_during_execution`, empty
+  `session_id`) rather than starting fresh. `actions/checkout` with `path:` does not change the
+  cwd. Re-verify after Claude Code CLI upgrades.
+- A repo whose OIDC subject claim is immutable-format (`repo:<owner>@<id>/<repo>@<id>:...`) fails
+  a trust policy written for `repo:<owner>/<repo>:*`. Check
+  `gh api repos/<o>/<r>/actions/oidc/customization/sub`.
 - The session file is `~/.claude/projects/<cwd with every non-alphanumeric character replaced by
   "-">/<session_id>.jsonl`, e.g. `-home-runner-work-centaur-centaur/`. The directory name was
   identical across runs, the file name equals `session_id`, and the file is about 160–190 KB after
@@ -92,7 +104,8 @@ Anthropic API; cost differences came from prompt caching.
 
 ### GitHub Actions cost and visibility
 
-- Free plan: unlimited minutes for public repos, 2,000 minutes/month for private repos.
+- Free plan: standard runners are free for public repos. Private repos get $12/month of compute
+  (2,000 standard Linux minutes at $0.006/min). Failed runs and reruns are billed.
 - Expected 30–90 s from dispatch to first agent output, so chat replies are not instant.
 - **Logs and artifacts on public repos are public.** `garden` is public. Workflows there must not
   echo transcripts or prompts, must keep `show_full_output` off, and must store sessions and
@@ -158,8 +171,12 @@ Relevant details from the Telegram adapter README:
 
 State adapters published by the project: Redis, ioredis, Postgres, in-memory. Community: Convex,
 Cloudflare Durable Objects. There is **no DynamoDB adapter**. The `StateAdapter` interface is
-about 15 methods (key-value get/set/delete, list append, locks, a per-thread queue,
-subscriptions). See the open question in [plan.md](plan.md#open-questions).
+19 methods (key-value get/set/delete with TTL, `setIfNotExists`, list append, locks, a per-thread
+queue, subscriptions), read at `vercel/chat` commit `990411e`. Redis and Postgres adapters are
+449 and 661 source lines. There is no shared state-adapter conformance suite; each adapter has its
+own tests, and `state-memory`'s are the best behavioral template. Everything maps to DynamoDB; the
+awkward methods are `appendToList`, `enqueue`, `dequeue` and `queueDepth` (atomic trim and
+counters). Decision in [plan.md](plan.md#open-questions).
 
 The SDK's webhook handlers take a web `Request` and return a `Response`. Lambda function URLs
 deliver a different event shape, so the receiver needs a small request/response conversion, and

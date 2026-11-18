@@ -16,23 +16,23 @@ off as they land, and record findings that change the design back into `docs/`.
       required `reply` field.
 - [x] Capture `session_id`, find the session `.jsonl` under `~/.claude/projects/`, and confirm
       the escaped-cwd directory name is stable across runs.
-- [ ] Upload the session file to S3 using a GitHub OIDC role (no stored AWS keys), restore it in
+- [x] Upload the session file to S3 using a GitHub OIDC role (no stored AWS keys), restore it in
       a second run, and confirm `--resume <session_id>` continues the conversation.
 - [x] Note typical per-turn latency and token cost.
 
 ## 2. Decide open design questions
 
-- [ ] State backend: write a DynamoDB `StateAdapter`, or use hosted Redis or Postgres with an
-      existing adapter (plan open question 1). Check the `StateAdapter` interface in
-      `vercel/chat` `packages/chat/src/types.ts` and the existing adapters' tests to size the
-      DynamoDB option.
-- [ ] Where turns execute for public consumer repos (plan open question 2).
-- [ ] GitHub credential for dispatch: GitHub App vs fine-grained PAT.
+- [x] State backend: a DynamoDB `StateAdapter` (plan open question 1).
+- [x] Where turns execute for public consumer repos: in each repo's own Actions (plan open
+      question 2).
+- [x] GitHub credential for dispatch: fine-grained PAT, with a GitHub App as the upgrade path.
 
 ## 3. Infrastructure
 
-- [ ] Choose the language and tooling for the Lambda and CLI (TypeScript, to match Chat SDK) and
+- [x] Choose the language and tooling for the Lambda and CLI (TypeScript, to match Chat SDK) and
       set up the package with lint, typecheck, and tests.
+- [ ] Write a DynamoDB `StateAdapter` for the Chat SDK (19 methods, see `docs/research.md`) with
+      tests, starting from `state-memory`'s test suite.
 - [ ] CloudFormation template: receiver/poster Lambda with a function URL, state backend, S3
       session bucket, SSM parameter paths, and the GitHub OIDC provider and role. The role's
       trust is limited by a `GitHubOwner` parameter. The template imports nothing.

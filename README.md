@@ -4,7 +4,7 @@ Shared "reverse centaur" tooling: agents that handle timing and outreach for hou
 personal-project repos, while humans do the physical work (shopping, gardening, ...) and review
 the PRs that persist what the agents learn.
 
-Status: **design phase**. No code yet.
+Status: **design phase**; the agent runtime is validated and infrastructure is next.
 
 - [docs/research.md](docs/research.md) — requirements, options considered, and findings.
 - [docs/plan.md](docs/plan.md) — architecture, configuration, context management, and the
