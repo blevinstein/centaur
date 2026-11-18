@@ -51,7 +51,18 @@ Verified against the action's `action.yml`:
   runner, which is discarded after each job. Resuming across runs means persisting that file
   externally and restoring it before the next run. The checkout path
   (`/home/runner/work/<repo>/<repo>`) is stable within a repo, so the escaped-cwd directory name is
-  stable too. **Validate.**
+  stable too.
+- The session file is `~/.claude/projects/<cwd with every non-alphanumeric character replaced by
+  "-">/<session_id>.jsonl`, e.g. `-home-runner-work-centaur-centaur/`. The directory name was
+  identical across runs, the file name equals `session_id`, and the file is about 160–190 KB after
+  one turn. A `memory/` directory sits beside it.
+- When `--max-turns` is hit, the action's `session_id` and `structured_output` outputs are empty
+  and the job fails, though the session file is still written. Read the ID from the execution file
+  (`.[0].session_id`). The structured-output call counts as a turn, so allow at least 3.
+- `--json-schema` yields valid JSON with the required `reply` string, with no extra fields even
+  when the prompt invites them.
+- A haiku turn costs under $0.004. The model takes 1–7 s, but the action adds 17–22 s of fixed
+  overhead, so a job takes about 26–36 s with 0–4 s queue time.
 - `show_full_output` dumps every message, including tool results, into the job log. Keep it off.
 - The action reads the event type from the webhook payload, so `GITHUB_EVENT_NAME` overrides do
   nothing. It rejects `push` events and works under `workflow_dispatch`.
@@ -71,7 +82,13 @@ has a GitHub Action section: pass the OpenRouter key as `anthropic_api_key` and 
 `ANTHROPIC_AUTH_TOKEN` (sent as `Authorization: Bearer`) and blank `ANTHROPIC_API_KEY`, which the
 action can't do since it doesn't forward `ANTHROPIC_AUTH_TOKEN`. If the documented Action path
 fails, `ANTHROPIC_CUSTOM_HEADERS: "Authorization: Bearer <key>"` is a plausible workaround.
-**Validate** before relying on OpenRouter.
+Verified: the plain documented Action path works. Set `ANTHROPIC_BASE_URL=https://openrouter.ai/api`
+and pass the OpenRouter key as `anthropic_api_key`; no Bearer token or custom header is needed.
+`ANTHROPIC_CUSTOM_HEADERS` alone is not enough (a good Bearer header with a bogus
+`anthropic_api_key` fails with 401). Negative controls confirm the routing: an OpenRouter key sent
+to Anthropic, an Anthropic key sent to OpenRouter, and a bogus key all fail with each provider's
+own 401. A failing key retries for about 3 minutes, so set a job timeout. Latency matches the
+Anthropic API; cost differences came from prompt caching.
 
 ### GitHub Actions cost and visibility
 

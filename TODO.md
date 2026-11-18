@@ -6,19 +6,19 @@ off as they land, and record findings that change the design back into `docs/`.
 
 ## 1. Validate the agent runtime
 
-- [ ] Create a private scratch repo with a `workflow_dispatch` workflow that runs
-      `anthropics/claude-code-action@v1` with a trivial prompt via the Anthropic API.
-- [ ] Run the same workflow through OpenRouter using its documented Action setup
+- [x] Run `anthropics/claude-code-action@v1` via `workflow_dispatch` on an `experiment/*` branch
+      with a trivial prompt via the Anthropic API.
+- [x] Run the same workflow through OpenRouter using its documented Action setup
       (`anthropic_api_key` plus `ANTHROPIC_BASE_URL`). If auth fails, try
       `ANTHROPIC_CUSTOM_HEADERS: "Authorization: Bearer <key>"`. Record which works in
       `docs/research.md`.
-- [ ] Confirm `--json-schema` in `claude_args` produces a usable `structured_output` with a
+- [x] Confirm `--json-schema` in `claude_args` produces a usable `structured_output` with a
       required `reply` field.
-- [ ] Capture `session_id`, find the session `.jsonl` under `~/.claude/projects/`, and confirm
+- [x] Capture `session_id`, find the session `.jsonl` under `~/.claude/projects/`, and confirm
       the escaped-cwd directory name is stable across runs.
 - [ ] Upload the session file to S3 using a GitHub OIDC role (no stored AWS keys), restore it in
       a second run, and confirm `--resume <session_id>` continues the conversation.
-- [ ] Note typical per-turn latency and token cost.
+- [x] Note typical per-turn latency and token cost.
 
 ## 2. Decide open design questions
 
