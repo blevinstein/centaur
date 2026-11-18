@@ -1,6 +1,6 @@
 # TODO
 
-Tasks agents can do, in priority order, following the validation plan in [docs/plan.md](docs/plan.md#validation-plan).
+Tasks agents can do, in priority order, following the validation plan in [docs/plan.md](docs/plan.md#validation).
 Earlier sections retire the most risk; finish them before building on their results. Check items
 off as they land, and record findings that change the design back into `docs/`.
 
@@ -22,9 +22,9 @@ off as they land, and record findings that change the design back into `docs/`.
 
 ## 2. Decide open design questions
 
-- [x] State backend: a DynamoDB `StateAdapter` (plan open question 1).
-- [x] Where turns execute for public consumer repos: in each repo's own Actions (plan open
-      question 2).
+- [x] State backend: a DynamoDB `StateAdapter` (plan decision 1).
+- [x] Where turns execute for public consumer repos: in each repo's own Actions (plan decision
+      2).
 - [x] GitHub credential for dispatch: fine-grained PAT, with a GitHub App as the upgrade path.
 
 ## 3. Infrastructure
@@ -50,7 +50,8 @@ off as they land, and record findings that change the design back into `docs/`.
       webhook handlers.
 - [x] Build the `Chat` instance from the registry and SSM secrets at cold start, with
       per-bot webhook paths (`/telegram/<bot>`, `/slack/<bot>`).
-- [x] Sender and chat allowlists; reply to unknown senders with a refusal and log their IDs.
+- [x] Admin-approved access per bot (chats and users, blocklist, access requests answered by
+      reaction); reply to unknown senders with a refusal and log their IDs.
 - [x] Message ownership rules for a shared Telegram group (bot-created topics, mentions,
       ignore the rest).
 - [x] On an accepted message: 👀 reaction, then a `repository_dispatch` carrying IDs only.
@@ -63,8 +64,10 @@ off as they land, and record findings that change the design back into `docs/`.
 
 - [x] `centaur bot add|remove <bot> --platform <platform>`: store the token and generate the
       webhook secret in SSM.
-- [x] `centaur user add <name> --<platform> <id>` and `centaur chat add <name> <id>`.
-- [x] `centaur bot unbind <bot>` to release a bot from its repo.
+- [x] `centaur bot list` and `centaur bot unbind <bot>` to inspect bots and release one from its repo.
+- [x] `centaur admin set|show|remove|claim`, `centaur access approve|revoke|block|unblock|list`
+      and `centaur chat list` for access and chat aliases.
+- [x] `centaur github-token set|remove`.
 
 ## 6. Shared workflows
 
@@ -100,8 +103,7 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
 - [ ] Close the first-registration race on `bots/<bot>/repo` with a conditional `PutParameter`.
 - [ ] Add a routing test for `src/lambda/handler.ts`.
 - [ ] Cache SSM reads in the receiver; each accepted message makes 1 to 3 SSM calls.
-- [ ] CLI: clearer error when piped
-      stdin has too few lines.
+- [x] CLI: clearer error when piped stdin has too few lines (`Missing value for <name>.`).
 - [ ] Decide whether `destination` aliases are checked against SSM at register time.
 - [ ] Optional `centaur config check` command wrapping `parseCentaurConfig`.
 - [ ] Bound the transcript size rendered into the prompt (per-message cap, total budget).
@@ -117,13 +119,8 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
       name and the `centaur/<bot>-<thread>` PR branch name; use a short hash. Needed before any
       public consumer repo such as `garden`.
 
-- [ ] Admin claim flow so the owner never looks up their own ID: `centaur admin claim <bot>`
-      stores a short-lived claim code (hash, TTL) in SSM and prints a Telegram deep link
-      (`t.me/<bot_username>?start=<code>`; Slack: a code to DM the bot). Whoever sends the code
-      to the bot first becomes the admin (`/centaur/admin/<platform>`), which also opens the DM so
-      the bot can reach them. The admin is implicitly allowed in every bot. Then drop the
-      `getUpdates` ID-hunting steps from `docs/onboarding.md` and `HUMAN_TODO.md`; chats and users
-      are discovered through access requests.
+- [x] Admin claim flow so the owner never looks up their own ID (`centaur admin claim <bot>`; see
+      [docs/plan.md](docs/plan.md#access-requests)).
 
 - [x] Rewrite `README.md` for public consumption; it is badly out of date (still says design
       phase). Cover: what centaur is and the architecture in one picture, a short demo of a chat

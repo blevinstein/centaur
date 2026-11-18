@@ -163,7 +163,7 @@ Only the maintainer uses these, so there's no non-technical onboarding. Nothing 
 1. **Validate** Create the app from an app manifest, which predefines scopes and the event
    subscription URL `<function URL>/slack/<bot>`. No manifest exists in this repo yet. Whether
    one app per repo or one shared app posting under per-repo names is preferable is an open
-   question ([plan.md](plan.md#open-questions)).
+   question ([plan.md](plan.md#decisions-and-open-questions)).
 2. Install the app to the workspace; store the bot token and signing secret with `centaur bot add
    <bot> --platform slack`.
 3. Set `platform: slack` in the repo's `.centaur.yml`, push to register, and invite the bot to its

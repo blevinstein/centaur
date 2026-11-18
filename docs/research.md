@@ -109,8 +109,8 @@ Anthropic API; cost differences came from prompt caching.
 - Expected 30–90 s from dispatch to first agent output, so chat replies are not instant.
 - **Logs and artifacts on public repos are public.** `garden` is public. Workflows there must not
   echo transcripts or prompts, must keep `show_full_output` off, and must store sessions and
-  transcripts outside GitHub (S3), never as artifacts. See the open question in
-  [plan.md](plan.md#open-questions).
+  transcripts outside GitHub (S3), never as artifacts. See
+  [plan.md](plan.md#decisions-and-open-questions).
 
 ## Messaging platforms
 
@@ -176,7 +176,7 @@ queue, subscriptions), read at `vercel/chat` commit `990411e`. Redis and Postgre
 449 and 661 source lines. There is no shared state-adapter conformance suite; each adapter has its
 own tests, and `state-memory`'s are the best behavioral template. Everything maps to DynamoDB; the
 awkward methods are `appendToList`, `enqueue`, `dequeue` and `queueDepth` (atomic trim and
-counters). Decision in [plan.md](plan.md#open-questions).
+counters). Decision in [plan.md](plan.md#decisions-and-open-questions).
 
 The adapter in `src/dynamodb-state/` uses one pay-per-request table (`pk`/`sk`, TTL attribute
 `ttl` in epoch seconds, plus `expiresAt` in ms filtered at read time). Lock, dedupe, subscription,
@@ -186,7 +186,8 @@ newest entries are never lost. A 44-test suite ported from `state-memory` passes
 `@chat-adapter/state-memory` and DynamoDB Local. `infra/centaur.yml` defines the table (retained on
 stack deletion, TTL on `ttl`, generated name) and a `StateTableAccessPolicy` managed policy limited
 to `GetItem`, `PutItem`, `UpdateItem`, `DeleteItem` and `Query` on the table ARN, which is every
-call the adapter makes; the Lambda role attaches it. Not yet exercised on a deployed table.
+call the adapter makes; the Lambda role attaches it. The same checks (per-bot key prefixes,
+TTLs, history and thread state) passed against the deployed table.
 
 `test/chat-dynamodb-state.test.ts` drives a real `Chat` (fake platform adapter) against the
 adapter on DynamoDB Local and found no adapter bugs. How the core uses the interface:

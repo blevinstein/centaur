@@ -59,7 +59,7 @@ Use a scratch repo first; `garden` comes after this works.
       prefixes, TTLs on dedupe, webhook-update and history entries, unprefixed `registry:<bot>`,
       and `thread-state` for the bot-created topic.
 - [ ] Walk through [docs/onboarding.md](docs/onboarding.md) as written and report anything wrong.
-- [ ] Report anything from the "verify on first live run" list in `docs/workflows.md` that breaks.
+- [ ] Report anything from the "Still unverified" list in `docs/onboarding.md` that breaks.
       Worked in the test repo: `execution_file` output shape, `repository_dispatch` with
       `claude-code-action`, and `vars` (the caller and called workflow share a repo here, so this
       doesn't prove the cross-repo case). Not exercised yet: the `job.workflow_*` contexts (this
@@ -69,7 +69,7 @@ Use a scratch repo first; `garden` comes after this works.
 
 Unblocked by section 4.
 
-- [ ] Point an agent at `garden` to add the config, persona, prompt, caller workflow and
+- [x] Point an agent at `garden` to add the config, persona, prompt, caller workflow and
       `AGENTS.md` change (these are in [TODO.md](TODO.md) section 8).
 - [ ] Onboard the household group: claim the admin role (`centaur admin claim <bot>`, open the
       link), mention the bot in the group, then approve the group and each user from the bot's DM
@@ -100,6 +100,6 @@ Unblocked by section 4.
       its workflows. A public consumer still puts workflow logs and PR branch names in public view;
       the thread-ID hashing in `TODO.md` is needed before `garden` goes live.
 - [ ] **`ANTHROPIC_API_KEY` for `garden`.** Secret values can't be copied between repos by an
-      agent. Run `gh secret set ANTHROPIC_API_KEY -R blevinstein/garden` and paste the key.
+      agent. Run `gh secret set ANTHROPIC_API_KEY -R <owner>/garden` and paste the key.
 - [ ] **A second bot for `garden`.** Create it in BotFather and run `centaur bot add garden
       --platform telegram`; also create the household group and enroll the household member.
