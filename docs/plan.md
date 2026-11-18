@@ -255,3 +255,27 @@ files.
    nothing, so others can deploy it. Each deployer runs it from their own private infra repo,
    which holds the parameter overrides. A function URL is enough unless a custom domain on an
    existing ALB is wanted.
+
+## SSM parameter layout
+
+The `centaur` CLI owns these parameters (all under `/centaur/`). Secrets are `SecureString`;
+IDs and names are plain `String`.
+
+| Parameter | Type | Written by |
+|---|---|---|
+| `bots/<bot>/platform` | String | `centaur bot add` |
+| `bots/<bot>/token` | SecureString | `centaur bot add` |
+| `bots/<bot>/webhook-secret` | SecureString | `centaur bot add` (Telegram; generated) |
+| `bots/<bot>/signing-secret` | SecureString | `centaur bot add` (Slack; supplied) |
+| `bots/<bot>/repo` | String | `register` operation; cleared by `centaur bot unbind` |
+| `users/<name>/<platform>` | String | `centaur user add` |
+| `chats/<name>` | String | `centaur chat add` |
+
+`bots/<bot>/repo` is the bot's binding: the `owner/repo` that registered it. `register` must
+refuse to overwrite it with a different repo, and `centaur bot remove` refuses while it is set.
+The binding lives in SSM, next to the secrets that must exist before registration, so the CLI
+needs no access to the state table.
+
+`centaur bot add` reads each secret from `CENTAUR_BOT_<NAME>` (e.g. `CENTAUR_BOT_TOKEN`,
+`CENTAUR_BOT_SIGNING_SECRET`), else from stdin lines in order when piped, else from a hidden
+prompt. Secrets are never accepted as flags and never printed.

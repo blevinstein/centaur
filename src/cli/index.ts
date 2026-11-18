@@ -1,0 +1,20 @@
+#!/usr/bin/env node
+import { CommanderError } from "commander";
+import { SsmParameterStore } from "./parameter-store.js";
+import { buildProgram } from "./program.js";
+import { CliError } from "./registry.js";
+import { readSecretsFromEnvOrInput } from "./secret-input.js";
+
+const program = buildProgram({
+  store: new SsmParameterStore(),
+  readSecrets: readSecretsFromEnvOrInput,
+  log: console.log,
+});
+
+try {
+  await program.parseAsync();
+} catch (error) {
+  if (error instanceof CommanderError) process.exit(error.exitCode);
+  console.error(error instanceof CliError ? error.message : error);
+  process.exit(1);
+}
