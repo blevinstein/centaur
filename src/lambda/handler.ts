@@ -2,6 +2,7 @@ import type { APIGatewayProxyEventV2, Context } from "aws-lambda";
 import { ConsoleLogger } from "chat";
 import { createDynamoDbState } from "../dynamodb-state/index.js";
 import { createAttachmentStore, createS3ObjectStore } from "./attachments.js";
+import { createCachedParameterStore } from "./cached-parameters.js";
 import { createChat } from "./chat.js";
 import { createGitHubDispatcher } from "./github.js";
 import { wrapHandler } from "./http.js";
@@ -43,7 +44,7 @@ async function buildReceiver() {
   if (!token) throw new Error(`missing SSM parameter ${GITHUB_TOKEN_PARAMETER}`);
   const tableName = requiredEnv("STATE_TABLE_NAME");
   return createReceiver({
-    params,
+    params: createCachedParameterStore(params),
     stateFor: (keyPrefix) => createDynamoDbState({ tableName, keyPrefix }),
     attachments: buildAttachments(),
     dispatcher: createGitHubDispatcher(token),

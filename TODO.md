@@ -150,7 +150,7 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
       the CLI is the smaller change) and update `docs/cli.md` and `docs/config.md`.
 - [x] Close the first-registration race on `bots/<bot>/repo` with a conditional `PutParameter`.
 - [x] Add a routing test for `src/lambda/handler.ts`.
-- [ ] Cache SSM reads in the receiver; each accepted message makes 1 to 3 SSM calls.
+- [x] Cache SSM reads in the receiver; each accepted message makes 1 to 3 SSM calls.
 - [x] CLI: clearer error when piped stdin has too few lines (`Missing value for <name>.`).
 - [ ] Decide whether `destination` aliases are checked against SSM at register time.
 - [ ] Add `centaur config check` command wrapping `parseCentaurConfig`, and document it

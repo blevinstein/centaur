@@ -328,7 +328,10 @@ recovered by claiming again.
 Approved and blocked entries live in SSM so the [CLI](cli.md) can list, revoke and unblock them.
 Effective access is the admin plus the approved entries, minus anything blocked. Blocked wins over everything except the admin user. The receiver caches the resolved access for about 30 seconds per
 instance, and drops the cache when it records a decision, so the instance that handles the
-decision applies it at once and others within 30 seconds.
+decision applies it at once and others within 30 seconds. The receiver's parameter store also
+caches single-parameter reads (such as the admin's user ID) for 30 seconds, never caching missing
+parameters or admin claims; the poster and `register` read live. So a change made with the CLI
+(`access approve`, `revoke`, `block`, a new admin) can take up to about 30 seconds to apply.
 
 **Limits.** One pending request per (bot, kind, subject); repeats get "My admin hasn't answered
 yet." once per pending request, are then ignored silently, and never trigger a new notification. At most 10 new requests per bot per hour; beyond that requests are
