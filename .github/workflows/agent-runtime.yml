@@ -9,6 +9,12 @@ on:
       thread_key:
         description: S3 thread key
         default: exp1
+      restore_cwd:
+        description: Cwd whose escaped form names the restore dir (empty = workspace, none = skip jsonl restore)
+        default: ''
+      checkout_path:
+        description: actions/checkout path
+        default: ''
 
 permissions:
   id-token: write
@@ -25,6 +31,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: ${{ inputs.checkout_path }}
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -34,13 +42,14 @@ jobs:
       - name: Prepare turn
         run: |
           if [ -n "$RESUME_ID" ]; then
-            ESCAPED=$(sed 's/[^a-zA-Z0-9]/-/g' <<<"$GITHUB_WORKSPACE")
+            RCWD="${{ inputs.restore_cwd }}"; RCWD="${RCWD:-$GITHUB_WORKSPACE}"
+            ESCAPED=$(sed 's/[^a-zA-Z0-9]/-/g' <<<"$RCWD")
             DIR="$HOME/.claude/projects/$ESCAPED"
             mkdir -p "$DIR"
             S=$(date +%s.%N)
-            aws s3 cp --only-show-errors "$S3_PREFIX/$RESUME_ID.jsonl" "$DIR/$RESUME_ID.jsonl"
+            [ "$RCWD" = none ] || aws s3 cp --only-show-errors "$S3_PREFIX/$RESUME_ID.jsonl" "$DIR/$RESUME_ID.jsonl"
             aws s3 cp --only-show-errors "$S3_PREFIX/token.txt" "$RUNNER_TEMP/token.txt"
-            echo "restore_s=$(echo "$(date +%s.%N) - $S" | bc) bytes=$(stat -c %s "$DIR/$RESUME_ID.jsonl")"
+            echo "restore_s=$(echo "$(date +%s.%N) - $S" | bc) restore_dir=$ESCAPED"
             echo "CLAUDE_ARGS=--resume $RESUME_ID" >> "$GITHUB_ENV"
             echo "PROMPT=What was the word I asked you to remember? Put just that word in the reply." >> "$GITHUB_ENV"
           else
@@ -70,6 +79,8 @@ jobs:
           SESSION_ID: ${{ steps.claude.outputs.session_id }}
         run: |
           SID="${SESSION_ID:-$(jq -r '[.[] | select(.subtype == "init")][0].session_id // empty' "${EXECUTION_FILE:-/dev/null}" 2>/dev/null)}"
+          echo "outcome=${{ steps.claude.outcome }} requested=$RESUME_ID"
+          jq -r '.[] | select(.type=="result") | "result subtype=\(.subtype) is_error=\(.is_error) errors=\((.errors//[])|length) sid=\(.session_id)"' "${EXECUTION_FILE:-/dev/null}" 2>&1 | head -3
           FILE=$(find "$HOME/.claude/projects" -name "$SID.jsonl" | head -n1)
           echo "session_id=$SID file_found=$([ -n "$FILE" ] && echo yes || echo no)"
           echo "project_dir=$(basename "$(dirname "$FILE")")"
