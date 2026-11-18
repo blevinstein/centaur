@@ -104,9 +104,9 @@ single `claude` invocation per turn cannot do; and a thinking-token budget has n
 ## Prompts
 
 `prompts` names the scheduled prompts a repo owns. The cron expression stays in the consumer's
-caller workflow (`schedule:`), which passes the prompt name or file to the shared workflow. Each
-entry has an optional `file` (default `.centaur/prompts/<name>.md`) and an optional `context`
-policy. The parser resolves both, so consumers see every prompt with a concrete `file` and
+caller workflow (`schedule:`), which passes the prompt name to the shared workflow. Each
+entry has a required `destination`, an optional `file` (default `.centaur/prompts/<name>.md`) and
+an optional `context` policy. The parser resolves the file and context, so consumers see every prompt with a concrete `file` and
 `context` (the prompt's own, else `context.scheduled`).
 
 ## Parsing

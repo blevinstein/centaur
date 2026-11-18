@@ -71,7 +71,7 @@ Set as repository or organization **variables**:
 
 | Variable | Value |
 |---|---|
-| `CENTAUR_ROLE_ARN` | `GitHubRole` output of the stack (assumed through OIDC; no AWS keys are stored). |
+| `CENTAUR_ROLE_ARN` | `RoleArn` output of the stack (assumed through OIDC; no AWS keys are stored). |
 | `CENTAUR_AWS_REGION` | Region of the stack. |
 | `CENTAUR_FUNCTION_NAME` | Name of the receiver/poster Lambda function. |
 | `CENTAUR_OIDC_AUDIENCE` | The poster's `OIDC_AUDIENCE`. |

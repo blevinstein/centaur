@@ -23,8 +23,9 @@ The CLI talks to SSM through the AWS SDK's default credential chain and region (
 
 ## Names
 
-Bot, user, and chat names must match `[a-z0-9][a-z0-9-]*` (lowercase letters, digits, `-`).
-Anything else is rejected before SSM is touched.
+Bot names and chat aliases given to the CLI must match `[a-z0-9][a-z0-9-]*` (lowercase letters,
+digits, `-`). Anything else is rejected before SSM is touched. (`.centaur.yml` also accepts `_` in
+aliases, but an alias containing `_` cannot be created from the CLI.)
 
 ## Commands
 
@@ -138,7 +139,7 @@ access again.
 ### `centaur access list <bot>`
 
 Prints each approved and blocked entry as `state  kind  id  name  time`, followed by
-`alias=<alias>` for an approved chat that has one.
+`alias=<alias>` for an approved chat that has one, or `Nothing approved or blocked for "<bot>".`.
 
 Changes take effect within about 30 seconds (the receiver's cache).
 
@@ -189,7 +190,7 @@ Errors are printed to stderr and the exit code is 1.
 
 | Message | Cause |
 |---|---|
-| `Invalid <kind> name "<x>"` | Name outside the pattern above. |
+| `Invalid <kind> name "<x>"` | Bot name or alias outside the pattern above. |
 | `Unknown platform "<x>"` | `--platform` is not `telegram` or `slack`. |
 | `Bot "<x>" already exists; remove it first.` | `bot add` on an existing bot. |
 | `Unknown bot "<x>".` | `bot remove` on a bot with no parameters, or `bot unbind` on a bot with no `platform` parameter. |

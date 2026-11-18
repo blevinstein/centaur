@@ -66,7 +66,7 @@ Then it parses `config` with `parseCentaurConfig` and, in order:
    matches the config;
 2. refuses if `bots/<bot>/repo` holds a different repo (`centaur bot unbind` first);
 3. writes `bots/<bot>/repo`, then the registry entry `registry:<bot>` = `{ respond_to }`;
-4. for Telegram, calls `setWebhook` with `<FUNCTION_URL>/telegram/<bot>` and the stored webhook
+4. for Telegram, calls `setWebhook` with `<function URL>/telegram/<bot>` and the stored webhook
    secret. Slack needs no call.
 
 Re-registering from the owning repo is idempotent. Binding is check-then-write, so two repos
@@ -104,6 +104,6 @@ JWT to pass as `token`.
 - **One function, two entry points.** A single cold-start path for SSM and state; the function URL
   can't be IAM-authenticated without also locking out Telegram and Slack, so the poster is
   reachable only through `lambda:InvokeFunction`.
-- **The Lambda's SSM store gained `put`; the CLI keeps its own store.** The CLI needs
-  SecureString writes, listing and deletion, while the Lambda only needs a plain-`String` write;
-  merging the interfaces would force each side to implement operations it never uses.
+- **The Lambda and the CLI have separate SSM store interfaces.** The CLI needs SecureString
+  writes, listing and deletion, while the Lambda only needs plain-`String` writes and deletion of
+  admin claims; merging the interfaces would force each side to implement operations it never uses.
