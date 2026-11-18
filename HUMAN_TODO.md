@@ -96,12 +96,9 @@ Unblocked by section 4.
       `centaur_repository` and `centaur_ref` inputs instead.
 - [ ] **Thread policy storage.** A scheduled prompt's context policy isn't remembered for the
       thread. Decide whether the poster should store it.
-- [ ] **`garden` is public and centaur is private.** GitHub only lets a private repo's reusable
-      workflows be called from other private repos, so `garden` can't call centaur's workflows as
-      things stand. Choose one: make centaur public (it holds no secrets; deploy values live in the
-      gitignored `parameters-prod.json`), make `garden` private, or have `garden` carry its own
-      copy of the workflows. A public consumer also puts workflow logs and PR branch names in
-      public view, so I'm queueing the thread-ID hashing in `TODO.md`.
+- [x] **`garden` is public and centaur was private.** Centaur is now public, so `garden` can call
+      its workflows. A public consumer still puts workflow logs and PR branch names in public view;
+      the thread-ID hashing in `TODO.md` is needed before `garden` goes live.
 - [ ] **`ANTHROPIC_API_KEY` for `garden`.** Secret values can't be copied between repos by an
       agent. Run `gh secret set ANTHROPIC_API_KEY -R blevinstein/garden` and paste the key.
 - [ ] **A second bot for `garden`.** Create it in BotFather and run `centaur bot add garden
