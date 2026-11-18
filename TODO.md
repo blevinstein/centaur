@@ -33,8 +33,9 @@ off as they land, and record findings that change the design back into `docs/`.
       set up the package with lint, typecheck, and tests.
 - [x] Write a DynamoDB `StateAdapter` for the Chat SDK (19 methods, see `docs/research.md`) with
       tests, starting from `state-memory`'s test suite.
-- [ ] Run `Chat` end to end against the DynamoDB adapter and a deployed table, checking how the
+- [x] Run `Chat` end to end against the DynamoDB adapter on DynamoDB Local, checking how the
       core uses the `appendToList` TTL, `maxLength`, and expired queue entries.
+- [ ] Repeat that run against a deployed table.
 - [x] Add the state table (mirroring `stateTableInput`: pay-per-request, TTL on `ttl`) and its
       IAM access to `infra/centaur.yml`; make `chat` a runtime dependency once a Lambda consumes
       the package.
@@ -54,9 +55,9 @@ off as they land, and record findings that change the design back into `docs/`.
 - [x] Message ownership rules for a shared Telegram group (bot-created topics, mentions,
       ignore the rest).
 - [x] On an accepted message: 👀 reaction, then a `repository_dispatch` carrying IDs only.
-- [ ] Poster operations, invoked over IAM: post a reply, start a new thread or topic, read a
+- [x] Poster operations, invoked over IAM: post a reply, start a new thread or topic, read a
       thread transcript.
-- [ ] `register` operation: take the repo name from the OIDC claims, require existing bot
+- [x] `register` operation: take the repo name from the OIDC claims, require existing bot
       secrets, refuse to rebind a bot owned by another repo, and call `setWebhook` for Telegram.
 
 ## 5. CLI
@@ -100,6 +101,17 @@ off as they land, and record findings that change the design back into `docs/`.
 - [ ] App manifest template with the required scopes and event URL.
 - [ ] Decide one app per repo vs one shared app with per-message names.
 - [ ] Onboard one personal-project repo on Slack.
+
+## Follow-ups
+
+- [ ] Close the first-registration race on `bots/<bot>/repo` with a conditional `PutParameter`.
+- [ ] Add a routing test for `src/lambda/handler.ts`.
+- [ ] Cache SSM reads in the receiver; each accepted message makes 1 to 3 SSM calls.
+- [ ] CLI: warn when `user add` and `chat add` overwrite an existing value; clearer error when piped
+      stdin has too few lines.
+- [ ] Decide whether `allow` and `destination` aliases are checked against SSM at register time.
+- [ ] Optional `centaur config check` command wrapping `parseCentaurConfig`.
+- [ ] Bound the transcript size rendered into the prompt (per-message cap, total budget).
 
 ## Later
 
