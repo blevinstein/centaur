@@ -100,9 +100,9 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
 - [ ] Close the first-registration race on `bots/<bot>/repo` with a conditional `PutParameter`.
 - [ ] Add a routing test for `src/lambda/handler.ts`.
 - [ ] Cache SSM reads in the receiver; each accepted message makes 1 to 3 SSM calls.
-- [ ] CLI: warn when `user add` and `chat add` overwrite an existing value; clearer error when piped
+- [ ] CLI: warn when `chat add` overwrites an existing value; clearer error when piped
       stdin has too few lines.
-- [ ] Decide whether `allow` and `destination` aliases are checked against SSM at register time.
+- [ ] Decide whether `destination` aliases are checked against SSM at register time.
 - [ ] Optional `centaur config check` command wrapping `parseCentaurConfig`.
 - [ ] Bound the transcript size rendered into the prompt (per-message cap, total budget).
 
@@ -124,19 +124,6 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
       the bot can reach them. The admin is implicitly allowed in every bot. Then drop the
       `getUpdates` ID-hunting steps from `docs/onboarding.md` and `HUMAN_TODO.md`; chats and users
       are discovered through access requests.
-
-- [ ] Access requests record the chat title as `(unknown)` for an approved Telegram group; check
-      whether the title is available on the request (and shown in the admin DM) and store it.
-- [ ] Remove the allowlists from `.centaur.yml`; access is only the admin's approvals.
-      Drop `allow` and `chats` (strict schema errors pointing at `centaur access` and the admin
-      flow); access = admin (implicit) + per-bot approved chats/users in SSM, blocked wins;
-      `respond_to: all` applies to every approved chat of the bot. A prompt's `destination` stays
-      a required chat alias that must resolve to a chat approved for the bot, so approvals create
-      the alias (from the chat title, numeric suffix on collision; shown in the admin DM;
-      `--alias` on `centaur access approve`). Remove user aliases (`centaur user add|list`,
-      `/centaur/users/*`, the IAM read) and keep `centaur chat add|list` for aliases only.
-      Update registry entries (`register` stops writing `allow`/`chats`; stored legacy entries
-      still read), the receiver, docs and the two consumer configs, and re-register.
 
 - [ ] Rewrite `README.md` for public consumption; it is badly out of date (still says design
       phase). Cover: what centaur is and the architecture in one picture, a short demo of a chat

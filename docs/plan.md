@@ -41,18 +41,20 @@ in the diagram because it's invoked over IAM, not a public URL.
   uses its own state `keyPrefix` (`bot:<bot>:`) to keep dedupe keys apart. `concurrency` is
   `concurrent`, because the default `drop` strategy loses messages that arrive close together.
   The webhook path selects the bot: `/telegram/<bot>`, `/slack/<bot>`.
-- The registry entry `{allow, chats, respond_to}` for each bot is stored in state under
-  `registry:<bot>` (written by `register`); the bound repo is in SSM at `bots/<bot>/repo`. With no
-  entry, nobody is allowed; an entry without `respond_to` means `mention`. An entry written before
-  `chats` existed has a single `destination`, which is read as a one-item `chats` list.
+- The registry entry `{respond_to}` for each bot is stored in state under `registry:<bot>` (written
+  by `register`); the bound repo is in SSM at `bots/<bot>/repo`. With no entry or no `respond_to`,
+  the bot answers `mention`. Access does not come from the entry: it is the admin plus the
+  chats and users approved for the bot in SSM (see [Access requests](#access-requests)). An entry
+  stored before approval-only access may still hold `allow`, `chats` or a single `destination`;
+  its chats (the `destination` as a one-item list) stay approved until the repo registers again,
+  and its `allow` is ignored.
 - On a message:
   1. Adapter verifies the request (Telegram secret token, Slack signing secret) and deduplicates.
   2. Decide whether this bot owns the message (see [Routing in a shared Telegram
      group](#routing-in-a-shared-telegram-group)); ignore it if not. This comes first so that in a
      shared group only the owning bot ever replies to a stranger.
-  3. Reject blocked chats and users silently, then group chats outside the bot's allowed chats
-     (the repo's `chats` plus approved chats; DMs are exempt) and senders outside its allowed users
-     (`allow` plus approved users); see [Security](#security). An addressed message from an unknown
+  3. Reject blocked chats and users silently, then group chats outside the bot's approved chats
+     (DMs are exempt) and senders outside its approved users (the admin counts as approved); see [Security](#security). An addressed message from an unknown
      chat or user becomes an [access request](#access-requests) when an admin is configured.
      Otherwise unknown chats are ignored and unknown senders get a refusal; only IDs are logged.
   4. Persist the message (the SDK's `persistThreadHistory` does this) and add a 👀 reaction, which
@@ -127,7 +129,7 @@ A manual `workflow_dispatch` registers and also runs the scheduled prompt, which
 setup check.
 
 A scheduled run starts a **new thread** (a new Telegram topic, or a new top-level Slack message)
-in the prompt's `destination` chat (one of the bot's `chats`) with a `fresh` context, and replies to it continue as normal conversation.
+in the prompt's `destination` chat (an alias that must resolve to a chat approved for the bot) with a `fresh` context, and replies to it continue as normal conversation.
 
 ### Configuration
 
@@ -137,15 +139,13 @@ anyone. Configuration lives in three places:
 | What | Where | Example |
 |---|---|---|
 | Bot identity, platform, routing, and agent behavior | Each consumer repo's `.centaur.yml` | `bot: garden`, `platform: telegram` |
-| Secrets and personal identifiers | SSM Parameter Store, managed with a CLI in this repo | Bot tokens, webhook secrets, Telegram user and chat IDs |
+| Secrets, personal identifiers and access | SSM Parameter Store, managed with a CLI in this repo | Bot tokens, webhook secrets, the admin, approved and blocked chats and users, chat aliases |
 | Deployment parameters | CloudFormation parameter overrides, kept in the deployer's own private infra repo | GitHub owner for the OIDC trust policy, stack name |
 
 ```yaml
 # <repo>/.centaur.yml
 bot: garden                     # secrets live under /centaur/bots/garden/ in SSM
 platform: telegram              # telegram | slack
-chats: [household]              # chats the bot listens in; IDs in SSM at /centaur/chats/<alias>
-allow: [maintainer, spouse]     # named users; IDs in SSM at /centaur/users/<name>/<platform>
 context:
   default: transcript           # fresh | transcript | resume
   scheduled: fresh
@@ -154,10 +154,14 @@ model: sonnet
 allowed_tools: "Read,Edit,Write,Glob,Grep,WebFetch,WebSearch"
 respond_to: mention             # mention | all
 persona: .centaur/persona.md    # tone, audience, what to ask humans for
+prompts:
+  weekly-tasks:
+    destination: household      # chat alias; the chat must be approved for the bot
 ```
 
 Names in `.centaur.yml` are aliases; the real IDs never appear in any repo, so a public consumer
-repo reveals only aliases.
+repo reveals only aliases. The file carries no allowlist (`allow` and `chats` are validation
+errors); who may talk to the bot is decided only by the admin.
 
 #### Registration
 
@@ -169,8 +173,7 @@ The receiver has to map an incoming webhook to a repo without reading every repo
 2. It invokes the Lambda's `register` operation through the GitHub OIDC role, sending the parsed
    `.centaur.yml` and the calling repo name taken from the OIDC token's claims, not from input the
    workflow could forge.
-3. The Lambda upserts the registry entry (`bot → repo, platform, chats, allow`) in the state
-   store. For Telegram it also calls `setWebhook` with the bot's token and secret from SSM, so
+3. The Lambda upserts the registry entry (`bot → respond_to`) in the state store. For Telegram it also calls `setWebhook` with the bot's token and secret from SSM, so
    webhook setup is never a manual step.
 4. Registration fails if the bot's secrets aren't in SSM. Creating them is the maintainer's
    explicit consent that a bot exists; registration only binds it to a repo. A bot already bound
@@ -209,11 +212,11 @@ receive **all** group messages, so each bot must decide what's addressed to it:
    by creating a new topic for the conversation, or replies in place for quick questions.
 3. Everything else is ignored.
 
-A bot configured with `respond_to: all` replaces rules 1-3 with: every message from an allowed
-sender in any of its `chats` belongs to it, and the agent decides per turn whether to reply or
+A bot configured with `respond_to: all` replaces rules 1-3 with: every message from an approved
+sender in any approved chat of the bot belongs to it, and the agent decides per turn whether to reply or
 stay silent. Messages authored by bots (the Chat SDK's `author.isBot` and `author.isMe`) never
 belong to any bot in this mode, so two bots in one chat can't answer each other. The checks keep
-their order (ownership, chat allowlist, sender allowlist), but an unenrolled sender whose message
+their order (ownership, chat approval, sender approval), but an unenrolled sender whose message
 is not a mention or DM is dropped without a refusal (only logged with their ID, so enrollment
 still works), and messages from other chats are dropped without a log. Two bots set to `all` in
 the same chat would both run on every message, so give at most one bot `all` per chat.
@@ -223,8 +226,9 @@ DMs with a bot are always that bot's; DMs use reply chains, not topics (see
 
 ## Security
 
-- **Sender allowlist per bot.** The agent holds repo write access and secrets, so only known user
-  IDs (and known chat IDs) can trigger turns. Without an admin, unknown senders get a short refusal
+- **Admin-approved access per bot.** The agent holds repo write access and secrets, so only the
+  admin and the users and chats the admin approved can trigger turns. The list lives in SSM, not in
+  a repo, so a pull request cannot widen it. Without an admin, unknown senders get a short refusal
   (except for unaddressed messages in a `respond_to: all` chat, which are only logged) and are
   logged with their platform ID; with an admin they can start an [access
   request](#access-requests) instead (see [onboarding.md](onboarding.md)).
@@ -244,28 +248,46 @@ DMs with a bot are always that bot's; DMs use reply chains, not topics (see
 
 ## Access requests
 
-The `.centaur.yml` allowlist (`chats`, `allow`) is the baseline. The maintainer can also admit new
-chats and users without touching SSM by hand: the bot asks an admin, who answers from their phone.
+Access is only what the admin approves; `.centaur.yml` has no allowlist. The admin admits chats and
+users without touching SSM by hand: the bot asks them, and they answer from their phone.
 
 **Flow.**
 
-1. An addressed message (a mention, a DM or a command) arrives from a chat outside the bot's allowed
-   chats, or from a user outside its allowed users. Unaddressed messages are still ignored
+1. An addressed message (a mention, a DM or a command) arrives from a chat outside the bot's approved
+   chats, or from a user outside its approved users (the admin is always approved). Unaddressed messages are still ignored
    silently, with no request and no cost.
 2. If the admin has an ID for the bot's platform, the receiver creates a request and sends the admin
    a DM from the bot: request ID, kind (`chat` or `user`), the requester's display name and ID, the
-   chat's title and ID, and the bot's name. The message text is never included. The requester gets
+   chat's title and ID, the chat alias that approval will create (chat requests), and the bot's
+   name. The title comes from the adapter's thread lookup (`fetchThread`); the channel lookup
+   cannot be used, because Telegram's rejects the `telegram:<id>` channel ID the SDK passes. An
+   unavailable title is shown as `(unknown)`. The message text is never included. The requester gets
    "I've asked my admin for access." With no admin for that platform, behavior is unchanged (chats
    ignored, users refused).
 3. The admin reacts to that DM: 👍 approves, 👎 denies and blocks. Only a reaction by the admin's
    user ID on that request's DM message counts. Approval adds the chat or user and posts a short
-   confirmation to the requester's thread. Denial is silent.
+   confirmation to the requester's thread. Approving a chat also records its alias (below). Denial is silent.
 4. `/approve <id>` and `/deny <id>` in the admin DM do the same on Telegram, and are the fallback if
    reactions stop arriving. Slack has no text fallback; its commands would need a registered
    slash command, so Slack decisions are reactions only.
 
 A chat request and a user request are separate: a new group needs its chat approved, and each
 person in it still needs approval to talk to the bot (DMs only need the user).
+
+**Chat aliases.** Approving a chat creates a global alias, `/centaur/chats/<alias>` = chat ID, which
+is what a prompt's `destination` names. The default is a slug of the chat's title (lowercase,
+`[a-z0-9-]`, at most 40 characters), `-2`, `-3` and so on when the name is taken, and
+`chat-<last 4 digits of the ID>` when the title is unknown or has no Latin letters or digits; an
+existing alias that already names the chat is reused. The request stores the proposal and the admin
+DM shows it; the approved entry stores the alias that was recorded. The Lambda writes aliases with
+SSM `Overwrite: false` and takes the next free name on a conflict, so it can never replace an
+alias, and its role may write only `/centaur/chats/*`. `centaur access approve --alias` and
+`centaur chat add` are the manual routes.
+
+When a scheduled run starts a thread, the poster resolves the prompt's alias through SSM and
+requires the chat to be approved for the bot and not blocked; a missing alias, an unapproved chat
+or a blocked chat fails with an error naming the alias and the `centaur access approve` command to
+run. `/new` starts its thread in the originating thread's chat, which must be approved or a DM.
 
 **Admin channel.** `AdminChannel` (`src/lambda/admin-channel.ts`) has two jobs: send a request to
 the admin as a DM, and map an incoming reaction to a verdict. Telegram and Slack implementations use
@@ -280,7 +302,7 @@ credentials) stores `/centaur/admin-claim/<platform>`: the bot's name, an expiry
 default) and the SHA-256 hash of a 192-bit random code; the code itself is only printed. On
 Telegram the code is the payload of a deep link (`t.me/<bot_username>?start=<code>`), so tapping
 **Start** sends `/start <code>`; on Slack the owner DMs the bot `claim <code>`. `/claim <code>` also
-works on Telegram. The receiver checks this before the sender allowlist, because the claimant is
+works on Telegram. The receiver checks this before the access checks, because the claimant is
 by definition unknown. It accepts the code only in a direct message to the bot the claim names,
 compares hashes with `crypto.timingSafeEqual`, and checks the expiry. On success it writes the
 sender's user ID to `/centaur/admin/<platform>`, deletes the claim, and replies with a fixed
@@ -307,15 +329,16 @@ recovered by claiming again.
 | State table (TTL) | `access-subject:<kind>:<id>` | One pending slot per subject. |
 | State table (TTL) | `access-request-message:<message id>` | Maps the admin DM to its request. |
 | State table (TTL) | `access-request-claim:<id>` | Makes a decision single-use. |
-| SSM | `bots/<bot>/approved-chats/<chatId>`, `approved-users/<userId>` | Approved subjects (JSON: name, time). |
+| SSM | `bots/<bot>/approved-chats/<chatId>`, `approved-users/<userId>` | Approved subjects (JSON: name, alias for chats, time). |
+| SSM | `chats/<alias>` | A chat alias and its ID; created by approvals, never overwritten by the Lambda. |
 | SSM | `bots/<bot>/blocked/<chat\|user>/<id>` | Blocked subjects (JSON: name, time). |
 | SSM | `admin/<platform>` | The admin's user ID. |
 | SSM | `admin-claim/<platform>` | The pending claim: bot, expiry, code hash. |
 | State table (TTL) | `admin-claim-failures:<hash>` | Wrong-code count for that claim. |
 
 Approved and blocked entries live in SSM so the [CLI](cli.md) can list, revoke and unblock them.
-The effective allowlist is the baseline union the approved entries, minus anything blocked.
-Blocked wins over everything. The receiver caches the resolved allowlist for about 30 seconds per
+Effective access is the admin plus the approved entries (plus the chats of a stored legacy registry
+entry), minus anything blocked. Blocked wins over everything except the admin user. The receiver caches the resolved access for about 30 seconds per
 instance, and drops the cache when it records a decision, so the instance that handles the
 decision applies it at once and others within 30 seconds.
 
@@ -396,8 +419,7 @@ IDs and names are plain `String`.
 | `bots/<bot>/blocked/<chat\|user>/<id>` | String (JSON) | access request denial; `centaur access block` |
 | `admin/<platform>` | String | `centaur admin set`; a successful admin claim |
 | `admin-claim/<platform>` | String (JSON) | `centaur admin claim`; deleted on use, failure limit or `--cancel` |
-| `users/<name>/<platform>` | String | `centaur user add` |
-| `chats/<name>` | String | `centaur chat add` |
+| `chats/<alias>` | String | access request approval; `centaur access approve`; `centaur chat add` |
 | `github/token` | SecureString | `centaur github-token set` |
 
 `bots/<bot>/repo` is the bot's binding: the `owner/repo` that registered it. `register` must

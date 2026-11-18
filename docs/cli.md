@@ -1,7 +1,7 @@
 # CLI
 
-The `centaur` CLI manages the SSM parameters the deployed Lambda reads: bot secrets, named users,
-named chats, the admin, approved and blocked chats and users, and the GitHub token. The parameter names and types are listed in [SSM parameter
+The `centaur` CLI manages the SSM parameters the deployed Lambda reads: bot secrets, chat aliases,
+the admin, approved and blocked chats and users, and the GitHub token. The parameter names and types are listed in [SSM parameter
 layout](plan.md#ssm-parameter-layout); this page covers usage.
 
 ## Install and run
@@ -63,25 +63,13 @@ the bot can be bound to a different repo, or removed. Refuses if the bot is unkn
 centaur bot unbind garden && centaur bot remove garden
 ```
 
-### `centaur user add <name> [--telegram <id>] [--slack <id>]`
-
-Records a person's platform user IDs as `/centaur/users/<name>/<platform>` (plain `String`).
-Repos reference the person by `<name>` in `.centaur.yml`'s `allow` list. At least one flag is
-required. Re-running overwrites the IDs given and leaves the others as they were.
-
-```sh
-centaur user add spouse --telegram 111222333 --slack U01ABCDEF
-```
-
-### `centaur user list`
-
-Prints one line per registered user, sorted by name: `name  slack=U01ABCDEF  telegram=111222333`.
-Prints `No users registered.` when there are none. User IDs are identifiers, not secrets.
-
 ### `centaur chat add <name> <id>`
 
-Records a chat ID as `/centaur/chats/<name>` (plain `String`), overwriting any existing value.
-Telegram supergroup IDs are negative; that is accepted as-is.
+Records a chat ID as the alias `/centaur/chats/<name>` (plain `String`), overwriting any existing
+value. Approving a chat creates its alias automatically, so this is the manual way to create an
+alias for a chat you have not approved yet, or to repoint one. Telegram supergroup IDs are
+negative; that is accepted as-is. Aliases are only names: a prompt can post to one only once the
+chat is also approved for the bot.
 
 ```sh
 centaur chat add household -1001234567890
@@ -89,7 +77,7 @@ centaur chat add household -1001234567890
 
 ### `centaur chat list`
 
-Prints one line per registered chat, `name  id`, sorted by name, or `No chats registered.`.
+Prints one line per chat alias, `name  id`, sorted by name, or `No chats registered.`.
 
 ### `centaur admin set [--telegram <id>] [--slack <id>]`
 
@@ -128,33 +116,41 @@ Prints the admin ID for each platform, or `not set`.
 Deletes the admin ID for the given platforms. Bots on a platform with no admin go back to ignoring
 unknown chats and refusing unknown users. Refuses if one of the platforms has no admin.
 
-### `centaur access approve <bot> <chat|user> <id> [--name <name>]`
+### `centaur access approve <bot> <chat|user> <id> [--name <name>] [--alias <alias>]`
 
 Approves a chat or user for one bot without waiting for a request, writing
 `/centaur/bots/<bot>/approved-chats/<id>` or `approved-users/<id>`. `--name` records a display
 name for `access list`. Telegram group IDs are negative; they are accepted as-is.
 
+Approving a chat also records a global chat alias, `/centaur/chats/<alias>`, and stores it on the
+approved entry. `--alias` names it (chats only); otherwise it is a slug of `--name` (lowercase
+`[a-z0-9-]`), or `chat-<last 4 digits of the ID>` without a name. A taken name gets a numeric
+suffix (`household-2`), an alias that already names the chat is reused, and an explicit `--alias`
+that names a different chat is refused. Existing aliases are never overwritten. Revoking leaves the
+alias in place.
+
 ### `centaur access revoke <bot> <chat|user> <id>`
 
-Deletes the approval. Refuses if there is none. It does not remove baseline access from
-`.centaur.yml`.
+Deletes the approval. Refuses if there is none.
 
 ### `centaur access block <bot> <chat|user> <id>` / `centaur access unblock <bot> <chat|user> <id>`
 
 `block` writes `/centaur/bots/<bot>/blocked/<kind>/<id>` and deletes the subject's approval, and
-refuses to block the platform's admin user ID; a blocked subject is ignored even if it is in `.centaur.yml`, and gets no reply or request. `unblock`
+refuses to block the platform's admin user ID; a blocked subject is ignored, and gets no reply or request. `unblock`
 deletes the block and refuses if there is none; the subject is then unapproved and can request
-access again (baseline access from `.centaur.yml` returns).
+access again.
 
 ### `centaur access list <bot>`
 
-Prints each approved and blocked entry as `state  kind  id  name  time`.
+Prints each approved and blocked entry as `state  kind  id  name  time`, followed by
+`alias=<alias>` for an approved chat that has one.
 
 Changes take effect within about 30 seconds (the receiver's cache).
 
 ```sh
 centaur admin set --telegram 111222333
 centaur access approve garden user 444555666 --name "Pat"
+centaur access approve garden chat -1001234567890 --name "Garden Club"   # alias: garden-club
 centaur access list garden
 ```
 
@@ -205,7 +201,8 @@ Errors are printed to stderr and the exit code is 1.
 | `No GitHub token is stored.` | `github-token remove` with nothing stored. |
 | `Bot "<x>" is bound to <repo>; run "centaur bot unbind" first.` | `bot remove` while bound. |
 | `Bot "<x>" is not bound to a repo.` | `bot unbind` on an unbound bot. |
-| `Pass at least one of --telegram, --slack.` | `user add` with no ID flags. |
+| `Alias "<x>" already names chat <id>.` | `access approve --alias` with a name that points at another chat. |
+| `--alias applies to chats only.` | `access approve <bot> user <id> --alias ...`. |
 | `Unknown kind "<x>": expected chat or user.` | `access` with a kind other than `chat` or `user`. |
 | `Approved <kind> <id> not found.` / `Blocked <kind> <id> not found.` | `access revoke` / `unblock` with no such entry. |
 | `No admin is set for <platform>.` | `admin remove` for a platform with no admin. |
@@ -227,7 +224,7 @@ centaur bot add garden --platform telegram      # paste the BotFather token at t
 ```
 
 Then push the repo's `.centaur.yml`; its `register` job binds the bot (`bots/garden/repo`) and sets
-the webhook. Run `centaur admin claim garden` and open the link to become the admin; chats and
-users then arrive as access requests. If you already know the IDs, `centaur chat add <name> <chat
-id>` and `centaur user add <name> --telegram <id>` enroll them directly. To retire the bot later, run `centaur bot unbind garden` and `centaur bot remove
+the webhook. Run `centaur admin claim garden` and open the link to become the admin; chats and users then arrive as access requests. If you already know an ID, `centaur access approve garden
+chat <id> --name "Garden Club"` or `centaur access approve garden user <id>` approves it directly.
+To retire the bot later, run `centaur bot unbind garden` and `centaur bot remove
 garden`.

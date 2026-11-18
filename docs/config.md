@@ -8,8 +8,6 @@ Per-consumer-repo configuration. The schema lives in `src/config/schema.ts` (zod
 ```yaml
 bot: garden
 platform: telegram
-chats: [household]             # chats the bot listens in; IDs in SSM at /centaur/chats/<alias>
-allow: [maintainer, spouse]
 respond_to: mention
 handle: garden_helper_bot      # the bot's @username; only used with respond_to: all
 context:
@@ -25,7 +23,7 @@ persona: .centaur/persona.md
 prompts:
   weekly-tasks:                 # file defaults to .centaur/prompts/weekly-tasks.md
     context: transcript         # overrides context.scheduled for this prompt
-    destination: household      # chat for the new thread; optional with a single chat
+    destination: household      # chat alias for the new thread (required)
 ```
 
 ## Fields
@@ -34,9 +32,7 @@ prompts:
 |---|---|---|---|
 | `bot` | yes | | Bot alias; secrets live under `/centaur/bots/<bot>/` in SSM. |
 | `platform` | yes | | `telegram` or `slack`. |
-| `chats` | if `prompts` is set or `respond_to: all` | | Non-empty list of chat aliases (no duplicates); IDs in SSM at `/centaur/chats/<alias>`. The receiver accepts group messages only from these chats. Without `chats` the bot is DM-only. |
-| `allow` | yes (non-empty) | | Named users allowed to trigger turns; IDs in SSM. |
-| `respond_to` | no | `mention` | Which messages the bot answers: `mention` (mentions, DMs and topics it created) or `all` (every message from an allowed sender in any of `chats`; requires `chats`). See [plan.md](plan.md#routing-in-a-shared-telegram-group). |
+| `respond_to` | no | `mention` | Which messages the bot answers: `mention` (mentions, DMs and topics it created) or `all` (every message from an approved sender in any approved chat of the bot). See [plan.md](plan.md#routing-in-a-shared-telegram-group). |
 | `context.default` | no | `transcript` | Policy for conversational threads: `fresh`, `transcript` or `resume`. |
 | `context.scheduled` | no | `fresh` | Policy for threads started by a scheduled prompt. |
 | `handle` | no | | The bot's platform username without `@`. With `respond_to: all` the prompt tells the agent people mention it as `@<handle>`. The workflow cannot learn it cheaply from the bot's identity, so it is configured. |
@@ -50,26 +46,39 @@ prompts:
 | `prompts` | no | `{}` | Scheduled prompts by name (see below). |
 
 Each prompt takes `file` (default `.centaur/prompts/<name>.md`), `context` (default
-`context.scheduled`) and `destination`: the chat alias where its scheduled run starts a thread. A
-prompt's `destination` must be one of `chats`. It may be omitted when `chats` has exactly one
-entry, which becomes the default; with several chats every prompt must name one.
+`context.scheduled`) and `destination`: the chat alias where its scheduled run starts a thread. `destination` is required for
+every prompt. The file only checks its shape; the alias is resolved when the run starts (see
+[Access](#access)).
 
-`chats` and `allow` are the baseline allowlist. The effective allowlist is that baseline plus
-anything the admin approved through an [access request](plan.md#access-requests) or `centaur access
-approve`, minus anything blocked; blocked wins over the baseline. Approved entries are stored per
-bot in SSM, not in this file, so they never appear in the repo.
+## Access
 
-Names (`bot`, `chats` and `destination` entries, `allow` entries, prompt names) are lowercase
+`.centaur.yml` holds no allowlist: `allow` and `chats` are validation errors that point to `centaur
+access`. Access is only what the admin approves. The effective access for a bot is the platform's
+admin (implicitly allowed everywhere on their platform, and never blockable) plus the chats and
+users approved for that bot through an [access request](plan.md#access-requests) or `centaur access
+approve`, minus anything blocked; blocked wins. Direct messages are exempt from the chat check but
+not from the user check. Approvals are stored per bot in SSM, so they never appear in the repo.
+
+Approving a chat also creates a global chat alias, `/centaur/chats/<alias>`, named after the chat's
+title (see [cli.md](cli.md)). A
+prompt's `destination` names such an alias. When the run starts, the poster resolves the alias to a
+chat ID and requires that chat to be approved for the bot and not blocked; otherwise it fails with
+the alias and the `centaur access approve` command that fixes it.
+
+Registry entries stored by registrations from before approval-only access may still contain
+`allow`, `chats` or `destination`. The receiver keeps honoring their chats (not their users) until
+the repo registers again, which replaces the entry with just `respond_to`.
+
+Names (`bot`, `destination` entries, prompt names) are lowercase
 aliases matching `[a-z0-9][a-z0-9_-]*`; real IDs never appear in the repo. Paths must be relative
-and stay inside the repo (no leading `/`, no `..`). Unknown keys are errors. A top-level
-`destination` (the pre-`chats` form) is rejected with a message pointing to `chats`.
+and stay inside the repo (no leading `/`, no `..`). Unknown keys are errors.
 
 `/new` starts its thread in the chat the command came from (a DM stays in that DM), so it needs no
 configured destination. Replies go to the originating thread.
 
 ## Responding to all messages
 
-With `respond_to: all`, every message from an allowed sender in any of the `chats` (or a DM)
+With `respond_to: all`, every message from an approved sender in an approved chat (or a DM)
 starts a turn, and the agent decides whether to answer: its structured output is either `reply` or
 `ignore: true`, and an ignored turn posts nothing but still advances the last-processed marker and
 saves the session. The prompt tells the agent the messages were not necessarily addressed to it
@@ -89,7 +98,7 @@ Each turn is one `claude` run, so cost scales with model price, reasoning, and n
 | `max_budget_usd` | Hard cap on spend per run. |
 | `allowed_tools` | Fewer tools mean a smaller prompt and fewer ways to wander. |
 | `context.default` | `fresh` sends only pending messages; `transcript` re-sends the thread each turn; `resume` reuses a saved session. |
-| `respond_to` | `all` runs a turn for every message from an allowed sender, even ones the agent then ignores. |
+| `respond_to` | `all` runs a turn for every message from an approved sender, even ones the agent then ignores. |
 
 Two ideas are not built: a separate cheaper model
 that only decides whether to reply (triage) would need a second agent run per message, which the
@@ -120,8 +129,8 @@ invalid YAML). Parsing never throws on bad input.
 
 - **zod and `yaml`, no hand-rolled parsing.** The inferred type is the single source of truth
   consumed by the receiver and workflows.
-- **Strict objects.** A typo like `alow:` fails registration instead of silently dropping the
-  allowlist.
+- **Strict objects.** A typo like `provder:` fails registration instead of silently dropping the
+  setting.
 - **Normalized output.** `allowed_tools` is accepted in the plan's comma-separated form or as a
   list, and always returned as `string[]`; prompt entries have defaults resolved. Consumers never
   re-implement defaults.
@@ -129,7 +138,6 @@ invalid YAML). Parsing never throws on bad input.
   first, and the two callers handle failure differently (reject registration vs fail the job).
 - **Cron stays in the workflow.** GitHub Actions only honors `schedule:` in workflow files, so
   duplicating cron in `.centaur.yml` would drift. The config only describes what a prompt is.
-- **`chats` is optional** so a DM-only bot needs no named chat, but is required once any scheduled
-  prompt exists or `respond_to` is `all`. The allowlist (`chats`) and the posting target
-  (`prompts.<name>.destination`) are separate, so a bot can listen in several chats and post each
-  prompt to one of them.
+- **No allowlist in the repo.** Who may talk to the bot is the admin's decision, made from their
+  phone, so it cannot be widened by a pull request. The repo only names where a scheduled prompt
+  posts (`prompts.<name>.destination`), and that chat must still be approved.

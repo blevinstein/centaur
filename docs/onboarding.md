@@ -26,7 +26,7 @@ run; steps marked **validate** are still untested.
 Telegram bots can't start conversations: "A user must either add them to a group or send them a
 message first." That shapes the flow:
 
-- **Group conversations need no per-user setup.** Once the maintainer adds a bot to the household
+- **Group conversations need no per-user setup on Telegram.** Once the maintainer adds a bot to the household
   group, it can post there, including scheduled outreach, and everyone in the group sees it.
 - **DMs need one tap per person per bot.** Each person opens the bot and taps **Start** once.
   Until they do, the bot can't DM them. DMs are optional; the group is the main channel.
@@ -60,16 +60,20 @@ When someone mentions or DMs the bot from a chat or as a user it doesn't know, t
 ```
 Access request k7m2qx
 Bot: garden
-Kind: user
+Kind: chat
 Requester: Pat Example (111222333)
 Chat: Household (-1001234567890)
+Alias: household
 React 👍 to approve, or 👎 to deny and block.
 Or reply /approve k7m2qx or /deny k7m2qx.
 Expires in 7 days.
 ```
 
 - **👍** approves: the chat or person is added for that bot and the requester is told. A new group
-  needs its chat approved, and each person in it needs their own user approval.
+  needs its chat approved, and each person in it needs their own user approval. Approving a chat
+  also creates the chat alias shown on the request (`Alias:`), a slug of the chat's title with a
+  numeric suffix if the name is taken (`chat-<last 4 digits>` when the title is unknown). Existing
+  aliases are never overwritten. A scheduled prompt's `destination` names such an alias.
 - **👎** denies and blocks: future attempts from that chat or user are ignored without any reply.
 - Only your reaction on that DM counts, each request can be decided once, and it expires after 7
   days. The text commands `/approve <id>` and `/deny <id>` do the same if reactions don't work.
@@ -81,12 +85,13 @@ Without an admin for the bot's platform, unknown chats are ignored and unknown u
 you aren't enrolled to talk to me." (a bot with `respond_to: all` ignores unenrolled people in the
 group silently); the user ID is logged either way.
 
-Manual alternative, no admin needed: if you already know the IDs, run
-`centaur chat add household <group chat id>` and `centaur user add <name> --telegram <id>`
-(referenced from `.centaur.yml`'s `chats` and `allow`; a supergroup's ID is negative, `-100...`), or
-approve directly for one bot with `centaur access approve garden chat|user <id>`. The receiver
-logs the IDs of unknown chats and users, so you can read them from its logs. `centaur access list garden` shows what has been
-approved or blocked, and `centaur access revoke|block|unblock` undo it.
+There is no allowlist in `.centaur.yml`; access is only what you approve. Manual alternative, no
+request needed: if you already know an ID, approve it for one bot with `centaur access approve
+garden chat <id> --name "Household"` (a supergroup's ID is negative, `-100...`; `--alias` picks the
+alias) or `centaur access approve garden user <id>`. The receiver logs the IDs of unknown chats
+and users, so you can read them from its logs. `centaur access list garden` shows what has been
+approved or blocked, and `centaur access revoke|block|unblock` undo it. `centaur chat add <alias>
+<id>` creates or repoints an alias by hand, for example before the chat is approved.
 
 ### Household member (non-technical): once
 
@@ -104,7 +109,7 @@ That's all that's needed for group use. Optionally, to DM a bot: open its link
   created. Mention it in the General topic, e.g. `@garden_helper_bot the tomatoes have yellow
   leaves`; it replies there for quick questions or opens a topic for longer ones.
 - **Answering everything:** a bot with `respond_to: all` (and `handle` set to its username)
-  treats every message from an allowed sender in its group as possibly for it, and the agent may
+  treats every message from an approved sender in an approved group as possibly for it, and the agent may
   stay silent. Use it in small private groups with at most one such bot
   ([config](config.md#responding-to-all-messages)).
 - **Progress:** a 👀 reaction appears on your message while the turn runs and is removed when it
@@ -121,8 +126,9 @@ That's all that's needed for group use. Optionally, to DM a bot: open its link
 Repeat for each consumer repo, after the bot exists (Telegram above, Slack below).
 
 1. In the repo, add:
-   - `.centaur.yml` ([schema](config.md): bot, platform, `chats`, `allow`, `respond_to`,
-     `handle`, context, model and cost-tuning fields, tool allowlist, persona);
+   - `.centaur.yml` ([schema](config.md): bot, platform, `respond_to`, `handle`, context, model
+     and cost-tuning fields, tool allowlist, persona, and a `destination` chat alias on each
+     scheduled prompt); it holds no list of chats or users;
    - `.centaur/persona.md`, and any scheduled prompts under `.centaur/prompts/`;
    - the caller workflow in `.github/workflows/`, copied from
      [workflows.md](workflows.md#caller-workflow).
@@ -142,9 +148,13 @@ Repeat for each consumer repo, after the bot exists (Telegram above, Slack below
    [caller example](workflows.md#caller-workflow) omits them.
 6. Register the bot: push a change to `.centaur.yml` on the default branch, or run the workflow
    manually so the `register` job runs. Check that `bots/<bot>/repo` now exists in SSM.
-7. Run the scheduled prompt once with a manual dispatch to confirm a test topic appears, then
-   message the bot.
-8. If the repo is public, check that its workflow follows the no-content-in-logs rules in
+7. Approve the chat each scheduled prompt posts to if it is not approved yet: mention the bot there
+   and answer the request, or run `centaur access approve <bot> chat <id> --name "<title>"`; the
+   alias that creates is what `destination` names.
+8. Run the scheduled prompt once with a manual dispatch to confirm a test topic appears, then
+   message the bot. A prompt whose destination is unknown or unapproved fails with the alias and
+   the command to approve it.
+9. If the repo is public, check that its workflow follows the no-content-in-logs rules in
    [plan.md](plan.md#security).
 
 ## Slack (personal projects)
@@ -161,7 +171,7 @@ Only the maintainer uses these, so there's no non-technical onboarding. Nothing 
    channel.
 4. Become the admin: run `centaur admin claim <bot>` and DM the bot `claim <code>` with the code
    it prints. Later chats and users are admitted by [access
-   request](#enrolling-chats-and-people); `centaur user add <name> --slack <id>` is the manual
+   request](#enrolling-chats-and-people); `centaur access approve <bot> user <id>` is the manual
    alternative.
 
 For access requests the Slack app needs, beyond what it needs to read and post messages:

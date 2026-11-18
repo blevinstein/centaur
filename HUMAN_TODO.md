@@ -26,10 +26,11 @@ Unblocks: everything below.
 - [x] Create a fine-grained GitHub PAT limited to the test repo with Contents: write, and store
       it with `centaur github-token set`.
 - [x] Create a test supergroup with Topics enabled and add the bot as admin with Manage Topics.
-- [x] Admit yourself and the group: either `centaur admin claim <bot>` (open the link, tap
-      **Start**, then mention the bot in the group and approve the chat and your user from the
-      bot's DM), or by hand with `centaur chat add <name> <chat id>` and
-      `centaur user add <you> --telegram <your id>` (the receiver logs unknown chat and user IDs).
+- [x] Admit yourself and the group: run `centaur admin claim <bot>` (open the link, tap
+      **Start**, which makes you the admin and so allowed in every bot), then mention the bot in
+      the group and approve the chat from the bot's DM; or by hand with `centaur access approve
+      <bot> chat <chat id> --name <title>` (the receiver logs unknown chat IDs). Each other
+      person needs a user approval too.
 
 ## 3. Wire a test consumer repo
 
