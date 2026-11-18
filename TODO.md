@@ -116,9 +116,9 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
 - [x] **[HUMAN ACTION]** Reply in that topic without a mention; the transcript and last-processed
       marker advanced.
 - [x] Repeat the `Chat`-against-DynamoDB run on the deployed table.
-- [ ] **[HUMAN ACTION]** Walk through [docs/onboarding.md](docs/onboarding.md) as written and
+- [x] **[HUMAN ACTION]** Walk through [docs/onboarding.md](docs/onboarding.md) as written and
       report anything wrong.
-- [ ] **[HUMAN ACTION]** Report anything from the "Still unverified" list in `docs/onboarding.md`
+- [x] **[HUMAN ACTION]** Report anything from the "Still unverified" list in `docs/onboarding.md`
       that breaks. Worked in the test repo: `execution_file` output shape, `repository_dispatch`
       with `claude-code-action`, and `vars` (caller and called workflow share a repo, so the
       cross-repo case isn't proven). Not exercised yet: the `job.workflow_*` contexts and a consumer
@@ -129,14 +129,14 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
 - [x] Add `.centaur.yml`, `.centaur/persona.md`, and `.centaur/prompts/weekly-tasks.md`.
 - [x] Add the caller workflow with the Saturday schedule.
 - [x] Update `garden`'s `AGENTS.md` so automated runs open PRs instead of pushing to `main`.
-- [ ] **[HUMAN ACTION]** Set the `ANTHROPIC_API_KEY` secret: `gh secret set ANTHROPIC_API_KEY -R
+- [x] **[HUMAN ACTION]** Set the `ANTHROPIC_API_KEY` secret: `gh secret set ANTHROPIC_API_KEY -R
       <owner>/garden` and paste the key (agents can't copy secret values between repos).
-- [ ] **[HUMAN ACTION]** Create a second bot in BotFather, run `centaur bot add garden --platform
+- [x] **[HUMAN ACTION]** Create a second bot in BotFather, run `centaur bot add garden --platform
       telegram`, create the household group and enroll the household member.
-- [ ] **[HUMAN ACTION]** Onboard the household group: claim the admin role (`centaur admin claim
+- [x] **[HUMAN ACTION]** Onboard the household group: claim the admin role (`centaur admin claim
       <bot>`, open the link), mention the bot in the group, then approve the group and each user
       from the bot's DM.
-- [ ] **[HUMAN APPROVAL]** Garden PR #7: the first `weekly-tasks` run opened it with the old
+- [x] **[HUMAN APPROVAL]** Garden PR #7: the first `weekly-tasks` run opened it with the old
       generic title. Merge or close it, then re-run `weekly-tasks` to check the agent-written title
       and body.
 - [ ] **[HUMAN APPROVAL]** Choose a license; the public repo has no `LICENSE` file. An agent can

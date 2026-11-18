@@ -183,9 +183,9 @@ Slack decisions are reactions only; there is no `/approve` text fallback on Slac
 
 ## Still unverified
 
-- A second bot in the same group (routing between bots, Topics at this group size).
-- A consumer repo different from the centaur repo (`job.workflow_*` contexts, repo access).
-- Slack end to end, including acknowledging webhooks within Slack's 3 seconds.
+- [ ] A second bot in the same group (routing between bots, Topics at this group size).
+- [x] A consumer repo different from the centaur repo (`job.workflow_*` contexts, repo access).
+- [ ] Slack end to end, including acknowledging webhooks within Slack's 3 seconds.
 
 Validated in the first live run: deploy, a Telegram bot with a Topics group, registration,
 message-to-reply turns, scheduled topics, `respond_to: all`, and the 👀 reaction.
