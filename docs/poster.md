@@ -94,8 +94,13 @@ image sent as a file), the receiver downloads them from the platform once and st
 session bucket at `attachments/<bot>/<thread>/<message>~<n>.<ext>` before it reacts and
 dispatches (`src/lambda/attachments.ts`). If storing fails (including an image over 20 MB) the
 receiver tells the sender and dispatches nothing. Other attachment types are ignored. `read` lists
-the keys that exist for each message by listing the thread's prefix; the workflow copies them with
-its own AWS credentials, so no URLs are signed and the agent needs no network tool. The Lambda role
+the keys that exist for each message by listing the thread's prefix. An image in a message that has
+no stored copy yet (sent before attachment storage existed, or whose upload failed) is stored by
+`read` itself, rebuilding its downloader from the file ID kept in the thread history; the key is
+deterministic, so a message that is already stored keeps its existing object and is never fetched
+again. A failure there is logged and the message is returned without attachments. The workflow
+copies the keys with its own AWS credentials, so no URLs are signed and the agent needs no network
+tool. The Lambda role
 has `s3:PutObject` and `s3:ListBucket` on `attachments/*` only, and objects expire after
 `AttachmentExpirationDays`.
 

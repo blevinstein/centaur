@@ -1,4 +1,4 @@
-import { type Adapter, type Chat, emoji, type Logger, type StateAdapter } from "chat";
+import { type Adapter, type Chat, emoji, type Logger, type Message, type StateAdapter } from "chat";
 import { z } from "zod";
 import { alias, type Platform } from "../config/index.js";
 import { createAccessResolver } from "./access.js";
@@ -167,16 +167,37 @@ export function createPoster(deps: PosterDeps) {
       }
       case "read": {
         const { chat } = await openChat(request.bot);
+        const thread = chat.thread(request.threadId);
         const attachmentsOf = await attachments.forThread(request.bot, request.threadId);
+        const storedAttachments = async (message: Message) => {
+          const stored = attachmentsOf(message.id);
+          if (stored.length > 0 || message.attachments.length === 0) return stored;
+          message.attachments = message.attachments.map((attachment) =>
+            attachment.fetchData
+              ? attachment
+              : (thread.adapter.rehydrateAttachment?.(attachment) ?? attachment),
+          );
+          try {
+            return await attachments.save(request.bot, message);
+          } catch (error) {
+            logger.warn("failed to store attachments", {
+              bot: request.bot,
+              threadId: request.threadId,
+              messageId: message.id,
+              error,
+            });
+            return [];
+          }
+        };
         const messages = [];
-        for await (const message of chat.thread(request.threadId).allMessages) {
+        for await (const message of thread.allMessages) {
           messages.push({
             id: message.id,
             userId: message.author.userId,
             userName: message.author.userName,
             fromBot: message.author.isMe,
             text: message.text,
-            attachments: attachmentsOf(message.id),
+            attachments: await storedAttachments(message),
             sentAt: message.metadata.dateSent.toISOString(),
           });
         }

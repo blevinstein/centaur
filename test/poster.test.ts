@@ -237,12 +237,14 @@ describe("poster read", () => {
       {
         id: "m1",
         text: "hello",
+        attachments: [{ type: "image", mimeType: "image/jpeg" }],
         author: { userId: "1001", userName: "maintainer", isMe: false },
         metadata: { dateSent: new Date("2026-01-02T03:04:05Z") },
       },
       {
         id: "m2",
         text: "hi back",
+        attachments: [],
         author: { userId: "bot", userName: "garden", isMe: true },
         metadata: { dateSent: new Date("2026-01-02T03:05:00Z") },
       },
@@ -277,6 +279,56 @@ describe("poster read", () => {
         },
       ],
     });
+  });
+});
+
+describe("poster read of images that were never stored", () => {
+  const unstored = {
+    id: "m1",
+    text: "",
+    attachments: [{ type: "image", mimeType: "image/jpeg", fetchMetadata: { fileId: "f" } }],
+    author: { userId: "1001", userName: "maintainer", isMe: false },
+    metadata: { dateSent: new Date("2026-01-02T03:04:05Z") },
+  };
+  const read = (poster: Awaited<ReturnType<typeof posterSetup>>["poster"]) =>
+    poster({ operation: "read", bot: "garden", threadId: GARDEN_THREAD }) as Promise<{
+      messages: { attachments: string[] }[];
+    }>;
+
+  it("stores them with a rebuilt downloader and reports their keys", async () => {
+    const { poster, attachments, rehydrateAttachment } = await posterSetup({
+      transcript: [unstored],
+    });
+    attachments.save.mockResolvedValueOnce(["attachments/garden/t/m1~0.jpg"]);
+
+    const result = await read(poster);
+
+    expect(rehydrateAttachment).toHaveBeenCalledOnce();
+    const saved = attachments.save.mock.calls[0]?.[1];
+    expect(await saved?.attachments[0]?.fetchData?.()).toEqual(Buffer.from("bytes"));
+    expect(result.messages[0]?.attachments).toEqual(["attachments/garden/t/m1~0.jpg"]);
+  });
+
+  it("does not store images again once they have keys", async () => {
+    const { poster, attachments } = await posterSetup({
+      transcript: [unstored],
+      attachments: { m1: ["attachments/garden/t/m1~0.jpg"] },
+    });
+
+    const result = await read(poster);
+
+    expect(attachments.save).not.toHaveBeenCalled();
+    expect(result.messages[0]?.attachments).toEqual(["attachments/garden/t/m1~0.jpg"]);
+  });
+
+  it("still returns the thread when storing an image fails", async () => {
+    const { poster, attachments, logger } = await posterSetup({ transcript: [unstored] });
+    attachments.save.mockRejectedValueOnce(new Error("telegram down"));
+
+    const result = await read(poster);
+
+    expect(result.messages[0]?.attachments).toEqual([]);
+    expect(logger.warn).toHaveBeenCalledOnce();
   });
 });
 

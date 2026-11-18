@@ -43,8 +43,8 @@ export function createS3ObjectStore(bucket: string, client = new S3Client({})): 
 }
 
 export interface AttachmentStore {
-  /** Copies a message's images into the object store; resolves once they are all stored. */
-  save(bot: string, message: Message): Promise<void>;
+  /** Copies a message's images into the object store and returns their keys. */
+  save(bot: string, message: Message): Promise<string[]>;
   /** Returns, for a thread, a lookup from message ID to the keys of that message's stored images. */
   forThread(bot: string, threadId: string): Promise<(messageId: string) => string[]>;
 }
@@ -68,7 +68,7 @@ export function createAttachmentStore(objects: ObjectStore): AttachmentStore {
         return mimeType && extension ? [{ attachment, mimeType, extension }] : [];
       });
       const prefix = attachmentPrefix(bot, message.threadId);
-      await Promise.all(
+      return Promise.all(
         images.map(async ({ attachment, mimeType, extension }, index) => {
           if ((attachment.size ?? 0) > MAX_ATTACHMENT_BYTES) {
             throw new Error(`attachment is larger than ${MAX_ATTACHMENT_BYTES} bytes`);
@@ -77,11 +77,9 @@ export function createAttachmentStore(objects: ObjectStore): AttachmentStore {
           if (body.length > MAX_ATTACHMENT_BYTES) {
             throw new Error(`attachment is larger than ${MAX_ATTACHMENT_BYTES} bytes`);
           }
-          await objects.put(
-            `${prefix}${messageStem(message.id)}${index}.${extension}`,
-            body,
-            mimeType,
-          );
+          const key = `${prefix}${messageStem(message.id)}${index}.${extension}`;
+          await objects.put(key, body, mimeType);
+          return key;
         }),
       );
     },

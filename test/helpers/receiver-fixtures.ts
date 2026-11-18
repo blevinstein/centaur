@@ -74,7 +74,7 @@ export const fakeParameterStore = (
 export const fakeDispatcher = () => ({ dispatch: vi.fn<RepositoryDispatcher["dispatch"]>() });
 
 export const fakeAttachments = (stored: Record<string, string[]> = {}) => ({
-  save: vi.fn<AttachmentStore["save"]>(async () => {}),
+  save: vi.fn<AttachmentStore["save"]>(async () => []),
   forThread: vi.fn<AttachmentStore["forThread"]>(
     async () => (messageId) => stored[messageId] ?? [],
   ),

@@ -2,7 +2,13 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { finish, notifyFailure } from "../src/workflows/finish.js";
-import { PROMPT_FILE, type PrepareDeps, prepare, STATE_FILE } from "../src/workflows/prepare.js";
+import {
+  MAX_PROMPT_IMAGES,
+  PROMPT_FILE,
+  type PrepareDeps,
+  prepare,
+  STATE_FILE,
+} from "../src/workflows/prepare.js";
 import {
   botMessage,
   configText,
@@ -73,24 +79,64 @@ describe("prepare", () => {
     });
   });
 
-  it("downloads pending images into the turn directory and lists them in the prompt", async () => {
-    const key = "attachments/sprout/telegram_-100_7/3~0.jpg";
+  it("downloads images from the whole shown thread from their stored keys", async () => {
+    const oldKey = "attachments/sprout/telegram_-100_7/1~0.jpg";
+    const newKey = "attachments/sprout/telegram_-100_7/3~0.jpg";
     const { deps, aws, root } = await setup([
-      message("1", "old", { attachments: ["attachments/sprout/telegram_-100_7/1~0.jpg"] }),
+      message("1", "old", { attachments: [oldKey] }),
       botMessage("2", "r"),
-      message("3", "", { attachments: [key] }),
+      message("3", "", { attachments: [newKey] }),
     ]);
-    aws.objects.set(key, "pest-photo");
+    aws.objects.set(oldKey, "earlier-photo");
+    aws.objects.set(newKey, "pest-photo");
 
     await prepare(deps());
 
     const text = await prompt(root);
     expect(text).toContain("Sam: [attached image: .centaur-turn/attachments/3~0.jpg]");
-    expect(text).toContain("Sam: old\n[attached image, not loaded]");
-    expect(await readFile(join(root, ".centaur-turn/attachments/3~0.jpg"), "utf8")).toBe(
-      "pest-photo",
+    expect(text).toContain("Sam: old\n[attached image: .centaur-turn/attachments/1~0.jpg]");
+    const local = (name: string) => readFile(join(root, ".centaur-turn/attachments", name), "utf8");
+    expect(await local("1~0.jpg")).toBe("earlier-photo");
+    expect(await local("3~0.jpg")).toBe("pest-photo");
+  });
+
+  it("loads only the newest images, listing older ones as not loaded", async () => {
+    const keys = Array.from(
+      { length: MAX_PROMPT_IMAGES + 2 },
+      (_, i) => `attachments/sprout/telegram_-100_7/${i + 1}~0.jpg`,
     );
-    expect(aws.objects.has(`${THREAD_PREFIX}last-processed`)).toBe(false);
+    const { deps, aws, root } = await setup(
+      keys.map((key, i) => message(String(i + 1), "", { attachments: [key] })),
+    );
+    for (const key of keys) aws.objects.set(key, "photo");
+
+    await prepare(deps());
+
+    const text = await prompt(root);
+    expect(text.match(/\[attached image, not loaded\]/g)).toHaveLength(2);
+    expect(text.match(/\[attached image: /g)).toHaveLength(MAX_PROMPT_IMAGES);
+    expect(text).not.toContain("attachments/1~0.jpg]");
+    expect(text).toContain(`attachments/${MAX_PROMPT_IMAGES + 2}~0.jpg]`);
+  });
+
+  it("downloads no history images when a resumed session already holds the history", async () => {
+    const oldKey = "attachments/sprout/telegram_-100_7/1~0.jpg";
+    const { deps, aws, root } = await setup(
+      [
+        message("1", "old", { attachments: [oldKey] }),
+        botMessage("2", "r"),
+        message("3", "/resume now"),
+      ],
+      configText("context:\n  default: resume"),
+    );
+    aws.objects.set(`${THREAD_PREFIX}abc.jsonl`, "{}");
+    aws.objects.set(oldKey, "earlier-photo");
+
+    await prepare(deps());
+
+    const text = await prompt(root);
+    expect(text).not.toContain("Earlier messages in this thread");
+    expect(text).not.toContain("[attached image");
   });
 
   it("fails the turn when an image cannot be downloaded", async () => {

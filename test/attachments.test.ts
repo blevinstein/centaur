@@ -36,8 +36,12 @@ describe("attachment store", () => {
   it("stores each image under the bot and thread, keyed by message and index", async () => {
     const { objects, attachments } = setup();
 
-    await attachments.save("garden", messageWith(photo(), photo({ mimeType: "image/png" })));
+    const saved = await attachments.save(
+      "garden",
+      messageWith(photo(), photo({ mimeType: "image/png" })),
+    );
 
+    expect(saved).toEqual([...objects.keys()]);
     expect([...objects.keys()]).toEqual([
       `${attachmentPrefix("garden", THREAD)}telegram_msg-42~0.jpg`,
       `${attachmentPrefix("garden", THREAD)}telegram_msg-42~1.png`,

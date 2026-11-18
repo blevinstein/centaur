@@ -76,9 +76,13 @@ export const fakeTelegram = () => ({
 export function fakePosterChat(transcript: unknown[] = []) {
   const state: ThreadMetadata = {};
   const removeReaction = vi.fn(async () => {});
+  const rehydrateAttachment = vi.fn((attachment: object) => ({
+    ...attachment,
+    fetchData: async () => Buffer.from("bytes"),
+  }));
   const thread = {
     id: "telegram:-100500:77",
-    adapter: { removeReaction },
+    adapter: { removeReaction, rehydrateAttachment },
     channelId: `telegram:${HOUSEHOLD_CHAT_ID}`,
     isDM: false,
     post: vi.fn(async () => ({ id: "sent-1" })),
@@ -100,6 +104,7 @@ export function fakePosterChat(transcript: unknown[] = []) {
     chatMock: chat,
     thread,
     removeReaction,
+    rehydrateAttachment,
     channelPost,
     state,
   };

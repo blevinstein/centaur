@@ -62,13 +62,15 @@ export function planTurn(input: {
     : { kind: "reply", policy, pending: relevant };
 }
 
-/** Maps an attachment key to the file the agent can open; without it attachments render as not loaded. */
-export type AttachmentPath = (key: string) => string;
+/** Maps an attachment key to the file the agent can open, or undefined when it was not loaded. */
+export type AttachmentPath = (key: string) => string | undefined;
 
-const renderAttachment = (key: string, localPath: AttachmentPath | undefined) =>
-  localPath ? `[attached image: ${localPath(key)}]` : "[attached image, not loaded]";
+const renderAttachment = (key: string, localPath: AttachmentPath) => {
+  const path = localPath(key);
+  return path ? `[attached image: ${path}]` : "[attached image, not loaded]";
+};
 
-export const renderMessages = (messages: ChatMessage[], localPath?: AttachmentPath) =>
+export const renderMessages = (messages: ChatMessage[], localPath: AttachmentPath) =>
   messages
     .map((m) => {
       const body = [m.text, ...m.attachments.map((key) => renderAttachment(key, localPath))]
