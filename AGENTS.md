@@ -20,4 +20,6 @@
 - CLI (`src/cli/`, bin `centaur`): all SSM access goes through the `ParameterStore` interface in
   `src/cli/parameter-store.ts`; tests use `test/helpers/fake-parameter-store.ts`. The SSM parameter
   layout is in `docs/plan.md`. Never accept secrets as flags.
+- `npm run bundle:lambda` builds the Lambda to `dist/lambda/index.mjs`; `scripts/deploy.sh` bundles,
+  uploads and deploys the stack (see `docs/deploy.md`).
 - Biome covers code and JSON only; Markdown and YAML are not auto-formatted.

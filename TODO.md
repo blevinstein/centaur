@@ -39,10 +39,10 @@ off as they land, and record findings that change the design back into `docs/`.
 - [x] Add the state table (mirroring `stateTableInput`: pay-per-request, TTL on `ttl`) and its
       IAM access to `infra/centaur.yml`; make `chat` a runtime dependency once a Lambda consumes
       the package.
-- [ ] CloudFormation template: receiver/poster Lambda with a function URL, state backend, S3
+- [x] CloudFormation template: receiver/poster Lambda with a function URL, state backend, S3
       session bucket, SSM parameter paths, and the GitHub OIDC provider and role. The role's
       trust is limited by a `GitHubOwner` parameter. The template imports nothing.
-- [ ] Deploy script that takes parameter overrides from the caller, so personal values stay in
+- [x] Deploy script that takes parameter overrides from the caller, so personal values stay in
       the deployer's private infra repo.
 
 ## 4. Receiver and poster
@@ -101,6 +101,9 @@ off as they land, and record findings that change the design back into `docs/`.
 - [ ] App manifest template with the required scopes and event URL.
 - [ ] Decide one app per repo vs one shared app with per-message names.
 - [ ] Onboard one personal-project repo on Slack.
+- [ ] Slack expects an HTTP 200 within about 3 seconds, but the receiver awaits the reaction and
+      dispatch before responding, and a cold start adds SSM reads. Measure it and, if needed,
+      acknowledge first and finish in the background.
 
 ## Follow-ups
 
