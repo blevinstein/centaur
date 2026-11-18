@@ -3,6 +3,15 @@ export interface TelegramApi {
   createForumTopic(token: string, chatId: string, name: string): Promise<number>;
 }
 
+export const WEBHOOK_UPDATES = [
+  "message",
+  "edited_message",
+  "channel_post",
+  "edited_channel_post",
+  "callback_query",
+  "message_reaction",
+];
+
 interface BotApiResponse<T> {
   ok: boolean;
   result?: T;
@@ -26,7 +35,11 @@ export function createTelegramApi(fetchImpl = fetch): TelegramApi {
   };
   return {
     async setWebhook(token, url, secretToken) {
-      await call(token, "setWebhook", { url, secret_token: secretToken });
+      await call(token, "setWebhook", {
+        url,
+        secret_token: secretToken,
+        allowed_updates: WEBHOOK_UPDATES,
+      });
     },
     async createForumTopic(token, chatId, name) {
       const topic = await call<{ message_thread_id: number }>(token, "createForumTopic", {

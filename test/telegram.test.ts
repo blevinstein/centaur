@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { createTelegramApi } from "../src/lambda/telegram.js";
+import { createTelegramApi, WEBHOOK_UPDATES } from "../src/lambda/telegram.js";
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 describe("Telegram API client", () => {
-  it("calls setWebhook with the URL and secret token", async () => {
+  it("calls setWebhook with the URL, secret token and the updates the receiver needs", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({ ok: true, result: true }));
 
     await createTelegramApi(fetchImpl).setWebhook(
@@ -19,7 +19,9 @@ describe("Telegram API client", () => {
     expect(JSON.parse(init.body as string)).toEqual({
       url: "https://x.test/telegram/garden",
       secret_token: "sec",
+      allowed_updates: WEBHOOK_UPDATES,
     });
+    expect(WEBHOOK_UPDATES).toEqual(expect.arrayContaining(["message", "message_reaction"]));
   });
 
   it("returns the new topic's message_thread_id", async () => {
