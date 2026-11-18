@@ -46,7 +46,7 @@ code_bucket() {
     --output text 2>/dev/null || true
 }
 
-npm run --silent bundle:lambda
+yarn bundle:lambda
 build="$(mktemp -d)"
 trap 'rm -rf "$build"' EXIT
 cp dist/lambda/index.mjs "$build/index.mjs"

@@ -5,3 +5,10 @@ coverage/
 parameters-*.json
 !parameters.example.json
 .DS_Store
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.pnp.*

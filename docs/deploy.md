@@ -6,8 +6,8 @@ git-ignored parameters file.
 
 ## Prerequisites
 
-- Node 24 and `npm ci` in this repo, plus `jq`, `zip` and the AWS CLI with credentials for the
-  target account and region.
+- Node 24 and `yarn install --immutable` in this repo, plus `jq`, `zip` and the AWS CLI with
+  credentials for the target account and region.
 
 ## Parameters file
 
@@ -31,7 +31,7 @@ format `aws cloudformation` accepts.
 ## Usage
 
 ```sh
-npm run deploy-prod
+yarn deploy-prod
 # equivalent to
 scripts/deploy.sh --stack centaur --params-file parameters-prod.json
 ```
@@ -41,7 +41,7 @@ scripts/deploy.sh --stack centaur --params-file parameters-prod.json
 
 The script:
 
-1. Runs `npm run bundle:lambda` (esbuild bundles `src/lambda/handler.ts` and its dependencies into
+1. Runs `yarn bundle:lambda` (esbuild bundles `src/lambda/handler.ts` and its dependencies into
    `dist/lambda/index.mjs`), zips it, and names it `centaur/lambda-<sha256-prefix>.zip`. The
    content-addressed key makes each code change a new key, so the function updates.
 2. If the stack does not exist (or has no `CodeBucketName` output), deploys it with

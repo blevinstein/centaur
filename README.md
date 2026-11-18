@@ -147,13 +147,13 @@ Detail: [docs/deploy.md](docs/deploy.md), [docs/onboarding.md](docs/onboarding.m
 
 ```sh
 git clone https://github.com/blevinstein/centaur && cd centaur
-npm ci
+yarn install --immutable
 
 # 1. Deploy the stack (copy parameters.example.json to parameters-prod.json and fill it in first)
-npm run deploy-prod
+yarn deploy-prod
 
 # 2. Install the CLI and point it at the stack's account and region
-npm run build && npm link
+yarn build && npm link
 export AWS_PROFILE=<profile> AWS_REGION=<region>
 
 # 3. Store a GitHub token the Lambda uses to dispatch workflows (fine-grained PAT, Contents: write)

@@ -6,14 +6,14 @@ run; steps marked **validate** are still untested.
 
 ## Maintainer: deploy the stack (once)
 
-1. `npm ci`.
+1. `yarn install --immutable`.
 2. Copy `parameters.example.json` to `parameters-prod.json` and fill it in (see
    [deploy.md](deploy.md#parameters-file)). An account can have only one GitHub OIDC provider:
    run `aws iam list-open-id-connect-providers` and, if `token.actions.githubusercontent.com` is
    listed, set `ExistingOidcProviderArn` to its ARN.
-3. `npm run deploy-prod`. It prints the function name, function URL, role ARN and session bucket;
+3. `yarn deploy-prod`. It prints the function name, function URL, role ARN and session bucket;
    you need them for the repo variables below.
-4. Install the [CLI](cli.md#install-and-run) (`npm run build && npm link`) and set `AWS_PROFILE`
+4. Install the [CLI](cli.md#install-and-run) (`yarn build && npm link`) and set `AWS_PROFILE`
    and `AWS_REGION` for the stack's account.
 5. Create a fine-grained GitHub PAT limited to the consumer repos with Contents: write, and store
    it: `CENTAUR_BOT_GITHUB_TOKEN=<token> centaur github-token set`. The receiver uses it to

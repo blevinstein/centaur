@@ -129,9 +129,9 @@ The API base URL comes from the bot's `provider` in `.centaur.yml`, not from a v
 ## How the scripts are delivered
 
 Actions run from the checkout GitHub makes of this repo at the ref the consumer pins
-(`github.action_path`). `setup-runtime` runs `npm ci && npm run build` there; the other actions run
-`node <action checkout>/dist/workflows/cli.js <command>`. This keeps the scripts versioned with the
-actions that call them, and all non-trivial logic in `src/workflows/` where it is unit-tested. The
+(`github.action_path`). `setup-runtime` enables Corepack and runs `yarn install --immutable &&
+yarn build` there; the other actions run
+`node <action checkout>/dist/workflows/cli.js <command>`. This keeps the scripts versioned with theactions that call them, and all non-trivial logic in `src/workflows/` where it is unit-tested. The
 centaur repo must be readable by the consumer's `GITHUB_TOKEN` (public, or granted access).
 `.centaur-turn/` is added to `.git/info/exclude` so it never lands in a pull request. The actions
 read the variables above through the `vars` context; API keys are inputs of `turn` because

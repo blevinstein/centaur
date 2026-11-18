@@ -9,8 +9,8 @@ layout](plan.md#ssm-parameter-layout); this page covers usage.
 Requires Node 24 (see `.nvmrc`).
 
 ```sh
-npm ci
-npm run build
+yarn install --immutable
+yarn build
 npm link            # puts `centaur` on PATH; or run `node dist/cli/index.js <args>`
 ```
 
