@@ -57,7 +57,6 @@ Use a scratch repo first; `garden` comes after this works.
 - [x] Reply in that topic (no mention needed). Verified: the run succeeded, the topic's transcript
       holds the bot's post, your reply and the bot's answer in order, and the last-processed marker
       for the topic advanced.
-- [ ] Add a second bot to the same group and confirm the ownership rules route messages correctly.
 - [x] Repeat the `Chat`-against-DynamoDB run on the deployed table. Items checked: per-bot key
       prefixes, TTLs on dedupe, webhook-update and history entries, unprefixed `registry:<bot>`,
       and `thread-state` for the bot-created topic.

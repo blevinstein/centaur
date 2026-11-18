@@ -116,6 +116,8 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
 ## Later
 
 - [ ] Poster MCP tool for mid-turn questions and progress messages.
+- [ ] Two bots in one group: with a second bot from BotFather, confirm the ownership rules route
+      messages correctly (needs the maintainer to create the bot; see `HUMAN_TODO.md` then).
 - [ ] Agent-scheduled follow-ups via EventBridge Scheduler.
 - [ ] Per-thread turn or token caps for `resume` sessions.
 - [ ] Contribute the DynamoDB state adapter upstream, if we write one.
