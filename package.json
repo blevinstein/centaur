@@ -16,6 +16,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.6.8",
     "@chat-adapter/state-memory": "4.45.0",
+    "@types/aws-lambda": "8.10.164",
     "@types/node": "24.19.2",
     "chat": "4.45.0",
     "typescript": "7.0.2",
