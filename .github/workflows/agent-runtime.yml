@@ -3,8 +3,80 @@ name: Agent runtime experiment
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  stub:
+  turn:
+    name: ${{ matrix.variant }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: anthropic
+            key_secret: ANTHROPIC_API_KEY
+          - variant: openrouter-documented
+            key_secret: OPENROUTER_API_KEY
+            base_url: https://openrouter.ai/api
+            auth_token: true
+            haiku_model: anthropic/claude-haiku-5.5
+          - variant: openrouter-api-key-only
+            key_secret: OPENROUTER_API_KEY
+            base_url: https://openrouter.ai/api
+            haiku_model: anthropic/claude-haiku-5.5
+          - variant: openrouter-custom-headers
+            key_secret: OPENROUTER_API_KEY
+            base_url: https://openrouter.ai/api
+            custom_headers: true
+            haiku_model: anthropic/claude-haiku-5.5
+          - variant: openrouter-native-model-names
+            key_secret: OPENROUTER_API_KEY
+            base_url: https://openrouter.ai/api
+            auth_token: true
+          - variant: anthropic-no-prompt
+            key_secret: ANTHROPIC_API_KEY
+            no_prompt: true
     steps:
-      - run: echo "Run this workflow from experiment/agent-runtime."
+      - uses: actions/checkout@v4
+
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        env:
+          ANTHROPIC_BASE_URL: ${{ matrix.base_url }}
+          ANTHROPIC_AUTH_TOKEN: ${{ matrix.auth_token && secrets.OPENROUTER_API_KEY || '' }}
+          ANTHROPIC_CUSTOM_HEADERS: "${{ matrix.custom_headers && format('Authorization: Bearer {0}', secrets.OPENROUTER_API_KEY) || '' }}"
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ matrix.haiku_model }}
+        with:
+          anthropic_api_key: ${{ secrets[matrix.key_secret] }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: ${{ !matrix.no_prompt && format('Do not use any tools other than structured output. Reply with one short sentence greeting the {0} variant.', matrix.variant) || '' }}
+          claude_args: |
+            --model haiku
+            --max-turns 3
+            --json-schema '{"type":"object","properties":{"reply":{"type":"string"}},"required":["reply"],"additionalProperties":false}'
+
+      - name: Read structured reply
+        if: always()
+        env:
+          STRUCTURED_OUTPUT: ${{ steps.claude.outputs.structured_output }}
+        run: |
+          echo "structured_output=$STRUCTURED_OUTPUT"
+          echo "reply=$(jq -r '.reply // empty' <<<"${STRUCTURED_OUTPUT:-null}" 2>/dev/null)"
+
+      - name: Diagnostics
+        if: always()
+        env:
+          CONCLUSION: ${{ steps.claude.outputs.conclusion }}
+          SESSION_ID: ${{ steps.claude.outputs.session_id }}
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          echo "conclusion=$CONCLUSION session_id=$SESSION_ID"
+          if [ -f "$EXECUTION_FILE" ]; then
+            jq -c '.[] | select(.type == "system" and .subtype == "init") | {model, apiKeySource, cwd}' "$EXECUTION_FILE"
+            jq -c '.[-1] | {subtype, is_error, num_turns, duration_ms, duration_api_ms, total_cost_usd, usage, models: (.modelUsage // {} | keys), error: (if .is_error then (.result // "" | tostring | .[0:500]) else null end)}' "$EXECUTION_FILE"
+          else
+            echo "no execution file"
+          fi
