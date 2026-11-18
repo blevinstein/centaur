@@ -61,7 +61,9 @@ Resources:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
               StringLike:
                 # TODO: tighten to specific refs/environments.
-                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubOwner}/${RepoName}:*
+                token.actions.githubusercontent.com:sub:
+                  - !Sub repo:${GitHubOwner}/${RepoName}:*
+                  - !Sub repo:${GitHubOwner}@*/${RepoName}@*:*
       Policies:
         - PolicyName: session-objects
           PolicyDocument:
