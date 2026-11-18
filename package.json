@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsc -p tsconfig.build.json",
+    "deploy-prod": "scripts/deploy.sh --stack centaur --params-file parameters-prod.json",
     "lint:cfn": ".venv/bin/cfn-lint infra/*.yml",
     "bundle:lambda": "esbuild src/lambda/handler.ts --bundle --platform=node --target=node24 --format=esm --outfile=dist/lambda/index.mjs --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\""
   },

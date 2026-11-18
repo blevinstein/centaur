@@ -18,12 +18,20 @@ Parameters:
     Default: 30
     MinValue: 1
     Description: Days after which objects under sessions/ expire.
-  CodeBucket:
+  DeployLambda:
     Type: String
-    Description: Existing S3 bucket holding the Lambda zip (scripts/deploy.sh uploads it).
+    Default: 'TRUE'
+    AllowedValues: ['TRUE', 'FALSE']
+    Description: FALSE creates everything except the Lambda and its dependents, so the code bucket exists before the first upload.
   CodeKey:
     Type: String
-    Description: S3 key of the Lambda zip.
+    Default: ''
+    Description: S3 key of the Lambda zip in the code bucket. Required when DeployLambda is TRUE.
+  CodeExpirationDays:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    Description: Days after which uploaded Lambda zips expire.
   OidcAudience:
     Type: String
     Default: centaur
@@ -34,6 +42,7 @@ Parameters:
     Description: Days to keep Lambda logs.
 
 Conditions:
+  ShouldDeployLambda: !Equals [!Ref DeployLambda, 'TRUE']
   CreateProvider: !Equals [!Ref ExistingOidcProviderArn, '']
 
 Resources:
@@ -64,6 +73,26 @@ Resources:
             Status: Enabled
             Prefix: sessions/
             ExpirationInDays: !Ref SessionExpirationDays
+
+  CodeBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-lambda-zips
+            Status: Enabled
+            ExpirationInDays: !Ref CodeExpirationDays
 
   StateTable:
     Type: AWS::DynamoDB::Table
@@ -103,12 +132,14 @@ Resources:
 
   FunctionLogGroup:
     Type: AWS::Logs::LogGroup
+    Condition: ShouldDeployLambda
     Properties:
       LogGroupName: !Sub /aws/lambda/${AWS::StackName}-receiver
       RetentionInDays: !Ref LogRetentionDays
 
   FunctionRole:
     Type: AWS::IAM::Role
+    Condition: ShouldDeployLambda
     Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
@@ -155,6 +186,11 @@ Resources:
 
   ReceiverFunction:
     Type: AWS::Lambda::Function
+    Condition: ShouldDeployLambda
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks: [W1030]
     DependsOn: FunctionLogGroup
     Properties:
       FunctionName: !Sub ${AWS::StackName}-receiver
@@ -174,12 +210,14 @@ Resources:
 
   ReceiverFunctionUrl:
     Type: AWS::Lambda::Url
+    Condition: ShouldDeployLambda
     Properties:
       TargetFunctionArn: !Ref ReceiverFunction
       AuthType: NONE
 
   ReceiverFunctionUrlPermission:
     Type: AWS::Lambda::Permission
+    Condition: ShouldDeployLambda
     Properties:
       FunctionName: !Ref ReceiverFunction
       Action: lambda:InvokeFunctionUrl
@@ -188,6 +226,7 @@ Resources:
 
   ReceiverFunctionInvokePermission:
     Type: AWS::Lambda::Permission
+    Condition: ShouldDeployLambda
     Properties:
       FunctionName: !Ref ReceiverFunction
       Action: lambda:InvokeFunction
@@ -196,6 +235,7 @@ Resources:
 
   FunctionUrlParameter:
     Type: AWS::SSM::Parameter
+    Condition: ShouldDeployLambda
     Properties:
       Name: /centaur/function-url
       Type: String
@@ -232,11 +272,16 @@ Resources:
                 Condition:
                   StringLike:
                     s3:prefix: sessions/*
-              - Effect: Allow
-                Action: lambda:InvokeFunction
-                Resource: !GetAtt ReceiverFunction.Arn
+              - !If
+                - ShouldDeployLambda
+                - Effect: Allow
+                  Action: lambda:InvokeFunction
+                  Resource: !GetAtt ReceiverFunction.Arn
+                - !Ref AWS::NoValue
 
 Outputs:
+  CodeBucketName:
+    Value: !Ref CodeBucket
   BucketName:
     Value: !Ref SessionBucket
   RoleArn:
@@ -248,8 +293,11 @@ Outputs:
   StateTableAccessPolicyArn:
     Value: !Ref StateTableAccessPolicy
   FunctionName:
+    Condition: ShouldDeployLambda
     Value: !Ref ReceiverFunction
   FunctionArn:
+    Condition: ShouldDeployLambda
     Value: !GetAtt ReceiverFunction.Arn
   FunctionUrl:
+    Condition: ShouldDeployLambda
     Value: !GetAtt ReceiverFunctionUrl.FunctionUrl

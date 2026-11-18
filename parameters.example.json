@@ -1,0 +1,9 @@
+[
+  { "ParameterKey": "GitHubOwner", "ParameterValue": "REPLACE_ME" },
+  { "ParameterKey": "GitHubOwnerId", "ParameterValue": "REPLACE_ME" },
+  { "ParameterKey": "ExistingOidcProviderArn", "ParameterValue": "" },
+  { "ParameterKey": "SessionExpirationDays", "ParameterValue": "30" },
+  { "ParameterKey": "CodeExpirationDays", "ParameterValue": "30" },
+  { "ParameterKey": "OidcAudience", "ParameterValue": "centaur" },
+  { "ParameterKey": "LogRetentionDays", "ParameterValue": "30" }
+]

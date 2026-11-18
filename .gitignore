@@ -2,3 +2,5 @@ node_modules/
 dist/
 coverage/
 .venv/
+parameters-*.json
+!parameters.example.json
