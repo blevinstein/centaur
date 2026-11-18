@@ -97,6 +97,28 @@ Records the admin's user ID per platform as `/centaur/admin/<platform>`; the adm
 [access requests](plan.md#access-requests). The admin is global, not per bot, and a bot only
 notifies the admin on its own platform. At least one flag is required.
 
+### `centaur admin claim <bot> [--ttl-minutes <n>] [--cancel]`
+
+Lets you become the admin without looking up your own user ID. It requires the bot to exist,
+generates a random one-time code, and stores only its SHA-256 hash, an expiry (`--ttl-minutes`,
+default 15, at most 1440) and the bot's name as `/centaur/admin-claim/<platform>`, replacing any
+pending claim for that platform. Then:
+
+- **Telegram:** prints `https://t.me/<bot_username>?start=<code>`. The username comes from
+  Telegram's `getMe` with the bot's token, which is never printed. Open the link and tap **Start**.
+- **Slack:** prints the code and the instruction to DM the bot `claim <code>`.
+
+The first person to send the code to that bot in a direct message becomes the admin for the
+platform (`/centaur/admin/<platform>`, overwriting any admin); the bot replies "You're now the admin
+for this bot's platform." and the claim is deleted. The admin is allowed in every bot of the
+platform and cannot be blocked. Five wrong codes invalidate the claim, and an expired or absent
+claim is ignored like any other message. `--cancel` deletes the bot's pending claim instead and
+refuses if there is none. See [plan.md](plan.md#bootstrapping-the-first-admin).
+
+```sh
+centaur admin claim garden
+```
+
 ### `centaur admin show`
 
 Prints the admin ID for each platform, or `not set`.
@@ -119,8 +141,8 @@ Deletes the approval. Refuses if there is none. It does not remove baseline acce
 
 ### `centaur access block <bot> <chat|user> <id>` / `centaur access unblock <bot> <chat|user> <id>`
 
-`block` writes `/centaur/bots/<bot>/blocked/<kind>/<id>` and deletes the subject's approval; a
-blocked subject is ignored even if it is in `.centaur.yml`, and gets no reply or request. `unblock`
+`block` writes `/centaur/bots/<bot>/blocked/<kind>/<id>` and deletes the subject's approval, and
+refuses to block the platform's admin user ID; a blocked subject is ignored even if it is in `.centaur.yml`, and gets no reply or request. `unblock`
 deletes the block and refuses if there is none; the subject is then unapproved and can request
 access again (baseline access from `.centaur.yml` returns).
 
@@ -187,22 +209,25 @@ Errors are printed to stderr and the exit code is 1.
 | `Unknown kind "<x>": expected chat or user.` | `access` with a kind other than `chat` or `user`. |
 | `Approved <kind> <id> not found.` / `Blocked <kind> <id> not found.` | `access revoke` / `unblock` with no such entry. |
 | `No admin is set for <platform>.` | `admin remove` for a platform with no admin. |
+| `Cannot block <id>: they are the admin for <platform>.` | `access block <bot> user <id>` for the admin. |
+| `No pending claim for bot "<x>".` | `admin claim --cancel` with no pending claim for that bot. |
+| `Could not look up the bot's username from Telegram: ...` | `admin claim` for a Telegram bot when `getMe` fails (bad token or network). |
+| `--ttl-minutes must be a whole number from 1 to 1440.` | `admin claim` with a bad TTL. |
 | `Missing value for <name>.` | A secret was not supplied by env, stdin, or prompt. |
 
 AWS errors (expired credentials, missing permissions, wrong region) surface unmodified.
 
 ## Example: onboarding a Telegram bot
 
-After creating the bot with BotFather, read the group and user IDs with `getUpdates` before the
-webhook is set (see [onboarding.md](onboarding.md#maintainer-once-per-bot-and-group)):
+After creating the bot with BotFather (see [onboarding.md](onboarding.md#maintainer-once-per-bot-and-group)):
 
 ```sh
 export AWS_PROFILE=centaur AWS_REGION=us-east-1
 centaur bot add garden --platform telegram      # paste the BotFather token at the hidden prompt
-centaur chat add household -1001234567890       # group chat ID (negative) from getUpdates
-centaur user add spouse --telegram 111222333    # user ID from getUpdates
 ```
 
 Then push the repo's `.centaur.yml`; its `register` job binds the bot (`bots/garden/repo`) and sets
-the webhook. To retire the bot later, run `centaur bot unbind garden` and `centaur bot remove
+the webhook. Run `centaur admin claim garden` and open the link to become the admin; chats and
+users then arrive as access requests. If you already know the IDs, `centaur chat add <name> <chat
+id>` and `centaur user add <name> --telegram <id>` enroll them directly. To retire the bot later, run `centaur bot unbind garden` and `centaur bot remove
 garden`.

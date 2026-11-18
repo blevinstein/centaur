@@ -26,13 +26,10 @@ Unblocks: everything below.
 - [x] Create a fine-grained GitHub PAT limited to the test repo with Contents: write, and store
       it with `centaur github-token set`.
 - [x] Create a test supergroup with Topics enabled and add the bot as admin with Manage Topics.
-- [x] Send one message in the group, and before the webhook is set (section 3) read the chat and
-      your user ID from Telegram's pending updates:
-      `TOKEN=$(aws ssm get-parameter --name /centaur/bots/<bot>/token --with-decryption --query Parameter.Value --output text)`
-      then `curl -s "https://api.telegram.org/bot$TOKEN/getUpdates" | jq '.result[].message | {chat: .chat.id, from: .from.id}'`.
-      Once a webhook is set, `getUpdates` stops working and the receiver logs unknown chat IDs
-      instead.
-- [x] `centaur chat add <name> <chat id>` and `centaur user add <you> --telegram <your id>`.
+- [x] Admit yourself and the group: either `centaur admin claim <bot>` (open the link, tap
+      **Start**, then mention the bot in the group and approve the chat and your user from the
+      bot's DM), or by hand with `centaur chat add <name> <chat id>` and
+      `centaur user add <you> --telegram <your id>` (the receiver logs unknown chat and user IDs).
 
 ## 3. Wire a test consumer repo
 
@@ -73,8 +70,9 @@ Unblocked by section 4.
 
 - [ ] Point an agent at `garden` to add the config, persona, prompt, caller workflow and
       `AGENTS.md` change (these are in [TODO.md](TODO.md) section 8).
-- [ ] Onboard the household group: set yourself as admin (`centaur admin set`), message the bot
-      once, then approve the group and each user from the bot's DM instead of by hand.
+- [ ] Onboard the household group: claim the admin role (`centaur admin claim <bot>`, open the
+      link), mention the bot in the group, then approve the group and each user from the bot's DM
+      instead of by hand.
 
 ## 6. Slack
 

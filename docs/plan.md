@@ -275,6 +275,29 @@ A bot can only reach the admin on its own platform. Telegram bots cannot open a 
 who has never messaged them, so the admin must message each bot once; if the DM fails the
 requester is told only "I couldn't reach my admin." and the failure is logged by ID.
 
+**Bootstrapping the first admin.** `centaur admin claim <bot>` (run with the deployer's AWS
+credentials) stores `/centaur/admin-claim/<platform>`: the bot's name, an expiry (15 minutes by
+default) and the SHA-256 hash of a 192-bit random code; the code itself is only printed. On
+Telegram the code is the payload of a deep link (`t.me/<bot_username>?start=<code>`), so tapping
+**Start** sends `/start <code>`; on Slack the owner DMs the bot `claim <code>`. `/claim <code>` also
+works on Telegram. The receiver checks this before the sender allowlist, because the claimant is
+by definition unknown. It accepts the code only in a direct message to the bot the claim names,
+compares hashes with `crypto.timingSafeEqual`, and checks the expiry. On success it writes the
+sender's user ID to `/centaur/admin/<platform>`, deletes the claim, and replies with a fixed
+sentence. Opening the DM also lets the bot reach the admin afterwards.
+
+Why this is safe: the code has enough entropy that guessing is infeasible, and each claim also
+allows at most 5 wrong attempts (counted in the state table per claim, then the claim is deleted),
+so online guessing cannot succeed; only the hash is stored, so reading SSM does not reveal a live
+code; the window is short and a claim is single-use; an absent, expired, wrong-bot or non-DM
+attempt is treated as an ordinary message, so nobody learns whether a claim exists; nothing logs
+the code or hash, only the claimant's ID. Whoever can run the CLI already controls the stack, so
+the claim adds no new authority. Anyone who sees the link before the owner uses it can take the
+admin role, so open it right away or `--cancel` it. The admin is allowed in every bot on its
+platform (the access resolver adds the ID) and cannot be blocked; `access block` refuses it and the
+resolver ignores a block entry for it. A claim replaces an existing admin, so a lost account is
+recovered by claiming again.
+
 **Storage.**
 
 | Where | Key | Content |
@@ -286,6 +309,8 @@ requester is told only "I couldn't reach my admin." and the failure is logged by
 | SSM | `bots/<bot>/approved-chats/<chatId>`, `approved-users/<userId>` | Approved subjects (JSON: name, time). |
 | SSM | `bots/<bot>/blocked/<chat\|user>/<id>` | Blocked subjects (JSON: name, time). |
 | SSM | `admin/<platform>` | The admin's user ID. |
+| SSM | `admin-claim/<platform>` | The pending claim: bot, expiry, code hash. |
+| State table (TTL) | `admin-claim-failures:<hash>` | Wrong-code count for that claim. |
 
 Approved and blocked entries live in SSM so the [CLI](cli.md) can list, revoke and unblock them.
 The effective allowlist is the baseline union the approved entries, minus anything blocked.
@@ -302,7 +327,8 @@ case-insensitive, and checked for uniqueness when created.
 **Security.** A decision needs the admin's user ID, taken from the platform's signed webhook, on the
 DM message that holds the request, in a direct message. Anyone else's reaction is ignored and
 logged by ID. Requests are single-use and idempotent, so a second reaction or command changes
-nothing. The Lambda role can write only the approved and blocked paths. The admin DM contains
+nothing. The Lambda role can write only the approved and blocked paths, `admin/*` (for a claim), and delete
+only `admin-claim/*`. The admin DM contains
 names and IDs but never message content.
 
 ## Validation plan
@@ -367,7 +393,8 @@ IDs and names are plain `String`.
 | `bots/<bot>/approved-chats/<chatId>` | String (JSON) | access request approval; `centaur access approve` |
 | `bots/<bot>/approved-users/<userId>` | String (JSON) | access request approval; `centaur access approve` |
 | `bots/<bot>/blocked/<chat\|user>/<id>` | String (JSON) | access request denial; `centaur access block` |
-| `admin/<platform>` | String | `centaur admin set` |
+| `admin/<platform>` | String | `centaur admin set`; a successful admin claim |
+| `admin-claim/<platform>` | String (JSON) | `centaur admin claim`; deleted on use, failure limit or `--cancel` |
 | `users/<name>/<platform>` | String | `centaur user add` |
 | `chats/<name>` | String | `centaur chat add` |
 | `github/token` | SecureString | `centaur github-token set` |

@@ -33,9 +33,6 @@ message first." That shapes the flow:
 
 ### Maintainer: once per bot and group
 
-Record yourself as admin and enroll yourself **before** the webhook is set if you need
-`getUpdates` to find your ID: once the bot's webhook exists, `getUpdates` stops working.
-
 1. In Telegram, message [@BotFather](https://t.me/BotFather): `/newbot`, choose a display name
    (e.g. "Garden Helper") and a username ending in `bot`. Optionally set the profile so it's
    recognizable: `/setuserpic`, `/setdescription`, `/setabouttext`.
@@ -45,15 +42,15 @@ Record yourself as admin and enroll yourself **before** the webhook is set if yo
    settings (this converts it to a supergroup), add each bot, and promote it to **admin** with
    the **Manage Topics** right. Admin bots receive all group messages, and topic creation
    requires that right.
-4. Find your own Telegram user ID (for example from `getUpdates` before the webhook is set, or a
-   bot such as @userinfobot) and record yourself as the admin: `centaur admin set --telegram <id>`.
-   Then open each bot and tap **Start** once, so the bot is allowed to message you.
-5. Put yourself in the repo's `allow` list: `centaur user add <name> --telegram <id>`. This is the
-   baseline; everyone and every chat after you is admitted by [access
-   request](#enrolling-chats-and-people).
-6. [Add the repo](#adding-a-repo). Its first registration sets the webhook.
-7. Add the bot to the group, then mention it once. The bot DMs you a request for the chat; see
-   below.
+4. [Add the repo](#adding-a-repo). Its first registration sets the webhook, so the bot can
+   answer your claim.
+5. Become the admin: run `centaur admin claim garden`, open the link it prints, and tap **Start**.
+   The bot replies "You're now the admin for this bot's platform." You never need your own user
+   ID, the admin is allowed in every Telegram bot, and the same tap lets the bot DM you. The link
+   works once, for 15 minutes, through that bot only; see [the
+   design](plan.md#bootstrapping-the-first-admin).
+6. Add the bot to the group, then mention it once. The bot DMs you a request for the chat, and
+   each person in the group sends one for themselves; see below.
 
 ### Enrolling chats and people
 
@@ -84,13 +81,11 @@ Without an admin for the bot's platform, unknown chats are ignored and unknown u
 you aren't enrolled to talk to me." (a bot with `respond_to: all` ignores unenrolled people in the
 group silently); the user ID is logged either way.
 
-Manual alternative, no admin needed: read the IDs from `getUpdates` before the webhook is set
-(send one message in the group, then
-`curl -s "https://api.telegram.org/bot$TOKEN/getUpdates" | jq '.result[].message | {chat: .chat.id, from: .from.id}'`
-with `TOKEN` read from SSM; a supergroup's ID is negative, `-100...`), then run
+Manual alternative, no admin needed: if you already know the IDs, run
 `centaur chat add household <group chat id>` and `centaur user add <name> --telegram <id>`
-(referenced from `.centaur.yml`'s `chats` and `allow`), or approve directly for one bot with
-`centaur access approve garden chat|user <id>`. `centaur access list garden` shows what has been
+(referenced from `.centaur.yml`'s `chats` and `allow`; a supergroup's ID is negative, `-100...`), or
+approve directly for one bot with `centaur access approve garden chat|user <id>`. The receiver
+logs the IDs of unknown chats and users, so you can read them from its logs. `centaur access list garden` shows what has been
 approved or blocked, and `centaur access revoke|block|unblock` undo it.
 
 ### Household member (non-technical): once
@@ -164,15 +159,16 @@ Only the maintainer uses these, so there's no non-technical onboarding. Nothing 
    <bot> --platform slack`.
 3. Set `platform: slack` in the repo's `.centaur.yml`, push to register, and invite the bot to its
    channel.
-4. Enroll your Slack user ID: `centaur user add <name> --slack <id>`, and record yourself as the
-   admin: `centaur admin set --slack <id>`. Later chats and users are admitted by [access
-   request](#enrolling-chats-and-people).
+4. Become the admin: run `centaur admin claim <bot>` and DM the bot `claim <code>` with the code
+   it prints. Later chats and users are admitted by [access
+   request](#enrolling-chats-and-people); `centaur user add <name> --slack <id>` is the manual
+   alternative.
 
 For access requests the Slack app needs, beyond what it needs to read and post messages:
 
 - the event subscription `reaction_added` (the admin's 👍/👎 arrive as `+1` and `-1`);
 - bot token scopes `reactions:read`, `im:history`, `chat:write` and `im:write` (the last lets the bot
-  open a DM with the admin).
+  open a DM with the admin); `im:history` also delivers the `claim <code>` DM.
 
 Slack decisions are reactions only; there is no `/approve` text fallback on Slack.
 
