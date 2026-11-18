@@ -53,6 +53,15 @@ Verified against the action's `action.yml`:
   (`/home/runner/work/<repo>/<repo>`) is stable within a repo, so the escaped-cwd directory name is
   stable too. **Validate.**
 - `show_full_output` dumps every message, including tool results, into the job log. Keep it off.
+- The action reads the event type from the webhook payload, so `GITHUB_EVENT_NAME` overrides do
+  nothing. It rejects `push` events and works under `workflow_dispatch`.
+- With no `prompt` on a `workflow_dispatch` run, the action exits successfully without calling
+  Claude. A green job does not mean the agent ran.
+- Verified via `workflow_dispatch` against the Anthropic API with `--model haiku` and
+  `--json-schema`: a structured-output turn takes about 2 s over 2 turns and costs about $0.0025,
+  and `structured_output` carries the required `reply` field.
+- The diagnostics `apiKeySource` field only names the env var, so it can't show which backend
+  served a request. Check the provider's own usage dashboard.
 
 ### OpenRouter
 

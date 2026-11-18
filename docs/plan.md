@@ -210,7 +210,8 @@ DMs with a bot are always that bot's; DMs use reply chains, not topics (see
 
 Ordered by risk. Each experiment answers a question that could change the design.
 
-1. **Agent runtime.** In a scratch private repo, run `claude-code-action` twice via
+1. **Agent runtime.** On an `experiment/*` branch of this repo (a `workflow_dispatch` stub on
+   `main` makes the branch's workflow dispatchable), run `claude-code-action` twice via
    `workflow_dispatch`:
    - through OpenRouter (documented Action path, then the custom-header workaround if needed) and
      through Anthropic directly;
