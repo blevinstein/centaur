@@ -14,4 +14,7 @@
 - `npm run lint` (Biome check: lint, format, import order; `npm run format` fixes), `npm run
   typecheck`, `npm test` (Vitest, `test/**/*.test.ts`), `npm run build` (tsc to `dist/`).
 - `npm test` starts `amazon/dynamodb-local` through Docker, or uses `DYNAMODB_ENDPOINT` if set.
+- CloudFormation templates in `infra/` are validated with cfn-lint, pinned in
+  `requirements-dev.txt`. One-time setup: `pyenv install 3.10.9` if missing (see `.python-version`),
+  then `python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt`. Run `npm run lint:cfn`.
 - Biome covers code and JSON only; Markdown and YAML are not auto-formatted.

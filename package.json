@@ -11,7 +11,8 @@
     "format": "biome check --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "tsc -p tsconfig.build.json"
+    "build": "tsc -p tsconfig.build.json",
+    "lint:cfn": ".venv/bin/cfn-lint infra/*.yml"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.8",
