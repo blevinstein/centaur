@@ -82,7 +82,7 @@ One agent turn:
    is `all`, `reply` becomes optional and the agent may instead return `ignore: true` to stay
    silent.
 4. Invoke the poster with `structured_output.reply`, unless the agent ignored the messages (the
-   marker still advances and the session is still saved).
+   marker still advances and the session is still saved; an opened pull request is still linked).
 5. If files changed, open a PR (`peter-evans/create-pull-request`, as in polytokenizer) and
    include the link in the chat reply. Agents never push to the default branch.
 6. Save the session file to S3 when the policy is `resume`.

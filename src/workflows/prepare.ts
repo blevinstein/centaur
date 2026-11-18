@@ -13,7 +13,6 @@ export const STATE_FILE = `${TURN_DIR}/state.json`;
 
 const NEW_THREAD_ACK = "Started a new thread.";
 const NEW_THREAD_OPENING = "Fresh thread. What would you like to do?";
-const MAX_TURNS = 30;
 
 const dispatchPayload = z.object({ bot: alias, thread_id: z.string().min(1) });
 
@@ -141,6 +140,7 @@ async function chatTurn(
         ...(canStaySilent ? { canStaySilent } : {}),
         prompt: buildPrompt({
           canStaySilent,
+          handle: config.handle,
           history: showHistory ? messages.filter((m) => !pendingIds.has(m.id)) : [],
           messages: plan.pending,
         }),
@@ -160,8 +160,11 @@ export function buildClaudeArgs(input: {
   const tools = [...config.allowed_tools, ...readRule].join(",");
   return [
     ...(config.model ? [`--model ${config.model}`] : []),
+    ...(config.fallback_model ? [`--fallback-model ${config.fallback_model}`] : []),
+    ...(config.effort ? [`--effort ${config.effort}`] : []),
     `--allowedTools "${tools}"`,
-    `--max-turns ${MAX_TURNS}`,
+    `--max-turns ${config.max_turns}`,
+    ...(config.max_budget_usd ? [`--max-budget-usd ${config.max_budget_usd}`] : []),
     `--json-schema '${JSON.stringify(replySchema(canStaySilent))}'`,
     ...(persona ? [`--append-system-prompt-file ${persona}`] : []),
     ...(resumeSessionId ? [`--resume ${resumeSessionId}`] : []),

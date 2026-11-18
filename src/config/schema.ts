@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const PLATFORMS = ["telegram", "slack"] as const;
 export const CONTEXT_POLICIES = ["fresh", "transcript", "resume"] as const;
+export const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"] as const;
 export const RESPOND_TO = ["mention", "all"] as const;
 
 export const alias = z
@@ -42,7 +43,15 @@ export const centaurConfigSchema = z
         scheduled: contextPolicy.default("fresh"),
       })
       .default({ default: "transcript", scheduled: "fresh" }),
+    handle: z
+      .string()
+      .regex(/^[A-Za-z0-9_]{3,64}$/, "must be the bot's username without the @")
+      .optional(),
     model: z.string().min(1).optional(),
+    fallback_model: z.string().min(1).optional(),
+    effort: z.enum(EFFORT_LEVELS).optional(),
+    max_turns: z.number().int().min(1).max(200).default(30),
+    max_budget_usd: z.number().positive().max(1000).optional(),
     allowed_tools: toolList,
     persona: repoPath.default(".centaur/persona.md"),
     prompts: z.record(alias, promptSchema).default({}),

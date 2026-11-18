@@ -104,6 +104,10 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("not necessarily\naddressed to you");
     expect(prompt).toContain("Reply when a message mentions you");
     expect(prompt).toContain('set "ignore" to true');
+    expect(prompt).not.toContain("@");
+    expect(buildPrompt({ messages, canStaySilent: true, handle: "garden_bot" })).toContain(
+      "People mention you as @garden_bot.",
+    );
   });
 
   it("requires a reply unless silence is allowed", () => {

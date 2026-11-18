@@ -82,6 +82,32 @@ describe("prepare", () => {
     expect((await prompt(root)).includes("stay silent")).toBe(canIgnore);
   });
 
+  it("passes tuning options through as claude flags, with the documented defaults when unset", async () => {
+    const tuned = await setup(
+      [message("1", "hi")],
+      configText(
+        "model: sonnet\nfallback_model: haiku\neffort: low\nmax_turns: 7\nmax_budget_usd: 0.25",
+      ),
+    );
+    const out = await prepare(tuned.deps());
+    for (const flag of [
+      "--model sonnet",
+      "--fallback-model haiku",
+      "--effort low",
+      "--max-turns 7",
+      "--max-budget-usd 0.25",
+    ]) {
+      expect(out.claude_args).toContain(flag);
+    }
+
+    const plain = await setup([message("1", "hi")]);
+    const defaults = (await prepare(plain.deps())).claude_args;
+    expect(defaults).toContain("--max-turns 30");
+    for (const flag of ["--model", "--fallback-model", "--effort", "--max-budget-usd"]) {
+      expect(defaults).not.toContain(flag);
+    }
+  });
+
   it("never offers silence for scheduled turns", async () => {
     const { deps, root } = await setup(
       [],
@@ -242,6 +268,29 @@ describe("finish", () => {
     expect(aws.objects.get("sessions/sprout/telegram_-100_99/s2.jsonl")).toBe("data");
   });
 
+  it("posts only the pull request link when the agent ignores the messages but changed files", async () => {
+    const { deps, aws, root, executionFile, writeExecution } = await setup(
+      [message("1", "please fix")],
+      configText("respond_to: all"),
+    );
+    await prepare(deps());
+    await writeExecution({ structured_output: { ignore: true } });
+
+    await finish({
+      workspace: root,
+      executionFile,
+      pullRequestUrl: "https://example.test/pr/2",
+      poster: aws.poster,
+      storeFor: aws.storeFor,
+    });
+
+    expect(aws.requests.at(-1)).toMatchObject({
+      operation: "post",
+      text: "Pull request: https://example.test/pr/2",
+    });
+    expect(aws.objects.get(`${THREAD_PREFIX}last-processed`)).toBe("1");
+  });
+
   it("posts nothing when the agent ignores the messages, but advances the marker and saves the session", async () => {
     const { deps, aws, root, executionFile, writeExecution } = await setup(
       [message("1", "lunch?")],
@@ -254,7 +303,6 @@ describe("finish", () => {
     await finish({
       workspace: root,
       executionFile,
-      pullRequestUrl: "https://example.test/pr/1",
       poster: aws.poster,
       storeFor: aws.storeFor,
     });

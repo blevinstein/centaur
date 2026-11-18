@@ -14,7 +14,12 @@ respond_to: all
 context:
   default: resume
   scheduled: fresh
+handle: garden_helper_bot
 model: sonnet
+fallback_model: haiku
+effort: low
+max_turns: 12
+max_budget_usd: 0.5
 allowed_tools: "Read, Edit,Write,Glob,Grep"
 persona: .centaur/persona.md
 prompts:
@@ -24,7 +29,18 @@ prompts:
     file: .centaur/prompts/season.md
 `;
 
+const withExtra = (line: string) =>
+  `bot: a\nplatform: slack\nallow: [x]\nallowed_tools: Read\n${line}`;
+
 export const invalidConfigs: [name: string, text: string, path: string, message: RegExp][] = [
+  ["unknown effort", withExtra("effort: extreme"), "effort", /./],
+  ["zero max_turns", withExtra("max_turns: 0"), "max_turns", /./],
+  ["fractional max_turns", withExtra("max_turns: 2.5"), "max_turns", /./],
+  ["excessive max_turns", withExtra("max_turns: 500"), "max_turns", /./],
+  ["negative max_budget_usd", withExtra("max_budget_usd: -1"), "max_budget_usd", /./],
+  ["excessive max_budget_usd", withExtra("max_budget_usd: 5000"), "max_budget_usd", /./],
+  ["empty fallback_model", withExtra('fallback_model: ""'), "fallback_model", /./],
+  ["handle with an @", withExtra('handle: "@garden_bot"'), "handle", /without the @/],
   [
     "unknown respond_to value",
     "bot: a\nplatform: slack\nallow: [x]\nallowed_tools: Read\nrespond_to: some",

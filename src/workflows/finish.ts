@@ -63,14 +63,12 @@ async function deliverReply(
   state: TurnState,
   result: ReturnType<typeof extractResult>,
 ) {
-  if (result.reply === undefined) {
-    if (!state.threadId) throw new Error("the agent can only stay silent in an existing thread");
-    return state.threadId;
-  }
-  const text = deps.pullRequestUrl
-    ? `${result.reply}\n\nPull request: ${deps.pullRequestUrl}`
-    : result.reply;
-  return deliver(deps.poster, state, text, result.title);
+  const text = [result.reply, deps.pullRequestUrl && `Pull request: ${deps.pullRequestUrl}`]
+    .filter(Boolean)
+    .join("\n\n");
+  if (text) return deliver(deps.poster, state, text, result.title);
+  if (!state.threadId) throw new Error("the agent can only stay silent in an existing thread");
+  return state.threadId;
 }
 
 export async function finish(deps: FinishDeps) {
