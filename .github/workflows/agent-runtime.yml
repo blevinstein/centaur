@@ -11,6 +11,11 @@ jobs:
     name: ${{ matrix.variant }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      ANTHROPIC_BASE_URL: ${{ matrix.base_url }}
+      ANTHROPIC_AUTH_TOKEN: ${{ matrix.auth_token && secrets.OPENROUTER_API_KEY || '' }}
+      ANTHROPIC_CUSTOM_HEADERS: "${{ matrix.custom_headers_literal || matrix.custom_headers && format('Authorization: Bearer {0}', secrets.OPENROUTER_API_KEY) || '' }}"
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ matrix.haiku_model }}
     strategy:
       fail-fast: false
       matrix:
@@ -38,19 +43,34 @@ jobs:
           - variant: anthropic-no-prompt
             key_secret: ANTHROPIC_API_KEY
             no_prompt: true
+          - variant: ctl-openrouter-bogus-key
+            key_literal: sk-or-v1-bogus
+            base_url: https://openrouter.ai/api
+            haiku_model: anthropic/claude-haiku-5.5
+          - variant: ctl-openrouter-key-to-anthropic
+            key_secret: OPENROUTER_API_KEY
+          - variant: ctl-anthropic-key-to-openrouter
+            key_secret: ANTHROPIC_API_KEY
+            base_url: https://openrouter.ai/api
+            haiku_model: anthropic/claude-haiku-5.5
+          - variant: ctl-headers-good-bearer-bogus-key
+            key_literal: sk-or-v1-bogus
+            base_url: https://openrouter.ai/api
+            custom_headers: true
+            haiku_model: anthropic/claude-haiku-5.5
+          - variant: ctl-headers-bogus-bearer-good-key
+            key_secret: OPENROUTER_API_KEY
+            base_url: https://openrouter.ai/api
+            custom_headers_literal: 'Authorization: Bearer sk-or-v1-bogus'
+            haiku_model: anthropic/claude-haiku-5.5
     steps:
       - uses: actions/checkout@v4
 
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
-        env:
-          ANTHROPIC_BASE_URL: ${{ matrix.base_url }}
-          ANTHROPIC_AUTH_TOKEN: ${{ matrix.auth_token && secrets.OPENROUTER_API_KEY || '' }}
-          ANTHROPIC_CUSTOM_HEADERS: "${{ matrix.custom_headers && format('Authorization: Bearer {0}', secrets.OPENROUTER_API_KEY) || '' }}"
-          ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ matrix.haiku_model }}
         with:
-          anthropic_api_key: ${{ secrets[matrix.key_secret] }}
+          anthropic_api_key: ${{ matrix.key_literal || secrets[matrix.key_secret] }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: ${{ !matrix.no_prompt && format('Do not use any tools other than structured output. Reply with one short sentence greeting the {0} variant.', matrix.variant) || '' }}
           claude_args: |
@@ -72,11 +92,25 @@ jobs:
           CONCLUSION: ${{ steps.claude.outputs.conclusion }}
           SESSION_ID: ${{ steps.claude.outputs.session_id }}
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+          OPENROUTER_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           echo "conclusion=$CONCLUSION session_id=$SESSION_ID"
+          echo "base_url=${ANTHROPIC_BASE_URL:-<unset>}"
+          for v in ANTHROPIC_AUTH_TOKEN ANTHROPIC_CUSTOM_HEADERS; do
+            [ -n "${!v}" ] && echo "$v set=true" || echo "$v set=false"
+          done
           if [ -f "$EXECUTION_FILE" ]; then
             jq -c '.[] | select(.type == "system" and .subtype == "init") | {model, apiKeySource, cwd}' "$EXECUTION_FILE"
             jq -c '.[-1] | {subtype, is_error, num_turns, duration_ms, duration_api_ms, total_cost_usd, usage, models: (.modelUsage // {} | keys), error: (if .is_error then (.result // "" | tostring | .[0:500]) else null end)}' "$EXECUTION_FILE"
+            jq -c '[.[] | select(.type == "assistant") | {id: .message.id, model: .message.model}]' "$EXECUTION_FILE"
+            if [ -n "$ANTHROPIC_BASE_URL" ]; then
+              for id in $(jq -r '.[] | select(.type == "assistant") | .message.id // empty' "$EXECUTION_FILE" | sort -u); do
+                echo "generation lookup $id"
+                curl -sS -m 30 -w ' http=%{http_code}\n' -H "Authorization: Bearer $OPENROUTER_KEY" \
+                  "https://openrouter.ai/api/v1/generation?id=$id" |
+                  jq -R 'try (fromjson | .data | {id, model, provider_name, total_cost, latency, generation_time, upstream_id}) catch .' || true
+              done
+            fi
           else
             echo "no execution file"
           fi
