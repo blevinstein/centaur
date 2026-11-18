@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Centaur - S3 session bucket and a GitHub OIDC role scoped to one GitHub owner.
+
+Parameters:
+  GitHubOwner:
+    Type: String
+    Description: GitHub user or org whose repositories may assume the role.
+  GitHubOwnerId:
+    Type: String
+    AllowedPattern: '[0-9]+'
+    Description: Numeric id of GitHubOwner (gh api users/<owner> --jq .id), used in immutable OIDC subjects.
+  ExistingOidcProviderArn:
+    Type: String
+    Default: ''
+    Description: ARN of an existing token.actions.githubusercontent.com provider. Empty creates one.
+  SessionExpirationDays:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    Description: Days after which objects under sessions/ expire.
+
+Conditions:
+  CreateProvider: !Equals [!Ref ExistingOidcProviderArn, '']
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+
+  SessionBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-sessions
+            Status: Enabled
+            Prefix: sessions/
+            ExpirationInDays: !Ref SessionExpirationDays
+
+  GitHubRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRoleWithWebIdentity
+            Principal:
+              Federated: !If [CreateProvider, !Ref GitHubOidcProvider, !Ref ExistingOidcProviderArn]
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub:
+                  - !Sub repo:${GitHubOwner}/*
+                  - !Sub repo:${GitHubOwner}@${GitHubOwnerId}/*
+      Policies:
+        - PolicyName: session-objects
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject]
+                Resource: !Sub ${SessionBucket.Arn}/sessions/*
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt SessionBucket.Arn
+                Condition:
+                  StringLike:
+                    s3:prefix: sessions/*
+
+Outputs:
+  BucketName:
+    Value: !Ref SessionBucket
+  RoleArn:
+    Value: !GetAtt GitHubRole.Arn
