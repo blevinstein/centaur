@@ -156,26 +156,37 @@ Repeat for each consumer repo, after the bot exists (Telegram above, Slack below
 
 Only the maintainer uses these, so there's no non-technical onboarding. Nothing here is validated.
 
-1. **Validate** Create the app from an app manifest, which predefines scopes and the event
-   subscription URL `<function URL>/slack/<bot>`. No manifest exists in this repo yet. Whether
-   one app per repo or one shared app posting under per-repo names is preferable is an open
-   question ([plan.md](plan.md#decisions-and-open-questions)).
-2. Install the app to the workspace; store the bot token and signing secret with `centaur bot add
-   <bot> --platform slack`.
-3. Set `platform: slack` in the repo's `.centaur.yml`, push to register, and invite the bot to its
-   channel.
-4. Become the admin: run `centaur admin claim <bot>` and DM the bot `claim <code>` with the code
+Each bot, and so each repo, gets its own Slack app, mirroring Telegram.
+
+1. Create the app: copy [slack-app-manifest.yml](slack-app-manifest.yml), replace `{{BOT_NAME}}`
+   with the bot name and `{{FUNCTION_URL}}` with the receiver's Function URL (no trailing slash),
+   then at [api.slack.com/apps](https://api.slack.com/apps) choose **Create New App** > **From a
+   manifest**, pick the workspace and paste it. The manifest sets the scopes, the event
+   subscription URL `<function URL>/slack/<bot>`, and socket mode off. The receiver can only
+   answer Slack's URL verification after step 3, so retry the URL under **Event Subscriptions**
+   if Slack shows it as unverified.
+2. Under **Basic Information** > **App Credentials**, copy the **Signing Secret**. Under **OAuth &
+   Permissions**, choose **Install to Workspace** and copy the **Bot User OAuth Token**
+   (`xoxb-...`).
+3. Store both: `centaur bot add <bot> --platform slack` prompts for `token` (the bot token), then
+   `signing-secret` ([secret inputs](cli.md#supplying-secrets)).
+4. Set `platform: slack` in the repo's `.centaur.yml`, push to register, and invite the bot to its
+   channel (`/invite @<bot>`).
+5. Become the admin: run `centaur admin claim <bot>` and DM the bot `claim <code>` with the code
    it prints. Later chats and users are admitted by [access
    request](#enrolling-chats-and-people); `centaur access approve <bot> user <id>` is the manual
    alternative.
 
-For access requests the Slack app needs, beyond what it needs to read and post messages:
+The manifest requests only what the receiver uses: message and mention events plus the matching
+`*:history` and `*:read` scopes, `chat:write`, `reactions:write` for the 👀 progress reaction,
+`files:read` for attachments, `users:read` for display names, and, for access requests,
+`reaction_added` with `reactions:read` (the admin's 👍/👎 arrive as `+1` and `-1`) and `im:write`
+(opens the DM to the admin). Interactivity and slash commands are not used, so none are
+registered.
 
-- the event subscription `reaction_added` (the admin's 👍/👎 arrive as `+1` and `-1`);
-- bot token scopes `reactions:read`, `im:history`, `chat:write` and `im:write` (the last lets the bot
-  open a DM with the admin); `im:history` also delivers the `claim <code>` DM.
-
-Slack decisions are reactions only; there is no `/approve` text fallback on Slack.
+Slack decisions are reactions only; there is no `/approve` text fallback on Slack. Slack intercepts
+a message starting with `/`, so `/new`, `/resume` and `/transcript` (see
+[Day-to-day use](#day-to-day-use)) are unverified on Slack.
 
 ## Still unverified
 

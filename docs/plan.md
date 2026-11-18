@@ -3,6 +3,7 @@
 Design of the system as built. The config and file snippets here are examples; the reference
 pages ([config](config.md), [cli](cli.md), [poster](poster.md), [workflows](workflows.md)) are
 authoritative for fields, flags and operations.
+Responding to pull request comments is designed in [pr-comments.md](pr-comments.md).
 
 ## Architecture
 
@@ -387,8 +388,8 @@ Open items are tracked in [TODO.md](../TODO.md#10-decisions) and its backlog.
    Actions, so a public repo's logs are public. That is acceptable for low-sensitivity repos such
    as `garden`, provided credentials are never exposed and message content stays out of logs.
    Sensitive repos stay private.
-3. **One Slack app per repo vs one app with per-message names.** Per-repo apps mirror the Telegram
-   model; a single app is less setup.
+3. **One Slack app per repo vs one app with per-message names.** Decided: one app per repo, which
+   mirrors the Telegram model.
 4. **Progress messages mid-turn (not built).** A turn posts once at the end. A poster MCP tool
    would let the agent ask a question or post progress during a long turn.
 5. **Agent-scheduled follow-ups (not built)** ("remind us Thursday if the beds aren't mulched").

@@ -3,7 +3,7 @@
 Per-consumer-repo configuration. The schema lives in `src/config/schema.ts` (zod); the receiver,
 `register` operation and shared workflows all go through `parseCentaurConfig(text)` from
 `src/config/`. See [plan.md](plan.md#configuration) for how the file fits into the system and
-[onboarding.md](onboarding.md#adding-a-repo) for setup.
+[onboarding.md](onboarding.md#adding-a-repo) for setup. Proposed MCP server config: [mcp.md](mcp.md).
 
 ```yaml
 bot: garden

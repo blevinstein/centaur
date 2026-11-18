@@ -199,17 +199,30 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
 
 ## 11. MCP support
 
-- [ ] Poster MCP tool for mid-turn questions and progress messages.
-- [ ] Additional MCP servers configurable in `.centaur.yml`: a schema section listing servers
-      (name, command and args, or URL, plus env), written into the turn's MCP config for
-      `claude-code-action`, with secrets referenced by name from repo secrets and never inline.
-      Decide how `allowed_tools` names them (`mcp__<server>__*`) and how a consumer repo trusts
-      the servers it lists.
+- [ ] Poster MCP tool for mid-turn questions and progress messages (builds on the MCP server
+      config below).
+- [x] Design additional MCP servers in `.centaur.yml`: [docs/mcp.md](docs/mcp.md), all
+      recommendations accepted.
+- [ ] MCP servers 1: schema and validation (`mcp_servers`, `secretRef`, name refinements and the
+      `allowed_tools` cross-checks in `src/config/schema.ts`), with tests and `docs/config.md`.
+- [ ] MCP servers 2: pure `buildMcpConfig(servers, env)` in `src/workflows/`, with tests.
+- [ ] MCP servers 3: `prepare` writes `.centaur-turn/mcp.json`, `buildClaudeArgs` adds
+      `--mcp-config`, and the turn fails on a missing secret.
+- [ ] MCP servers 4: caller-workflow docs (`env:` pattern, the `Bash` caveat) in
+      `docs/workflows.md` and `docs/onboarding.md`.
+- [ ] MCP servers 5: verify against one real remote server in a consumer repo, confirming `${VAR}`
+      expansion in `--mcp-config` files and the `mcp__<server>__*` wildcard.
+- [ ] MCP servers 6: operator policy in SSM, `centaur mcp-policy set|show`, and enforcement in
+      `register` and `prepare`.
 
 ## 12. Slack support
 
-- [ ] App manifest template with the required scopes and event URL.
-- [ ] **[HUMAN APPROVAL]** Decide one Slack app per repo vs one shared app with per-message names.
+- [x] App manifest template with the required scopes and event URL
+      ([docs/slack-app-manifest.yml](docs/slack-app-manifest.yml), steps in `docs/onboarding.md`).
+- [x] **[HUMAN APPROVAL]** One Slack app per repo.
+- [ ] Register `/new`, `/resume` and `/transcript` as real Slack slash commands (add them to the
+      manifest), with handlers that fall back to `processMessage` per `AGENTS.md`; Slack
+      intercepts messages that start with `/`, so the text parsing doesn't see them.
 - [ ] **[HUMAN ACTION]** Onboard one personal-project repo on Slack: create the app from the
       manifest once it exists, install it, store its secrets, invite the bot.
 - [ ] **[HUMAN ACTION]** Measure the Slack webhook acknowledgement time; Slack expects a 200 within
@@ -222,16 +235,24 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
 Responding to review comments on the PRs the agent opens completes the PR-sending pattern: the
 agent proposes a change, a human reviews it, and the agent revises it.
 
-- [ ] Design how a PR comment becomes a turn: which GitHub events trigger it (`issue_comment`,
-      `pull_request_review`, `pull_request_review_comment`), how a PR maps to the chat thread
-      that opened it (the `centaur/<bot>-<thread>` branch), which context policy applies, and how
-      the agent's reply and any follow-up commits reach the PR. Record it in `docs/`.
-- [ ] Decide who may trigger a turn from a comment (the repo's collaborators, the bot's admin
-      approvals, or both) and how bot-authored comments are ignored so turns can't loop.
-- [ ] Expand the centaur example (caller workflow, config and docs) to include responding to PR
-      comments.
-- [ ] Add the same to the reference implementation in `blevinstein/garden`, and check that a review
-      comment on a `weekly-tasks` PR gets an in-thread reply and a pushed fix.
+- [x] Design how a PR comment becomes a turn, who may trigger it, and loop prevention:
+      [docs/pr-comments.md](docs/pr-comments.md), all recommendations accepted.
+- [ ] PR comments 1: poster operations `link-pull-request` and `resolve-pull-request` (state-table
+      record keyed by repo and PR number, repo check, TTL), with tests and `docs/poster.md`.
+- [ ] PR comments 2: `finish` links the PR to its thread (chat turns and scheduled prompts).
+- [ ] PR comments 3: `resolve-pr-comment` action and `resolve` command (event parsing, filters,
+      permission and marker checks, outputs).
+- [ ] PR comments 4: comment mode in `prepare`.
+- [ ] PR comments 5: comment mode in `finish` (reply with the marker, plain `git push`, chat note,
+      refresh the record).
+- [ ] PR comments 6: wire the `turn` action with a `comment` input.
+- [ ] PR comments 7: `.github/workflows/centaur-pr-comment.yml` in this repo and the docs that say
+      it exists.
+- [ ] PR comments 8: verify event coverage on a real PR (inline comment, batched review, inline
+      reply, conversation comment, fork PR, bot comment) and settle
+      `pull_request_review_comment`.
+- [ ] PR comments 9: reference consumer in `blevinstein/garden` and the end-to-end check, where a
+      review comment on a `weekly-tasks` PR gets an in-thread reply and a pushed fix.
 
 ## Backlog
 
