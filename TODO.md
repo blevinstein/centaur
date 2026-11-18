@@ -125,6 +125,12 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
       `getUpdates` ID-hunting steps from `docs/onboarding.md` and `HUMAN_TODO.md`; chats and users
       are discovered through access requests.
 
+- [ ] Access requests record the chat title as `(unknown)` for an approved Telegram group; check
+      whether the title is available on the request (and shown in the admin DM) and store it.
+- [ ] A chat approved through an access request has no alias, so a scheduled prompt's
+      `destination: <alias>` can't resolve it until `centaur chat add <alias> <id>` is run. Let
+      `chats`/`destination` aliases resolve approved chats (or have approval offer an alias).
+
 ## Later
 
 - [ ] Poster MCP tool for mid-turn questions and progress messages.
