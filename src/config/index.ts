@@ -4,6 +4,7 @@ import { type CentaurConfig, centaurConfigSchema } from "./schema.js";
 
 export { PROVIDER_SETTINGS, PROVIDERS, type Provider } from "./providers.js";
 export {
+  ALIAS_PATTERN,
   alias,
   type CentaurConfig,
   type ContextPolicy,

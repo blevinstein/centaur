@@ -170,15 +170,25 @@ describe("chat aliases on approval", () => {
     expect(await cli.store.get(approvedChat("-100500"))).toBeUndefined();
   });
 
+  it.each(["foo_bar", "foo-bar", "a1"])("accepts the alias %s", async (name) => {
+    const cli = await harnessWithBot();
+    await cli.run("access", "approve", "garden", "chat", "-100500", "--alias", name);
+    expect(await cli.store.get(`/centaur/chats/${name}`)).toBe("-100500");
+  });
+
+  it.each(["Bad Alias", "_foo", "-foo", "foo.bar", "Foo"])("rejects the alias %j", async (name) => {
+    const cli = await harnessWithBot();
+    await expect(
+      cli.run("access", "approve", "garden", "chat", "1", "--alias", name),
+    ).rejects.toThrow(/Invalid alias name/);
+  });
+
   it("refuses an alias for a user and an invalid alias", async () => {
     const cli = await harnessWithBot();
 
     await expect(
       cli.run("access", "approve", "garden", "user", "42", "--alias", "pat"),
     ).rejects.toThrow(/--alias applies to chats only/);
-    await expect(
-      cli.run("access", "approve", "garden", "chat", "1", "--alias", "Bad Alias"),
-    ).rejects.toThrow(/Invalid alias name/);
   });
 
   it("renames a chat by approving it again with a new alias, keeping its name", async () => {

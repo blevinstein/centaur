@@ -6,9 +6,11 @@ export const CONTEXT_POLICIES = ["fresh", "transcript", "resume"] as const;
 export const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"] as const;
 export const RESPOND_TO = ["mention", "all"] as const;
 
+export const ALIAS_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
+
 export const alias = z
   .string()
-  .regex(/^[a-z0-9][a-z0-9_-]*$/, "must be a lowercase alias (letters, digits, '-' or '_')");
+  .regex(ALIAS_PATTERN, "must be a lowercase alias (letters, digits, '-' or '_')");
 
 const repoPath = z
   .string()

@@ -1,3 +1,4 @@
+import { ALIAS_PATTERN } from "../config/index.js";
 import { chatParameter, GITHUB_TOKEN_PARAMETER } from "../lambda/parameters.js";
 import type { ParameterStore } from "./parameter-store.js";
 
@@ -14,11 +15,11 @@ export type Platform = keyof typeof PLATFORMS;
 
 export const PLATFORM_NAMES = Object.keys(PLATFORMS) as Platform[];
 
-const NAME_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
-
 export function parseName(kind: string, value: string): string {
-  if (!NAME_PATTERN.test(value)) {
-    throw new CliError(`Invalid ${kind} name "${value}": use lowercase letters, digits, and "-".`);
+  if (!ALIAS_PATTERN.test(value)) {
+    throw new CliError(
+      `Invalid ${kind} name "${value}": use lowercase letters, digits, "-" and "_".`,
+    );
   }
   return value;
 }

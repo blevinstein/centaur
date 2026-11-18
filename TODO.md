@@ -144,7 +144,7 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
 
 ## 9. Follow-ups
 
-- [ ] Align alias naming: the CLI accepts aliases matching `[a-z0-9][a-z0-9-]*` but the config
+- [x] Align alias naming: the CLI accepts aliases matching `[a-z0-9][a-z0-9-]*` but the config
       schema's prompt `destination` allows underscores, so such an alias cannot be created with
       `centaur access approve --alias`. Make the CLI and schema use one pattern (allowing `_` in
       the CLI is the smaller change) and update `docs/cli.md` and `docs/config.md`.

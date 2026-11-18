@@ -23,9 +23,9 @@ The CLI talks to SSM through the AWS SDK's default credential chain and region (
 
 ## Names
 
-Bot names and chat aliases given to the CLI must match `[a-z0-9][a-z0-9-]*` (lowercase letters,
-digits, `-`). Anything else is rejected before SSM is touched. (`.centaur.yml` also accepts `_` in
-aliases, but an alias containing `_` cannot be created from the CLI.)
+Bot names and chat aliases given to the CLI must match `[a-z0-9][a-z0-9_-]*` (lowercase letters,
+digits, `-` and `_`), the same pattern `.centaur.yml` uses. Anything else is rejected before SSM is
+touched.
 
 ## Commands
 

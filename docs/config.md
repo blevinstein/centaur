@@ -66,7 +66,7 @@ chat ID and requires that chat to be approved for the bot and not blocked; other
 the alias and the `centaur access approve` command that fixes it.
 
 Names (`bot`, `destination` entries, prompt names) are lowercase
-aliases matching `[a-z0-9][a-z0-9_-]*`; real IDs never appear in the repo. Paths must be relative
+aliases matching `[a-z0-9][a-z0-9_-]*`, the same pattern the CLI enforces; real IDs never appear in the repo. Paths must be relative
 and stay inside the repo (no leading `/`, no `..`). Unknown keys are errors.
 
 `/new` starts its thread in the chat the command came from (a DM stays in that DM), so it needs no
