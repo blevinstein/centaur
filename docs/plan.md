@@ -281,7 +281,9 @@ A bot can only reach the admin on its own platform. Telegram bots cannot open a 
 who has never messaged them, so the admin must message each bot once; if the DM fails the
 requester is told only "I couldn't reach my admin." and the failure is logged by ID.
 
-**Bootstrapping the first admin.** `centaur admin claim <bot>` (run with the deployer's AWS
+#### Bootstrapping the first admin
+
+`centaur admin claim <bot>` (run with the deployer's AWS
 credentials) stores `/centaur/admin-claim/<platform>`: the bot's name, an expiry (15 minutes by
 default) and the SHA-256 hash of a 192-bit random code; the code itself is only printed. On
 Telegram the code is the payload of a deep link (`t.me/<bot_username>?start=<code>`), so tapping
@@ -341,7 +343,7 @@ names and IDs but never message content.
 ## Validation
 
 Ordered by risk; each experiment answered a question that could change the design. Results are in
-[research.md](research.md) and [HUMAN_TODO.md](HUMAN_TODO.md).
+[research.md](research.md) and [HUMAN_TODO.md](../HUMAN_TODO.md).
 
 1. **Agent runtime (validated).** `claude-code-action` runs under `workflow_dispatch` on an
    `experiment/*` branch (a `workflow_dispatch` stub on `main` makes the branch's workflow
