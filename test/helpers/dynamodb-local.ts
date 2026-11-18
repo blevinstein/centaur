@@ -4,7 +4,7 @@ import {
   DynamoDBClient,
   UpdateTimeToLiveCommand,
 } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { inject } from "vitest";
 import { createDynamoDbState } from "../../src/dynamodb-state/index.js";
 import { stateTableInput, TTL_ATTRIBUTE } from "../../src/dynamodb-state/table.js";
@@ -28,4 +28,14 @@ export async function createFreshTable() {
 
 export async function createAdapterOnFreshTable() {
   return createDynamoDbState(await createFreshTable());
+}
+
+export async function scanItems({
+  client,
+  tableName,
+}: Awaited<ReturnType<typeof createFreshTable>>): Promise<Record<string, unknown>[]> {
+  const { Items } = await client.send(
+    new ScanCommand({ TableName: tableName, ConsistentRead: true }),
+  );
+  return Items ?? [];
 }

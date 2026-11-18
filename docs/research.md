@@ -186,8 +186,29 @@ newest entries are never lost. A 44-test suite ported from `state-memory` passes
 `@chat-adapter/state-memory` and DynamoDB Local. `infra/centaur.yml` defines the table (retained on
 stack deletion, TTL on `ttl`, generated name) and a `StateTableAccessPolicy` managed policy limited
 to `GetItem`, `PutItem`, `UpdateItem`, `DeleteItem` and `Query` on the table ARN, which is every
-call the adapter makes; the Lambda role attaches it. Not yet exercised by `Chat` itself or on a
-deployed table.
+call the adapter makes; the Lambda role attaches it. Not yet exercised on a deployed table.
+
+`test/chat-dynamodb-state.test.ts` drives a real `Chat` (fake platform adapter) against the
+adapter on DynamoDB Local and found no adapter bugs. How the core uses the interface:
+
+- `appendToList` is called only for thread history (`msg-history:<threadId>` and, when it differs,
+  `msg-history:<channelId>`) with `maxLength` 100 and `ttlMs` 7 days by default (configurable
+  through `history.thread`). It runs before locking, so it is safe under `concurrent`. Each append
+  refreshes the list-wide expiry; trimming keeps the newest entries.
+- Dedupe is `setIfNotExists("dedupe:<adapter>:<messageId>", true, 10 min)`; thread state is
+  `set("thread-state:<threadId>", ..., 30 days)`. Both land as `kv:` items with `expiresAt`/`ttl`.
+  A scope-aware platform adapter (`getConcurrencyScope`) wraps thread and dedupe keys in
+  `concurrency:[adapter,scope,key]`, which is still a valid partition key.
+- `drop` and `queue` take `acquireLock(threadId, 30 s)`, heartbeat with `extendLock`, and release
+  with the token; no lock items remain afterwards. `concurrent` takes no locks and never touches the
+  queue.
+- `queue` calls `queueDepth`, then `enqueue(threadId, {message, enqueuedAt, expiresAt}, maxQueueSize)`
+  with `expiresAt` 90 s ahead by default; overflow drops the oldest. Draining calls `dequeue` until
+  `null`, discards entries whose `expiresAt` has passed (the core checks, the adapter does not), and
+  dispatches the newest with the earlier ones as `skipped`. `queueDepth` therefore counts expired
+  entries until they are drained or DynamoDB TTL removes them, the same as `state-memory`.
+- Two bots sharing one table through different `keyPrefix` values stay isolated for dedupe,
+  subscriptions and history, and every item's partition key carries the prefix.
 
 The SDK's webhook handlers take a web `Request` and return a `Response`. Lambda function URLs
 deliver a different event shape, so the receiver needs a small request/response conversion, and
