@@ -16,6 +16,8 @@ to a repo (secrets plus `bots/<bot>/repo`) for every operation except `register`
 | `read` | `bot`, `threadId` | `{ messages: [{ id, userId, userName, fromBot, text, attachments, sentAt }] }`, oldest first; `attachments` are the S3 keys of the message's stored images (see [Attachments](#attachments)) |
 | `unreact` | `bot`, `threadId`, `messageIds` (1 to 50) | `{ results: [{ messageId, removed }] }` |
 | `register` | `token` (GitHub OIDC JWT), `config` (`.centaur.yml` text) | `{ bot, repo }` |
+| `link-pull-request` | `token` (GitHub OIDC JWT), `bot`, `threadId`, `pullRequest` (number) | `{ linked: true }` |
+| `resolve-pull-request` | `token` (GitHub OIDC JWT), `pullRequest` (number) | `{ found: false }` or `{ found: true, bot, threadKey, threadId }` |
 
 All thread operations go through the bot's own Chat instance and state prefix (`bot:<bot>:`), so
 the bot's posts land in the stored transcript the receiver and `read` use.
@@ -72,6 +74,27 @@ Then it parses `config` with `parseCentaurConfig` and, in order:
 Re-registering from the owning repo is idempotent. Binding is check-then-write, so two repos
 registering a fresh bot at the same instant could race; the maintainer's secret creation is the
 gate, which makes this a low risk.
+
+## `link-pull-request` and `resolve-pull-request`
+
+These map a pull request to the chat thread it belongs to, for the pull request comment turns in
+[pr-comments.md](pr-comments.md). The repository is never part of the request: both operations take
+it from the verified OIDC `repository` claim, as `register` does, and a request that names a
+repository is rejected as an unknown key.
+
+`link-pull-request` requires `bots/<bot>/repo` to equal the caller's repository, then writes
+`pull-request:<repository>#<number>` = `{ bot, threadId }` in the state table (under the empty
+registry prefix) with a 90-day TTL (`PULL_REQUEST_TTL_MS`). Linking again overwrites the record and
+restarts the TTL. An unknown, unbound or differently bound bot fails the request.
+
+`resolve-pull-request` reads the record for the caller's repository and number. It returns
+`{ found: false }` when there is no record, the record has expired, or the bot is no longer bound
+to the caller's repository; none of these is an error, so callers skip silently. A hit restarts the
+TTL, so a pull request with activity never expires, and returns the bot, the 12-hex thread key
+(`threadKey` in `src/thread-key.ts`) and the raw `threadId`. The thread ID is the sensitive part
+(a chat ID): the caller must mask it (`::add-mask::`) before anything else and never write it to a
+job output, step output, log, or any GitHub-visible place. The thread key is what outputs and
+concurrency groups use.
 
 ## Lambda configuration
 

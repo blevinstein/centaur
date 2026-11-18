@@ -203,7 +203,7 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
       config below).
 - [x] Design additional MCP servers in `.centaur.yml`: [docs/mcp.md](docs/mcp.md), all
       recommendations accepted.
-- [ ] MCP servers 1: schema and validation (`mcp_servers`, `secretRef`, name refinements and the
+- [x] MCP servers 1: schema and validation (`mcp_servers`, `secretRef`, name refinements and the
       `allowed_tools` cross-checks in `src/config/schema.ts`), with tests and `docs/config.md`.
 - [ ] MCP servers 2: pure `buildMcpConfig(servers, env)` in `src/workflows/`, with tests.
 - [ ] MCP servers 3: `prepare` writes `.centaur-turn/mcp.json`, `buildClaudeArgs` adds
@@ -220,9 +220,12 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
 - [x] App manifest template with the required scopes and event URL
       ([docs/slack-app-manifest.yml](docs/slack-app-manifest.yml), steps in `docs/onboarding.md`).
 - [x] **[HUMAN APPROVAL]** One Slack app per repo.
-- [ ] Register `/new`, `/resume` and `/transcript` as real Slack slash commands (add them to the
-      manifest), with handlers that fall back to `processMessage` per `AGENTS.md`; Slack
-      intercepts messages that start with `/`, so the text parsing doesn't see them.
+- [ ] Slack `/new`, `/resume` and `/transcript`. Slack intercepts messages that start with `/`.
+      An incomplete attempt is on the local branch `wip/slack-slash-commands`: its handlers
+      dispatch, but a slash command never lands in channel history, so the workflow never sees
+      it, and slash commands can't target an existing thread. Options: real slash command for
+      `/new` only with the command carried in the dispatch payload, plus a plain-text form
+      (`!resume`, `!transcript`) in threads; or text forms only. Deprioritized.
 - [ ] **[HUMAN ACTION]** Onboard one personal-project repo on Slack: create the app from the
       manifest once it exists, install it, store its secrets, invite the bot.
 - [ ] **[HUMAN ACTION]** Measure the Slack webhook acknowledgement time; Slack expects a 200 within
@@ -237,11 +240,12 @@ agent proposes a change, a human reviews it, and the agent revises it.
 
 - [x] Design how a PR comment becomes a turn, who may trigger it, and loop prevention:
       [docs/pr-comments.md](docs/pr-comments.md), all recommendations accepted.
-- [ ] PR comments 1: poster operations `link-pull-request` and `resolve-pull-request` (state-table
+- [x] PR comments 1: poster operations `link-pull-request` and `resolve-pull-request` (state-table
       record keyed by repo and PR number, repo check, TTL), with tests and `docs/poster.md`.
 - [ ] PR comments 2: `finish` links the PR to its thread (chat turns and scheduled prompts).
 - [ ] PR comments 3: `resolve-pr-comment` action and `resolve` command (event parsing, filters,
-      permission and marker checks, outputs).
+      permission and marker checks, outputs). Also restore the design's flag on
+      `resolve-pull-request` so the raw `threadId` is returned only when asked for.
 - [ ] PR comments 4: comment mode in `prepare`.
 - [ ] PR comments 5: comment mode in `finish` (reply with the marker, plain `git push`, chat note,
       refresh the record).

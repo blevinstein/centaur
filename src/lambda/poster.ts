@@ -6,6 +6,7 @@ import type { AttachmentStore } from "./attachments.js";
 import type { OidcVerifier } from "./oidc.js";
 import { BOT_CREATED_STATE, type ThreadMetadata } from "./ownership.js";
 import { chatParameter, type ParameterStore } from "./parameters.js";
+import { createPullRequests } from "./pull-requests.js";
 import { createRegister } from "./register.js";
 import { type Bot, botStatePrefix, loadBot } from "./registry.js";
 import type { TelegramApi } from "./telegram.js";
@@ -15,6 +16,7 @@ export const UNREACT_MAX_MESSAGES = 50;
 
 const text = z.string().min(1);
 const threadId = z.string().min(1);
+const pullRequest = z.number().int().positive();
 
 export const posterRequestSchema = z.discriminatedUnion("operation", [
   z.strictObject({ operation: z.literal("post"), bot: alias, threadId, text }),
@@ -41,6 +43,18 @@ export const posterRequestSchema = z.discriminatedUnion("operation", [
     messageIds: z.array(z.string().min(1)).min(1).max(UNREACT_MAX_MESSAGES),
   }),
   z.strictObject({ operation: z.literal("register"), token: z.string().min(1), config: text }),
+  z.strictObject({
+    operation: z.literal("link-pull-request"),
+    token: z.string().min(1),
+    bot: alias,
+    threadId,
+    pullRequest,
+  }),
+  z.strictObject({
+    operation: z.literal("resolve-pull-request"),
+    token: z.string().min(1),
+    pullRequest,
+  }),
 ]);
 
 export type PosterRequest = z.input<typeof posterRequestSchema>;
@@ -96,6 +110,12 @@ export function createPoster(deps: PosterDeps) {
     functionUrl: deps.functionUrl,
   });
 
+  const pullRequests = createPullRequests({
+    params,
+    state: stateFor(""),
+    oidc: deps.oidc,
+  });
+
   const openChat = async (botName: string) => {
     const bot = await loadBot(params, botName);
     if (!bot) throw new Error(`unknown or unbound bot "${botName}"`);
@@ -143,6 +163,10 @@ export function createPoster(deps: PosterDeps) {
     switch (request.operation) {
       case "register":
         return register(request);
+      case "link-pull-request":
+        return pullRequests.link(request);
+      case "resolve-pull-request":
+        return pullRequests.resolve(request);
       case "post": {
         const { chat } = await openChat(request.bot);
         const sent = await chat.thread(request.threadId).post(request.text);

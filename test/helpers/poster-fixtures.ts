@@ -1,4 +1,5 @@
 import { createMemoryState } from "@chat-adapter/state-memory";
+import type { StateAdapter } from "chat";
 import { generateKeyPair, type JWTPayload, SignJWT } from "jose";
 import { vi } from "vitest";
 import { GITHUB_OIDC_ISSUER, type OidcVerifier } from "../../src/lambda/oidc.js";
@@ -115,6 +116,8 @@ export async function posterSetup(
     parameters?: Record<string, string>;
     transcript?: unknown[];
     attachments?: Record<string, string[]>;
+    registryState?: StateAdapter;
+    repository?: string;
   } = {},
 ) {
   const params = fakeParameterStore({
@@ -124,12 +127,12 @@ export async function posterSetup(
     ...APPROVALS,
     ...options.parameters,
   });
-  const registryState = createMemoryState();
+  const registryState = options.registryState ?? createMemoryState();
   await registryState.connect();
   await registryState.set("registry:garden", REGISTERED_ENTRY);
   await registryState.set("registry:notes", REGISTERED_ENTRY);
   const telegram = fakeTelegram();
-  const oidc = fakeOidc();
+  const oidc = fakeOidc(options.repository);
   const posting = fakePosterChat(options.transcript);
   const logger = { warn: vi.fn() };
   const stateFor = vi.fn((prefix: string) => (prefix === "" ? registryState : createMemoryState()));

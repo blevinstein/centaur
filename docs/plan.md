@@ -71,7 +71,8 @@ in the diagram because it's invoked over IAM, not a public URL.
 
 Invoked by the workflow (`aws lambda invoke`, using a role assumed via GitHub OIDC; no stored AWS
 keys). Operations: `post` (bot, thread ID, text), `start-thread` (a `destination` chat alias or the
-originating thread, with an optional title), `read`, `unreact` and `register`. Posting
+originating thread, with an optional title), `read`, `unreact`, `register`, and
+`link-pull-request` and `resolve-pull-request`. Posting
 through the SDK means the bot's own messages are recorded in state, so the transcript stays
 complete. Also exposes a read operation that returns a thread's transcript, so workflows never
 need direct access to the state store, an `unreact` operation that clears the 👀 reactions when a

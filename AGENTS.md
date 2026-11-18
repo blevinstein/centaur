@@ -53,6 +53,8 @@
   ID), which the concurrency group and the PR branch use instead of raw thread IDs. A new public
   name that would embed a thread ID must use `threadKey`, and a payload change must also update
   `centaur-message.yml`, the template in `docs/workflows.md`, and `docs/plan.md`.
+- Poster operations that act for a repository take it from the verified OIDC claim, never the
+  payload; their strict schemas reject extra keys. Use `stateFor("")` for cross-bot records.
 - A new field in the agent's structured output goes in three places: `replySchema`
   (`src/workflows/prompt.ts`), `resultMessage` and `extractResult` (`src/workflows/finish.ts`), and
   `docs/workflows.md`. The PR step in `.github/actions/turn/action.yml` reads the `pr-details` outputs.
