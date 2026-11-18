@@ -4,3 +4,4 @@ coverage/
 .venv/
 parameters-*.json
 !parameters.example.json
+.DS_Store

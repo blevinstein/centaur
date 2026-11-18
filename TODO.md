@@ -178,7 +178,7 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
       persona and prompts, the caller workflow, the repo variables and secret), a quick start for
       the maintainer (deploy, bot, admin claim, register), the safety model (admin approval, no
       content in GitHub logs, cost caps), and links into `docs/`.
-- [ ] Draft a logo: a centaur crossed with a cat (nodding to the GitHub Octocat). Produce a few
+- [x] Draft a logo: a centaur crossed with a cat (nodding to the GitHub Octocat). Produce a few
       SVG concepts and a README header; the maintainer picks one. Don't reuse GitHub's Octocat
       artwork directly: its usage guidelines restrict modification, so make an original
       centaur-cat hybrid.

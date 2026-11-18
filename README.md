@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo/mascot.png" alt="Centaur mascot: a smiling woman with pink hair and eight octopus tentacles for legs" width="200">
+</p>
+
 # centaur
 
 Chat with a Claude Code agent that lives in your GitHub repo. Message a Telegram or Slack bot; the
