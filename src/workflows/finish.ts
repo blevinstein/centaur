@@ -7,10 +7,13 @@ import { STATE_FILE, type TurnState } from "./prepare.js";
 const resultMessage = z.object({
   type: z.literal("result"),
   session_id: z.string().optional(),
-  structured_output: z.object({
-    reply: z.string().min(1),
-    new_thread_title: z.string().min(1).optional(),
-  }),
+  structured_output: z
+    .object({
+      reply: z.string().min(1).optional(),
+      ignore: z.boolean().optional(),
+      new_thread_title: z.string().min(1).optional(),
+    })
+    .refine((output) => (output.reply !== undefined) !== (output.ignore === true)),
 });
 
 export function extractResult(executionFileText: string) {
@@ -55,14 +58,25 @@ async function deliver(
   return started.threadId;
 }
 
-export async function finish(deps: FinishDeps) {
-  const state = await readState(deps.workspace);
-  const result = extractResult(await readFile(deps.executionFile, "utf8"));
+async function deliverReply(
+  deps: FinishDeps,
+  state: TurnState,
+  result: ReturnType<typeof extractResult>,
+) {
+  if (result.reply === undefined) {
+    if (!state.threadId) throw new Error("the agent can only stay silent in an existing thread");
+    return state.threadId;
+  }
   const text = deps.pullRequestUrl
     ? `${result.reply}\n\nPull request: ${deps.pullRequestUrl}`
     : result.reply;
+  return deliver(deps.poster, state, text, result.title);
+}
 
-  const threadId = await deliver(deps.poster, state, text, result.title);
+export async function finish(deps: FinishDeps) {
+  const state = await readState(deps.workspace);
+  const result = extractResult(await readFile(deps.executionFile, "utf8"));
+  const threadId = await deliverReply(deps, state, result);
 
   const store = deps.storeFor(state.bot, threadId);
   if (state.marker) await store.writeMarker(state.marker);

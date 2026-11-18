@@ -67,6 +67,33 @@ describe("prepare", () => {
     expect(await state(root)).toMatchObject({ mode: "reply", policy: "transcript", marker: "3" });
   });
 
+  it.each([
+    ["mention", false],
+    ["all", true],
+  ])("with respond_to %s, the schema allows ignoring: %s", async (respondTo, canIgnore) => {
+    const { deps, root } = await setup(
+      [message("1", "hi")],
+      configText(`respond_to: ${respondTo}`),
+    );
+
+    const out = await prepare(deps());
+
+    expect(out.claude_args.includes('"ignore"')).toBe(canIgnore);
+    expect((await prompt(root)).includes("stay silent")).toBe(canIgnore);
+  });
+
+  it("never offers silence for scheduled turns", async () => {
+    const { deps, root } = await setup(
+      [],
+      configText("respond_to: all\nprompts: {weekly: {context: fresh}}"),
+    );
+
+    const out = await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
+
+    expect(out.claude_args).not.toContain('"ignore"');
+    expect(await prompt(root)).not.toContain("stay silent");
+  });
+
   it("adds a scoped Read rule when the allowlist lacks Read, and honors the model", async () => {
     const { deps } = await setup(
       [message("1", "hi")],
@@ -213,6 +240,53 @@ describe("finish", () => {
       title: "Week 47",
     });
     expect(aws.objects.get("sessions/sprout/telegram_-100_99/s2.jsonl")).toBe("data");
+  });
+
+  it("posts nothing when the agent ignores the messages, but advances the marker and saves the session", async () => {
+    const { deps, aws, root, executionFile, writeExecution } = await setup(
+      [message("1", "lunch?")],
+      configText("respond_to: all\ncontext: {default: resume}"),
+    );
+    await prepare(deps());
+    await writeFile(join((await state(root)).sessionDirectory, "s3.jsonl"), "data");
+    await writeExecution({ session_id: "s3", structured_output: { ignore: true } });
+
+    await finish({
+      workspace: root,
+      executionFile,
+      pullRequestUrl: "https://example.test/pr/1",
+      poster: aws.poster,
+      storeFor: aws.storeFor,
+    });
+
+    expect(aws.requests.map((r) => r.operation)).toEqual(["read"]);
+    expect(aws.objects.get(`${THREAD_PREFIX}last-processed`)).toBe("1");
+    expect(aws.objects.get(`${THREAD_PREFIX}s3.jsonl`)).toBe("data");
+  });
+
+  it.each([
+    ["both a reply and ignore", { reply: "Hi", ignore: true }],
+    ["neither a reply nor ignore", { new_thread_title: "t" }],
+    ["ignore false without a reply", { ignore: false }],
+  ])("fails when the output has %s", async (_name, output) => {
+    const { deps, aws, root, executionFile, writeExecution } = await setup([message("1", "hi")]);
+    await prepare(deps());
+    await writeExecution({ structured_output: output });
+    await expect(
+      finish({ workspace: root, executionFile, poster: aws.poster, storeFor: aws.storeFor }),
+    ).rejects.toThrow(/no structured reply/);
+  });
+
+  it("refuses to stay silent when there is no thread to stay silent in", async () => {
+    const { deps, aws, root, executionFile, writeExecution } = await setup(
+      [],
+      configText("prompts: {weekly: {}}"),
+    );
+    await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
+    await writeExecution({ structured_output: { ignore: true } });
+    await expect(
+      finish({ workspace: root, executionFile, poster: aws.poster, storeFor: aws.storeFor }),
+    ).rejects.toThrow(/stay silent/);
   });
 
   it("fails without a structured reply", async () => {

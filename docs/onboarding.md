@@ -60,6 +60,9 @@ person and referenced by name.
   the topic to continue that conversation.
 - **Start a conversation:** mention the bot in the General topic, e.g. `@garden_helper_bot the
   tomatoes have yellow leaves`. The bot replies there for quick questions or opens a topic for longer ones.
+- **Chatting freely:** a bot with `respond_to: all` in its config sees every message in its chat
+  and replies only when it judges the message is for it (always when mentioned). Unenrolled people
+  talking in that chat are ignored without a refusal.
 - **Fresh start:** send `/new` in a topic to have the bot open a new topic without the old
   context.
 - **Results:** when the agent changes a repo, its reply says so. The maintainer reviews and merges

@@ -10,6 +10,7 @@ bot: garden
 platform: telegram
 destination: household
 allow: [maintainer, spouse]
+respond_to: mention
 context:
   default: transcript
   scheduled: fresh
@@ -29,6 +30,7 @@ prompts:
 | `platform` | yes | | `telegram` or `slack`. |
 | `destination` | if `prompts` is set | | Named chat for scheduled outreach; ID in SSM at `/centaur/chats/<destination>`. |
 | `allow` | yes (non-empty) | | Named users allowed to trigger turns; IDs in SSM. |
+| `respond_to` | no | `mention` | Which messages the bot answers: `mention` (mentions, DMs and topics it created) or `all` (every message from an allowed sender in `destination`; requires `destination`). See [plan.md](plan.md#routing-in-a-shared-telegram-group). |
 | `context.default` | no | `transcript` | Policy for conversational threads: `fresh`, `transcript` or `resume`. |
 | `context.scheduled` | no | `fresh` | Policy for threads started by a scheduled prompt. |
 | `model` | no | | Model passed to the agent; unset uses the workflow's default. |
@@ -39,6 +41,16 @@ prompts:
 Names (`bot`, `destination`, `allow` entries, prompt names) are lowercase aliases matching
 `[a-z0-9][a-z0-9_-]*`; real IDs never appear in the repo. Paths must be relative and stay inside
 the repo (no leading `/`, no `..`). Unknown keys are errors.
+
+## Responding to all messages
+
+With `respond_to: all`, every message from an allowed sender in the `destination` chat (or a DM)
+starts a turn, and the agent decides whether to answer: its structured output is either `reply` or
+`ignore: true`, and an ignored turn posts nothing but still advances the last-processed marker and
+saves the session. The prompt tells the agent the messages were not necessarily addressed to it
+and that it should reply to mentions. Messages from bots, including the bot itself, are never
+dispatched. Every non-ignored turn still costs a model run, so use it in small private chats.
+Scheduled prompts always post.
 
 ## Prompts
 

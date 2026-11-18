@@ -1,5 +1,5 @@
 import type { StateAdapter } from "chat";
-import { type CentaurConfig, PLATFORMS, type Platform } from "../config/index.js";
+import { type CentaurConfig, PLATFORMS, type Platform, type RespondTo } from "../config/index.js";
 import { botParameter, PARAMETER_ROOT, type ParameterStore } from "./parameters.js";
 
 export interface Bot {
@@ -12,7 +12,9 @@ export interface Bot {
 
 export type BotSecrets = Omit<Bot, "repo">;
 
-export type RegistryEntry = Pick<CentaurConfig, "allow" | "destination">;
+export type RegistryEntry = Pick<CentaurConfig, "allow" | "destination"> & {
+  respond_to?: RespondTo;
+};
 
 const WEBHOOK_SECRET_KEY: Record<Platform, string> = {
   telegram: "webhook-secret",
@@ -70,6 +72,10 @@ export async function readRegistryEntry(
   bot: string,
 ): Promise<RegistryEntry | null> {
   return state.get<RegistryEntry>(registryKey(bot));
+}
+
+export async function readRespondTo(state: StateAdapter, bot: string): Promise<RespondTo> {
+  return (await readRegistryEntry(state, bot))?.respond_to ?? "mention";
 }
 
 export async function writeRegistryEntry(

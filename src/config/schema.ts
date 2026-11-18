@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const PLATFORMS = ["telegram", "slack"] as const;
 export const CONTEXT_POLICIES = ["fresh", "transcript", "resume"] as const;
+export const RESPOND_TO = ["mention", "all"] as const;
 
 export const alias = z
   .string()
@@ -34,6 +35,7 @@ export const centaurConfigSchema = z
     platform: z.enum(PLATFORMS),
     destination: alias.optional(),
     allow: z.array(alias).min(1, "must list at least one user"),
+    respond_to: z.enum(RESPOND_TO).default("mention"),
     context: z
       .strictObject({
         default: contextPolicy.default("transcript"),
@@ -64,8 +66,13 @@ export const centaurConfigSchema = z
       message:
         "is required when prompts are defined, because scheduled runs need a chat to post to",
     },
-  );
+  )
+  .refine((config) => config.destination !== undefined || config.respond_to === "mention", {
+    path: ["destination"],
+    message: "is required when respond_to is all, because it names the chat the bot listens in",
+  });
 
 export type CentaurConfig = z.output<typeof centaurConfigSchema>;
 export type Platform = (typeof PLATFORMS)[number];
+export type RespondTo = (typeof RESPOND_TO)[number];
 export type ContextPolicy = (typeof CONTEXT_POLICIES)[number];

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { alias, type CentaurConfig, type ContextPolicy } from "../config/index.js";
 import type { PosterClient, ThreadStore } from "./aws.js";
 import { parseConfigOrThrow, readConfigText } from "./config-file.js";
-import { buildPrompt, REPLY_SCHEMA } from "./prompt.js";
+import { buildPrompt, replySchema } from "./prompt.js";
 import { type ChatMessage, planTurn } from "./transcript.js";
 
 export const TURN_DIR = ".centaur-turn";
@@ -50,6 +50,7 @@ interface Turn {
   marker?: string;
   prompt: string;
   resumeSessionId?: string;
+  canStaySilent?: boolean;
 }
 
 const safeRef = (value: string) => value.replaceAll(/[^A-Za-z0-9._-]/g, "-");
@@ -127,6 +128,7 @@ async function chatTurn(
     case "reply": {
       const resumeSessionId =
         plan.policy === "resume" ? await store.restoreSession(directory) : undefined;
+      const canStaySilent = config.respond_to === "all";
       const pendingIds = new Set(plan.pending.map((m) => m.id));
       const showHistory =
         plan.policy === "transcript" || (plan.policy === "resume" && !resumeSessionId);
@@ -136,7 +138,9 @@ async function chatTurn(
         policy: plan.policy,
         ...(marker ? { marker } : {}),
         ...(resumeSessionId ? { resumeSessionId } : {}),
+        ...(canStaySilent ? { canStaySilent } : {}),
         prompt: buildPrompt({
+          canStaySilent,
           history: showHistory ? messages.filter((m) => !pendingIds.has(m.id)) : [],
           messages: plan.pending,
         }),
@@ -149,15 +153,16 @@ export function buildClaudeArgs(input: {
   config: CentaurConfig;
   persona: string | undefined;
   resumeSessionId: string | undefined;
+  canStaySilent: boolean;
 }) {
-  const { config, persona, resumeSessionId } = input;
+  const { config, persona, resumeSessionId, canStaySilent } = input;
   const readRule = config.allowed_tools.includes("Read") ? [] : [`Read(./${TURN_DIR}/**)`];
   const tools = [...config.allowed_tools, ...readRule].join(",");
   return [
     ...(config.model ? [`--model ${config.model}`] : []),
     `--allowedTools "${tools}"`,
     `--max-turns ${MAX_TURNS}`,
-    `--json-schema '${JSON.stringify(REPLY_SCHEMA)}'`,
+    `--json-schema '${JSON.stringify(replySchema(canStaySilent))}'`,
     ...(persona ? [`--append-system-prompt-file ${persona}`] : []),
     ...(resumeSessionId ? [`--resume ${resumeSessionId}`] : []),
   ].join(" ");
@@ -195,6 +200,11 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     skip: false,
     thread_id: turn.threadId ?? "",
     branch: `centaur/${config.bot}-${safeRef(turn.threadId ?? `${deps.promptName ?? "new"}-${deps.runId}`)}`,
-    claude_args: buildClaudeArgs({ config, persona, resumeSessionId: turn.resumeSessionId }),
+    claude_args: buildClaudeArgs({
+      config,
+      persona,
+      resumeSessionId: turn.resumeSessionId,
+      canStaySilent: turn.canStaySilent === true,
+    }),
   };
 }

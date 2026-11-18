@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { RespondTo } from "../src/config/index.js";
 import { createMessageHandler, REFUSAL_TEXT } from "../src/lambda/message-handler.js";
 import {
   accessFor,
@@ -11,12 +12,13 @@ import {
   STRANGER_USER_ID,
 } from "./helpers/receiver-fixtures.js";
 
-function setup(access = accessFor()) {
+function setup(access = accessFor(), respondTo: RespondTo = "mention") {
   const dispatcher = fakeDispatcher();
   const logger = fakeLogger();
   const handle = createMessageHandler({
     bot: GARDEN_BOT,
     resolveAccess: access,
+    resolveRespondTo: async () => respondTo,
     dispatcher,
     logger,
   });
@@ -105,5 +107,76 @@ describe("message handler", () => {
 
     expect(logger.error).toHaveBeenCalled();
     expect(dispatcher.dispatch).toHaveBeenCalledOnce();
+  });
+
+  describe("respond_to: all", () => {
+    const setupAll = () => setup(accessFor(), "all");
+
+    it.each([
+      ["an unaddressed message in the group", {}, {}],
+      ["a message in a topic the bot did not create", { state: { createdByBot: false } }, {}],
+      ["a message with an unknown bot flag from an allowed sender", {}, { isBot: "unknown" }],
+    ] as const)("dispatches %s", async (_name, threadOptions, messageOptions) => {
+      const { handle, dispatcher } = setupAll();
+
+      await handle(fakeThread(threadOptions).thread, fakeMessage(messageOptions));
+
+      expect(dispatcher.dispatch).toHaveBeenCalledOnce();
+    });
+
+    it.each([
+      ["another bot", { isBot: true }],
+      ["the bot itself", { isMe: true }],
+      ["another bot that mentions this one", { isBot: true, isMention: true }],
+    ])("never dispatches a message from %s", async (_name, messageOptions) => {
+      const { handle, dispatcher, access } = setupAll();
+      const { thread, post, addReaction } = fakeThread();
+
+      await handle(thread, fakeMessage(messageOptions));
+
+      expect(access).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalled();
+      expect(addReaction).not.toHaveBeenCalled();
+      expect(dispatcher.dispatch).not.toHaveBeenCalled();
+    });
+
+    it("silently ignores unaddressed messages from other chats", async () => {
+      const { handle, dispatcher, logger } = setupAll();
+      const { thread, post } = fakeThread({ chatId: "-100777" });
+
+      await handle(thread, fakeMessage());
+
+      expect(post).not.toHaveBeenCalled();
+      expect(logger.warn).not.toHaveBeenCalled();
+      expect(dispatcher.dispatch).not.toHaveBeenCalled();
+    });
+
+    it("logs the ID of an unenrolled sender of an unaddressed message without refusing", async () => {
+      const { handle, dispatcher, logger } = setupAll();
+      const { thread, post } = fakeThread();
+
+      await handle(thread, fakeMessage({ userId: STRANGER_USER_ID }));
+
+      expect(post).not.toHaveBeenCalled();
+      expect(logger.warn).not.toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining("unknown sender"),
+        expect.objectContaining({ userId: STRANGER_USER_ID }),
+      );
+      expect(dispatcher.dispatch).not.toHaveBeenCalled();
+    });
+
+    it("still refuses an unenrolled sender who mentions the bot or direct-messages it", async () => {
+      const { handle, dispatcher } = setupAll();
+      const mention = fakeThread();
+      const dm = fakeThread({ isDM: true, chatId: "1001" });
+
+      await handle(mention.thread, fakeMessage({ userId: STRANGER_USER_ID, isMention: true }));
+      await handle(dm.thread, fakeMessage({ userId: STRANGER_USER_ID }));
+
+      expect(mention.post).toHaveBeenCalledExactlyOnceWith(REFUSAL_TEXT);
+      expect(dm.post).toHaveBeenCalledExactlyOnceWith(REFUSAL_TEXT);
+      expect(dispatcher.dispatch).not.toHaveBeenCalled();
+    });
   });
 });

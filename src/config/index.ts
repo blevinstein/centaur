@@ -9,6 +9,7 @@ export {
   centaurConfigSchema,
   PLATFORMS,
   type Platform,
+  type RespondTo,
 } from "./schema.js";
 
 export interface ConfigIssue {

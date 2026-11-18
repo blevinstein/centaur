@@ -10,6 +10,7 @@ bot: garden
 platform: telegram
 destination: household
 allow: [maintainer, spouse]
+respond_to: all
 context:
   default: resume
   scheduled: fresh
@@ -24,6 +25,18 @@ prompts:
 `;
 
 export const invalidConfigs: [name: string, text: string, path: string, message: RegExp][] = [
+  [
+    "unknown respond_to value",
+    "bot: a\nplatform: slack\nallow: [x]\nallowed_tools: Read\nrespond_to: some",
+    "respond_to",
+    /./,
+  ],
+  [
+    "respond_to all without destination",
+    "bot: a\nplatform: slack\nallow: [x]\nallowed_tools: Read\nrespond_to: all",
+    "destination",
+    /required when respond_to is all/,
+  ],
   ["empty document", "", "(root)", /expected object/i],
   ["malformed YAML", "bot: [unclosed", "(root)", /invalid YAML/],
   ["missing bot", "platform: slack\nallow: [a]\nallowed_tools: Read", "bot", /./],

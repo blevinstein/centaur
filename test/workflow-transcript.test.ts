@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseCommand } from "../src/workflows/commands.js";
-import { buildPrompt } from "../src/workflows/prompt.js";
+import { buildPrompt, replySchema } from "../src/workflows/prompt.js";
 import { pendingMessages, planTurn, threadPolicy } from "../src/workflows/transcript.js";
 import { botMessage, message } from "./helpers/workflow-fixtures.js";
 
@@ -95,6 +95,24 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("# Scheduled task\n\nWeekly tasks");
     expect(prompt).toContain("assistant: earlier");
     expect(prompt).toContain("# New messages to answer\n\n[2026-11-17T10:00:02.000Z] Sam: now");
+  });
+
+  it("tells the agent it may stay silent only when it can", () => {
+    const messages = [message("1", "lunch?")];
+    expect(buildPrompt({ messages })).not.toContain("stay silent");
+    const prompt = buildPrompt({ messages, canStaySilent: true });
+    expect(prompt).toContain("not necessarily\naddressed to you");
+    expect(prompt).toContain("Reply when a message mentions you");
+    expect(prompt).toContain('set "ignore" to true');
+  });
+
+  it("requires a reply unless silence is allowed", () => {
+    expect(replySchema(false)).toMatchObject({ required: ["reply"] });
+    expect(replySchema(false).properties).not.toHaveProperty("ignore");
+    expect(replySchema(true)).toMatchObject({
+      required: [],
+      properties: { ignore: { type: "boolean" } },
+    });
   });
 
   it("omits empty sections", () => {

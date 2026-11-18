@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createAccessResolver } from "../src/lambda/access.js";
 import { createGitHubDispatcher } from "../src/lambda/github.js";
-import { loadBots } from "../src/lambda/registry.js";
+import { loadBots, readRespondTo } from "../src/lambda/registry.js";
 import {
   fakeParameterStore,
   GARDEN_BOT,
@@ -28,6 +28,16 @@ describe("createAccessResolver", () => {
 
     expect(access.userIds).toEqual(new Set(["1001", "1002"]));
     expect(access.chatIds).toEqual(new Set(["-100500"]));
+  });
+
+  it.each([
+    ["an entry written before respond_to existed", { allow: ["maintainer"] }, "mention"],
+    ["an entry that names respond_to", { allow: ["maintainer"], respond_to: "all" }, "all"],
+    ["no entry", undefined, "mention"],
+  ])("reads respond_to from %s", async (_name, entry, expected) => {
+    const state = await registryStateWith(entry ? { garden: entry } : {});
+
+    await expect(readRespondTo(state, "garden")).resolves.toBe(expected);
   });
 
   it("allows nobody when the bot has no registry entry", async () => {

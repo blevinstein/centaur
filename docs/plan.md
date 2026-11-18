@@ -41,9 +41,9 @@ in the diagram because it's invoked over IAM, not a public URL.
   uses its own state `keyPrefix` (`bot:<bot>:`) to keep dedupe keys apart. `concurrency` is
   `concurrent`, because the default `drop` strategy loses messages that arrive close together.
   The webhook path selects the bot: `/telegram/<bot>`, `/slack/<bot>`.
-- The registry entry `{allow, destination}` for each bot is stored in state under `registry:<bot>`
-  (written by `register`); the bound repo is in SSM at `bots/<bot>/repo`. With no entry, nobody is
-  allowed.
+- The registry entry `{allow, destination, respond_to}` for each bot is stored in state under
+  `registry:<bot>` (written by `register`); the bound repo is in SSM at `bots/<bot>/repo`. With no
+  entry, nobody is allowed; an entry without `respond_to` means `mention`.
 - On a message:
   1. Adapter verifies the request (Telegram secret token, Slack signing secret) and deduplicates.
   2. Decide whether this bot owns the message (see [Routing in a shared Telegram
@@ -78,8 +78,11 @@ One agent turn:
 1. Check out the consumer repo; read its `.centaur.yml`.
 2. Assemble context according to the thread's [context policy](#context-management).
 3. Run `claude-code-action` with the consumer repo's tool allowlist and a `--json-schema` that
-   requires at least `reply` (text for chat) and optionally `new_thread_title`.
-4. Invoke the poster with `structured_output.reply`.
+   requires `reply` (text for chat) and optionally `new_thread_title`. When the bot's `respond_to`
+   is `all`, `reply` becomes optional and the agent may instead return `ignore: true` to stay
+   silent.
+4. Invoke the poster with `structured_output.reply`, unless the agent ignored the messages (the
+   marker still advances and the session is still saved).
 5. If files changed, open a PR (`peter-evans/create-pull-request`, as in polytokenizer) and
    include the link in the chat reply. Agents never push to the default branch.
 6. Save the session file to S3 when the policy is `resume`.
@@ -142,6 +145,7 @@ context:
   scheduled: fresh
 model: sonnet
 allowed_tools: "Read,Edit,Write,Glob,Grep,WebFetch,WebSearch"
+respond_to: mention             # mention | all
 persona: .centaur/persona.md    # tone, audience, what to ask humans for
 ```
 
@@ -198,14 +202,24 @@ receive **all** group messages, so each bot must decide what's addressed to it:
    by creating a new topic for the conversation, or replies in place for quick questions.
 3. Everything else is ignored.
 
+A bot configured with `respond_to: all` replaces rules 1-3 with: every message from an allowed
+sender in its `destination` chat belongs to it, and the agent decides per turn whether to reply or
+stay silent. Messages authored by bots (the Chat SDK's `author.isBot` and `author.isMe`) never
+belong to any bot in this mode, so two bots in one chat can't answer each other. The checks keep
+their order (ownership, chat allowlist, sender allowlist), but an unenrolled sender whose message
+is not a mention or DM is dropped without a refusal (only logged with their ID, so enrollment
+still works), and messages from other chats are dropped without a log. Two bots set to `all` in
+the same chat would both run on every message, so give at most one bot `all` per chat.
+
 DMs with a bot are always that bot's; DMs use reply chains, not topics (see
 [research.md](research.md#telegram-specifics-verified-against-coretelegramorg)).
 
 ## Security
 
 - **Sender allowlist per bot.** The agent holds repo write access and secrets, so only known user
-  IDs (and known chat IDs) can trigger turns. Unknown senders get a short refusal and are logged
-  with their platform ID, which makes enrollment easy (see [onboarding.md](onboarding.md)).
+  IDs (and known chat IDs) can trigger turns. Unknown senders get a short refusal (except for
+  unaddressed messages in a `respond_to: all` chat, which are only logged) and are logged with
+  their platform ID, which makes enrollment easy (see [onboarding.md](onboarding.md)).
 - **No message content in GitHub.** Dispatch payloads carry IDs only. Transcripts are fetched from
   the poster at run time and never echoed. `show_full_output` stays off.
 - **Least-privilege tools.** Each repo's `allowed_tools` is an explicit allowlist, as in

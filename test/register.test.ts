@@ -26,6 +26,7 @@ describe("register", () => {
     expect(await readRegistryEntry(registryState, "sprout")).toEqual({
       allow: ["maintainer"],
       destination: "household",
+      respond_to: "mention",
     });
     expect(telegram.setWebhook).toHaveBeenCalledExactlyOnceWith(
       "sprout-token",
@@ -63,7 +64,18 @@ describe("register", () => {
 
     await register(poster, configText({ destination: undefined }));
 
-    expect(await readRegistryEntry(registryState, "sprout")).toEqual({ allow: ["maintainer"] });
+    expect(await readRegistryEntry(registryState, "sprout")).toEqual({
+      allow: ["maintainer"],
+      respond_to: "mention",
+    });
+  });
+
+  it("stores respond_to from the config in the registry entry", async () => {
+    const { poster, registryState } = await posterSetup({ parameters: ORPHAN_PARAMETERS });
+
+    await register(poster, configText({ respond_to: "all" }));
+
+    expect(await readRegistryEntry(registryState, "sprout")).toMatchObject({ respond_to: "all" });
   });
 
   describe("refusals", () => {

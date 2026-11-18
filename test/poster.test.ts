@@ -77,7 +77,7 @@ describe("poster start-thread", () => {
       thread.post.mock.invocationCallOrder[0] as number,
     );
     const owned = fakeThread({ state });
-    await expect(ownsMessage(owned.thread, fakeMessage())).resolves.toBe(true);
+    await expect(ownsMessage(owned.thread, fakeMessage(), "mention")).resolves.toBe(true);
   });
 
   it("names the topic after the first line of the text by default", async () => {

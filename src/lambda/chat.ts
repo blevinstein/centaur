@@ -7,7 +7,7 @@ import type { RepositoryDispatcher } from "./github.js";
 import { createMessageHandler } from "./message-handler.js";
 import type { ThreadMetadata } from "./ownership.js";
 import type { ParameterStore } from "./parameters.js";
-import type { Bot } from "./registry.js";
+import { type Bot, readRespondTo } from "./registry.js";
 
 const ADAPTER_FACTORIES: Record<Platform, (bot: Bot) => Adapter> = {
   telegram: (bot) =>
@@ -50,6 +50,7 @@ export function createBotChat({
   const handle = createMessageHandler({
     bot,
     resolveAccess: createAccessResolver(bot, params, registryState),
+    resolveRespondTo: () => readRespondTo(registryState, bot.name),
     dispatcher,
     logger,
   });

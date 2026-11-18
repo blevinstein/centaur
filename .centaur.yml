@@ -2,6 +2,7 @@ bot: centaur-test
 platform: telegram
 destination: blevinstein
 allow: [blevinstein]
+respond_to: all
 context:
   default: transcript
 allowed_tools: "Read,Glob,Grep"

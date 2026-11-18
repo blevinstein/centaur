@@ -59,7 +59,7 @@ expression keyed on `github.event.schedule`.
 This repo is its own consumer, for end-to-end testing: `.centaur.yml` binds the `centaur-test` bot
 and `.github/workflows/centaur.yml` calls the shared workflows locally (`uses:
 ./.github/workflows/...`) with `centaur_repository` and `centaur_ref` set to the current
-repository and commit. Its agent is read-only (`Read,Glob,Grep`).
+repository and commit. Its agent is read-only (`Read,Glob,Grep`) and it uses `respond_to: all`.
 
 Run **Actions > Centaur > Run workflow** with `action: register` to bind the bot, or `action:
 hello` to start a thread from `.centaur/prompts/hello.md`. Messages sent to the bot dispatch
@@ -97,7 +97,7 @@ Commands: `register`, `prepare`, `finish`, `notify-failure`.
 
 1. `prepare` reads `.centaur.yml`, reads the thread from the poster (`read`), determines the
    unprocessed messages and the context policy, and writes the prompt to `.centaur-turn/prompt.md`.
-   It outputs the `claude_args` (model, `--allowedTools`, `--json-schema` requiring `reply`, persona
+   It outputs the `claude_args` (model, `--allowedTools`, `--json-schema` requiring `reply` (or, for `respond_to: all` threads, `reply` or `ignore: true`), persona
    via `--append-system-prompt-file`, `--resume <id>`). When there is nothing to do (everything
    processed, or only a `/resume` or `/transcript` command, which is acknowledged in the thread),
    the remaining steps are skipped.
@@ -106,7 +106,8 @@ Commands: `register`, `prepare`, `finish`, `notify-failure`.
 3. `create-pull-request` opens (or updates) `centaur/<bot>-<thread>` when files changed.
 4. `finish` takes the reply from the action's execution file, appends the pull request link, posts
    it (`post`, or `start-thread` for scheduled prompts and `/new`), advances the marker and saves the
-   session for `resume` threads.
+   session for `resume` threads. When the agent returned `ignore: true` nothing is posted (and a
+   pull request link is not delivered), but the marker and session are still saved.
 5. On failure, `notify-failure` posts a generic notice with the run URL; the marker is not
    advanced, so the messages are retried on the next turn.
 

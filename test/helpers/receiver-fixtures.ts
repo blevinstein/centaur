@@ -96,12 +96,23 @@ export function fakeThread(
   return { thread: thread as unknown as Thread<ThreadMetadata>, post: thread.post, addReaction };
 }
 
-export const fakeMessage = (overrides: { userId?: string; isMention?: boolean } = {}) =>
+export const fakeMessage = (
+  overrides: {
+    userId?: string;
+    isMention?: boolean;
+    isBot?: boolean | "unknown";
+    isMe?: boolean;
+  } = {},
+) =>
   ({
     id: "telegram:msg-42",
     text: MESSAGE_TEXT,
     isMention: overrides.isMention ?? false,
-    author: { userId: overrides.userId ?? ALLOWED_USER_ID },
+    author: {
+      userId: overrides.userId ?? ALLOWED_USER_ID,
+      isBot: overrides.isBot ?? false,
+      isMe: overrides.isMe ?? false,
+    },
   }) as unknown as Message;
 
 export async function registryStateWith(entries: Record<string, unknown>) {
