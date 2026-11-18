@@ -1,0 +1,10 @@
+name: Agent runtime experiment
+
+on:
+  workflow_dispatch:
+
+jobs:
+  stub:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Run this workflow from experiment/agent-runtime."
