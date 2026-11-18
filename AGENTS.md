@@ -13,4 +13,5 @@
 - TypeScript (ESM, Node 24 to match the Lambda runtime; see `.nvmrc`). Run `npm ci` once.
 - `npm run lint` (Biome check: lint, format, import order; `npm run format` fixes), `npm run
   typecheck`, `npm test` (Vitest, `test/**/*.test.ts`), `npm run build` (tsc to `dist/`).
+- `npm test` starts `amazon/dynamodb-local` through Docker, or uses `DYNAMODB_ENDPOINT` if set.
 - Biome covers code and JSON only; Markdown and YAML are not auto-formatted.
