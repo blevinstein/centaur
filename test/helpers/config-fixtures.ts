@@ -1,3 +1,4 @@
+import { formatIssues, type McpServer, parseCentaurConfig } from "../../src/config/index.js";
 export const minimalConfig = `
 bot: garden
 platform: telegram
@@ -220,3 +221,12 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
     /no allowed_tools entry/,
   ],
 ];
+
+export const mcpServersFrom = (servers: string): Record<string, McpServer> => {
+  const tools = [...servers.matchAll(/^ {2}([\w-]+):/gm)].map((m) => `mcp__${m[1]}__*`).join(", ");
+  const result = parseCentaurConfig(withMcp(servers, tools));
+  if (!result.ok) throw new Error(formatIssues(result.issues));
+  return result.config.mcp_servers;
+};
+
+export const envRef = (name: string, prefix = "") => `${prefix}\${${name}}`;
