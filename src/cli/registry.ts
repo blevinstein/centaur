@@ -32,6 +32,17 @@ export function parsePlatform(value: string): Platform {
   return value as Platform;
 }
 
+export function selectedPlatformIds(options: Record<string, string | boolean | undefined>) {
+  const ids = PLATFORM_NAMES.flatMap((platform) => {
+    const id = options[platform];
+    return id ? [{ platform, id: String(id) }] : [];
+  });
+  if (ids.length === 0) {
+    throw new CliError(`Pass at least one of ${PLATFORM_NAMES.map((p) => `--${p}`).join(", ")}.`);
+  }
+  return ids;
+}
+
 export const botPrefix = (bot: string) => `/centaur/bots/${bot}/`;
 export const botParameter = (bot: string, key: string) => `${botPrefix(bot)}${key}`;
 export const userParameter = (user: string, platform: Platform) =>

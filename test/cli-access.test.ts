@@ -1,0 +1,82 @@
+import { describe, expect, it } from "vitest";
+import { createCliHarness } from "./helpers/cli.js";
+
+const BOT_PLATFORM = "/centaur/bots/garden/platform";
+
+async function harnessWithBot() {
+  const cli = createCliHarness();
+  await cli.store.put(BOT_PLATFORM, "telegram", { secure: false });
+  return cli;
+}
+
+describe("admin", () => {
+  it("sets, shows and removes the admin per platform", async () => {
+    const cli = createCliHarness();
+
+    await cli.run("admin", "set", "--telegram", "5001", "--slack", "U5");
+    expect(cli.store.entries.get("/centaur/admin/telegram")).toEqual({
+      value: "5001",
+      secure: false,
+    });
+    await cli.run("admin", "show");
+    expect(cli.output.at(-1)).toBe("telegram: 5001\nslack: U5");
+
+    await cli.run("admin", "remove", "--telegram");
+    await cli.run("admin", "show");
+    expect(cli.output.at(-1)).toBe("telegram: not set\nslack: U5");
+  });
+
+  it.each([
+    [["admin", "set"], /at least one/],
+    [["admin", "remove"], /at least one/],
+    [["admin", "remove", "--slack"], /No admin is set for slack/],
+  ])("rejects %j", async (args, message) => {
+    await expect(createCliHarness().run(...args)).rejects.toThrow(message);
+  });
+});
+
+describe("access", () => {
+  it.each(["chat", "user"])("approves, lists and revokes a %s", async (kind) => {
+    const cli = await harnessWithBot();
+
+    await cli.run("access", "approve", "garden", kind, "42", "--name", "Garden Club");
+    const stored = JSON.parse(
+      (await cli.store.get(`/centaur/bots/garden/approved-${kind}s/42`)) ?? "",
+    );
+    expect(stored).toMatchObject({ name: "Garden Club" });
+    await cli.run("access", "list", "garden");
+    expect(cli.output.at(-1)).toMatch(new RegExp(`^approved  ${kind}  42  Garden Club  \\d{4}-`));
+
+    await cli.run("access", "revoke", "garden", kind, "42");
+    expect(await cli.store.get(`/centaur/bots/garden/approved-${kind}s/42`)).toBeUndefined();
+  });
+
+  it("blocks and unblocks, keeping approvals untouched", async () => {
+    const cli = await harnessWithBot();
+    await cli.run("access", "approve", "garden", "user", "42");
+
+    await cli.run("access", "block", "garden", "user", "42");
+    await cli.run("access", "list", "garden");
+    expect(cli.output.at(-1)).toMatch(/^approved {2}user {2}42 {2}- {2}.*\nblocked {2}user {2}42/);
+    expect(await cli.store.get("/centaur/bots/garden/approved-users/42")).toBeDefined();
+
+    await cli.run("access", "unblock", "garden", "user", "42");
+    expect(await cli.store.get("/centaur/bots/garden/blocked/user/42")).toBeUndefined();
+  });
+
+  it("says when nothing is approved or blocked", async () => {
+    const cli = await harnessWithBot();
+    await cli.run("access", "list", "garden");
+    expect(cli.output.at(-1)).toBe('Nothing approved or blocked for "garden".');
+  });
+
+  it.each([
+    [["access", "approve", "ghost", "chat", "1"], /Unknown bot "ghost"/],
+    [["access", "approve", "garden", "room", "1"], /Unknown kind "room"/],
+    [["access", "revoke", "garden", "chat", "1"], /Approved chat 1 not found/],
+    [["access", "unblock", "garden", "user", "1"], /Blocked user 1 not found/],
+  ])("rejects %j", async (args, message) => {
+    const cli = await harnessWithBot();
+    await expect(cli.run(...args)).rejects.toThrow(message);
+  });
+});
