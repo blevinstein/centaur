@@ -36,3 +36,6 @@
   `fakeParameterStore` (`test/helpers/receiver-fixtures.ts`) or `FakeParameterStore`.
 - Run `npm run lint:cfn` after IAM or template changes; set up with `python3 -m venv .venv &&
   .venv/bin/pip install -r requirements-dev.txt`.
+- A new field in the agent's structured output goes in three places: `replySchema`
+  (`src/workflows/prompt.ts`), `resultMessage` and `extractResult` (`src/workflows/finish.ts`), and
+  `docs/workflows.md`. The PR step in `agent-turn.yml` reads the `pr-details` outputs.
