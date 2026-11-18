@@ -1,6 +1,6 @@
 # Onboarding
 
-Anticipated setup flows. Steps marked **validate** depend on behavior not yet tested.
+Anticipated setup flows. To deploy the stack first, see [deploy.md](deploy.md). Steps marked **validate** depend on behavior not yet tested.
 
 ## Telegram (household repos)
 

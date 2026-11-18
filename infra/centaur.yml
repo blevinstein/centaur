@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Centaur - S3 session bucket, DynamoDB state table, and a GitHub OIDC role scoped to one GitHub owner.
+Description: Centaur - receiver/poster Lambda with a function URL, S3 session bucket, DynamoDB state table, and a GitHub OIDC role scoped to one GitHub owner.
 
 Parameters:
   GitHubOwner:
@@ -18,6 +18,20 @@ Parameters:
     Default: 30
     MinValue: 1
     Description: Days after which objects under sessions/ expire.
+  CodeBucket:
+    Type: String
+    Description: Existing S3 bucket holding the Lambda zip (scripts/deploy.sh uploads it).
+  CodeKey:
+    Type: String
+    Description: S3 key of the Lambda zip.
+  OidcAudience:
+    Type: String
+    Default: centaur
+    Description: Audience that workflows request for the OIDC token they pass to the register operation.
+  LogRetentionDays:
+    Type: Number
+    Default: 30
+    Description: Days to keep Lambda logs.
 
 Conditions:
   CreateProvider: !Equals [!Ref ExistingOidcProviderArn, '']
@@ -87,6 +101,106 @@ Resources:
               - dynamodb:Query
             Resource: !GetAtt StateTable.Arn
 
+  FunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-receiver
+      RetentionInDays: !Ref LogRetentionDays
+
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Principal:
+              Service: lambda.amazonaws.com
+      ManagedPolicyArns:
+        - !Ref StateTableAccessPolicy
+      Policies:
+        - PolicyName: logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub ${FunctionLogGroup.Arn}:*
+        - PolicyName: parameters
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ssm:GetParametersByPath
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/centaur/bots
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/centaur/bots/*
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/centaur/github/token
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/centaur/function-url
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/centaur/users/*
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/centaur/chats/*
+              - Effect: Allow
+                Action: ssm:PutParameter
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/centaur/bots/*/repo
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: !Sub arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub ssm.${AWS::Region}.amazonaws.com
+
+  ReceiverFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: FunctionLogGroup
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-receiver
+      Runtime: nodejs24.x
+      Handler: index.handler
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      Role: !GetAtt FunctionRole.Arn
+      Timeout: 30
+      MemorySize: 512
+      Environment:
+        Variables:
+          STATE_TABLE_NAME: !Ref StateTable
+          GITHUB_OWNER: !Ref GitHubOwner
+          OIDC_AUDIENCE: !Ref OidcAudience
+
+  ReceiverFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !Ref ReceiverFunction
+      AuthType: NONE
+
+  ReceiverFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ReceiverFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: '*'
+      FunctionUrlAuthType: NONE
+
+  ReceiverFunctionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ReceiverFunction
+      Action: lambda:InvokeFunction
+      Principal: '*'
+      InvokedViaFunctionUrl: true
+
+  FunctionUrlParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /centaur/function-url
+      Type: String
+      Value: !GetAtt ReceiverFunctionUrl.FunctionUrl
+
   GitHubRole:
     Type: AWS::IAM::Role
     Properties:
@@ -118,6 +232,9 @@ Resources:
                 Condition:
                   StringLike:
                     s3:prefix: sessions/*
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt ReceiverFunction.Arn
 
 Outputs:
   BucketName:
@@ -130,3 +247,9 @@ Outputs:
     Value: !GetAtt StateTable.Arn
   StateTableAccessPolicyArn:
     Value: !Ref StateTableAccessPolicy
+  FunctionName:
+    Value: !Ref ReceiverFunction
+  FunctionArn:
+    Value: !GetAtt ReceiverFunction.Arn
+  FunctionUrl:
+    Value: !GetAtt ReceiverFunctionUrl.FunctionUrl

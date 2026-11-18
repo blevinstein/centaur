@@ -15,13 +15,15 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsc -p tsconfig.build.json",
-    "lint:cfn": ".venv/bin/cfn-lint infra/*.yml"
+    "lint:cfn": ".venv/bin/cfn-lint infra/*.yml",
+    "bundle:lambda": "esbuild src/lambda/handler.ts --bundle --platform=node --target=node24 --format=esm --outfile=dist/lambda/index.mjs --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\""
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.8",
     "@chat-adapter/state-memory": "4.45.0",
     "@types/aws-lambda": "8.10.164",
     "@types/node": "24.19.2",
+    "esbuild": "0.28.2",
     "typescript": "7.0.2",
     "vitest": "5.1.0"
   },

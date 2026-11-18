@@ -18,6 +18,7 @@ export const botParameter = (bot: string, key: string) => `${PARAMETER_ROOT}/bot
 export const userParameter = (name: string, platform: string) =>
   `${PARAMETER_ROOT}/users/${name}/${platform}`;
 export const chatParameter = (name: string) => `${PARAMETER_ROOT}/chats/${name}`;
+export const FUNCTION_URL_PARAMETER = `${PARAMETER_ROOT}/function-url`;
 export const GITHUB_TOKEN_PARAMETER = `${PARAMETER_ROOT}/github/token`;
 
 export function createSsmParameterStore(client = new SSMClient({})): ParameterStore {

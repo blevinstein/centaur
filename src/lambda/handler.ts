@@ -5,7 +5,11 @@ import { createChat } from "./chat.js";
 import { createGitHubDispatcher } from "./github.js";
 import { wrapHandler } from "./http.js";
 import { createGitHubOidcVerifier } from "./oidc.js";
-import { createSsmParameterStore, GITHUB_TOKEN_PARAMETER } from "./parameters.js";
+import {
+  createSsmParameterStore,
+  FUNCTION_URL_PARAMETER,
+  GITHUB_TOKEN_PARAMETER,
+} from "./parameters.js";
 import { createPoster } from "./poster.js";
 import { createReceiver } from "./receiver.js";
 import { createTelegramApi } from "./telegram.js";
@@ -44,8 +48,11 @@ async function buildReceiver() {
 
 async function buildPoster() {
   const tableName = requiredEnv("STATE_TABLE_NAME");
+  const params = createSsmParameterStore();
+  const functionUrl = await params.get(FUNCTION_URL_PARAMETER);
+  if (!functionUrl) throw new Error(`missing SSM parameter ${FUNCTION_URL_PARAMETER}`);
   return createPoster({
-    params: createSsmParameterStore(),
+    params,
     stateFor: (keyPrefix) => createDynamoDbState({ tableName, keyPrefix }),
     chatFor: (bot, botState) => createChat({ bot, botState, logger }),
     telegram: createTelegramApi(),
@@ -53,7 +60,7 @@ async function buildPoster() {
       owner: requiredEnv("GITHUB_OWNER"),
       audience: requiredEnv("OIDC_AUDIENCE"),
     }),
-    functionUrl: requiredEnv("FUNCTION_URL"),
+    functionUrl,
   });
 }
 

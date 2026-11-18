@@ -55,14 +55,17 @@ gate, which makes this a low risk.
 
 ## Lambda configuration
 
-Environment variables (a later infra change wires them; `STATE_TABLE_NAME` already exists):
+Environment variables (set by `infra/centaur.yml`; see [deploy.md](deploy.md)):
 
 | Variable | Used by | Meaning |
 |---|---|---|
 | `STATE_TABLE_NAME` | both | DynamoDB state table. |
 | `GITHUB_OWNER` | poster | Allowed repository owner; same value as the template's `GitHubOwner`. |
 | `OIDC_AUDIENCE` | poster | Audience the workflow requests for its OIDC token (`audience=` on the token request); a fixed string agreed with the workflows. |
-| `FUNCTION_URL` | poster | Public base URL of the function URL, used to build webhook URLs. |
+
+The public function URL, used to build webhook URLs, is read from the SSM parameter
+`/centaur/function-url` that the template writes (an environment variable can't reference the
+function's own URL).
 
 IAM for the function role: everything the receiver has, plus `ssm:PutParameter` on
 `/centaur/bots/*/repo` (`register` writes only that parameter). It still needs
