@@ -10,7 +10,7 @@ runs:
       id: node
       shell: bash
       run: echo "version=$(cat "${{ github.action_path }}/../../../.nvmrc")" >> "$GITHUB_OUTPUT"
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v7
       with:
         node-version: ${{ steps.node.outputs.version }}
     - name: Enable Corepack
@@ -20,7 +20,7 @@ runs:
       shell: bash
       working-directory: ${{ github.action_path }}/../../..
       run: yarn install --immutable && yarn build
-    - uses: aws-actions/configure-aws-credentials@v4
+    - uses: aws-actions/configure-aws-credentials@v6
       with:
         role-to-assume: ${{ env.CENTAUR_ROLE_ARN }}
         aws-region: ${{ env.CENTAUR_AWS_REGION }}

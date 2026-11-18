@@ -119,7 +119,7 @@ jobs:
   weekly-tasks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: blevinstein/centaur/.github/actions/setup-runtime@main
       - uses: blevinstein/centaur/.github/actions/turn@main
         with:

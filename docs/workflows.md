@@ -31,7 +31,7 @@ jobs:
   register:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: <owner>/centaur/.github/actions/setup-runtime@main
       - uses: <owner>/centaur/.github/actions/register@main
 ```
@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: <owner>/centaur/.github/actions/setup-runtime@main
       - uses: <owner>/centaur/.github/actions/turn@main
         with:
@@ -80,7 +80,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: <owner>/centaur/.github/actions/setup-runtime@main
       - uses: <owner>/centaur/.github/actions/turn@main
         with:
