@@ -86,8 +86,10 @@ The public function URL, used to build webhook URLs, is read from the SSM parame
 `/centaur/function-url` that the template writes (an environment variable can't reference the
 function's own URL).
 
-IAM for the function role: everything the receiver has, plus `ssm:PutParameter` on
-`/centaur/bots/*/repo` (`register` writes only that parameter). It still needs
+IAM for the function role: everything the receiver has. `register` writes only
+`/centaur/bots/*/repo`; the receiver's access-request decisions write the approved and blocked paths
+(see [deploy.md](deploy.md#iam)). `start-thread` from a thread accepts the thread's chat when it is
+in the baseline `chats` or approved, and refuses a blocked one. It needs
 `ssm:GetParametersByPath` on `/centaur/bots`, `ssm:GetParameter` on `/centaur/chats/*`, KMS decrypt,
 and read/write on the state table.
 

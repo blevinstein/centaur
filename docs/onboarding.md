@@ -33,9 +33,8 @@ message first." That shapes the flow:
 
 ### Maintainer: once per bot and group
 
-The order matters: read the chat and user IDs **before** the webhook is set. Once the bot's
-webhook exists, `getUpdates` stops working, and the only way to find an unknown ID is the
-receiver's logs.
+Record yourself as admin and enroll yourself **before** the webhook is set if you need
+`getUpdates` to find your ID: once the bot's webhook exists, `getUpdates` stops working.
 
 1. In Telegram, message [@BotFather](https://t.me/BotFather): `/newbot`, choose a display name
    (e.g. "Garden Helper") and a username ending in `bot`. Optionally set the profile so it's
@@ -46,26 +45,53 @@ receiver's logs.
    settings (this converts it to a supergroup), add each bot, and promote it to **admin** with
    the **Manage Topics** right. Admin bots receive all group messages, and topic creation
    requires that right.
-4. Send one message in the group, then read the IDs from the pending updates:
-
-   ```sh
-   TOKEN=$(aws ssm get-parameter --name /centaur/bots/garden/token --with-decryption \
-     --query Parameter.Value --output text)
-   curl -s "https://api.telegram.org/bot$TOKEN/getUpdates" \
-     | jq '.result[].message | {chat: .chat.id, from: .from.id}'
-   ```
-
-   The group's chat ID is negative (a supergroup is `-100...`); don't use a DM's positive ID.
-   Each person who should be able to talk to the bot sends one message so you can read their
-   `from` ID.
-5. `centaur chat add household <group chat id>` and `centaur user add <name> --telegram <id>` for
-   each person. IDs are stored by person and referenced by name in `.centaur.yml`'s `allow`
-   list, so each person is enrolled once, not once per bot.
+4. Find your own Telegram user ID (for example from `getUpdates` before the webhook is set, or a
+   bot such as @userinfobot) and record yourself as the admin: `centaur admin set --telegram <id>`.
+   Then open each bot and tap **Start** once, so the bot is allowed to message you.
+5. Put yourself in the repo's `allow` list: `centaur user add <name> --telegram <id>`. This is the
+   baseline; everyone and every chat after you is admitted by [access
+   request](#enrolling-chats-and-people).
 6. [Add the repo](#adding-a-repo). Its first registration sets the webhook.
+7. Add the bot to the group, then mention it once. The bot DMs you a request for the chat; see
+   below.
 
-If someone is missing from the allowlist, the bot replies "Sorry, you aren't enrolled to talk to
-me." and logs their user ID (a bot with `respond_to: all` ignores unenrolled people in the group
-silently, but still logs the ID). Add them with `centaur user add` and the repo's `allow` list.
+### Enrolling chats and people
+
+When someone mentions or DMs the bot from a chat or as a user it doesn't know, the bot tells them
+"I've asked my admin for access." and DMs the admin:
+
+```
+Access request k7m2qx
+Bot: garden
+Kind: user
+Requester: Pat Example (111222333)
+Chat: Household (-1001234567890)
+React 👍 to approve, or 👎 to deny and block.
+Or reply /approve k7m2qx or /deny k7m2qx.
+Expires in 7 days.
+```
+
+- **👍** approves: the chat or person is added for that bot and the requester is told. A new group
+  needs its chat approved, and each person in it needs their own user approval.
+- **👎** denies and blocks: future attempts from that chat or user are ignored without any reply.
+- Only your reaction on that DM counts, each request can be decided once, and it expires after 7
+  days. The text commands `/approve <id>` and `/deny <id>` do the same if reactions don't work.
+- If the bot can't DM you (you never tapped **Start**), the requester sees "I couldn't reach my
+  admin." and the failure is logged with the request's IDs.
+- A bot ignores unaddressed messages from unknown chats and creates at most 10 requests per hour.
+
+Without an admin for the bot's platform, unknown chats are ignored and unknown users get "Sorry,
+you aren't enrolled to talk to me." (a bot with `respond_to: all` ignores unenrolled people in the
+group silently); the user ID is logged either way.
+
+Manual alternative, no admin needed: read the IDs from `getUpdates` before the webhook is set
+(send one message in the group, then
+`curl -s "https://api.telegram.org/bot$TOKEN/getUpdates" | jq '.result[].message | {chat: .chat.id, from: .from.id}'`
+with `TOKEN` read from SSM; a supergroup's ID is negative, `-100...`), then run
+`centaur chat add household <group chat id>` and `centaur user add <name> --telegram <id>`
+(referenced from `.centaur.yml`'s `chats` and `allow`), or approve directly for one bot with
+`centaur access approve garden chat|user <id>`. `centaur access list garden` shows what has been
+approved or blocked, and `centaur access revoke|block|unblock` undo it.
 
 ### Household member (non-technical): once
 
@@ -138,7 +164,17 @@ Only the maintainer uses these, so there's no non-technical onboarding. Nothing 
    <bot> --platform slack`.
 3. Set `platform: slack` in the repo's `.centaur.yml`, push to register, and invite the bot to its
    channel.
-4. Enroll your Slack user ID: `centaur user add <name> --slack <id>`.
+4. Enroll your Slack user ID: `centaur user add <name> --slack <id>`, and record yourself as the
+   admin: `centaur admin set --slack <id>`. Later chats and users are admitted by [access
+   request](#enrolling-chats-and-people).
+
+For access requests the Slack app needs, beyond what it needs to read and post messages:
+
+- the event subscription `reaction_added` (the admin's 👍/👎 arrive as `+1` and `-1`);
+- bot token scopes `reactions:read`, `im:history`, `chat:write` and `im:write` (the last lets the bot
+  open a DM with the admin).
+
+Slack decisions are reactions only; there is no `/approve` text fallback on Slack.
 
 ## Still unverified
 

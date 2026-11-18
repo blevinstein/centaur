@@ -1,7 +1,7 @@
 # CLI
 
 The `centaur` CLI manages the SSM parameters the deployed Lambda reads: bot secrets, named users,
-named chats, and the GitHub token. The parameter names and types are listed in [SSM parameter
+named chats, the admin, approved and blocked chats and users, and the GitHub token. The parameter names and types are listed in [SSM parameter
 layout](plan.md#ssm-parameter-layout); this page covers usage.
 
 ## Install and run
@@ -73,6 +73,11 @@ required. Re-running overwrites the IDs given and leaves the others as they were
 centaur user add spouse --telegram 111222333 --slack U01ABCDEF
 ```
 
+### `centaur user list`
+
+Prints one line per registered user, sorted by name: `name  slack=U01ABCDEF  telegram=111222333`.
+Prints `No users registered.` when there are none. User IDs are identifiers, not secrets.
+
 ### `centaur chat add <name> <id>`
 
 Records a chat ID as `/centaur/chats/<name>` (plain `String`), overwriting any existing value.
@@ -80,6 +85,54 @@ Telegram supergroup IDs are negative; that is accepted as-is.
 
 ```sh
 centaur chat add household -1001234567890
+```
+
+### `centaur chat list`
+
+Prints one line per registered chat, `name  id`, sorted by name, or `No chats registered.`.
+
+### `centaur admin set [--telegram <id>] [--slack <id>]`
+
+Records the admin's user ID per platform as `/centaur/admin/<platform>`; the admin approves
+[access requests](plan.md#access-requests). The admin is global, not per bot, and a bot only
+notifies the admin on its own platform. At least one flag is required.
+
+### `centaur admin show`
+
+Prints the admin ID for each platform, or `not set`.
+
+### `centaur admin remove [--telegram] [--slack]`
+
+Deletes the admin ID for the given platforms. Bots on a platform with no admin go back to ignoring
+unknown chats and refusing unknown users. Refuses if one of the platforms has no admin.
+
+### `centaur access approve <bot> <chat|user> <id> [--name <name>]`
+
+Approves a chat or user for one bot without waiting for a request, writing
+`/centaur/bots/<bot>/approved-chats/<id>` or `approved-users/<id>`. `--name` records a display
+name for `access list`. Telegram group IDs are negative; they are accepted as-is.
+
+### `centaur access revoke <bot> <chat|user> <id>`
+
+Deletes the approval. Refuses if there is none. It does not remove baseline access from
+`.centaur.yml`.
+
+### `centaur access block <bot> <chat|user> <id>` / `centaur access unblock <bot> <chat|user> <id>`
+
+`block` writes `/centaur/bots/<bot>/blocked/<kind>/<id>`; a blocked subject is ignored even if it
+is in `.centaur.yml` or approved, and gets no reply or request. `unblock` deletes the entry and
+refuses if there is none.
+
+### `centaur access list <bot>`
+
+Prints each approved and blocked entry as `state  kind  id  name  time`.
+
+Changes take effect within about 30 seconds (the receiver's cache).
+
+```sh
+centaur admin set --telegram 111222333
+centaur access approve garden user 444555666 --name "Pat"
+centaur access list garden
 ```
 
 ### `centaur github-token set`
@@ -130,6 +183,9 @@ Errors are printed to stderr and the exit code is 1.
 | `Bot "<x>" is bound to <repo>; run "centaur bot unbind" first.` | `bot remove` while bound. |
 | `Bot "<x>" is not bound to a repo.` | `bot unbind` on an unbound bot. |
 | `Pass at least one of --telegram, --slack.` | `user add` with no ID flags. |
+| `Unknown kind "<x>": expected chat or user.` | `access` with a kind other than `chat` or `user`. |
+| `Approved <kind> <id> not found.` / `Blocked <kind> <id> not found.` | `access revoke` / `unblock` with no such entry. |
+| `No admin is set for <platform>.` | `admin remove` for a platform with no admin. |
 | `Missing value for <name>.` | A secret was not supplied by env, stdin, or prompt. |
 
 AWS errors (expired credentials, missing permissions, wrong region) surface unmodified.

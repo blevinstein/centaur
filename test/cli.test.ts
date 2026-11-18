@@ -152,4 +152,28 @@ describe("github-token", () => {
     await cli.run("github-token", "remove");
     expect(cli.store.names()).toEqual([]);
   });
+
+  it("lists users sorted by name with their platform IDs", async () => {
+    const cli = createCliHarness();
+    await cli.run("user", "list");
+    expect(cli.output.at(-1)).toBe("No users registered.");
+
+    await cli.run("user", "add", "spouse", "--telegram", "111", "--slack", "U1");
+    await cli.run("user", "add", "maintainer", "--telegram", "222");
+    await cli.run("user", "list");
+
+    expect(cli.output.at(-1)).toBe("maintainer  telegram=222\nspouse  slack=U1  telegram=111");
+  });
+
+  it("lists chats sorted by name", async () => {
+    const cli = createCliHarness();
+    await cli.run("chat", "list");
+    expect(cli.output.at(-1)).toBe("No chats registered.");
+
+    await cli.run("chat", "add", "workshop", "-2");
+    await cli.run("chat", "add", "household", "-1");
+    await cli.run("chat", "list");
+
+    expect(cli.output.at(-1)).toBe("household  -1\nworkshop  -2");
+  });
 });

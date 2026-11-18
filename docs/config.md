@@ -54,6 +54,11 @@ Each prompt takes `file` (default `.centaur/prompts/<name>.md`), `context` (defa
 prompt's `destination` must be one of `chats`. It may be omitted when `chats` has exactly one
 entry, which becomes the default; with several chats every prompt must name one.
 
+`chats` and `allow` are the baseline allowlist. The effective allowlist is that baseline plus
+anything the admin approved through an [access request](plan.md#access-requests) or `centaur access
+approve`, minus anything blocked; blocked wins over the baseline. Approved entries are stored per
+bot in SSM, not in this file, so they never appear in the repo.
+
 Names (`bot`, `chats` and `destination` entries, `allow` entries, prompt names) are lowercase
 aliases matching `[a-z0-9][a-z0-9_-]*`; real IDs never appear in the repo. Paths must be relative
 and stay inside the repo (no leading `/`, no `..`). Unknown keys are errors. A top-level

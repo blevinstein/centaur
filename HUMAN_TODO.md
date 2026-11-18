@@ -73,7 +73,8 @@ Unblocked by section 4.
 
 - [ ] Point an agent at `garden` to add the config, persona, prompt, caller workflow and
       `AGENTS.md` change (these are in [TODO.md](TODO.md) section 8).
-- [ ] Onboard the household group and enroll both users.
+- [ ] Onboard the household group: set yourself as admin (`centaur admin set`), message the bot
+      once, then approve the group and each user from the bot's DM instead of by hand.
 
 ## 6. Slack
 

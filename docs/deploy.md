@@ -63,8 +63,9 @@ which the poster reads at cold start to build webhook URLs; there is no `FUNCTIO
 
 The function role gets the state table policy, log writes, `ssm:GetParametersByPath` on
 `/centaur/bots`, `ssm:GetParameter` on `/centaur/github/token`, `/centaur/function-url`,
-`/centaur/users/*` and `/centaur/chats/*`, `ssm:PutParameter` only on `/centaur/bots/*/repo`, and
-`kms:Decrypt` through SSM. The GitHub OIDC role may call `lambda:InvokeFunction` on the function.
+`/centaur/users/*`, `/centaur/chats/*` and `/centaur/admin/*`, `ssm:PutParameter` only on
+`/centaur/bots/*/repo`, `/centaur/bots/*/approved-chats/*`, `/centaur/bots/*/approved-users/*` and
+`/centaur/bots/*/blocked/*`, and `kms:Decrypt` through SSM. The GitHub OIDC role may call `lambda:InvokeFunction` on the function.
 The function URL is public (`AuthType NONE`) so Telegram and Slack can reach it.
 
 After the first deploy, store secrets with the [CLI](cli.md) and register repos as described in
