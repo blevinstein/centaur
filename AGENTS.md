@@ -38,6 +38,9 @@
   `fakeParameterStore` (`test/helpers/receiver-fixtures.ts`) or `FakeParameterStore`.
 - Run `npm run lint:cfn` after IAM or template changes; set up with `python3 -m venv .venv &&
   .venv/bin/pip install -r requirements-dev.txt`.
+- `src/lambda/handler.ts` builds the receiver and poster lazily at module scope. Test it with
+  `importFreshHandler()` from `test/helpers/handler-fixtures.ts`, which resets modules. Declare the
+  `vi.mock` calls for the factory modules in the test file, because `vi.mock` only hoists there.
 - A new field in the agent's structured output goes in three places: `replySchema`
   (`src/workflows/prompt.ts`), `resultMessage` and `extractResult` (`src/workflows/finish.ts`), and
   `docs/workflows.md`. The PR step in `.github/actions/turn/action.yml` reads the `pr-details` outputs.
