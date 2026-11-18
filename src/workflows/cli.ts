@@ -69,15 +69,24 @@ program.command("pr-details").action(async () => {
   await writeOutputs(env("GITHUB_OUTPUT"), { ...details });
 });
 
-program.command("finish").action(() =>
-  finish({
+program.command("finish").action(() => {
+  const pullRequestNumber = Number(process.env.PULL_REQUEST_NUMBER);
+  return finish({
     workspace: workspace(),
     executionFile: env("EXECUTION_FILE"),
     pullRequestUrl: process.env.PULL_REQUEST_URL || undefined,
+    pullRequestLink:
+      Number.isInteger(pullRequestNumber) && pullRequestNumber > 0
+        ? {
+            number: pullRequestNumber,
+            fetchToken: () => oidcTokenFetcher(process.env, env("CENTAUR_OIDC_AUDIENCE"))(),
+            mask: maskValue,
+          }
+        : undefined,
     poster: poster(),
     storeFor,
-  }),
-);
+  });
+});
 
 program
   .command("notify-failure")

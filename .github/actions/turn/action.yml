@@ -70,4 +70,5 @@ runs:
       env:
         EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
         PULL_REQUEST_URL: ${{ steps.pr.outputs.pull-request-url }}
+        PULL_REQUEST_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
       run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" finish

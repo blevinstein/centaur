@@ -88,6 +88,12 @@ export function createFakeAws(handler: PosterHandler = () => ({})) {
   };
 }
 
+export const pullRequestLink = (number = 5) => ({
+  number,
+  fetchToken: async () => "oidc-jwt",
+  mask: () => {},
+});
+
 export async function createWorkspace(files: Record<string, string>) {
   const root = await mkdtemp(join(tmpdir(), "centaur-workspace-"));
   const home = await mkdtemp(join(tmpdir(), "centaur-home-"));

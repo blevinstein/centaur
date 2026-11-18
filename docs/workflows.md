@@ -161,6 +161,10 @@ Commands: `register`, `prepare`, `pr-details`, `finish`, `notify-failure`.
    the turn state: the prompt's `destination` alias, which the poster resolves to a chat approved for the bot, or the originating thread for `/new`), advances the marker and saves the
    session for `resume` threads. When the agent returned `ignore: true` nothing is posted unless a
    pull request was opened, in which case only its link is posted;  the marker and session are still saved.
+   When `create-pull-request` produced a pull request, `finish` also links it to the thread it
+   replied in (for scheduled prompts, the thread just started) with the poster's
+   `link-pull-request`, authenticated by the same OIDC token as `register`; a failure is a warning
+   and never fails the turn.
    Last, it removes the 👀 reaction (`unreact`) from every message the turn processed, so a message
    that still shows 👀 is still being worked on.
 5. On failure, `notify-failure` posts a generic notice with the run URL, then removes the 👀

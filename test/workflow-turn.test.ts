@@ -16,6 +16,7 @@ import {
   createFakeAws,
   createWorkspace,
   message,
+  pullRequestLink,
   THREAD,
   THREAD_PREFIX,
 } from "./helpers/workflow-fixtures.js";
@@ -457,6 +458,103 @@ describe("finish", () => {
       title: "Week 47",
     });
     expect(aws.objects.get("sessions/sprout/telegram_-100_99/s2.jsonl")).toBe("data");
+  });
+
+  it("links the pull request to the thread it replied in", async () => {
+    const { deps, aws, root, executionFile, writeExecution } = await setup([message("1", "hi")]);
+    await prepare(deps());
+    await writeExecution({ structured_output: { reply: "Done." } });
+
+    await finish({
+      workspace: root,
+      executionFile,
+      pullRequestUrl: "https://example.test/pr/5",
+      pullRequestLink: pullRequestLink(5),
+      poster: aws.poster,
+      storeFor: aws.storeFor,
+    });
+
+    expect(aws.requests.find((r) => r.operation === "link-pull-request")).toEqual({
+      operation: "link-pull-request",
+      token: "oidc-jwt",
+      bot: "sprout",
+      threadId: THREAD,
+      pullRequest: 5,
+    });
+  });
+
+  it("links a scheduled prompt's pull request to the thread it started", async () => {
+    const { deps, aws, root, executionFile, writeExecution } = await setup(
+      [],
+      configText("prompts: {weekly: {destination: household}}"),
+    );
+    await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
+    await writeExecution({ structured_output: { reply: "Tasks" } });
+
+    await finish({
+      workspace: root,
+      executionFile,
+      pullRequestLink: pullRequestLink(8),
+      poster: aws.poster,
+      storeFor: aws.storeFor,
+    });
+
+    expect(aws.requests.map((r) => r.operation)).toEqual(["start-thread", "link-pull-request"]);
+    expect(aws.requests.at(-1)).toMatchObject({
+      bot: "sprout",
+      threadId: "telegram:-100:99",
+      pullRequest: 8,
+    });
+  });
+
+  it("makes no link call without a pull request", async () => {
+    const { deps, aws, root, executionFile, writeExecution } = await setup([message("1", "hi")]);
+    await prepare(deps());
+    await writeExecution({ structured_output: { reply: "Done." } });
+
+    await finish({ workspace: root, executionFile, poster: aws.poster, storeFor: aws.storeFor });
+
+    expect(aws.requests.map((r) => r.operation)).not.toContain("link-pull-request");
+  });
+
+  it.each([
+    ["the poster rejects the link", { fetchToken: async () => "jwt" }, "secret plans"],
+    [
+      "the OIDC token is unavailable",
+      {
+        fetchToken: async () => {
+          throw new TypeError("secret plans");
+        },
+      },
+      undefined,
+    ],
+  ])("still succeeds, warning with only the error type, when %s", async (_name, link, failure) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { deps, aws, root, executionFile, writeExecution } = await setup([message("1", "hi")]);
+    const failing = createFakeAws((request) => {
+      if (request.operation === "link-pull-request" && failure) throw new Error(failure);
+      return {};
+    });
+    await prepare(deps());
+    await writeExecution({ structured_output: { reply: "Done." } });
+
+    await finish({
+      workspace: root,
+      executionFile,
+      pullRequestLink: { ...pullRequestLink(), ...link },
+      poster: failing.poster,
+      storeFor: aws.storeFor,
+    });
+
+    expect(failing.requests.map((r) => r.operation)).toEqual(
+      failure ? ["post", "link-pull-request", "unreact"] : ["post", "unreact"],
+    );
+    expect(aws.objects.get(`${THREAD_PREFIX}last-processed`)).toBe("1");
+    expect(warn).toHaveBeenCalledOnce();
+    const logged = JSON.stringify(warn.mock.calls);
+    expect(logged).toContain("could not link the pull request");
+    expect(logged).not.toContain("secret");
+    warn.mockRestore();
   });
 
   it("posts only the pull request link when the agent ignores the messages but changed files", async () => {

@@ -33,10 +33,17 @@ export function extractResult(executionFileText: string) {
   };
 }
 
+export interface PullRequestLink {
+  number: number;
+  fetchToken: () => Promise<string>;
+  mask: (value: string) => void;
+}
+
 export interface FinishDeps {
   workspace: string;
   executionFile: string;
   pullRequestUrl?: string | undefined;
+  pullRequestLink?: PullRequestLink | undefined;
   poster: PosterClient;
   storeFor: (bot: string, threadId: string) => ThreadStore;
 }
@@ -78,10 +85,36 @@ async function deliverReply(
   return state.threadId;
 }
 
+/** Best-effort: a failure is reported as a warning naming only the error type. */
+async function linkPullRequest(
+  poster: PosterClient,
+  link: PullRequestLink | undefined,
+  bot: string,
+  threadId: string,
+) {
+  if (!link) return;
+  try {
+    const token = await link.fetchToken();
+    link.mask(token);
+    await poster.call({
+      operation: "link-pull-request",
+      token,
+      bot,
+      threadId,
+      pullRequest: link.number,
+    });
+  } catch (error) {
+    console.warn(
+      `::warning::could not link the pull request to its thread (${(error as Error).constructor.name})`,
+    );
+  }
+}
+
 export async function finish(deps: FinishDeps) {
   const state = await readState(deps.workspace);
   const result = extractResult(await readFile(deps.executionFile, "utf8"));
   const threadId = await deliverReply(deps, state, result);
+  await linkPullRequest(deps.poster, deps.pullRequestLink, state.bot, threadId);
 
   const store = deps.storeFor(state.bot, threadId);
   if (state.marker) await store.writeMarker(state.marker);
