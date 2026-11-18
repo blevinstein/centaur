@@ -173,7 +173,6 @@ export function buildClaudeArgs(input: {
   const tools = [...config.allowed_tools, ...readRule].join(",");
   return [
     ...(config.model ? [`--model ${config.model}`] : []),
-    ...(config.fallback_model ? [`--fallback-model ${config.fallback_model}`] : []),
     ...(config.effort ? [`--effort ${config.effort}`] : []),
     `--allowedTools "${tools}"`,
     `--max-turns ${config.max_turns}`,

@@ -107,7 +107,7 @@ describe("register", () => {
       const { poster, params } = await posterSetup({ parameters: ORPHAN_PARAMETERS });
 
       await expect(register(poster, "bot: sprout\nplatform: irc")).rejects.toThrow(
-        /platform:.*\nallow:.*\nallowed_tools:/,
+        /platform:.*\nallow:.*\nmodel:.*\nallowed_tools:/,
       );
       expect(params.values["/centaur/bots/sprout/repo"]).toBeUndefined();
     });

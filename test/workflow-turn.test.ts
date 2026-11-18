@@ -87,17 +87,14 @@ describe("prepare", () => {
     expect((await prompt(root)).includes("stay silent")).toBe(canIgnore);
   });
 
-  it("passes tuning options through as claude flags, with the documented defaults when unset", async () => {
+  it("passes tuning options through as claude flags, with the documented defaults when unset, and always passes a model", async () => {
     const tuned = await setup(
       [message("1", "hi")],
-      configText(
-        "model: sonnet\nfallback_model: haiku\neffort: low\nmax_turns: 7\nmax_budget_usd: 0.25",
-      ),
+      configText("effort: low\nmax_turns: 7\nmax_budget_usd: 0.25"),
     );
     const out = await prepare(tuned.deps());
     for (const flag of [
       "--model sonnet",
-      "--fallback-model haiku",
       "--effort low",
       "--max-turns 7",
       "--max-budget-usd 0.25",
@@ -108,7 +105,8 @@ describe("prepare", () => {
     const plain = await setup([message("1", "hi")]);
     const defaults = (await prepare(plain.deps())).claude_args;
     expect(defaults).toContain("--max-turns 30");
-    for (const flag of ["--model", "--fallback-model", "--effort", "--max-budget-usd"]) {
+    expect(defaults).toContain("--model sonnet");
+    for (const flag of ["--effort", "--max-budget-usd"]) {
       expect(defaults).not.toContain(flag);
     }
   });
@@ -125,11 +123,8 @@ describe("prepare", () => {
     expect(await prompt(root)).not.toContain("stay silent");
   });
 
-  it("adds a scoped Read rule when the allowlist lacks Read, and honors the model", async () => {
-    const { deps } = await setup(
-      [message("1", "hi")],
-      configText("model: sonnet").replace("Read,Edit", "Edit"),
-    );
+  it("adds a scoped Read rule when the allowlist lacks Read, and passes the model", async () => {
+    const { deps } = await setup([message("1", "hi")], configText().replace("Read,Edit", "Edit"));
     const out = await prepare(deps());
     expect(out.claude_args).toContain("--model sonnet");
     expect(out.claude_args).toContain('"Edit,Read(./.centaur-turn/**)"');

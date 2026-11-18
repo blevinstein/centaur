@@ -113,6 +113,10 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
       and the `bin` and `deploy-prod` scripts. Verify lint, typecheck, tests, the Lambda bundle and
       `actionlint` still pass.
 
+- [ ] Stop exposing thread IDs (Telegram chat and topic IDs) in the per-thread concurrency group
+      name and the `centaur/<bot>-<thread>` PR branch name; use a short hash. Needed before any
+      public consumer repo such as `garden`.
+
 ## Later
 
 - [ ] Poster MCP tool for mid-turn questions and progress messages.

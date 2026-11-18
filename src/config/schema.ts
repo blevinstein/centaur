@@ -47,8 +47,7 @@ export const centaurConfigSchema = z
       .string()
       .regex(/^[A-Za-z0-9_]{3,64}$/, "must be the bot's username without the @")
       .optional(),
-    model: z.string().min(1).optional(),
-    fallback_model: z.string().min(1).optional(),
+    model: z.string().min(1),
     effort: z.enum(EFFORT_LEVELS).optional(),
     max_turns: z.number().int().min(1).max(200).default(30),
     max_budget_usd: z.number().positive().max(1000).optional(),

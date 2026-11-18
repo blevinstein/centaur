@@ -27,6 +27,7 @@ bot: sprout
 platform: telegram
 destination: household
 allow: [maintainer]
+model: sonnet
 allowed_tools: Read,Edit
 ${extra}`;
 

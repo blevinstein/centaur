@@ -16,7 +16,6 @@ context:
   default: transcript
   scheduled: fresh
 model: sonnet
-fallback_model: haiku
 effort: medium
 max_turns: 30
 max_budget_usd: 1.0
@@ -39,8 +38,7 @@ prompts:
 | `context.default` | no | `transcript` | Policy for conversational threads: `fresh`, `transcript` or `resume`. |
 | `context.scheduled` | no | `fresh` | Policy for threads started by a scheduled prompt. |
 | `handle` | no | | The bot's platform username without `@`. With `respond_to: all` the prompt tells the agent people mention it as `@<handle>`. The workflow cannot learn it cheaply from the bot's identity, so it is configured. |
-| `model` | no | | Model passed to the agent (`--model`); unset uses the workflow's default. |
-| `fallback_model` | no | | Model tried when `model` is busy or unavailable (`--fallback-model`). |
+| `model` | yes | | Model passed to the agent (`--model`). Always set explicitly; the CLI default is never relied on. |
 | `effort` | no | | Reasoning effort: `low`, `medium`, `high`, `xhigh` or `max` (`--effort`); unset uses the CLI's default. |
 | `max_turns` | no | `30` | Agentic turn cap per run (`--max-turns`), an integer from 1 to 200. |
 | `max_budget_usd` | no | | Spend cap per run (`--max-budget-usd`), above 0 and at most 1000. A run that hits it may end without a structured reply, so the turn fails and is retried with the next message. |
@@ -76,7 +74,7 @@ Each turn is one `claude` run, so cost scales with model price, reasoning, and n
 | `context.default` | `fresh` sends only pending messages; `transcript` re-sends the thread each turn; `resume` reuses a saved session. |
 | `respond_to` | `all` runs a turn for every message from an allowed sender, even ones the agent then ignores. |
 
-`fallback_model` improves availability, not cost. Two ideas are not built: a separate cheaper model
+Two ideas are not built: a separate cheaper model
 that only decides whether to reply (triage) would need a second agent run per message, which the
 single `claude` invocation per turn cannot do; and a thinking-token budget has no CLI flag
 (`--effort` is the supported control). Both are follow-ups.
