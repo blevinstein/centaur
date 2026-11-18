@@ -209,6 +209,22 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
 - [ ] If the 3-second limit is missed, acknowledge first and finish the reaction and dispatch in
       the background.
 
+## 13. Respond to PR comments
+
+Responding to review comments on the PRs the agent opens completes the PR-sending pattern: the
+agent proposes a change, a human reviews it, and the agent revises it.
+
+- [ ] Design how a PR comment becomes a turn: which GitHub events trigger it (`issue_comment`,
+      `pull_request_review`, `pull_request_review_comment`), how a PR maps to the chat thread
+      that opened it (the `centaur/<bot>-<thread>` branch), which context policy applies, and how
+      the agent's reply and any follow-up commits reach the PR. Record it in `docs/`.
+- [ ] Decide who may trigger a turn from a comment (the repo's collaborators, the bot's admin
+      approvals, or both) and how bot-authored comments are ignored so turns can't loop.
+- [ ] Expand the centaur example (caller workflow, config and docs) to include responding to PR
+      comments.
+- [ ] Add the same to the reference implementation in `blevinstein/garden`, and check that a review
+      comment on a `weekly-tasks` PR gets an in-thread reply and a pushed fix.
+
 ## Backlog
 
 Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer saying so.
