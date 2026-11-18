@@ -6,6 +6,7 @@ usage() {
   exit 64
 }
 
+business_tag="${BUSINESS_TAG:-Centaur}"
 stack="" params_file=""
 overrides=()
 while [ $# -gt 0 ]; do
@@ -36,6 +37,7 @@ deploy() {
     --template-file infra/centaur.yml \
     --capabilities CAPABILITY_IAM \
     --no-fail-on-empty-changeset \
+    --tags "Business=$business_tag" \
     --parameter-overrides \
     ${file_overrides[@]+"${file_overrides[@]}"} ${overrides[@]+"${overrides[@]}"} "$@"
 }

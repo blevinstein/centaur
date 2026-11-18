@@ -54,6 +54,14 @@ The script:
 
 Later runs skip step 2. The code, session and state resources are retained if the stack is deleted.
 
+## Cost allocation tag
+
+The script passes `--tags Business=$BUSINESS_TAG` (default `Centaur`), and CloudFormation applies
+these stack-level tags to every resource that supports tags (the DynamoDB table, both S3 buckets,
+the Lambda function, its log group and the IAM roles). Set `BUSINESS_TAG=...` to use another value.
+Tags appear in Cost Explorer only after `Business` is activated as a cost allocation tag in the
+Billing console (Cost allocation tags, user-defined), and not retroactively.
+
 ## Function URL and `FUNCTION_URL`
 
 A function's environment can't reference its own function URL (the URL resource depends on the

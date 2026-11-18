@@ -170,16 +170,12 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
 - [x] Stop exposing thread IDs (Telegram chat and topic IDs) in the per-thread concurrency group
       name and the `centaur/<bot>-<thread>` PR branch name; use a short hash. Needed before any
       public consumer repo such as `garden`.
-- [ ] **[HUMAN APPROVAL]** Tag every taggable resource in `infra/centaur.yml` that can incur cost
-      with `Business: <value>` so Cost Explorer can break out centaur's spend (same key as
-      `~/dev/voicetopics/template.yaml`, which uses `Business: VT`; pick the value, e.g. `Centaur`,
-      ideally as a template parameter defaulting to it). Candidates: the state `AWS::DynamoDB::Table`,
-      the session and code `AWS::S3::Bucket`s, the receiver `AWS::Lambda::Function`, its
-      `AWS::Logs::LogGroup`, and the IAM and SSM resources only if they take tags. Run
-      `yarn lint:cfn`, and the change deploys to CloudFormation, so the maintainer approves the
-      deploy. Follow-up **[HUMAN ACTION]**: activate `Business` as a cost allocation tag in the
-      Billing console, since tags only show in Cost Explorer after activation (and not
-      retroactively).
+- [x] Tag billable resources with `Business=Centaur` through stack-level tags in
+      `scripts/deploy.sh` (`BUSINESS_TAG` overrides the value); see
+      [docs/deploy.md](docs/deploy.md#cost-allocation-tag).
+- [ ] **[HUMAN ACTION]** Activate `Business` as a cost allocation tag in the Billing console (Cost
+      allocation tags, user-defined). Tags only show in Cost Explorer after activation, and not
+      retroactively, so do it soon.
 - [x] Admin claim flow so the owner never looks up their own ID (`centaur admin claim <bot>`; see
       [docs/plan.md](docs/plan.md#access-requests)).
 - [x] Rewrite `README.md` for public consumption; it is badly out of date (still says design
