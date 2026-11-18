@@ -9,9 +9,11 @@ export {
   type CentaurConfig,
   type ContextPolicy,
   centaurConfigSchema,
+  type McpServer,
   PLATFORMS,
   type Platform,
   type RespondTo,
+  type SecretRef,
 } from "./schema.js";
 
 export interface ConfigIssue {

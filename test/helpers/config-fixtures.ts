@@ -34,6 +34,26 @@ const BASE = "bot: a\nplatform: slack\nprovider: anthropic\nmodel: sonnet\nallow
 
 export const withExtra = (line: string) => `${BASE}\n${line}`;
 
+const MCP_BASE = "bot: a\nplatform: slack\nprovider: anthropic\nmodel: sonnet";
+
+export const withMcp = (servers: string, tools: string) =>
+  `${MCP_BASE}\nmcp_servers:\n${servers}\nallowed_tools: [${tools}]`;
+
+export const remoteServerYaml = `  linear:
+    url: https://mcp.linear.app/mcp
+    headers:
+      Authorization: { secret: LINEAR_API_KEY, prefix: "Bearer " }
+      X-Org: acme
+`;
+
+export const localServerYaml = `  docs-search:
+    command: npx
+    args: ["-y", "@example/docs-mcp@1.4.2"]
+    env:
+      INDEX_URL: https://docs.example.com/index
+      API_KEY: { secret: DOCS_API_KEY }
+`;
+
 export const invalidConfigs: [name: string, text: string, path: string, message: RegExp][] = [
   ["unknown effort", withExtra("effort: extreme"), "effort", /./],
   ["zero max_turns", withExtra("max_turns: 0"), "max_turns", /./],
@@ -137,5 +157,66 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
     withExtra("prompts: {weekly: {context: nope, destination: h}}"),
     "prompts.weekly.context",
     /./,
+  ],
+  ...[
+    [
+      "a server with both url and command",
+      "  s:\n    url: https://x.example/mcp\n    command: npx",
+      "mcp_servers.s",
+      /./,
+    ],
+    ["a server with neither url nor command", "  s: {}", "mcp_servers.s", /./],
+    ["an http url", "  s: {url: http://x.example/mcp}", "mcp_servers.s.url", /https URL/],
+    ["a server with an unknown key", "  s: {command: npx, cwd: /}", "mcp_servers.s", /./],
+    [
+      "a secret with an invalid name",
+      "  s: {command: npx, env: {K: {secret: lower}}}",
+      "mcp_servers.s.env.K.secret",
+      /environment variable name/,
+    ],
+    [
+      "a secret with an extra key",
+      "  s: {command: npx, env: {K: {secret: K, extra: 1}}}",
+      "mcp_servers.s.env.K",
+      /unrecognized key/i,
+    ],
+    [
+      "a server name with __",
+      "  a__b: {command: npx}",
+      "mcp_servers.a__b",
+      /must not contain '__'/,
+    ],
+    [
+      "a github-prefixed server name",
+      "  github-extra: {command: npx}",
+      "mcp_servers.github-extra",
+      /reserved/,
+    ],
+    [
+      "an uppercase server name",
+      "  Linear: {command: npx}",
+      "mcp_servers.Linear",
+      /lowercase alias/,
+    ],
+  ].map(
+    ([name, servers, path, message]) =>
+      [
+        name,
+        withMcp(servers as string, "Read, mcp__s__*, mcp__a__b__*, mcp__github-extra, mcp__Linear"),
+        path,
+        message,
+      ] as [string, string, string, RegExp],
+  ),
+  [
+    "an allowed MCP tool naming an undefined server",
+    withMcp("  s: {command: npx}", "Read, mcp__s__*, mcp__ghost__search"),
+    "allowed_tools[2]",
+    /not defined in mcp_servers/,
+  ],
+  [
+    "an MCP server without an allowed_tools entry",
+    withMcp("  s: {command: npx}", "Read"),
+    "mcp_servers.s",
+    /no allowed_tools entry/,
   ],
 ];

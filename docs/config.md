@@ -3,7 +3,7 @@
 Per-consumer-repo configuration. The schema lives in `src/config/schema.ts` (zod); the receiver,
 `register` operation and shared workflows all go through `parseCentaurConfig(text)` from
 `src/config/`. See [plan.md](plan.md#configuration) for how the file fits into the system and
-[onboarding.md](onboarding.md#adding-a-repo) for setup. Proposed MCP server config: [mcp.md](mcp.md).
+[onboarding.md](onboarding.md#adding-a-repo) for setup. MCP server design: [mcp.md](mcp.md).
 
 ```yaml
 bot: garden
@@ -18,7 +18,12 @@ model: sonnet
 effort: medium
 max_turns: 30
 max_budget_usd: 1.0
-allowed_tools: "Read,Edit,Write,Glob,Grep,WebFetch,WebSearch"
+allowed_tools: "Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,mcp__linear__*"
+mcp_servers:
+  linear:
+    url: https://mcp.linear.app/mcp
+    headers:
+      Authorization: { secret: LINEAR_API_KEY, prefix: "Bearer " }
 persona: .centaur/persona.md
 prompts:
   weekly-tasks:                 # file defaults to .centaur/prompts/weekly-tasks.md
@@ -42,6 +47,7 @@ prompts:
 | `max_turns` | no | `30` | Agentic turn cap per run (`--max-turns`), an integer from 1 to 200. |
 | `max_budget_usd` | no | | Spend cap per run (`--max-budget-usd`), above 0 and at most 1000. A run that hits it may end without a structured reply, so the turn fails and is retried with the next message. |
 | `allowed_tools` | yes | | Tool allowlist: a comma-separated string or a YAML list. |
+| `mcp_servers` | no | `{}` | Additional MCP servers by name (see below). |
 | `persona` | no | `.centaur/persona.md` | Repo-relative path to the persona file. |
 | `prompts` | no | `{}` | Scheduled prompts by name (see below). |
 
@@ -49,6 +55,22 @@ Each prompt takes `file` (default `.centaur/prompts/<name>.md`), `context` (defa
 `context.scheduled`) and `destination`: the chat alias where its scheduled run starts a thread. `destination` is required for
 every prompt. The file only checks its shape; the alias is resolved when the run starts (see
 [Access](#access)).
+
+## MCP servers
+
+Each `mcp_servers` entry is exactly one of two shapes; names are aliases that contain no `__` and do
+not start with `github` (the action's built-in servers). Values in `headers` and `env` are a plain
+string or `{ secret: NAME, prefix?: string }`, where `NAME` matches `[A-Z][A-Z0-9_]*`.
+
+| Shape | Fields |
+|---|---|
+| Remote (streamable HTTP) | `url` (https), optional `headers` |
+| Local (stdio) | `command`, optional `args` (strings), optional `env` |
+
+The parser also checks `allowed_tools` against the servers: every `mcp__<name>` or `mcp__<name>__...`
+entry must name a defined server (`mcp__github*` entries for the action's built-ins are ignored), and every
+server needs at least one such entry. The file is only validated so far; see [mcp.md](mcp.md) for
+the secrets, trust model and remaining steps.
 
 ## Access
 
@@ -94,6 +116,7 @@ Each turn is one `claude` run, so cost scales with model price, reasoning, and n
 | `max_budget_usd` | Hard cap on spend per run. |
 | `allowed_tools` | Fewer tools mean a smaller prompt and fewer ways to wander. |
 | `context.default` | `fresh` sends only pending messages; `transcript` re-sends the thread each turn; `resume` reuses a saved session. |
+| `mcp_servers` | Each server adds its tool list to every turn's prompt; allow only the tools needed (`mcp__<name>__<tool>`). |
 | `respond_to` | `all` runs a turn for every message from an approved sender, even ones the agent then ignores. |
 
 Two ideas are not built: a separate cheaper model

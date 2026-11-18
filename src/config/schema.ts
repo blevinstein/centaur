@@ -28,6 +28,41 @@ const toolList = z
   )
   .pipe(z.array(z.string()).min(1, "must list at least one tool"));
 
+const GITHUB_RESERVED_PREFIX = "github";
+
+const serverName = alias
+  .refine((name) => !name.includes("__"), {
+    message: "must not contain '__' (the separator in mcp__<server>__<tool>)",
+  })
+  .refine((name) => !name.startsWith(GITHUB_RESERVED_PREFIX), {
+    message: `must not start with '${GITHUB_RESERVED_PREFIX}' (reserved for the action's built-in servers)`,
+  });
+
+const secretRef = z.strictObject({
+  secret: z.string().regex(/^[A-Z][A-Z0-9_]*$/, "must be an environment variable name"),
+  prefix: z.string().optional(),
+});
+
+const serverValues = z.record(z.string().min(1), z.union([z.string(), secretRef]));
+
+const remoteServer = z.strictObject({
+  url: z.url().refine((url) => URL.canParse(url) && new URL(url).protocol === "https:", {
+    message: "must be an https URL",
+  }),
+  headers: serverValues.optional(),
+});
+
+const localServer = z.strictObject({
+  command: z.string().min(1),
+  args: z.array(z.string()).optional(),
+  env: serverValues.optional(),
+});
+
+const MCP_TOOL_PREFIX = "mcp__";
+
+const mcpToolMatchesServer = (tool: string, server: string) =>
+  tool === `${MCP_TOOL_PREFIX}${server}` || tool.startsWith(`${MCP_TOOL_PREFIX}${server}__`);
+
 const promptSchema = z.strictObject({
   file: repoPath.optional(),
   context: contextPolicy.optional(),
@@ -64,8 +99,44 @@ export const centaurConfigSchema = z
     max_turns: z.number().int().min(1).max(200).default(30),
     max_budget_usd: z.number().positive().max(1000).optional(),
     allowed_tools: toolList,
+    mcp_servers: z
+      .record(z.string(), z.union([remoteServer, localServer]))
+      .superRefine((servers, ctx) => {
+        for (const name of Object.keys(servers)) {
+          for (const issue of serverName.safeParse(name).error?.issues ?? []) {
+            ctx.addIssue({ code: "custom", path: [name], message: issue.message });
+          }
+        }
+      })
+      .default({}),
     persona: repoPath.default(".centaur/persona.md"),
     prompts: z.record(alias, promptSchema).default({}),
+  })
+  .superRefine((config, ctx) => {
+    const servers = Object.keys(config.mcp_servers);
+    config.allowed_tools.forEach((tool, index) => {
+      const builtIn = tool.startsWith(`${MCP_TOOL_PREFIX}${GITHUB_RESERVED_PREFIX}`);
+      if (
+        tool.startsWith(MCP_TOOL_PREFIX) &&
+        !builtIn &&
+        !servers.some((name) => mcpToolMatchesServer(tool, name))
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["allowed_tools", index],
+          message: `names an MCP server that is not defined in mcp_servers: ${tool}`,
+        });
+      }
+    });
+    for (const name of servers) {
+      if (!config.allowed_tools.some((tool) => mcpToolMatchesServer(tool, name))) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["mcp_servers", name],
+          message: `has no allowed_tools entry (add mcp__${name}__* or mcp__${name}__<tool>)`,
+        });
+      }
+    }
   })
   .transform((config) => ({
     ...config,
@@ -85,3 +156,5 @@ export type CentaurConfig = z.output<typeof centaurConfigSchema>;
 export type Platform = (typeof PLATFORMS)[number];
 export type RespondTo = (typeof RESPOND_TO)[number];
 export type ContextPolicy = (typeof CONTEXT_POLICIES)[number];
+export type McpServer = CentaurConfig["mcp_servers"][string];
+export type SecretRef = z.output<typeof secretRef>;

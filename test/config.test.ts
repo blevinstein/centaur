@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { formatIssues, parseCentaurConfig } from "../src/config/index.js";
-import { fullConfig, invalidConfigs, minimalConfig, withExtra } from "./helpers/config-fixtures.js";
+import {
+  fullConfig,
+  invalidConfigs,
+  localServerYaml,
+  minimalConfig,
+  remoteServerYaml,
+  withExtra,
+  withMcp,
+} from "./helpers/config-fixtures.js";
 
 describe("parseCentaurConfig", () => {
   it("applies defaults to a minimal config", () => {
@@ -16,6 +24,7 @@ describe("parseCentaurConfig", () => {
         model: "sonnet",
         allowed_tools: ["Read", "Edit"],
         persona: ".centaur/persona.md",
+        mcp_servers: {},
         prompts: {},
       },
     });
@@ -37,6 +46,7 @@ describe("parseCentaurConfig", () => {
         model: "sonnet",
         allowed_tools: ["Read", "Edit", "Write", "Glob", "Grep"],
         persona: ".centaur/persona.md",
+        mcp_servers: {},
         prompts: {
           "weekly-tasks": {
             file: ".centaur/prompts/weekly-tasks.md",
@@ -65,6 +75,46 @@ describe("parseCentaurConfig", () => {
   it("accepts allowed_tools as a list", () => {
     const result = parseCentaurConfig(minimalConfig.replace("Read,Edit", "[Read, Edit]"));
     expect(result).toMatchObject({ ok: true, config: { allowed_tools: ["Read", "Edit"] } });
+  });
+
+  it("parses remote and local MCP servers with secret references", () => {
+    expect(
+      parseCentaurConfig(
+        withMcp(
+          remoteServerYaml + localServerYaml,
+          "Read, mcp__linear__*, mcp__docs-search__search",
+        ),
+      ),
+    ).toMatchObject({
+      ok: true,
+      config: {
+        mcp_servers: {
+          linear: {
+            url: "https://mcp.linear.app/mcp",
+            headers: {
+              Authorization: { secret: "LINEAR_API_KEY", prefix: "Bearer " },
+              "X-Org": "acme",
+            },
+          },
+          "docs-search": {
+            command: "npx",
+            args: ["-y", "@example/docs-mcp@1.4.2"],
+            env: {
+              INDEX_URL: "https://docs.example.com/index",
+              API_KEY: { secret: "DOCS_API_KEY" },
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it("accepts the bare mcp__<server> form and leaves built-in github tools alone", () => {
+    expect(
+      parseCentaurConfig(
+        withMcp(localServerYaml, "mcp__docs-search, mcp__github_comment__update_claude_comment"),
+      ).ok,
+    ).toBe(true);
   });
 
   it.each(invalidConfigs)("rejects %s", (_name, text, path, message) => {
