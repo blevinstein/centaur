@@ -102,7 +102,7 @@ Unlabeled items are free for an agent to complete.
 Deploying, the test bot, the scratch consumer repo and the first round trips are done.
 
 - [x] **[HUMAN ACTION]** Deploy the stack (`parameters-prod.json`, OIDC provider check,
-      `npm run deploy-prod`; see [docs/deploy.md](docs/deploy.md)).
+      `yarn deploy-prod`; see [docs/deploy.md](docs/deploy.md)).
 - [x] **[HUMAN ACTION]** Create the test bot in BotFather, `centaur bot add`, store the GitHub PAT
       with `centaur github-token set`, create the Topics supergroup and add the bot as admin with
       Manage Topics.
@@ -155,7 +155,7 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
 - [ ] Decide whether `destination` aliases are checked against SSM at register time.
 - [x] Add `centaur config check` command wrapping `parseCentaurConfig`, and document it
 - [ ] Bound the transcript size rendered into the prompt (per-message cap, total budget). Consider using polytokenizer utils for this (github.com:blevinstein/polytokenizer)
-- [ ] Switch the package manager from npm to yarn or pnpm (pick one; the maintainer's other
+- [x] Switch the package manager from npm to yarn or pnpm (pick one; the maintainer's other
       projects use yarn). Replace `package-lock.json` and update everything that calls npm:
       `AGENTS.md`, `scripts/deploy.sh`, `.github/workflows/*.yml` and the setup-runtime composite
       action (`npm ci && npm run build`), `.nvmrc`/Corepack pinning, the docs that say `npm run`,
@@ -163,13 +163,23 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
       `actionlint` still pass.
 - [ ] **[HUMAN APPROVAL]** Roll out `thread_key` in this order, since a workflow that uses it
       against a receiver that doesn't send it yet puts all of a bot's threads in one concurrency
-      group and drops pending turns: (1) deploy the receiver (`npm run deploy-prod`), (2) update
+      group and drops pending turns: (1) deploy the receiver (`yarn deploy-prod`), (2) update
       `garden`'s `.github/workflows/centaur-message.yml` to use `thread_key` in its concurrency
       group, (3) merge or close open `centaur/<bot>-<raw thread id>` PRs, and (4) confirm on a real
       run that the raw `thread_id` doesn't show in the Actions UI or logs.
 - [x] Stop exposing thread IDs (Telegram chat and topic IDs) in the per-thread concurrency group
       name and the `centaur/<bot>-<thread>` PR branch name; use a short hash. Needed before any
       public consumer repo such as `garden`.
+- [ ] **[HUMAN APPROVAL]** Tag every taggable resource in `infra/centaur.yml` that can incur cost
+      with `Business: <value>` so Cost Explorer can break out centaur's spend (same key as
+      `~/dev/voicetopics/template.yaml`, which uses `Business: VT`; pick the value, e.g. `Centaur`,
+      ideally as a template parameter defaulting to it). Candidates: the state `AWS::DynamoDB::Table`,
+      the session and code `AWS::S3::Bucket`s, the receiver `AWS::Lambda::Function`, its
+      `AWS::Logs::LogGroup`, and the IAM and SSM resources only if they take tags. Run
+      `yarn lint:cfn`, and the change deploys to CloudFormation, so the maintainer approves the
+      deploy. Follow-up **[HUMAN ACTION]**: activate `Business` as a cost allocation tag in the
+      Billing console, since tags only show in Cost Explorer after activation (and not
+      retroactively).
 - [x] Admin claim flow so the owner never looks up their own ID (`centaur admin claim <bot>`; see
       [docs/plan.md](docs/plan.md#access-requests)).
 - [x] Rewrite `README.md` for public consumption; it is badly out of date (still says design
