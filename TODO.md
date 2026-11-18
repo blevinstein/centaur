@@ -106,6 +106,13 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
 - [ ] Optional `centaur config check` command wrapping `parseCentaurConfig`.
 - [ ] Bound the transcript size rendered into the prompt (per-message cap, total budget).
 
+- [ ] Switch the package manager from npm to yarn or pnpm (pick one; the maintainer's other
+      projects use yarn). Replace `package-lock.json` and update everything that calls npm:
+      `AGENTS.md`, `scripts/deploy.sh`, `.github/workflows/*.yml` and the setup-runtime composite
+      action (`npm ci && npm run build`), `.nvmrc`/Corepack pinning, the docs that say `npm run`,
+      and the `bin` and `deploy-prod` scripts. Verify lint, typecheck, tests, the Lambda bundle and
+      `actionlint` still pass.
+
 ## Later
 
 - [ ] Poster MCP tool for mid-turn questions and progress messages.

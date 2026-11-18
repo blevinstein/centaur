@@ -11,7 +11,7 @@ unblocks, and remove it from `TODO.md`.
 
 Unblocks: everything below.
 
-- [ ] Copy `parameters.example.json` to `parameters-prod.json` and fill in the values (see
+- [x] Copy `parameters.example.json` to `parameters-prod.json` and fill in the values (see
       [docs/deploy.md](docs/deploy.md) for where to find each). The file is gitignored.
 - [ ] Check whether the account already has a GitHub OIDC provider (an account can have only one).
       If so, set `ExistingOidcProviderArn` in `parameters-prod.json` to its ARN.
