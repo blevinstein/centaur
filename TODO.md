@@ -117,6 +117,14 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
       name and the `centaur/<bot>-<thread>` PR branch name; use a short hash. Needed before any
       public consumer repo such as `garden`.
 
+- [ ] Admin claim flow so the owner never looks up their own ID: `centaur admin claim <bot>`
+      stores a short-lived claim code (hash, TTL) in SSM and prints a Telegram deep link
+      (`t.me/<bot_username>?start=<code>`; Slack: a code to DM the bot). Whoever sends the code
+      to the bot first becomes the admin (`/centaur/admin/<platform>`), which also opens the DM so
+      the bot can reach them. The admin is implicitly allowed in every bot. Then drop the
+      `getUpdates` ID-hunting steps from `docs/onboarding.md` and `HUMAN_TODO.md`; chats and users
+      are discovered through access requests.
+
 ## Later
 
 - [ ] Poster MCP tool for mid-turn questions and progress messages.
