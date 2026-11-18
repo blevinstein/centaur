@@ -1,0 +1,20 @@
+name: Centaur register
+
+on:
+  push:
+    branches: [main]
+    paths: [.centaur.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  register:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-runtime
+      - uses: ./.github/actions/register

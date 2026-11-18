@@ -186,9 +186,6 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
       `register` trust any role the GitHub OIDC role allows, so any repo under the owner could act
       as any bot. Decide when to require a per-repo token (before onboarding any repo that isn't
       yours) and add a reserved-concurrency cap on the function.
-- [ ] **[HUMAN APPROVAL]** `job.workflow_*` contexts. `actionlint` doesn't know
-      `job.workflow_repository` or `job.workflow_sha`, which the shared workflows use. Decide
-      whether to require the `centaur_repository` and `centaur_ref` inputs instead.
 - [ ] **[HUMAN APPROVAL]** Thread policy storage. A scheduled prompt's context policy isn't
       remembered for the thread. Decide whether the poster should store it.
 

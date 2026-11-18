@@ -1,69 +1,114 @@
-# Shared workflows
+# Shared workflow actions
 
-Consumer repos call two reusable workflows in this repo's `.github/workflows/`. See
-[plan.md](plan.md#shared-workflow-centaurgithubworkflowsagent-turnyml-workflow_call) for the design,
-[poster.md](poster.md) for the operations they invoke, and [config.md](config.md) for
-`.centaur.yml`.
+Consumer repos compose composite actions from this repo's `.github/actions/` into their own
+workflows, one workflow per concern (register, chat messages, each scheduled prompt). See
+[plan.md](plan.md#shared-actions-centaurgithubactions) for the design, [poster.md](poster.md) for the
+operations they invoke, and [config.md](config.md) for `.centaur.yml`.
 
-| Workflow | Purpose |
+| Action | Purpose |
 |---|---|
-| `register.yml` | Validates `.centaur.yml`, requests a GitHub OIDC token for the poster's audience and invokes `register`. |
-| `agent-turn.yml` | One agent turn: answers a dispatched chat message, or (with `prompt_name`) starts a new thread from a scheduled prompt. |
+| `setup-runtime` | Builds the workflow scripts from the action's own checkout and assumes the AWS role through OIDC. Run once per job, after checking out the consumer repo. |
+| `register` | Validates `.centaur.yml`, requests a GitHub OIDC token for the poster's audience and invokes `register`. |
+| `turn` | One agent turn: answers a dispatched chat message, or (with `prompt_name`) starts a new thread from a scheduled prompt. Outputs `skip` and `pull-request-url`. |
+| `notify-failure` | Posts a failure notice in the thread and clears the 👀 reactions. Use with `if: failure()`; does nothing if the turn never started. |
 
-## Caller workflow
+## Consumer workflows
+
+Each file has its own triggers; no `if: github.event_name` branching.
 
 ```yaml
-name: Centaur
+# .github/workflows/centaur-register.yml
+name: Centaur register
 on:
-  repository_dispatch:
-    types: [centaur-message]
-  schedule:
-    - cron: "0 15 * * 6"
   push:
     branches: [main]
     paths: [.centaur.yml]
   workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  register:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: <owner>/centaur/.github/actions/setup-runtime@main
+      - uses: <owner>/centaur/.github/actions/register@main
+```
 
+```yaml
+# .github/workflows/centaur-message.yml
+name: Centaur message
+on:
+  repository_dispatch:
+    types: [centaur-message]
 permissions:
   contents: write
   pull-requests: write
   id-token: write
-
+concurrency:
+  group: centaur-${{ github.event.client_payload.bot }}-${{ github.event.client_payload.thread_id }}
+  cancel-in-progress: false
 jobs:
-  register:
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    uses: <owner>/centaur/.github/workflows/register.yml@main
-  message:
-    if: github.event_name == 'repository_dispatch'
-    uses: <owner>/centaur/.github/workflows/agent-turn.yml@main
-    secrets: inherit
-  scheduled:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    uses: <owner>/centaur/.github/workflows/agent-turn.yml@main
-    with:
-      prompt_name: weekly-tasks
-    secrets: inherit
+  turn:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: <owner>/centaur/.github/actions/setup-runtime@main
+      - uses: <owner>/centaur/.github/actions/turn@main
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+      - if: failure()
+        uses: <owner>/centaur/.github/actions/notify-failure@main
 ```
 
-Pin `@main` to a tag or SHA for stability. Callers must grant the permissions shown (reusable
-workflows cannot exceed the caller's): `id-token: write` for AWS and the registration token,
-`contents: write` and `pull-requests: write` for the agent's pull request. Enable "Allow GitHub
-Actions to create and approve pull requests" in the repo settings. Pull requests opened with the
-default token do not trigger other workflows.
+```yaml
+# .github/workflows/centaur-weekly-tasks.yml
+name: Centaur weekly tasks
+on:
+  schedule:
+    - cron: "0 15 * * 6"
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+jobs:
+  weekly-tasks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: <owner>/centaur/.github/actions/setup-runtime@main
+      - uses: <owner>/centaur/.github/actions/turn@main
+        with:
+          prompt_name: weekly-tasks
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+      - if: failure()
+        uses: <owner>/centaur/.github/actions/notify-failure@main
+```
 
-To run a different prompt per schedule, add one job per prompt, or pass `prompt_name` from an
-expression keyed on `github.event.schedule`.
+Pin `@main` to a tag or SHA for stability. Callers must grant the permissions shown:
+`id-token: write` for AWS and the registration token, `contents: write` and `pull-requests: write`
+for the agent's pull request. Enable "Allow GitHub Actions to create and approve pull requests" in the
+repo settings. Pull requests opened with the default token do not trigger other workflows.
+
+To add another scheduled prompt, add a `prompts:` entry to `.centaur.yml` and a workflow like the
+last one. Because the consumer owns the job, it can add its own steps before or after the actions
+(for example to fetch data the prompt needs).
 
 ## This repo as a test consumer
 
 This repo is its own consumer, for end-to-end testing: `.centaur.yml` binds the `centaur-test` bot
-and `.github/workflows/centaur.yml` calls the shared workflows locally (`uses:
-./.github/workflows/...`) with `centaur_repository` and `centaur_ref` set to the current
-repository and commit. Its agent is read-only (`Read,Glob,Grep`) and it uses `respond_to: all`.
+and the `centaur-*.yml` workflows use the actions locally (`uses: ./.github/actions/...`). Its agent
+is read-only (`Read,Glob,Grep`) and it uses `respond_to: all`.
 
-Run **Actions > Centaur > Run workflow** with `action: register` to bind the bot, or `action:
-hello` to start a thread from `.centaur/prompts/hello.md`. Messages sent to the bot dispatch
-`centaur-message` and are answered by the `message` job.
+Run **Actions > Centaur register** to bind the bot, or **Actions > Centaur hello** to start a thread
+from `.centaur/prompts/hello.md`. Messages sent to the bot dispatch `centaur-message` and are
+answered by **Centaur message**.
 
 ## Variables and secrets
 
@@ -83,14 +128,14 @@ The API base URL comes from the bot's `provider` in `.centaur.yml`, not from a v
 
 ## How the scripts are delivered
 
-Both workflows check the centaur repo out into `.centaur-runtime/` at the commit of the called
-workflow (`job.workflow_repository` / `job.workflow_sha`; override with the `centaur_repository` and
-`centaur_ref` inputs), then `npm ci && npm run build` and run `node
-.centaur-runtime/dist/workflows/cli.js <command>`. This keeps the scripts versioned with the
-workflow that calls them, and all non-trivial logic in `src/workflows/` where it is unit-tested. The
-centaur repo must be readable by the consumer's `GITHUB_TOKEN` (public, or granted access). The
-runtime directory and `.centaur-turn/` are added to `.git/info/exclude` so they never land in a pull
-request.
+Actions run from the checkout GitHub makes of this repo at the ref the consumer pins
+(`github.action_path`). `setup-runtime` runs `npm ci && npm run build` there; the other actions run
+`node <action checkout>/dist/workflows/cli.js <command>`. This keeps the scripts versioned with the
+actions that call them, and all non-trivial logic in `src/workflows/` where it is unit-tested. The
+centaur repo must be readable by the consumer's `GITHUB_TOKEN` (public, or granted access).
+`.centaur-turn/` is added to `.git/info/exclude` so it never lands in a pull request. The actions
+read the variables above through the `vars` context; API keys are inputs of `turn` because
+composite actions cannot read secrets.
 
 Commands: `register`, `prepare`, `pr-details`, `finish`, `notify-failure`.
 

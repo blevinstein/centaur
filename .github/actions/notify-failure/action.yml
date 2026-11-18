@@ -1,0 +1,11 @@
+name: Centaur notify failure
+description: Tell the thread a turn failed and clear its pending reactions. Use with a failure() condition after the turn action; does nothing when the turn never started.
+runs:
+  using: composite
+  steps:
+    - name: Report failure in the thread
+      shell: bash
+      env:
+        CENTAUR_FUNCTION_NAME: ${{ vars.CENTAUR_FUNCTION_NAME }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" notify-failure

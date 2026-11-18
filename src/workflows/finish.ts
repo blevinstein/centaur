@@ -94,7 +94,11 @@ export async function finish(deps: FinishDeps) {
 export async function notifyFailure(
   deps: Pick<FinishDeps, "workspace" | "poster"> & { runUrl: string },
 ) {
-  const state = await readState(deps.workspace);
+  const state = await readState(deps.workspace).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (!state) return;
   try {
     if (state.mode === "reply" && state.threadId) {
       await deps.poster.call({

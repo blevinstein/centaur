@@ -18,8 +18,8 @@ authoritative for fields, flags and operations.
            ▼
 ┌──────────────────────────┐      ┌───────────────────────────┐
 │ consumer repo workflow   │◄────►│ S3: Claude session files  │
-│ (calls centaur reusable  │ OIDC │ (resume policy only)      │
-│  workflow)               │      └───────────────────────────┘
+│ (composes centaur        │ OIDC │ (resume policy only)      │
+│  actions)                │      └───────────────────────────┘
 │  claude-code-action      │
 └──────────┬───────────────┘
            │ lambda:Invoke via GitHub OIDC role
@@ -77,7 +77,7 @@ need direct access to the state store, an `unreact` operation that clears the �
 turn is done, and the `register` operation (see
 [Registration](#registration)).
 
-### Shared workflow (`centaur/.github/workflows/agent-turn.yml`, `workflow_call`)
+### Shared actions (`centaur/.github/actions/`)
 
 One agent turn:
 
@@ -102,10 +102,11 @@ last-processed marker, not just the message that triggered it.
 
 ### Consumer repo workflow (in each repo, a few lines)
 
-The caller has three jobs: `register` (on pushes touching `.centaur.yml` and on manual dispatch),
-`message` (on `repository_dispatch` of type `centaur-message`) and one per scheduled prompt. The
-full file is in [workflows.md](workflows.md#caller-workflow). A manual `workflow_dispatch` registers
-and also runs the scheduled prompt, which doubles as a setup check.
+Each consumer has one workflow per concern: `register` (on pushes touching `.centaur.yml` and on
+manual dispatch), `message` (on `repository_dispatch` of type `centaur-message`) and one per
+scheduled prompt. Each composes the `setup-runtime`, `register`, `turn` and `notify-failure`
+actions. The full files are in [workflows.md](workflows.md#consumer-workflows). A scheduled
+prompt's workflow also has `workflow_dispatch`, which doubles as a setup check.
 
 A scheduled run starts a **new thread** (a new Telegram topic, or a new top-level Slack message)
 in the prompt's `destination` chat (an alias that must resolve to a chat approved for the bot) with a `fresh` context, and replies to it continue as normal conversation.

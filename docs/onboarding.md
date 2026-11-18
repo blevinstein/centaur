@@ -129,8 +129,8 @@ Repeat for each consumer repo, after the bot exists (Telegram above, Slack below
      and cost-tuning fields, tool allowlist, persona, and a `destination` chat alias on each
      scheduled prompt); it holds no list of chats or users;
    - `.centaur/persona.md`, and any scheduled prompts under `.centaur/prompts/`;
-   - the caller workflow in `.github/workflows/`, copied from
-     [workflows.md](workflows.md#caller-workflow).
+   - the caller workflows in `.github/workflows/` (register, message, one per scheduled prompt),
+     copied from [workflows.md](workflows.md#consumer-workflows).
 2. In the repo's Settings > Secrets and variables > Actions:
    - **Variables** (not secrets): `CENTAUR_ROLE_ARN`, `CENTAUR_AWS_REGION`,
      `CENTAUR_FUNCTION_NAME`, `CENTAUR_OIDC_AUDIENCE`, `CENTAUR_SESSION_BUCKET`; values are in
@@ -140,20 +140,16 @@ Repeat for each consumer repo, after the bot exists (Telegram above, Slack below
 3. Settings > Actions > General: enable "Allow GitHub Actions to create and approve pull
    requests".
 4. If the centaur repo is private, open its Settings > Actions > General > Access and allow
-   repositories under the owner to call its workflows.
-5. If the consumer is in a different repo than centaur, pass `centaur_repository` and
-   `centaur_ref` in `with:` on every reusable workflow call rather than relying on the
-   `job.workflow_*` contexts, which are unverified across repos (**validate**). The
-   [caller example](workflows.md#caller-workflow) omits them.
-6. Register the bot: push a change to `.centaur.yml` on the default branch, or run the workflow
+   repositories under the owner to use its actions.
+5. Register the bot: push a change to `.centaur.yml` on the default branch, or run the workflow
    manually so the `register` job runs. Check that `bots/<bot>/repo` now exists in SSM.
-7. Approve the chat each scheduled prompt posts to if it is not approved yet: mention the bot there
+6. Approve the chat each scheduled prompt posts to if it is not approved yet: mention the bot there
    and answer the request, or run `centaur access approve <bot> chat <id> --name "<title>"`; the
    alias that creates is what `destination` names.
-8. Run the scheduled prompt once with a manual dispatch to confirm a test topic appears, then
+7. Run the scheduled prompt once with a manual dispatch to confirm a test topic appears, then
    message the bot. A prompt whose destination is unknown or unapproved fails with the alias and
    the command to approve it.
-9. If the repo is public, check that its workflow follows the no-content-in-logs rules in
+8. If the repo is public, check that its workflow follows the no-content-in-logs rules in
    [plan.md](plan.md#security).
 
 ## Slack (personal projects)

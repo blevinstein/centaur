@@ -1,0 +1,77 @@
+name: Centaur agent turn
+description: One agent turn. Answers the dispatched chat message, or with prompt_name starts a new thread from that prompt in .centaur.yml. Run after checkout and the centaur setup-runtime step.
+inputs:
+  prompt_name:
+    description: Name of a prompt in .centaur.yml; starts a new thread instead of answering a dispatched message.
+    default: ""
+  anthropic_api_key:
+    description: Used when the bot's provider is anthropic.
+    default: ""
+  openrouter_api_key:
+    description: Used when the bot's provider is openrouter.
+    default: ""
+outputs:
+  skip:
+    description: "'true' when there was nothing to do."
+    value: ${{ steps.prepare.outputs.skip }}
+  pull-request-url:
+    description: URL of the pull request the agent opened, if any.
+    value: ${{ steps.pr.outputs.pull-request-url }}
+runs:
+  using: composite
+  steps:
+    - name: Prepare turn
+      id: prepare
+      shell: bash
+      env:
+        CENTAUR_FUNCTION_NAME: ${{ vars.CENTAUR_FUNCTION_NAME }}
+        CENTAUR_SESSION_BUCKET: ${{ vars.CENTAUR_SESSION_BUCKET }}
+        PROMPT_NAME: ${{ inputs.prompt_name }}
+      run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" prepare
+
+    - name: Route model API to a custom base URL
+      if: steps.prepare.outputs.skip != 'true' && steps.prepare.outputs.base_url != ''
+      shell: bash
+      env:
+        BASE_URL: ${{ steps.prepare.outputs.base_url }}
+      run: echo "ANTHROPIC_BASE_URL=$BASE_URL" >> "$GITHUB_ENV"
+
+    - name: Run agent
+      id: agent
+      if: steps.prepare.outputs.skip != 'true'
+      uses: anthropics/claude-code-action@v1
+      with:
+        anthropic_api_key: ${{ steps.prepare.outputs.api_key_secret == 'OPENROUTER_API_KEY' && inputs.openrouter_api_key || inputs.anthropic_api_key }}
+        github_token: ${{ github.token }}
+        prompt: Read .centaur-turn/prompt.md and follow it.
+        claude_args: ${{ steps.prepare.outputs.claude_args }}
+
+    - name: Describe pull request
+      id: pr_details
+      if: steps.prepare.outputs.skip != 'true'
+      shell: bash
+      env:
+        EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" pr-details
+
+    - name: Open pull request
+      id: pr
+      if: steps.prepare.outputs.skip != 'true'
+      uses: peter-evans/create-pull-request@v7
+      with:
+        token: ${{ github.token }}
+        branch: ${{ steps.prepare.outputs.branch }}
+        commit-message: ${{ steps.pr_details.outputs.title }}
+        title: ${{ steps.pr_details.outputs.title }}
+        body: ${{ steps.pr_details.outputs.body }}
+
+    - name: Post reply
+      if: steps.prepare.outputs.skip != 'true'
+      shell: bash
+      env:
+        CENTAUR_FUNCTION_NAME: ${{ vars.CENTAUR_FUNCTION_NAME }}
+        CENTAUR_SESSION_BUCKET: ${{ vars.CENTAUR_SESSION_BUCKET }}
+        EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
+        PULL_REQUEST_URL: ${{ steps.pr.outputs.pull-request-url }}
+      run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" finish

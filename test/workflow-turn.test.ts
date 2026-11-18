@@ -555,6 +555,12 @@ describe("notifyFailure", () => {
     expect(aws.objects.size).toBe(0);
   });
 
+  it("does nothing when the turn never wrote its state", async () => {
+    const { aws, root } = await setup([message("1", "hi")]);
+    await notifyFailure({ workspace: root, poster: aws.poster, runUrl: "https://example.test/r" });
+    expect(aws.requests).toEqual([]);
+  });
+
   it("clears reactions even when the notice cannot be posted", async () => {
     const { deps, aws, root } = await setup([message("1", "hi")]);
     await prepare(deps());

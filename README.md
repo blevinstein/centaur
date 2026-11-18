@@ -25,7 +25,7 @@ you want to talk to an agent from your phone and keep its changes behind review.
 ```mermaid
 flowchart LR
   chat["Telegram / Slack"] -->|webhook| lambda["Lambda<br/>receiver + poster"]
-  lambda -->|repository_dispatch| wf["Your repo's workflow<br/>(centaur reusable workflows)"]
+  lambda -->|repository_dispatch| wf["Your repo's workflow<br/>(composes centaur actions)"]
   wf --> agent["claude-code-action"]
   agent -->|opens| pr["Pull request"]
   wf -->|"OIDC, lambda:Invoke"| lambda
@@ -98,40 +98,31 @@ this repository.
 - Keep replies brief: a few sentences, plain text, no headings.
 ```
 
-**3. A caller workflow** at `.github/workflows/centaur.yml`
-([reference](docs/workflows.md#caller-workflow)):
+**3. Caller workflows** in `.github/workflows/`, one per concern: register, chat messages, and each
+scheduled prompt ([full files](docs/workflows.md#consumer-workflows)). A scheduled prompt looks like:
 
 ```yaml
-name: Centaur
+name: Centaur weekly tasks
 on:
-  repository_dispatch:
-    types: [centaur-message]
   schedule:
     - cron: "0 15 * * 6"
-  push:
-    branches: [main]
-    paths: [.centaur.yml]
   workflow_dispatch:
-
 permissions:
   contents: write
   pull-requests: write
   id-token: write
-
 jobs:
-  register:
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    uses: blevinstein/centaur/.github/workflows/register.yml@main
-  message:
-    if: github.event_name == 'repository_dispatch'
-    uses: blevinstein/centaur/.github/workflows/agent-turn.yml@main
-    secrets: inherit
-  scheduled:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    uses: blevinstein/centaur/.github/workflows/agent-turn.yml@main
-    with:
-      prompt_name: weekly-tasks
-    secrets: inherit
+  weekly-tasks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: blevinstein/centaur/.github/actions/setup-runtime@main
+      - uses: blevinstein/centaur/.github/actions/turn@main
+        with:
+          prompt_name: weekly-tasks
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      - if: failure()
+        uses: blevinstein/centaur/.github/actions/notify-failure@main
 ```
 
 Pin `@main` to a tag or commit SHA for stability.

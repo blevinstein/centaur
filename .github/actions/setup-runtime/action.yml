@@ -1,28 +1,19 @@
 name: Centaur runtime
-description: Build the centaur workflow scripts checked out at .centaur-runtime and assume the AWS role through OIDC.
-inputs:
-  role-arn:
-    description: IAM role assumed through GitHub OIDC.
-    required: true
-  region:
-    description: AWS region of the poster function and session bucket.
-    required: true
+description: Build the centaur workflow scripts from this action's checkout and assume the AWS role through OIDC. Run it once per job, after checking out the consumer repository.
 runs:
   using: composite
   steps:
-    - name: Keep runtime and turn files out of git status
+    - name: Keep turn files out of git status
       shell: bash
-      run: printf '%s\n' .centaur-runtime .centaur-turn >> .git/info/exclude
+      run: echo .centaur-turn >> .git/info/exclude
     - uses: actions/setup-node@v4
       with:
-        node-version-file: .centaur-runtime/.nvmrc
-        cache: npm
-        cache-dependency-path: .centaur-runtime/package-lock.json
+        node-version-file: ${{ github.action_path }}/../../../.nvmrc
     - name: Build workflow scripts
       shell: bash
-      working-directory: .centaur-runtime
+      working-directory: ${{ github.action_path }}/../../..
       run: npm ci && npm run build
     - uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: ${{ inputs.role-arn }}
-        aws-region: ${{ inputs.region }}
+        role-to-assume: ${{ vars.CENTAUR_ROLE_ARN }}
+        aws-region: ${{ vars.CENTAUR_AWS_REGION }}
