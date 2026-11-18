@@ -116,6 +116,9 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
 ## Later
 
 - [ ] Poster MCP tool for mid-turn questions and progress messages.
+- [ ] `triage_model`: a cheap model that decides whether to reply to unaddressed messages in
+      `respond_to: all` chats before the main agent runs (needs a second run per message).
+- [ ] Test how a turn behaves when `--max-budget-usd` stops a run before a structured reply.
 - [ ] Two bots in one group: with a second bot from BotFather, confirm the ownership rules route
       messages correctly (needs the maintainer to create the bot; see `HUMAN_TODO.md` then).
 - [ ] Agent-scheduled follow-ups via EventBridge Scheduler.
