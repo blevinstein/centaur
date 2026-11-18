@@ -55,6 +55,9 @@ off as they land, and record findings that change the design back into `docs/`.
 - [x] Message ownership rules for a shared Telegram group (bot-created topics, mentions,
       ignore the rest).
 - [x] On an accepted message: 👀 reaction, then a `repository_dispatch` carrying IDs only.
+- [x] Image attachments: the receiver stores images from enrolled senders in the session bucket,
+      the poster's `read` lists their keys (and stores any that were missed), and `prepare` loads
+      the newest 10 shown images into the turn (verified end to end on a Telegram photo).
 - [x] Poster operations, invoked over IAM: post a reply, start a new thread or topic, read a
       thread transcript.
 - [x] `register` operation: take the repo name from the OIDC claims, require existing bot
@@ -145,9 +148,9 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
       quotas; deleting a thread's or bot's media on request or when a bot is unregistered;
       whether the workflow role should be limited to its own bot's prefix (today it can read
       every `attachments/*` object); whether media belongs in its own bucket (separate
-      encryption, lifecycle and access); non-image attachments (video, audio, documents) and
-      letting the agent fetch older images on demand; and what the privacy story is for stored
-      personal photos.
+      encryption, lifecycle and access); non-image attachments (video, audio, documents); letting
+      the agent fetch images beyond the newest 10 that `prepare` loads (`MAX_PROMPT_IMAGES`); and
+      what the privacy story is for stored personal photos.
 
 - [ ] Poster MCP tool for mid-turn questions and progress messages.
 - [ ] Decision model: a cheap model that decides whether to reply to unaddressed messages in
