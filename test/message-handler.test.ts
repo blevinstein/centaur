@@ -2,9 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import type { RespondTo } from "../src/config/index.js";
 import type { AccessRequester } from "../src/lambda/access-requests.js";
 import type { AdminClaimer } from "../src/lambda/admin-claims.js";
-import { createMessageHandler, REFUSAL_TEXT } from "../src/lambda/message-handler.js";
+import {
+  ATTACHMENT_FAILURE_TEXT,
+  createMessageHandler,
+  REFUSAL_TEXT,
+} from "../src/lambda/message-handler.js";
 import {
   accessFor,
+  fakeAttachments,
   fakeDispatcher,
   fakeLogger,
   fakeMessage,
@@ -19,17 +24,19 @@ function setup(access = accessFor(), respondTo: RespondTo = "mention") {
   const claimAdmin = vi.fn<AdminClaimer>(async () => "claimed");
   const dispatcher = fakeDispatcher();
   const logger = fakeLogger();
+  const attachments = fakeAttachments();
   const requestAccess = vi.fn<AccessRequester>(async () => false);
   const handle = createMessageHandler({
     bot: GARDEN_BOT,
     resolveAccess: access,
     requestAccess,
+    attachments,
     claimAdmin,
     resolveRespondTo: async () => respondTo,
     dispatcher,
     logger,
   });
-  return { handle, dispatcher, logger, access, requestAccess, claimAdmin };
+  return { handle, dispatcher, logger, access, requestAccess, claimAdmin, attachments };
 }
 
 describe("message handler", () => {
@@ -50,6 +57,46 @@ describe("message handler", () => {
     expect(addReaction.mock.invocationCallOrder[0]).toBeLessThan(
       dispatcher.dispatch.mock.invocationCallOrder[0] as number,
     );
+  });
+
+  it("stores attachments before reacting and dispatching", async () => {
+    const { handle, dispatcher, attachments } = setup();
+    const { thread, addReaction } = fakeThread();
+    const message = fakeMessage({ isMention: true, attachments: [{ type: "image" }] });
+
+    await handle(thread, message);
+
+    expect(attachments.save).toHaveBeenCalledExactlyOnceWith("garden", message);
+    const [saved] = attachments.save.mock.invocationCallOrder;
+    expect(saved).toBeLessThan(addReaction.mock.invocationCallOrder[0] as number);
+    expect(saved).toBeLessThan(dispatcher.dispatch.mock.invocationCallOrder[0] as number);
+  });
+
+  it("tells the sender and does not dispatch when storing attachments fails", async () => {
+    const { handle, dispatcher, attachments, logger } = setup();
+    attachments.save.mockRejectedValueOnce(new Error("s3 down"));
+    const { thread, post, addReaction } = fakeThread();
+
+    await handle(thread, fakeMessage({ isMention: true, attachments: [{ type: "image" }] }));
+
+    expect(post).toHaveBeenCalledExactlyOnceWith(ATTACHMENT_FAILURE_TEXT);
+    expect(addReaction).not.toHaveBeenCalled();
+    expect(dispatcher.dispatch).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["an unknown sender", { userId: STRANGER_USER_ID }],
+    ["an unaddressed group message", { isMention: false }],
+  ])("stores no attachments for %s", async (_name, overrides) => {
+    const { handle, attachments } = setup();
+
+    await handle(
+      fakeThread().thread,
+      fakeMessage({ attachments: [{ type: "image" }], ...overrides }),
+    );
+
+    expect(attachments.save).not.toHaveBeenCalled();
   });
 
   it.each([

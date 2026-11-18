@@ -5,7 +5,7 @@ import { GITHUB_OIDC_ISSUER, type OidcVerifier } from "../../src/lambda/oidc.js"
 import type { ThreadMetadata } from "../../src/lambda/ownership.js";
 import { createPoster, type PosterChat } from "../../src/lambda/poster.js";
 import type { TelegramApi } from "../../src/lambda/telegram.js";
-import { fakeParameterStore, PARAMETERS } from "./receiver-fixtures.js";
+import { fakeAttachments, fakeParameterStore, PARAMETERS } from "./receiver-fixtures.js";
 
 export const OIDC_OWNER = "octo";
 export const OIDC_AUDIENCE = "centaur";
@@ -106,7 +106,11 @@ export function fakePosterChat(transcript: unknown[] = []) {
 }
 
 export async function posterSetup(
-  options: { parameters?: Record<string, string>; transcript?: unknown[] } = {},
+  options: {
+    parameters?: Record<string, string>;
+    transcript?: unknown[];
+    attachments?: Record<string, string[]>;
+  } = {},
 ) {
   const params = fakeParameterStore({
     ...PARAMETERS,
@@ -125,14 +129,27 @@ export async function posterSetup(
   const logger = { warn: vi.fn() };
   const stateFor = vi.fn((prefix: string) => (prefix === "" ? registryState : createMemoryState()));
   const chatFor = vi.fn(() => posting.chat);
+  const attachments = fakeAttachments(options.attachments);
   const poster = createPoster({
     params,
     stateFor,
     chatFor,
+    attachments,
     telegram,
     oidc,
     functionUrl: FUNCTION_URL,
     logger,
   });
-  return { poster, logger, params, registryState, telegram, oidc, chatFor, stateFor, ...posting };
+  return {
+    poster,
+    logger,
+    params,
+    registryState,
+    telegram,
+    oidc,
+    chatFor,
+    stateFor,
+    attachments,
+    ...posting,
+  };
 }

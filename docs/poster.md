@@ -13,7 +13,7 @@ to a repo (secrets plus `bots/<bot>/repo`) for every operation except `register`
 |---|---|---|
 | `post` | `bot`, `threadId`, `text` | `{ messageId }` |
 | `start-thread` | `bot`, `text`, optional `title`, exactly one of `destination` (chat alias) or `fromThreadId` | `{ threadId }` |
-| `read` | `bot`, `threadId` | `{ messages: [{ id, userId, userName, fromBot, text, sentAt }] }`, oldest first |
+| `read` | `bot`, `threadId` | `{ messages: [{ id, userId, userName, fromBot, text, attachments, sentAt }] }`, oldest first; `attachments` are the S3 keys of the message's stored images (see [Attachments](#attachments)) |
 | `unreact` | `bot`, `threadId`, `messageIds` (1 to 50) | `{ results: [{ messageId, removed }] }` |
 | `register` | `token` (GitHub OIDC JWT), `config` (`.centaur.yml` text) | `{ bot, repo }` |
 
@@ -86,6 +86,18 @@ Environment variables (set by `infra/centaur.yml`; see [deploy.md](deploy.md)):
 The public function URL, used to build webhook URLs, is read from the SSM parameter
 `/centaur/function-url` that the template writes (an environment variable can't reference the
 function's own URL).
+
+## Attachments
+
+When an enrolled sender's message carries images (JPEG, PNG, GIF or WebP; a Telegram photo or an
+image sent as a file), the receiver downloads them from the platform once and stores them in the
+session bucket at `attachments/<bot>/<thread>/<message>~<n>.<ext>` before it reacts and
+dispatches (`src/lambda/attachments.ts`). If storing fails (including an image over 20 MB) the
+receiver tells the sender and dispatches nothing. Other attachment types are ignored. `read` lists
+the keys that exist for each message by listing the thread's prefix; the workflow copies them with
+its own AWS credentials, so no URLs are signed and the agent needs no network tool. The Lambda role
+has `s3:PutObject` and `s3:ListBucket` on `attachments/*` only, and objects expire after
+`AttachmentExpirationDays`.
 
 IAM for the function role: everything the receiver has. `register` writes only
 `/centaur/bots/*/repo`; the receiver's access-request decisions write the approved and blocked paths

@@ -247,10 +247,14 @@ describe("poster read", () => {
         metadata: { dateSent: new Date("2026-01-02T03:05:00Z") },
       },
     ];
-    const { poster } = await posterSetup({ transcript });
+    const { poster, attachments } = await posterSetup({
+      transcript,
+      attachments: { m1: ["attachments/garden/t/m1~0.jpg"] },
+    });
 
     const result = await poster({ operation: "read", bot: "garden", threadId: GARDEN_THREAD });
 
+    expect(attachments.forThread).toHaveBeenCalledExactlyOnceWith("garden", GARDEN_THREAD);
     expect(result).toEqual({
       messages: [
         {
@@ -259,6 +263,7 @@ describe("poster read", () => {
           userName: "maintainer",
           fromBot: false,
           text: "hello",
+          attachments: ["attachments/garden/t/m1~0.jpg"],
           sentAt: "2026-01-02T03:04:05.000Z",
         },
         {
@@ -267,6 +272,7 @@ describe("poster read", () => {
           userName: "garden",
           fromBot: true,
           text: "hi back",
+          attachments: [],
           sentAt: "2026-01-02T03:05:00.000Z",
         },
       ],

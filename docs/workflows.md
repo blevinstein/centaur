@@ -98,6 +98,9 @@ Commands: `register`, `prepare`, `pr-details`, `finish`, `notify-failure`.
 
 1. `prepare` reads `.centaur.yml`, reads the thread from the poster (`read`), determines the
    unprocessed messages and the context policy, and writes the prompt to `.centaur-turn/prompt.md`.
+   It copies the images attached to the pending messages from the session bucket into
+   `.centaur-turn/attachments/` and lists each by path under its message; images in earlier
+   messages are listed as not loaded. A failed copy fails the turn.
    It outputs the `claude_args` (model and tuning flags, `--allowedTools`, `--json-schema` requiring `reply` (or, for `respond_to: all` threads, `reply` or `ignore: true`; optionally `pr_title` and `pr_body`), persona
    via `--append-system-prompt-file`, `--resume <id>`). When there is nothing to do (everything
    processed, or only a `/resume` or `/transcript` command, which is acknowledged in the thread),

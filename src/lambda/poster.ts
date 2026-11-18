@@ -2,6 +2,7 @@ import { type Adapter, type Chat, emoji, type Logger, type StateAdapter } from "
 import { z } from "zod";
 import { alias, type Platform } from "../config/index.js";
 import { createAccessResolver } from "./access.js";
+import type { AttachmentStore } from "./attachments.js";
 import type { OidcVerifier } from "./oidc.js";
 import { BOT_CREATED_STATE, type ThreadMetadata } from "./ownership.js";
 import { chatParameter, type ParameterStore } from "./parameters.js";
@@ -53,6 +54,7 @@ export interface PosterDeps {
   params: ParameterStore;
   stateFor: (keyPrefix: string) => StateAdapter;
   chatFor: (bot: Bot, botState: StateAdapter) => PosterChat;
+  attachments: AttachmentStore;
   telegram: TelegramApi;
   oidc: OidcVerifier;
   functionUrl: string;
@@ -85,7 +87,7 @@ const THREAD_OPENERS: Record<Platform, ThreadOpener> = {
 const firstLine = (value: string) => value.trim().split("\n")[0]?.slice(0, TOPIC_NAME_MAX) ?? "";
 
 export function createPoster(deps: PosterDeps) {
-  const { params, stateFor, chatFor, telegram, logger } = deps;
+  const { params, stateFor, chatFor, attachments, telegram, logger } = deps;
   const register = createRegister({
     params,
     registryState: stateFor(""),
@@ -165,6 +167,7 @@ export function createPoster(deps: PosterDeps) {
       }
       case "read": {
         const { chat } = await openChat(request.bot);
+        const attachmentsOf = await attachments.forThread(request.bot, request.threadId);
         const messages = [];
         for await (const message of chat.thread(request.threadId).allMessages) {
           messages.push({
@@ -173,6 +176,7 @@ export function createPoster(deps: PosterDeps) {
             userName: message.author.userName,
             fromBot: message.author.isMe,
             text: message.text,
+            attachments: attachmentsOf(message.id),
             sentAt: message.metadata.dateSent.toISOString(),
           });
         }

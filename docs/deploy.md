@@ -21,6 +21,7 @@ format `aws cloudformation` accepts.
 | `GitHubOwnerId` | Numeric id of that owner: `gh api users/<owner> --jq .id`. |
 | `ExistingOidcProviderArn` | ARN of the account's existing `token.actions.githubusercontent.com` IAM OIDC provider (`aws iam list-open-id-connect-providers`), or empty to create one. An account can have only one. |
 | `SessionExpirationDays` | Days before objects under `sessions/` expire. |
+| `AttachmentExpirationDays` | Days before objects under `attachments/` expire. |
 | `CodeExpirationDays` | Days before uploaded Lambda zips expire. |
 | `OidcAudience` | Audience workflows request for the OIDC token they pass to register (default `centaur`). |
 | `LogRetentionDays` | Days to keep Lambda logs. |

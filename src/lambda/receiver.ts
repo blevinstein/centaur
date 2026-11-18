@@ -1,4 +1,5 @@
 import type { Logger, StateAdapter } from "chat";
+import type { AttachmentStore } from "./attachments.js";
 import { createBotChat } from "./chat.js";
 import type { RepositoryDispatcher } from "./github.js";
 import type { WebHandler } from "./http.js";
@@ -8,6 +9,7 @@ import { type Bot, botStatePrefix, loadBots } from "./registry.js";
 export interface ReceiverDeps {
   params: ParameterStore;
   stateFor: (keyPrefix: string) => StateAdapter;
+  attachments: AttachmentStore;
   dispatcher: RepositoryDispatcher;
   logger: Logger;
 }
@@ -19,6 +21,7 @@ export const routeKey = (bot: Pick<Bot, "platform" | "name">) => `/${bot.platfor
 export async function createReceiver({
   params,
   stateFor,
+  attachments,
   dispatcher,
   logger,
 }: ReceiverDeps): Promise<WebHandler> {
@@ -30,6 +33,7 @@ export async function createReceiver({
         params,
         registryState,
         botState: stateFor(botStatePrefix(bot.name)),
+        attachments,
         dispatcher,
         logger,
       });

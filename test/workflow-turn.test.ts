@@ -30,6 +30,7 @@ async function setup(messages: ReturnType<typeof message>[], config = configText
     runId: "42",
     clientPayload: { bot: "sprout", thread_id: THREAD, message_id: "1" },
     poster: aws.poster,
+    attachments: aws.attachments,
     storeFor: aws.storeFor,
     ...overrides,
   });
@@ -70,6 +71,41 @@ describe("prepare", () => {
       marker: "3",
       source: { bot: "sprout", threadId: THREAD, messageIds: ["3"] },
     });
+  });
+
+  it("downloads pending images into the turn directory and lists them in the prompt", async () => {
+    const key = "attachments/sprout/telegram_-100_7/3~0.jpg";
+    const { deps, aws, root } = await setup([
+      message("1", "old", { attachments: ["attachments/sprout/telegram_-100_7/1~0.jpg"] }),
+      botMessage("2", "r"),
+      message("3", "", { attachments: [key] }),
+    ]);
+    aws.objects.set(key, "pest-photo");
+
+    await prepare(deps());
+
+    const text = await prompt(root);
+    expect(text).toContain("Sam: [attached image: .centaur-turn/attachments/3~0.jpg]");
+    expect(text).toContain("Sam: old\n[attached image, not loaded]");
+    expect(await readFile(join(root, ".centaur-turn/attachments/3~0.jpg"), "utf8")).toBe(
+      "pest-photo",
+    );
+    expect(aws.objects.has(`${THREAD_PREFIX}last-processed`)).toBe(false);
+  });
+
+  it("fails the turn when an image cannot be downloaded", async () => {
+    const { deps } = await setup([
+      message("1", "", { attachments: ["attachments/sprout/telegram_-100_7/1~0.jpg"] }),
+    ]);
+    const failing = deps({
+      attachments: {
+        download: async () => {
+          throw new Error("s3 unavailable");
+        },
+      },
+    });
+
+    await expect(prepare(failing)).rejects.toThrow("s3 unavailable");
   });
 
   it.each([

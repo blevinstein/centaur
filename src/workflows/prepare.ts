@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { z } from "zod";
 import {
   alias,
@@ -7,7 +7,7 @@ import {
   type ContextPolicy,
   PROVIDER_SETTINGS,
 } from "../config/index.js";
-import type { PosterClient, ThreadStore } from "./aws.js";
+import type { AttachmentDownloader, PosterClient, ThreadStore } from "./aws.js";
 import { parseConfigOrThrow, readConfigText } from "./config-file.js";
 import { buildPrompt, replySchema } from "./prompt.js";
 import { clearReactions, type ReactionSource } from "./reactions.js";
@@ -16,6 +16,7 @@ import { type ChatMessage, pendingMessages, planTurn } from "./transcript.js";
 export const TURN_DIR = ".centaur-turn";
 export const PROMPT_FILE = `${TURN_DIR}/prompt.md`;
 export const STATE_FILE = `${TURN_DIR}/state.json`;
+export const ATTACHMENT_DIR = `${TURN_DIR}/attachments`;
 
 const NEW_THREAD_ACK = "Started a new thread.";
 const NEW_THREAD_OPENING = "Fresh thread. What would you like to do?";
@@ -43,6 +44,7 @@ export interface PrepareDeps {
   promptName?: string | undefined;
   clientPayload: unknown;
   poster: PosterClient;
+  attachments: AttachmentDownloader;
   storeFor: (bot: string, threadId: string) => ThreadStore;
 }
 
@@ -66,6 +68,15 @@ interface Turn {
   resumeSessionId?: string;
   canStaySilent?: boolean;
 }
+
+const attachmentPath = (key: string) => `${ATTACHMENT_DIR}/${basename(key)}`;
+
+const downloadAttachments = (deps: PrepareDeps, messages: ChatMessage[]) =>
+  Promise.all(
+    messages
+      .flatMap((m) => m.attachments)
+      .map((key) => deps.attachments.download(key, join(deps.workspace, attachmentPath(key)))),
+  );
 
 const safeRef = (value: string) => value.replaceAll(/[^A-Za-z0-9._-]/g, "-");
 
@@ -144,6 +155,7 @@ async function chatTurn(
     case "new-thread": {
       await post(NEW_THREAD_ACK);
       await markProcessed();
+      await downloadAttachments(deps, plan.seed);
       if (plan.seed.length === 0) {
         await deps.poster.call({
           operation: "start-thread",
@@ -159,13 +171,14 @@ async function chatTurn(
         policy: config.context.default,
         start: { fromThreadId: threadId },
         source,
-        prompt: buildPrompt({ messages: plan.seed }),
+        prompt: buildPrompt({ messages: plan.seed, attachmentPath }),
       };
     }
     case "reply": {
       const resumeSessionId =
         plan.policy === "resume" ? await store.restoreSession(directory) : undefined;
       const canStaySilent = config.respond_to === "all";
+      await downloadAttachments(deps, plan.pending);
       const pendingIds = new Set(plan.pending.map((m) => m.id));
       const showHistory =
         plan.policy === "transcript" || (plan.policy === "resume" && !resumeSessionId);
@@ -182,6 +195,7 @@ async function chatTurn(
           handle: config.handle,
           history: showHistory ? messages.filter((m) => !pendingIds.has(m.id)) : [],
           messages: plan.pending,
+          attachmentPath,
         }),
       };
     }

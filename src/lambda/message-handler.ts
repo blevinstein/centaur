@@ -3,17 +3,21 @@ import type { RespondTo } from "../config/index.js";
 import type { AccessResolver } from "./access.js";
 import type { AccessRequester } from "./access-requests.js";
 import { type AdminClaimer, CLAIM_MESSAGE } from "./admin-claims.js";
+import type { AttachmentStore } from "./attachments.js";
 import type { RepositoryDispatcher } from "./github.js";
 import { isAddressed, ownsMessage, type ThreadMetadata } from "./ownership.js";
 import type { Bot } from "./registry.js";
 
 export const DISPATCH_EVENT_TYPE = "centaur-message";
 export const REFUSAL_TEXT = "Sorry, you aren't enrolled to talk to me.";
+export const ATTACHMENT_FAILURE_TEXT =
+  "Sorry, I couldn't store that attachment, so I haven't processed your message.";
 
 export interface MessageHandlerDeps {
   bot: Bot;
   resolveAccess: AccessResolver;
   requestAccess: AccessRequester;
+  attachments: Pick<AttachmentStore, "save">;
   claimAdmin?: AdminClaimer | undefined;
   resolveRespondTo: () => Promise<RespondTo>;
   dispatcher: RepositoryDispatcher;
@@ -24,6 +28,7 @@ export function createMessageHandler({
   bot,
   resolveAccess,
   requestAccess,
+  attachments,
   claimAdmin,
   resolveRespondTo,
   dispatcher,
@@ -70,6 +75,14 @@ export function createMessageHandler({
           userId,
         });
       }
+      return;
+    }
+
+    try {
+      await attachments.save(bot.name, message);
+    } catch (error) {
+      logger.error("failed to store attachments", { ...where, threadId: thread.id, error });
+      await thread.post(ATTACHMENT_FAILURE_TEXT);
       return;
     }
 

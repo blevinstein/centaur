@@ -18,6 +18,11 @@ Parameters:
     Default: 30
     MinValue: 1
     Description: Days after which objects under sessions/ expire.
+  AttachmentExpirationDays:
+    Type: Number
+    Default: 30
+    MinValue: 1
+    Description: Days after which objects under attachments/ expire.
   DeployLambda:
     Type: String
     Default: 'TRUE'
@@ -73,6 +78,10 @@ Resources:
             Status: Enabled
             Prefix: sessions/
             ExpirationInDays: !Ref SessionExpirationDays
+          - Id: expire-attachments
+            Status: Enabled
+            Prefix: attachments/
+            ExpirationInDays: !Ref AttachmentExpirationDays
 
   CodeBucket:
     Type: AWS::S3::Bucket
@@ -158,6 +167,19 @@ Resources:
               - Effect: Allow
                 Action: [logs:CreateLogStream, logs:PutLogEvents]
                 Resource: !Sub ${FunctionLogGroup.Arn}:*
+        - PolicyName: attachments
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub ${SessionBucket.Arn}/attachments/*
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt SessionBucket.Arn
+                Condition:
+                  StringLike:
+                    s3:prefix: attachments/*
         - PolicyName: parameters
           PolicyDocument:
             Version: '2012-10-17'
@@ -217,6 +239,7 @@ Resources:
       Environment:
         Variables:
           STATE_TABLE_NAME: !Ref StateTable
+          SESSION_BUCKET_NAME: !Ref SessionBucket
           GITHUB_OWNER: !Ref GitHubOwner
           OIDC_AUDIENCE: !Ref OidcAudience
 
@@ -278,6 +301,9 @@ Resources:
               - Effect: Allow
                 Action: [s3:GetObject, s3:PutObject]
                 Resource: !Sub ${SessionBucket.Arn}/sessions/*
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub ${SessionBucket.Arn}/attachments/*
               - Effect: Allow
                 Action: s3:ListBucket
                 Resource: !GetAtt SessionBucket.Arn

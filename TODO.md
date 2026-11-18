@@ -139,6 +139,16 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
 
 ## Later
 
+- [ ] Media lifecycle. Attachments from every registered repo's bots land under
+      `attachments/<bot>/<thread>/` in the single shared session bucket, expiring on one global
+      schedule (`AttachmentExpirationDays`). Decide: per-bot or per-repo retention and size
+      quotas; deleting a thread's or bot's media on request or when a bot is unregistered;
+      whether the workflow role should be limited to its own bot's prefix (today it can read
+      every `attachments/*` object); whether media belongs in its own bucket (separate
+      encryption, lifecycle and access); non-image attachments (video, audio, documents) and
+      letting the agent fetch older images on demand; and what the privacy story is for stored
+      personal photos.
+
 - [ ] Poster MCP tool for mid-turn questions and progress messages.
 - [ ] Decision model: a cheap model that decides whether to reply to unaddressed messages in
       `respond_to: all` chats before the main agent runs (see

@@ -13,6 +13,7 @@ import {
 } from "./helpers/access-fixtures.js";
 import {
   ALLOWED_USER_ID,
+  fakeAttachments,
   fakeDispatcher,
   fakeLogger,
   fakeParameterStore,
@@ -57,6 +58,7 @@ async function startUpdate(
   const handler = await createReceiver({
     params,
     stateFor: () => state,
+    attachments: fakeAttachments(),
     dispatcher,
     logger: fakeLogger(),
   });

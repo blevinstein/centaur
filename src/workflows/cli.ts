@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { Command } from "commander";
-import { createPosterClient, createThreadStore } from "./aws.js";
+import { createAttachmentDownloader, createPosterClient, createThreadStore } from "./aws.js";
 import { finish, notifyFailure } from "./finish.js";
 import { maskValue, writeOutputs } from "./github-output.js";
 import { prepare } from "./prepare.js";
@@ -17,6 +17,7 @@ const env = (name: string) => {
 const poster = () => createPosterClient(env("CENTAUR_FUNCTION_NAME"));
 const storeFor = (bot: string, threadId: string) =>
   createThreadStore(env("CENTAUR_SESSION_BUCKET"), bot, threadId);
+const attachments = () => createAttachmentDownloader(env("CENTAUR_SESSION_BUCKET"));
 const workspace = () => process.env.GITHUB_WORKSPACE ?? process.cwd();
 
 async function clientPayload() {
@@ -46,6 +47,7 @@ program.command("prepare").action(async () => {
     promptName: process.env.PROMPT_NAME || undefined,
     clientPayload: await clientPayload(),
     poster: poster(),
+    attachments: attachments(),
     storeFor,
   });
   await writeOutputs(env("GITHUB_OUTPUT"), {

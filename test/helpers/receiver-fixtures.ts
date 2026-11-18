@@ -2,6 +2,7 @@ import { createMemoryState } from "@chat-adapter/state-memory";
 import type { Message, Thread } from "chat";
 import { vi } from "vitest";
 import type { Access } from "../../src/lambda/access.js";
+import type { AttachmentStore } from "../../src/lambda/attachments.js";
 import type { RepositoryDispatcher } from "../../src/lambda/github.js";
 import type { ThreadMetadata } from "../../src/lambda/ownership.js";
 import type { ParameterStore } from "../../src/lambda/parameters.js";
@@ -72,6 +73,13 @@ export const fakeParameterStore = (
 
 export const fakeDispatcher = () => ({ dispatch: vi.fn<RepositoryDispatcher["dispatch"]>() });
 
+export const fakeAttachments = (stored: Record<string, string[]> = {}) => ({
+  save: vi.fn<AttachmentStore["save"]>(async () => {}),
+  forThread: vi.fn<AttachmentStore["forThread"]>(
+    async () => (messageId) => stored[messageId] ?? [],
+  ),
+});
+
 export function fakeLogger() {
   const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() };
   logger.child.mockReturnValue(logger);
@@ -131,12 +139,14 @@ export const fakeMessage = (
     text?: string;
     isMe?: boolean;
     fullName?: string;
+    attachments?: unknown[];
   } = {},
 ) =>
   ({
     id: "telegram:msg-42",
     text: overrides.text ?? MESSAGE_TEXT,
     isMention: overrides.isMention ?? false,
+    attachments: overrides.attachments ?? [],
     author: {
       userId: overrides.userId ?? ALLOWED_USER_ID,
       fullName: overrides.fullName ?? "Pat Example",

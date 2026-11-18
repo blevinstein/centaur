@@ -50,3 +50,40 @@ describe("the Lambda role's parameter permissions", () => {
     expect(resourcesFor("ssm:DeleteParameter")).toEqual(["/centaur/admin-claim/*"]);
   });
 });
+
+const policyStatements = (role: string, policyName: string): Statement[] =>
+  template.Resources[role].Properties.Policies.find(
+    (policy: { PolicyName: string }) => policy.PolicyName === policyName,
+  ).PolicyDocument.Statement;
+
+describe("attachment storage", () => {
+  it("lets the Lambda write, but not read or delete, objects under attachments/", () => {
+    const actions = policyStatements("FunctionRole", "attachments").flatMap((s) =>
+      [s.Action].flat(),
+    );
+    expect(actions).toEqual(["s3:PutObject", "s3:ListBucket"]);
+  });
+
+  it("lets the workflow role read attachments/ and nothing more than before under sessions/", () => {
+    const statements = policyStatements("GitHubRole", "session-objects");
+    const reads = statements.filter((s) => [s.Action].flat().includes("s3:GetObject"));
+    expect(reads.map((s) => String(s.Resource).replace(/^.*\}\//, ""))).toEqual([
+      "sessions/*",
+      "attachments/*",
+    ]);
+  });
+
+  it("expires attachments on their own schedule", () => {
+    const rules = template.Resources.SessionBucket.Properties.LifecycleConfiguration.Rules;
+    expect(rules.map((rule: { Prefix: string }) => rule.Prefix)).toEqual([
+      "sessions/",
+      "attachments/",
+    ]);
+  });
+
+  it("tells the Lambda which bucket to use", () => {
+    expect(template.Resources.ReceiverFunction.Properties.Environment.Variables).toHaveProperty(
+      "SESSION_BUCKET_NAME",
+    );
+  });
+});

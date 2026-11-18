@@ -7,6 +7,7 @@ export interface ChatMessage {
   userName: string;
   fromBot: boolean;
   text: string;
+  attachments: string[];
   sentAt: string;
 }
 
@@ -54,14 +55,25 @@ export function planTurn(input: {
   const newIndex = pending.findLastIndex((m) => parseCommand(m.text).command === "new");
   const relevant = (newIndex >= 0 ? pending.slice(newIndex) : pending)
     .map(withoutCommand)
-    .filter((m) => m.text !== "");
+    .filter((m) => m.text !== "" || m.attachments.length > 0);
   if (newIndex >= 0) return { kind: "new-thread", seed: relevant };
   return relevant.length === 0
     ? { kind: "ack", policy }
     : { kind: "reply", policy, pending: relevant };
 }
 
-export const renderMessages = (messages: ChatMessage[]) =>
+/** Maps an attachment key to the file the agent can open; without it attachments render as not loaded. */
+export type AttachmentPath = (key: string) => string;
+
+const renderAttachment = (key: string, localPath: AttachmentPath | undefined) =>
+  localPath ? `[attached image: ${localPath(key)}]` : "[attached image, not loaded]";
+
+export const renderMessages = (messages: ChatMessage[], localPath?: AttachmentPath) =>
   messages
-    .map((m) => `[${m.sentAt}] ${m.fromBot ? "assistant" : m.userName}: ${m.text}`)
+    .map((m) => {
+      const body = [m.text, ...m.attachments.map((key) => renderAttachment(key, localPath))]
+        .filter((part) => part !== "")
+        .join("\n");
+      return `[${m.sentAt}] ${m.fromBot ? "assistant" : m.userName}: ${body}`;
+    })
     .join("\n\n");

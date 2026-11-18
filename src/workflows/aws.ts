@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import type { PosterRequest } from "../lambda/poster.js";
 
@@ -64,6 +64,22 @@ export function createPosterClient(functionName: string, exec: Exec = execComman
       } finally {
         await rm(dir, { recursive: true, force: true });
       }
+    },
+  };
+}
+
+export interface AttachmentDownloader {
+  download(key: string, destination: string): Promise<void>;
+}
+
+export function createAttachmentDownloader(
+  bucket: string,
+  exec: Exec = execCommand,
+): AttachmentDownloader {
+  return {
+    async download(key, destination) {
+      await mkdir(dirname(destination), { recursive: true });
+      await exec("aws", ["s3", "cp", `s3://${bucket}/${key}`, destination]);
     },
   };
 }

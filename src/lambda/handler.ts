@@ -1,6 +1,7 @@
 import type { APIGatewayProxyEventV2, Context } from "aws-lambda";
 import { ConsoleLogger } from "chat";
 import { createDynamoDbState } from "../dynamodb-state/index.js";
+import { createAttachmentStore, createS3ObjectStore } from "./attachments.js";
 import { createChat } from "./chat.js";
 import { createGitHubDispatcher } from "./github.js";
 import { wrapHandler } from "./http.js";
@@ -33,6 +34,9 @@ function memoizeAsync<T>(build: () => Promise<T>) {
 
 const logger = new ConsoleLogger("info");
 
+const buildAttachments = () =>
+  createAttachmentStore(createS3ObjectStore(requiredEnv("SESSION_BUCKET_NAME")));
+
 async function buildReceiver() {
   const params = createSsmParameterStore();
   const token = await params.get(GITHUB_TOKEN_PARAMETER);
@@ -41,6 +45,7 @@ async function buildReceiver() {
   return createReceiver({
     params,
     stateFor: (keyPrefix) => createDynamoDbState({ tableName, keyPrefix }),
+    attachments: buildAttachments(),
     dispatcher: createGitHubDispatcher(token),
     logger,
   });
@@ -55,6 +60,7 @@ async function buildPoster() {
     params,
     stateFor: (keyPrefix) => createDynamoDbState({ tableName, keyPrefix }),
     chatFor: (bot, botState) => createChat({ bot, botState, logger }),
+    attachments: buildAttachments(),
     telegram: createTelegramApi(),
     oidc: createGitHubOidcVerifier({
       owner: requiredEnv("GITHUB_OWNER"),

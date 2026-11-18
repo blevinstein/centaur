@@ -2,7 +2,12 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { PosterRequest } from "../../src/lambda/poster.js";
-import { createPosterClient, createThreadStore, type Exec } from "../../src/workflows/aws.js";
+import {
+  createAttachmentDownloader,
+  createPosterClient,
+  createThreadStore,
+  type Exec,
+} from "../../src/workflows/aws.js";
 import type { ChatMessage } from "../../src/workflows/transcript.js";
 
 export const BUCKET = "session-bucket";
@@ -15,6 +20,7 @@ export const message = (id: string, text: string, overrides: Partial<ChatMessage
   userName: "Sam",
   fromBot: false,
   text,
+  attachments: [],
   sentAt: `2026-11-17T10:00:0${id}.000Z`,
   ...overrides,
 });
@@ -77,6 +83,7 @@ export function createFakeAws(handler: PosterHandler = () => ({})) {
     objects,
     requests,
     poster: createPosterClient("poster-fn", exec),
+    attachments: createAttachmentDownloader(BUCKET, exec),
     storeFor: (bot: string, threadId: string) => createThreadStore(BUCKET, bot, threadId, exec),
   };
 }

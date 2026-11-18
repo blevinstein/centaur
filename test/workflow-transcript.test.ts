@@ -67,6 +67,11 @@ describe("planTurn", () => {
     ]);
   });
 
+  it("replies to a message that is only an attachment", () => {
+    const result = plan([message("1", "", { attachments: ["attachments/b/t/1~0.jpg"] })]);
+    expect(result).toMatchObject({ kind: "reply" });
+  });
+
   it("acknowledges a bare policy command", () => {
     expect(plan([message("1", "/transcript")])).toEqual({ kind: "ack", policy: "transcript" });
   });
@@ -117,6 +122,17 @@ describe("buildPrompt", () => {
       required: [],
       properties: { ignore: { type: "boolean" } },
     });
+  });
+
+  it("lists loaded images by path for new messages and as not loaded in history", () => {
+    const key = "attachments/b/t/1~0.jpg";
+    const prompt = buildPrompt({
+      history: [message("1", "look", { attachments: [key] })],
+      messages: [message("2", "", { attachments: [key] })],
+      attachmentPath: (k) => `.centaur-turn/attachments/${k.split("/").at(-1)}`,
+    });
+    expect(prompt).toContain("Sam: look\n[attached image, not loaded]");
+    expect(prompt).toContain("Sam: [attached image: .centaur-turn/attachments/1~0.jpg]");
   });
 
   it("omits empty sections", () => {

@@ -9,6 +9,7 @@ import { createAccessRequester } from "./access-requests.js";
 import { ADMIN_CHANNELS } from "./admin-channel.js";
 import { createAdminClaimer } from "./admin-claims.js";
 import { registerAdminHandlers } from "./admin-handlers.js";
+import type { AttachmentStore } from "./attachments.js";
 import type { RepositoryDispatcher } from "./github.js";
 import { createMessageHandler } from "./message-handler.js";
 import type { ThreadMetadata } from "./ownership.js";
@@ -32,6 +33,7 @@ export interface BotChatBaseDeps {
 export interface BotChatDeps extends BotChatBaseDeps {
   params: ParameterStore;
   registryState: StateAdapter;
+  attachments: AttachmentStore;
   dispatcher: RepositoryDispatcher;
 }
 
@@ -49,6 +51,7 @@ export function createBotChat({
   params,
   registryState,
   botState,
+  attachments,
   dispatcher,
   logger,
 }: BotChatDeps) {
@@ -74,6 +77,7 @@ export function createBotChat({
       messenger: chat,
       logger,
     }),
+    attachments,
     claimAdmin: channel.commands ? undefined : claimAdmin,
     resolveRespondTo: () => readRespondTo(registryState, bot.name),
     dispatcher,

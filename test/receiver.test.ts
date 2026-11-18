@@ -1,12 +1,18 @@
 import { createMemoryState } from "@chat-adapter/state-memory";
 import { describe, expect, it } from "vitest";
 import { createReceiver } from "../src/lambda/receiver.js";
-import { fakeDispatcher, fakeLogger, fakeParameterStore } from "./helpers/receiver-fixtures.js";
+import {
+  fakeAttachments,
+  fakeDispatcher,
+  fakeLogger,
+  fakeParameterStore,
+} from "./helpers/receiver-fixtures.js";
 
 const receiver = () =>
   createReceiver({
     params: fakeParameterStore(),
     stateFor: () => createMemoryState(),
+    attachments: fakeAttachments(),
     dispatcher: fakeDispatcher(),
     logger: fakeLogger(),
   });
