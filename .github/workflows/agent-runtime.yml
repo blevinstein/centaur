@@ -2,36 +2,53 @@ name: Agent runtime experiment
 
 on:
   workflow_dispatch:
+    inputs:
+      session_id:
+        description: Session to resume (empty starts a new session)
+        default: ''
+      thread_key:
+        description: S3 thread key
+        default: exp1
 
 permissions:
+  id-token: write
   contents: read
+
+env:
+  THREAD_KEY: ${{ inputs.thread_key }}
+  RESUME_ID: ${{ inputs.session_id }}
+  S3_PREFIX: s3://${{ vars.SESSION_BUCKET }}/sessions/${{ inputs.thread_key }}
 
 jobs:
   turn:
-    name: ${{ matrix.variant }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - variant: plain
-            max_turns: 3
-            prompt: Reply with one short sentence greeting the plain variant. Do not use any tools.
-          - variant: tempt-tool
-            max_turns: 5
-            prompt: Read README.md or AGENTS.md with a tool, then summarize it. Also include extra fields "confidence" and "tags" in your answer.
-          - variant: tight-turns-1
-            max_turns: 1
-            prompt: Read AGENTS.md with a tool, then summarize it in one sentence.
-          - variant: tight-turns-2
-            max_turns: 2
-            prompt: Read AGENTS.md with a tool, then summarize it in one sentence.
     steps:
       - uses: actions/checkout@v4
 
-      - name: Mark start
-        run: echo "T0=$(date +%s.%N)" >> "$GITHUB_ENV"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.SESSION_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Prepare turn
+        run: |
+          if [ -n "$RESUME_ID" ]; then
+            ESCAPED=$(sed 's/[^a-zA-Z0-9]/-/g' <<<"$GITHUB_WORKSPACE")
+            DIR="$HOME/.claude/projects/$ESCAPED"
+            mkdir -p "$DIR"
+            S=$(date +%s.%N)
+            aws s3 cp --only-show-errors "$S3_PREFIX/$RESUME_ID.jsonl" "$DIR/$RESUME_ID.jsonl"
+            aws s3 cp --only-show-errors "$S3_PREFIX/token.txt" "$RUNNER_TEMP/token.txt"
+            echo "restore_s=$(echo "$(date +%s.%N) - $S" | bc) bytes=$(stat -c %s "$DIR/$RESUME_ID.jsonl")"
+            echo "CLAUDE_ARGS=--resume $RESUME_ID" >> "$GITHUB_ENV"
+            echo "PROMPT=What was the word I asked you to remember? Put just that word in the reply." >> "$GITHUB_ENV"
+          else
+            TOKEN="zebra$(openssl rand -hex 4)"
+            echo "$TOKEN" > "$RUNNER_TEMP/token.txt"
+            aws s3 cp --only-show-errors "$RUNNER_TEMP/token.txt" "$S3_PREFIX/token.txt"
+            echo "PROMPT=Remember the word $TOKEN. Reply with only a short acknowledgement." >> "$GITHUB_ENV"
+          fi
 
       - name: Run Claude Code
         id: claude
@@ -39,41 +56,36 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          prompt: ${{ matrix.prompt }}
+          prompt: ${{ env.PROMPT }}
           claude_args: |
             --model haiku
-            --max-turns ${{ matrix.max_turns }}
+            --max-turns 3
+            ${{ env.CLAUDE_ARGS }}
             --json-schema '{"type":"object","properties":{"reply":{"type":"string","minLength":1}},"required":["reply"]}'
 
-      - name: Mark end
+      - name: Persist session
         if: always()
-        run: echo "T1=$(date +%s.%N)" >> "$GITHUB_ENV"
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+          SESSION_ID: ${{ steps.claude.outputs.session_id }}
+        run: |
+          SID="${SESSION_ID:-$(jq -r '[.[] | select(.subtype == "init")][0].session_id // empty' "${EXECUTION_FILE:-/dev/null}" 2>/dev/null)}"
+          FILE=$(find "$HOME/.claude/projects" -name "$SID.jsonl" | head -n1)
+          echo "session_id=$SID file_found=$([ -n "$FILE" ] && echo yes || echo no)"
+          echo "project_dir=$(basename "$(dirname "$FILE")")"
+          S=$(date +%s.%N)
+          aws s3 cp --only-show-errors "$FILE" "$S3_PREFIX/$SID.jsonl"
+          echo "key=sessions/$THREAD_KEY/$SID.jsonl bytes=$(stat -c %s "$FILE") upload_s=$(echo "$(date +%s.%N) - $S" | bc)"
 
-      - name: Read structured reply
+      - name: Check reply
         if: always()
         env:
           STRUCTURED_OUTPUT: ${{ steps.claude.outputs.structured_output }}
         run: |
-          echo "raw_empty=$([ -z "$STRUCTURED_OUTPUT" ] && echo true || echo false)"
-          echo "valid_json=$(jq -e . <<<"${STRUCTURED_OUTPUT:-null}" >/dev/null 2>&1 && echo true || echo false)"
-          echo "keys=$(jq -c 'keys' <<<"${STRUCTURED_OUTPUT:-null}" 2>/dev/null)"
-          echo "reply_len=$(jq -r '.reply // "" | length' <<<"${STRUCTURED_OUTPUT:-null}" 2>/dev/null)"
-
-      - name: Diagnostics
-        if: always()
-        env:
-          CONCLUSION: ${{ steps.claude.outputs.conclusion }}
-          SESSION_ID: ${{ steps.claude.outputs.session_id }}
-          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
-        run: |
-          echo "variant=${{ matrix.variant }} conclusion=$CONCLUSION session_id=$SESSION_ID"
-          echo "wall_action_s=$(echo "$T1 - $T0" | bc)"
-          echo "pwd=$PWD escaped=$(sed 's/[^a-zA-Z0-9]/-/g' <<<"$PWD") HOME=$HOME"
-          echo "execution_file=$EXECUTION_FILE"
-          if [ -f "$EXECUTION_FILE" ]; then
-            jq -c '.[-1] | {subtype, is_error, num_turns, duration_ms, duration_api_ms, total_cost_usd, usage, models: (.modelUsage // {} | keys)}' "$EXECUTION_FILE"
-            jq -c '[.[] | select(.type == "system" and .subtype == "init") | {cwd, session_id}]' "$EXECUTION_FILE"
+          REPLY=$(jq -r '.reply // empty' <<<"${STRUCTURED_OUTPUT:-null}")
+          TOKEN=$(cat "$RUNNER_TEMP/token.txt")
+          if [ -n "$RESUME_ID" ]; then
+            if grep -qF "$TOKEN" <<<"$REPLY"; then echo "RESUME_MATCH=true"; else echo "RESUME_MATCH=false reply_len=${#REPLY}"; exit 1; fi
+          else
+            echo "reply_len=${#REPLY}"
           fi
-          echo "--- ~/.claude/projects tree"
-          find "$HOME/.claude/projects" -printf '%y %s %p\n' 2>&1
-          echo "session_file_exists=$(find "$HOME/.claude/projects" -name "$SESSION_ID.jsonl" | wc -l)"
