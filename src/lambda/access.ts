@@ -1,5 +1,11 @@
 import type { StateAdapter } from "chat";
-import { type AccessKind, approvedPrefix, blockedPrefix, subjectIdOf } from "./access-entries.js";
+import {
+  type AccessKind,
+  adminParameter,
+  approvedPrefix,
+  blockedPrefix,
+  subjectIdOf,
+} from "./access-entries.js";
 import { chatParameter, type ParameterStore, userParameter } from "./parameters.js";
 import { type Bot, readRegistryEntry, registeredChats } from "./registry.js";
 import { cachedFor } from "./ttl-cache.js";
@@ -43,7 +49,8 @@ export function createAccessResolver(
       approvedChats,
       blockedChatIds,
       approvedUsers,
-      blockedUserIds,
+      blockedUsers,
+      adminId,
     ] = await Promise.all([
       lookup(
         params,
@@ -54,10 +61,13 @@ export function createAccessResolver(
       blocked("chat"),
       approved("user"),
       blocked("user"),
+      params.get(adminParameter(bot.platform)),
     ]);
+    const admins = new Set(adminId ? [adminId] : []);
+    const blockedUserIds = without(blockedUsers, admins);
     return {
       chatIds: without(new Set([...baselineChats, ...approvedChats]), blockedChatIds),
-      userIds: without(new Set([...baselineUsers, ...approvedUsers]), blockedUserIds),
+      userIds: without(new Set([...baselineUsers, ...approvedUsers, ...admins]), blockedUserIds),
       blockedChatIds,
       blockedUserIds,
     };

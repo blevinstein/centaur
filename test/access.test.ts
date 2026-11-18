@@ -51,6 +51,25 @@ describe("effective access", () => {
     expect(access.blockedChatIds).toEqual(new Set(["-100500"]));
   });
 
+  it("always allows the platform admin, whom a block cannot lock out", async () => {
+    const { resolve } = await resolverWith({
+      "/centaur/admin/telegram": "5001",
+      "/centaur/bots/garden/blocked/user/5001": "{}",
+      "/centaur/bots/garden/blocked/user/1001": "{}",
+    });
+
+    const access = await resolve();
+
+    expect(access.userIds).toEqual(new Set(["5001"]));
+    expect(access.blockedUserIds).toEqual(new Set(["1001"]));
+  });
+
+  it("does not treat another platform's admin as allowed", async () => {
+    const { resolve } = await resolverWith({ "/centaur/admin/slack": "U1" });
+
+    expect((await resolve()).userIds.has("U1")).toBe(false);
+  });
+
   it("applies approvals to a bot with no registry entry", async () => {
     const params = fakeParameterStore({
       ...PARAMETERS,

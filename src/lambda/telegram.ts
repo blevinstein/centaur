@@ -1,4 +1,5 @@
 export interface TelegramApi {
+  getMe(token: string): Promise<{ username: string }>;
   setWebhook(token: string, url: string, secretToken: string): Promise<void>;
   createForumTopic(token: string, chatId: string, name: string): Promise<number>;
 }
@@ -34,6 +35,7 @@ export function createTelegramApi(fetchImpl = fetch): TelegramApi {
     return body.result as T;
   };
   return {
+    getMe: (token) => call<{ username: string }>(token, "getMe", {}),
     async setWebhook(token, url, secretToken) {
       await call(token, "setWebhook", {
         url,

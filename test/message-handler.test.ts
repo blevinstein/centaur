@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { RespondTo } from "../src/config/index.js";
 import type { AccessRequester } from "../src/lambda/access-requests.js";
+import type { AdminClaimer } from "../src/lambda/admin-claims.js";
 import { createMessageHandler, REFUSAL_TEXT } from "../src/lambda/message-handler.js";
 import {
   accessFor,
@@ -15,6 +16,7 @@ import {
 } from "./helpers/receiver-fixtures.js";
 
 function setup(access = accessFor(), respondTo: RespondTo = "mention") {
+  const claimAdmin = vi.fn<AdminClaimer>(async () => "claimed");
   const dispatcher = fakeDispatcher();
   const logger = fakeLogger();
   const requestAccess = vi.fn<AccessRequester>(async () => false);
@@ -22,11 +24,12 @@ function setup(access = accessFor(), respondTo: RespondTo = "mention") {
     bot: GARDEN_BOT,
     resolveAccess: access,
     requestAccess,
+    claimAdmin,
     resolveRespondTo: async () => respondTo,
     dispatcher,
     logger,
   });
-  return { handle, dispatcher, logger, access, requestAccess };
+  return { handle, dispatcher, logger, access, requestAccess, claimAdmin };
 }
 
 describe("message handler", () => {
@@ -122,6 +125,45 @@ describe("message handler", () => {
 
     expect(logger.error).toHaveBeenCalled();
     expect(dispatcher.dispatch).toHaveBeenCalledOnce();
+  });
+
+  describe("admin claim", () => {
+    it("lets a stranger's direct message claim, replies, and does not process it further", async () => {
+      const { handle, claimAdmin, dispatcher, access } = setup();
+      const { thread, post } = fakeThread({ isDM: true, chatId: "9999" });
+
+      await handle(thread, fakeMessage({ userId: STRANGER_USER_ID, text: "Claim abc-123 " }));
+
+      expect(claimAdmin).toHaveBeenCalledWith({
+        userId: STRANGER_USER_ID,
+        isDM: true,
+        code: "abc-123",
+      });
+      expect(post).toHaveBeenCalledExactlyOnceWith("claimed");
+      expect(access).not.toHaveBeenCalled();
+      expect(dispatcher.dispatch).not.toHaveBeenCalled();
+    });
+
+    it("treats the message as ordinary when the claimer ignores it", async () => {
+      const { handle, claimAdmin, dispatcher } = setup();
+      claimAdmin.mockResolvedValue(undefined);
+
+      await handle(fakeThread({ isDM: true }).thread, fakeMessage({ text: "claim abc" }));
+
+      expect(dispatcher.dispatch).toHaveBeenCalledOnce();
+    });
+
+    it.each([
+      ["outside a direct message", { chatId: "-100500" }, "claim abc"],
+      ["with no code", { isDM: true }, "claim"],
+      ["with extra words", { isDM: true }, "claim this for me"],
+    ])("does not attempt a claim %s", async (_name, threadOptions, text) => {
+      const { handle, claimAdmin } = setup();
+
+      await handle(fakeThread(threadOptions).thread, fakeMessage({ isMention: true, text }));
+
+      expect(claimAdmin).not.toHaveBeenCalled();
+    });
   });
 
   describe("access requests", () => {

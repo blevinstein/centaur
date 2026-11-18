@@ -2,6 +2,7 @@ import { emoji, type Logger, type Message, type Thread } from "chat";
 import type { RespondTo } from "../config/index.js";
 import type { AccessResolver } from "./access.js";
 import type { AccessRequester } from "./access-requests.js";
+import { type AdminClaimer, CLAIM_MESSAGE } from "./admin-claims.js";
 import type { RepositoryDispatcher } from "./github.js";
 import { isAddressed, ownsMessage, type ThreadMetadata } from "./ownership.js";
 import type { Bot } from "./registry.js";
@@ -13,6 +14,7 @@ export interface MessageHandlerDeps {
   bot: Bot;
   resolveAccess: AccessResolver;
   requestAccess: AccessRequester;
+  claimAdmin?: AdminClaimer | undefined;
   resolveRespondTo: () => Promise<RespondTo>;
   dispatcher: RepositoryDispatcher;
   logger: Pick<Logger, "info" | "warn" | "error">;
@@ -22,12 +24,22 @@ export function createMessageHandler({
   bot,
   resolveAccess,
   requestAccess,
+  claimAdmin,
   resolveRespondTo,
   dispatcher,
   logger,
 }: MessageHandlerDeps) {
   const where = { bot: bot.name, platform: bot.platform };
   return async (thread: Thread<ThreadMetadata>, message: Message): Promise<void> => {
+    const code = claimAdmin && thread.isDM ? CLAIM_MESSAGE.exec(message.text)?.[1] : undefined;
+    if (claimAdmin && code) {
+      const reply = await claimAdmin({ userId: message.author.userId, isDM: true, code });
+      if (reply) {
+        await thread.post(reply);
+        return;
+      }
+    }
+
     const respondTo = await resolveRespondTo();
     if (!(await ownsMessage(thread, message, respondTo))) return;
 

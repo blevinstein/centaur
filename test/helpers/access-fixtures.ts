@@ -7,7 +7,15 @@ import {
 } from "../../src/lambda/access-request-store.js";
 import { createAccessRequester } from "../../src/lambda/access-requests.js";
 import { telegramAdminChannel } from "../../src/lambda/admin-channel.js";
-import { fakeLogger, fakeParameterStore, GARDEN_BOT, PARAMETERS } from "./receiver-fixtures.js";
+import { encodeClaim } from "../../src/lambda/admin-claim-record.js";
+import { createAdminClaimer } from "../../src/lambda/admin-claims.js";
+import {
+  fakeLogger,
+  fakeParameterStore,
+  GARDEN_BOT,
+  PARAMETERS,
+  SLACK_BOT,
+} from "./receiver-fixtures.js";
 
 export const ADMIN_ID = "5001";
 export const ADMIN_DM_MESSAGE_ID = "telegram:5001:900";
@@ -86,4 +94,37 @@ export async function accessHarness({
     postToThread,
     reaction,
   };
+}
+
+export const CLAIM_CODE = "correct-horse_battery-staple";
+export const CLAIM_PARAMETER = "/centaur/admin-claim/telegram";
+export const SLACK_CLAIM_PARAMETER = "/centaur/admin-claim/slack";
+export const CLAIMER_ID = "7777";
+
+export async function claimHarness({
+  bot = GARDEN_BOT,
+  claimedBot = bot.name,
+  expiresInMs = 60_000,
+  claim = true,
+}: {
+  bot?: typeof GARDEN_BOT;
+  claimedBot?: string;
+  expiresInMs?: number;
+  claim?: boolean;
+} = {}) {
+  const state = createMemoryState();
+  await state.connect();
+  const parameter = bot === SLACK_BOT ? SLACK_CLAIM_PARAMETER : CLAIM_PARAMETER;
+  const params = fakeParameterStore({
+    ...PARAMETERS,
+    ...(claim
+      ? { [parameter]: encodeClaim(claimedBot, CLAIM_CODE, new Date(Date.now() + expiresInMs)) }
+      : {}),
+  });
+  const invalidateAccess = vi.fn();
+  const logger = fakeLogger();
+  const claimAdmin = createAdminClaimer({ bot, params, state, invalidateAccess, logger });
+  const attempt = (code: string, overrides: { isDM?: boolean; userId?: string } = {}) =>
+    claimAdmin({ userId: overrides.userId ?? CLAIMER_ID, isDM: overrides.isDM ?? true, code });
+  return { params, state, parameter, invalidateAccess, logger, claimAdmin, attempt };
 }

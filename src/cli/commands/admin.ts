@@ -1,7 +1,30 @@
 import type { Command } from "commander";
 import { adminParameter } from "../../lambda/access-entries.js";
+import {
+  adminClaimParameter,
+  DEFAULT_CLAIM_TTL_MINUTES,
+  decodeClaim,
+  encodeClaim,
+  generateClaimCode,
+  MAX_CLAIM_TTL_MINUTES,
+} from "../../lambda/admin-claim-record.js";
 import type { CliContext } from "../context.js";
-import { CliError, PLATFORM_NAMES, selectedPlatformIds } from "../registry.js";
+import {
+  botParameter,
+  CliError,
+  PLATFORM_NAMES,
+  type Platform,
+  requireBotPlatform,
+  selectedPlatformIds,
+} from "../registry.js";
+
+function parseTtlMinutes(value: string): number {
+  const minutes = Number(value);
+  if (!Number.isInteger(minutes) || minutes < 1 || minutes > MAX_CLAIM_TTL_MINUTES) {
+    throw new CliError(`--ttl-minutes must be a whole number from 1 to ${MAX_CLAIM_TTL_MINUTES}.`);
+  }
+  return minutes;
+}
 
 export function registerAdminCommands(program: Command, context: CliContext): void {
   const admin = program
@@ -45,5 +68,51 @@ export function registerAdminCommands(program: Command, context: CliContext): vo
         ),
       );
       context.log(lines.join("\n"));
+    });
+
+  const claimInstructions = async (platform: Platform, bot: string, code: string) => {
+    if (platform === "slack") return `Send the bot a direct message: claim ${code}`;
+    const token = await context.store.get(botParameter(bot, "token"));
+    if (!token) throw new CliError(`Bot "${bot}" has no token.`);
+    try {
+      const { username } = await context.telegram.getMe(token);
+      return `Open https://t.me/${username}?start=${code}`;
+    } catch (error) {
+      throw new CliError(
+        `Could not look up the bot's username from Telegram: ${error instanceof Error ? error.message : "unknown error"}`,
+      );
+    }
+  };
+
+  admin
+    .command("claim <bot>")
+    .description(
+      "Let the first person to send a one-time code to the bot become its platform's admin",
+    )
+    .option(
+      "--ttl-minutes <minutes>",
+      "how long the code stays valid",
+      parseTtlMinutes,
+      DEFAULT_CLAIM_TTL_MINUTES,
+    )
+    .option("--cancel", "delete the pending claim instead of creating one")
+    .action(async (bot: string, options: { ttlMinutes: number; cancel?: boolean }) => {
+      const platform = await requireBotPlatform(context.store, bot);
+      const parameter = adminClaimParameter(platform);
+      if (options.cancel) {
+        if (decodeClaim(await context.store.get(parameter))?.bot !== bot) {
+          throw new CliError(`No pending claim for bot "${bot}".`);
+        }
+        await context.store.delete([parameter]);
+        context.log(`Cancelled the pending claim for bot "${bot}".`);
+        return;
+      }
+      const code = generateClaimCode();
+      const instructions = await claimInstructions(platform, bot, code);
+      const expiresAt = new Date(Date.now() + options.ttlMinutes * 60_000);
+      await context.store.put(parameter, encodeClaim(bot, code, expiresAt), { secure: false });
+      context.log(
+        `${instructions}\nThe code works once, in a direct message to the bot, for ${options.ttlMinutes} minutes. Running this again replaces it.`,
+      );
     });
 }

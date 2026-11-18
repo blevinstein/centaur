@@ -64,6 +64,21 @@ describe("access", () => {
     expect(cli.store.names()).toEqual([BOT_PLATFORM]);
   });
 
+  it("refuses to block the platform admin", async () => {
+    const cli = await harnessWithBot();
+    await cli.run("admin", "set", "--telegram", "5001");
+
+    await expect(cli.run("access", "block", "garden", "user", "5001")).rejects.toThrow(
+      /Cannot block 5001: they are the admin for telegram/,
+    );
+    expect(cli.store.names()).not.toContain("/centaur/bots/garden/blocked/user/5001");
+
+    await cli.run("access", "block", "garden", "chat", "5001");
+    await cli.run("access", "block", "garden", "user", "5002");
+    expect(cli.store.names()).toContain("/centaur/bots/garden/blocked/chat/5001");
+    expect(cli.store.names()).toContain("/centaur/bots/garden/blocked/user/5002");
+  });
+
   it("blocks a subject that was never approved", async () => {
     const cli = await harnessWithBot();
     await cli.run("access", "block", "garden", "chat", "-1");

@@ -7,6 +7,7 @@ import { createAccessDecisions } from "./access-decisions.js";
 import { createAccessRequestStore } from "./access-request-store.js";
 import { createAccessRequester } from "./access-requests.js";
 import { ADMIN_CHANNELS } from "./admin-channel.js";
+import { createAdminClaimer } from "./admin-claims.js";
 import { registerAdminHandlers } from "./admin-handlers.js";
 import type { RepositoryDispatcher } from "./github.js";
 import { createMessageHandler } from "./message-handler.js";
@@ -55,6 +56,13 @@ export function createBotChat({
   const resolveAccess = createAccessResolver(bot, params, registryState);
   const channel = ADMIN_CHANNELS[bot.platform];
   const store = createAccessRequestStore(botState);
+  const claimAdmin = createAdminClaimer({
+    bot,
+    params,
+    state: botState,
+    invalidateAccess: resolveAccess.invalidate,
+    logger,
+  });
   const handle = createMessageHandler({
     bot,
     resolveAccess,
@@ -66,6 +74,7 @@ export function createBotChat({
       messenger: chat,
       logger,
     }),
+    claimAdmin: channel.commands ? undefined : claimAdmin,
     resolveRespondTo: () => readRespondTo(registryState, bot.name),
     dispatcher,
     logger,
@@ -82,6 +91,7 @@ export function createBotChat({
       postToThread: (threadId, text) => chat.thread(threadId).post(text),
       logger,
     }),
+    claimAdmin,
   );
   chat.onDirectMessage(handle);
   chat.onNewMention(handle);

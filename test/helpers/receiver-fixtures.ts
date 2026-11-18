@@ -61,6 +61,9 @@ export const fakeParameterStore = (
     put: async (name, value) => {
       values[name] = value;
     },
+    delete: async (name) => {
+      delete values[name];
+    },
   };
 };
 
@@ -105,13 +108,14 @@ export const fakeMessage = (
     userId?: string;
     isMention?: boolean;
     isBot?: boolean | "unknown";
+    text?: string;
     isMe?: boolean;
     fullName?: string;
   } = {},
 ) =>
   ({
     id: "telegram:msg-42",
-    text: MESSAGE_TEXT,
+    text: overrides.text ?? MESSAGE_TEXT,
     isMention: overrides.isMention ?? false,
     author: {
       userId: overrides.userId ?? ALLOWED_USER_ID,

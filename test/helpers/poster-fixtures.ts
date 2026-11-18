@@ -60,6 +60,7 @@ export const fakeOidc = (repository = "octo/sprout") => ({
 });
 
 export const fakeTelegram = () => ({
+  getMe: vi.fn<TelegramApi["getMe"]>(async () => ({ username: "garden_bot" })),
   setWebhook: vi.fn<TelegramApi["setWebhook"]>(async () => {}),
   createForumTopic: vi.fn<TelegramApi["createForumTopic"]>(async () => TOPIC_ID),
 });
