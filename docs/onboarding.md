@@ -92,7 +92,7 @@ Only the maintainer uses these, so there's no non-technical onboarding.
    - add the short caller workflow in `.github/workflows/` with `repository_dispatch`, any
      `schedule:` entries, the `push` trigger for registration, and `workflow_dispatch` for manual
      runs ([example](workflows.md#caller-workflow)).
-3. Add the model API key (Anthropic or OpenRouter) as the `ANTHROPIC_API_KEY` secret, the
+3. Add the model API key for the bot's `provider` (`ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY` secret), the
    `CENTAUR_*` [variables](workflows.md#variables-and-secrets) (role ARN, function name, audience,
    bucket, region), and anything the agent's tools need (e.g. third-party API tokens).
 4. Enable "Allow GitHub Actions to create and approve pull requests" in the repo settings.

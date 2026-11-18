@@ -130,6 +130,17 @@ describe("prepare", () => {
     expect(out.claude_args).toContain('"Edit,Read(./.centaur-turn/**)"');
   });
 
+  it.each([
+    ["anthropic", "", "ANTHROPIC_API_KEY"],
+    ["openrouter", "https://openrouter.ai/api", "OPENROUTER_API_KEY"],
+  ])("maps provider %s to base URL %j and secret %s", async (provider, baseUrl, secret) => {
+    const { deps } = await setup(
+      [message("1", "hi")],
+      configText().replace("provider: anthropic", `provider: ${provider}`),
+    );
+    expect(await prepare(deps())).toMatchObject({ base_url: baseUrl, api_key_secret: secret });
+  });
+
   it("gives a fresh turn only the pending messages", async () => {
     const { deps, root } = await setup(
       [message("1", "old"), botMessage("2", "r"), message("3", "new")],

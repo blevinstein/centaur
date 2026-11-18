@@ -76,9 +76,10 @@ Set as repository or organization **variables**:
 | `CENTAUR_FUNCTION_NAME` | Name of the receiver/poster Lambda function. |
 | `CENTAUR_OIDC_AUDIENCE` | The poster's `OIDC_AUDIENCE`. |
 | `CENTAUR_SESSION_BUCKET` | `BucketName` output (agent turns only). |
-| `ANTHROPIC_BASE_URL` | Optional; set to `https://openrouter.ai/api` to use OpenRouter. |
 
-**Secret** `ANTHROPIC_API_KEY` (Anthropic or OpenRouter key), plus anything the agent's tools need.
+The API base URL comes from the bot's `provider` in `.centaur.yml`, not from a variable.
+
+**Secret** the API key named by the bot's `provider` (`ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY`), plus anything the agent's tools need.
 
 ## How the scripts are delivered
 

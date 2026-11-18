@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PROVIDERS } from "./providers.js";
 
 export const PLATFORMS = ["telegram", "slack"] as const;
 export const CONTEXT_POLICIES = ["fresh", "transcript", "resume"] as const;
@@ -47,6 +48,7 @@ export const centaurConfigSchema = z
       .string()
       .regex(/^[A-Za-z0-9_]{3,64}$/, "must be the bot's username without the @")
       .optional(),
+    provider: z.enum(PROVIDERS),
     model: z.string().min(1),
     effort: z.enum(EFFORT_LEVELS).optional(),
     max_turns: z.number().int().min(1).max(200).default(30),

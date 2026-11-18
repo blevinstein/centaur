@@ -15,6 +15,7 @@ handle: garden_helper_bot      # the bot's @username; only used with respond_to:
 context:
   default: transcript
   scheduled: fresh
+provider: anthropic
 model: sonnet
 effort: medium
 max_turns: 30
@@ -38,6 +39,7 @@ prompts:
 | `context.default` | no | `transcript` | Policy for conversational threads: `fresh`, `transcript` or `resume`. |
 | `context.scheduled` | no | `fresh` | Policy for threads started by a scheduled prompt. |
 | `handle` | no | | The bot's platform username without `@`. With `respond_to: all` the prompt tells the agent people mention it as `@<handle>`. The workflow cannot learn it cheaply from the bot's identity, so it is configured. |
+| `provider` | yes | | API provider: `anthropic` or `openrouter`. Each maps to a base URL and API key secret name in `src/config/providers.ts` (`anthropic` uses the default endpoint); add a provider by adding an entry there. |
 | `model` | yes | | Model passed to the agent (`--model`). Always set explicitly; the CLI default is never relied on. |
 | `effort` | no | | Reasoning effort: `low`, `medium`, `high`, `xhigh` or `max` (`--effort`); unset uses the CLI's default. |
 | `max_turns` | no | `30` | Agentic turn cap per run (`--max-turns`), an integer from 1 to 200. |

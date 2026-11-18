@@ -2,6 +2,7 @@ import { parse } from "yaml";
 import type { ZodError } from "zod";
 import { type CentaurConfig, centaurConfigSchema } from "./schema.js";
 
+export { PROVIDER_SETTINGS, PROVIDERS, type Provider } from "./providers.js";
 export {
   alias,
   type CentaurConfig,

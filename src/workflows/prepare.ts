@@ -1,7 +1,12 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import { alias, type CentaurConfig, type ContextPolicy } from "../config/index.js";
+import {
+  alias,
+  type CentaurConfig,
+  type ContextPolicy,
+  PROVIDER_SETTINGS,
+} from "../config/index.js";
 import type { PosterClient, ThreadStore } from "./aws.js";
 import { parseConfigOrThrow, readConfigText } from "./config-file.js";
 import { buildPrompt, replySchema } from "./prompt.js";
@@ -42,6 +47,8 @@ export interface PrepareOutputs {
   thread_id: string;
   branch: string;
   claude_args: string;
+  base_url: string;
+  api_key_secret: string;
 }
 
 interface Turn {
@@ -60,7 +67,14 @@ const safeRef = (value: string) => value.replaceAll(/[^A-Za-z0-9._-]/g, "-");
 export const sessionDirectory = (home: string, workspace: string) =>
   join(home, ".claude", "projects", workspace.replaceAll(/[^A-Za-z0-9]/g, "-"));
 
-const skipped: PrepareOutputs = { skip: true, thread_id: "", branch: "", claude_args: "" };
+const skipped: PrepareOutputs = {
+  skip: true,
+  thread_id: "",
+  branch: "",
+  claude_args: "",
+  base_url: "",
+  api_key_secret: "",
+};
 
 async function scheduledTurn(
   deps: PrepareDeps,
@@ -172,7 +186,7 @@ export function buildClaudeArgs(input: {
   const readRule = config.allowed_tools.includes("Read") ? [] : [`Read(./${TURN_DIR}/**)`];
   const tools = [...config.allowed_tools, ...readRule].join(",");
   return [
-    ...(config.model ? [`--model ${config.model}`] : []),
+    `--model ${config.model}`,
     ...(config.effort ? [`--effort ${config.effort}`] : []),
     `--allowedTools "${tools}"`,
     `--max-turns ${config.max_turns}`,
@@ -216,6 +230,8 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     skip: false,
     thread_id: turn.threadId ?? "",
     branch: `centaur/${config.bot}-${safeRef(turn.threadId ?? `${deps.promptName ?? "new"}-${deps.runId}`)}`,
+    base_url: PROVIDER_SETTINGS[config.provider].base_url ?? "",
+    api_key_secret: PROVIDER_SETTINGS[config.provider].api_key_secret,
     claude_args: buildClaudeArgs({
       config,
       persona,

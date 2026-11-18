@@ -146,6 +146,7 @@ allow: [maintainer, spouse]     # named users; IDs in SSM at /centaur/users/<nam
 context:
   default: transcript           # fresh | transcript | resume
   scheduled: fresh
+provider: anthropic            # anthropic | openrouter
 model: sonnet
 allowed_tools: "Read,Edit,Write,Glob,Grep,WebFetch,WebSearch"
 respond_to: mention             # mention | all

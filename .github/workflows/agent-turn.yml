@@ -17,7 +17,9 @@ on:
         default: ""
     secrets:
       ANTHROPIC_API_KEY:
-        required: true
+        required: false
+      OPENROUTER_API_KEY:
+        required: false
 
 permissions:
   contents: write
@@ -55,9 +57,9 @@ jobs:
         run: node .centaur-runtime/dist/workflows/cli.js prepare
 
       - name: Route model API to a custom base URL
-        if: steps.prepare.outputs.skip != 'true' && vars.ANTHROPIC_BASE_URL != ''
+        if: steps.prepare.outputs.skip != 'true' && steps.prepare.outputs.base_url != ''
         env:
-          BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
+          BASE_URL: ${{ steps.prepare.outputs.base_url }}
         run: echo "ANTHROPIC_BASE_URL=$BASE_URL" >> "$GITHUB_ENV"
 
       - name: Run agent
@@ -65,7 +67,7 @@ jobs:
         if: steps.prepare.outputs.skip != 'true'
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_api_key: ${{ secrets[steps.prepare.outputs.api_key_secret] }}
           github_token: ${{ github.token }}
           prompt: Read .centaur-turn/prompt.md and follow it.
           claude_args: ${{ steps.prepare.outputs.claude_args }}

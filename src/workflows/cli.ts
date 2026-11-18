@@ -52,6 +52,8 @@ program.command("prepare").action(async () => {
     thread_id: outputs.thread_id,
     branch: outputs.branch,
     claude_args: outputs.claude_args,
+    base_url: outputs.base_url,
+    api_key_secret: outputs.api_key_secret,
   });
 });
 

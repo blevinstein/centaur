@@ -30,6 +30,7 @@ export const configText = (overrides: Record<string, string | undefined> = {}) =
     platform: "telegram",
     destination: "household",
     allow: "[maintainer]",
+    provider: "anthropic",
     model: "sonnet",
     allowed_tools: "Read",
     ...overrides,

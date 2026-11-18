@@ -2,6 +2,7 @@ export const minimalConfig = `
 bot: garden
 platform: telegram
 allow: [maintainer]
+provider: anthropic
 model: sonnet
 allowed_tools: Read,Edit
 `;
@@ -16,6 +17,7 @@ context:
   default: resume
   scheduled: fresh
 handle: garden_helper_bot
+provider: anthropic
 model: sonnet
 effort: low
 max_turns: 12
@@ -30,7 +32,7 @@ prompts:
 `;
 
 const withExtra = (line: string) =>
-  `bot: a\nplatform: slack\nallow: [x]\nmodel: sonnet\nallowed_tools: Read\n${line}`;
+  `bot: a\nplatform: slack\nallow: [x]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\n${line}`;
 
 export const invalidConfigs: [name: string, text: string, path: string, message: RegExp][] = [
   ["unknown effort", withExtra("effort: extreme"), "effort", /./],
@@ -42,47 +44,69 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
   ["handle with an @", withExtra('handle: "@garden_bot"'), "handle", /without the @/],
   [
     "unknown respond_to value",
-    "bot: a\nplatform: slack\nallow: [x]\nmodel: sonnet\nallowed_tools: Read\nrespond_to: some",
+    "bot: a\nplatform: slack\nallow: [x]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\nrespond_to: some",
     "respond_to",
     /./,
   ],
   [
     "respond_to all without destination",
-    "bot: a\nplatform: slack\nallow: [x]\nmodel: sonnet\nallowed_tools: Read\nrespond_to: all",
+    "bot: a\nplatform: slack\nallow: [x]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\nrespond_to: all",
     "destination",
     /required when respond_to is all/,
   ],
   ["empty document", "", "(root)", /expected object/i],
   ["malformed YAML", "bot: [unclosed", "(root)", /invalid YAML/],
-  ["missing model", "bot: a\nplatform: slack\nallow: [x]\nallowed_tools: Read", "model", /./],
-  ["missing bot", "platform: slack\nallow: [a]\nmodel: sonnet\nallowed_tools: Read", "bot", /./],
+  [
+    "missing model",
+    "bot: a\nplatform: slack\nallow: [x]\nprovider: anthropic\nallowed_tools: Read",
+    "model",
+    /./,
+  ],
+  [
+    "missing provider",
+    "bot: a\nplatform: slack\nallow: [x]\nmodel: sonnet\nallowed_tools: Read",
+    "provider",
+    /./,
+  ],
+  [
+    "unknown provider",
+    withExtra("provider: bedrock").replace("provider: anthropic\n", ""),
+    "provider",
+    /./,
+  ],
+  [
+    "missing bot",
+    "platform: slack\nallow: [a]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read",
+    "bot",
+    /./,
+  ],
   [
     "unknown platform",
-    "bot: a\nplatform: irc\nallow: [x]\nmodel: sonnet\nallowed_tools: Read",
+    "bot: a\nplatform: irc\nallow: [x]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read",
     "platform",
     /./,
   ],
   [
     "uppercase bot alias",
-    "bot: Garden\nplatform: slack\nallow: [x]\nmodel: sonnet\nallowed_tools: Read",
+    "bot: Garden\nplatform: slack\nallow: [x]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read",
     "bot",
     /lowercase alias/,
   ],
   [
     "empty allow list",
-    "bot: a\nplatform: slack\nallow: []\nmodel: sonnet\nallowed_tools: Read",
+    "bot: a\nplatform: slack\nallow: []\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read",
     "allow",
     /at least one user/,
   ],
   [
     "bad context policy",
-    "bot: a\nplatform: slack\nallow: [x]\nmodel: sonnet\nallowed_tools: Read\ncontext: {default: sticky}",
+    "bot: a\nplatform: slack\nallow: [x]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\ncontext: {default: sticky}",
     "context.default",
     /./,
   ],
   [
     "unknown key",
-    "bot: a\nplatform: slack\nallow: [x]\nmodel: sonnet\nallowed_tools: Read\nextra: 1",
+    "bot: a\nplatform: slack\nallow: [x]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\nextra: 1",
     "(root)",
     /unrecognized key/i,
   ],
@@ -95,19 +119,19 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
   ],
   [
     "persona escaping the repo",
-    "bot: a\nplatform: slack\nallow: [x]\nmodel: sonnet\nallowed_tools: Read\npersona: ../secret.md",
+    "bot: a\nplatform: slack\nallow: [x]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\npersona: ../secret.md",
     "persona",
     /relative path inside the repo/,
   ],
   [
     "prompts without destination",
-    "bot: a\nplatform: slack\nallow: [x]\nmodel: sonnet\nallowed_tools: Read\nprompts: {weekly: {}}",
+    "bot: a\nplatform: slack\nallow: [x]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\nprompts: {weekly: {}}",
     "destination",
     /required when prompts are defined/,
   ],
   [
     "bad prompt context",
-    "bot: a\nplatform: slack\ndestination: h\nallow: [x]\nmodel: sonnet\nallowed_tools: Read\nprompts: {weekly: {context: nope}}",
+    "bot: a\nplatform: slack\ndestination: h\nallow: [x]\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\nprompts: {weekly: {context: nope}}",
     "prompts.weekly.context",
     /./,
   ],
