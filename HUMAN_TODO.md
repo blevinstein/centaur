@@ -38,27 +38,31 @@ Unblocks: everything below.
 
 Use a scratch repo first; `garden` comes after this works.
 
-- [ ] Add `.centaur.yml`, `.centaur/persona.md` and a prompt under `.centaur/prompts/`, plus the
+- [x] Add `.centaur.yml`, `.centaur/persona.md` and a prompt under `.centaur/prompts/`, plus the
       caller workflow from [docs/workflows.md](docs/workflows.md). Agents can write these files
       when you point them at the repo.
-- [ ] Set the repo variables `CENTAUR_ROLE_ARN`, `CENTAUR_AWS_REGION`, `CENTAUR_FUNCTION_NAME`,
+- [x] Set the repo variables `CENTAUR_ROLE_ARN`, `CENTAUR_AWS_REGION`, `CENTAUR_FUNCTION_NAME`,
       `CENTAUR_OIDC_AUDIENCE`, `CENTAUR_SESSION_BUCKET`, and the `ANTHROPIC_API_KEY` secret.
-- [ ] Enable "Allow GitHub Actions to create and approve pull requests" in the repo settings.
-- [ ] If the shared repo is private, allow the consumer repo to call its workflows.
-- [ ] Push, then check `bots/<bot>/repo` appears in SSM (the `register` job worked).
+- [x] Enable "Allow GitHub Actions to create and approve pull requests" in the repo settings.
+- [x] If the shared repo is private, allow the consumer repo to call its workflows.
+- [x] Push, then check `bots/<bot>/repo` appears in SSM (the `register` job worked).
 
 ## 4. End-to-end validation on Telegram
 
-- [ ] Message the bot in a topic: message → dispatch → turn → reply. Note the latency.
+- [x] Message the bot in a topic: message → dispatch → turn → reply. Measured on the test group:
+      about 47 s from dispatch to posted reply (queue 4 s, runtime setup 7 s, agent 27 s, post 3 s).
+      The receiver's own response took under a second per request.
 - [ ] Run the scheduled prompt with `workflow_dispatch`; confirm it opens a new topic, then reply
       and confirm the transcript carries over.
 - [ ] Add a second bot to the same group and confirm the ownership rules route messages correctly.
 - [ ] Repeat the `Chat`-against-DynamoDB run on the deployed table (a real message through the
       deployed receiver is enough; check the table items afterwards).
 - [ ] Walk through [docs/onboarding.md](docs/onboarding.md) as written and report anything wrong.
-- [ ] Report anything from the "verify on first live run" list in `docs/workflows.md` that breaks
-      (the `job.workflow_*` contexts, `execution_file` output shape, `repository_dispatch` with
-      `claude-code-action`, `--append-system-prompt-file`, `vars` in reusable workflows).
+- [ ] Report anything from the "verify on first live run" list in `docs/workflows.md` that breaks.
+      Worked in the test repo: `execution_file` output shape, `repository_dispatch` with
+      `claude-code-action`, and `vars` (the caller and called workflow share a repo here, so this
+      doesn't prove the cross-repo case). Not exercised yet: the `job.workflow_*` contexts (this
+      repo passes the inputs explicitly) and a consumer in a different repo.
 
 ## 5. First consumer: `garden`
 
