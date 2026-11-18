@@ -54,7 +54,9 @@ Use a scratch repo first; `garden` comes after this works.
       The receiver's own response took under a second per request.
 - [x] Run the scheduled prompt with `workflow_dispatch`; it opened a new topic (checked in the state
       table: thread marked `createdByBot`, the bot's post in the topic's history).
-- [ ] Reply in that topic (no mention needed) and confirm the reply carries the topic's context.
+- [x] Reply in that topic (no mention needed). Verified: the run succeeded, the topic's transcript
+      holds the bot's post, your reply and the bot's answer in order, and the last-processed marker
+      for the topic advanced.
 - [ ] Add a second bot to the same group and confirm the ownership rules route messages correctly.
 - [x] Repeat the `Chat`-against-DynamoDB run on the deployed table. Items checked: per-bot key
       prefixes, TTLs on dedupe, webhook-update and history entries, unprefixed `registry:<bot>`,
