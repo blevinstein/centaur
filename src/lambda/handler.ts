@@ -1,30 +1,67 @@
+import type { APIGatewayProxyEventV2, Context } from "aws-lambda";
 import { ConsoleLogger } from "chat";
 import { createDynamoDbState } from "../dynamodb-state/index.js";
+import { createChat } from "./chat.js";
 import { createGitHubDispatcher } from "./github.js";
 import { wrapHandler } from "./http.js";
+import { createGitHubOidcVerifier } from "./oidc.js";
 import { createSsmParameterStore, GITHUB_TOKEN_PARAMETER } from "./parameters.js";
+import { createPoster } from "./poster.js";
 import { createReceiver } from "./receiver.js";
+import { createTelegramApi } from "./telegram.js";
+
+function requiredEnv(name: string) {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is not set`);
+  return value;
+}
+
+function memoizeAsync<T>(build: () => Promise<T>) {
+  let cached: Promise<T> | undefined;
+  return () => {
+    cached ??= build().catch((error) => {
+      cached = undefined;
+      throw error;
+    });
+    return cached;
+  };
+}
+
+const logger = new ConsoleLogger("info");
 
 async function buildReceiver() {
   const params = createSsmParameterStore();
   const token = await params.get(GITHUB_TOKEN_PARAMETER);
   if (!token) throw new Error(`missing SSM parameter ${GITHUB_TOKEN_PARAMETER}`);
-  const tableName = process.env.STATE_TABLE_NAME;
-  if (!tableName) throw new Error("STATE_TABLE_NAME is not set");
+  const tableName = requiredEnv("STATE_TABLE_NAME");
   return createReceiver({
     params,
     stateFor: (keyPrefix) => createDynamoDbState({ tableName, keyPrefix }),
     dispatcher: createGitHubDispatcher(token),
-    logger: new ConsoleLogger("info"),
+    logger,
   });
 }
 
-let receiver: ReturnType<typeof buildReceiver> | undefined;
-
-export const handler = wrapHandler(async (request) => {
-  receiver ??= buildReceiver().catch((error) => {
-    receiver = undefined;
-    throw error;
+async function buildPoster() {
+  const tableName = requiredEnv("STATE_TABLE_NAME");
+  return createPoster({
+    params: createSsmParameterStore(),
+    stateFor: (keyPrefix) => createDynamoDbState({ tableName, keyPrefix }),
+    chatFor: (bot, botState) => createChat({ bot, botState, logger }),
+    telegram: createTelegramApi(),
+    oidc: createGitHubOidcVerifier({
+      owner: requiredEnv("GITHUB_OWNER"),
+      audience: requiredEnv("OIDC_AUDIENCE"),
+    }),
+    functionUrl: requiredEnv("FUNCTION_URL"),
   });
-  return (await receiver)(request);
-});
+}
+
+const receiver = memoizeAsync(buildReceiver);
+const poster = memoizeAsync(buildPoster);
+const handleWebhook = wrapHandler(async (request) => (await receiver())(request));
+
+export const handler = async (
+  event: APIGatewayProxyEventV2 | { operation: string },
+  context?: Context,
+) => ("operation" in event ? (await poster())(event) : handleWebhook(event, context));

@@ -3,7 +3,7 @@ import { z } from "zod";
 export const PLATFORMS = ["telegram", "slack"] as const;
 export const CONTEXT_POLICIES = ["fresh", "transcript", "resume"] as const;
 
-const alias = z
+export const alias = z
   .string()
   .regex(/^[a-z0-9][a-z0-9_-]*$/, "must be a lowercase alias (letters, digits, '-' or '_')");
 

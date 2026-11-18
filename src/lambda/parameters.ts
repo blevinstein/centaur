@@ -1,6 +1,7 @@
 import {
   GetParameterCommand,
   ParameterNotFound,
+  PutParameterCommand,
   paginateGetParametersByPath,
   SSMClient,
 } from "@aws-sdk/client-ssm";
@@ -10,6 +11,7 @@ export const PARAMETER_ROOT = "/centaur";
 export interface ParameterStore {
   get(name: string): Promise<string | undefined>;
   getByPath(path: string): Promise<Record<string, string>>;
+  put(name: string, value: string): Promise<void>;
 }
 
 export const botParameter = (bot: string, key: string) => `${PARAMETER_ROOT}/bots/${bot}/${key}`;
@@ -34,6 +36,11 @@ export function createSsmParameterStore(client = new SSMClient({})): ParameterSt
   };
   return {
     getByPath,
+    put: async (name, value) => {
+      await client.send(
+        new PutParameterCommand({ Name: name, Value: value, Type: "String", Overwrite: true }),
+      );
+    },
     get: async (name) => {
       try {
         const { Parameter } = await client.send(

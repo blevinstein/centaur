@@ -48,11 +48,20 @@ export const ALLOWED_USER_ID = "1001";
 export const STRANGER_USER_ID = "9999";
 export const MESSAGE_TEXT = "the tomatoes have yellow leaves";
 
-export const fakeParameterStore = (parameters = PARAMETERS): ParameterStore => ({
-  get: async (name) => parameters[name],
-  getByPath: async (path) =>
-    Object.fromEntries(Object.entries(parameters).filter(([name]) => name.startsWith(`${path}/`))),
-});
+export const fakeParameterStore = (
+  initial = PARAMETERS,
+): ParameterStore & { values: Record<string, string> } => {
+  const values = { ...initial };
+  return {
+    values,
+    get: async (name) => values[name],
+    getByPath: async (path) =>
+      Object.fromEntries(Object.entries(values).filter(([name]) => name.startsWith(`${path}/`))),
+    put: async (name, value) => {
+      values[name] = value;
+    },
+  };
+};
 
 export const fakeDispatcher = () => ({ dispatch: vi.fn<RepositoryDispatcher["dispatch"]>() });
 

@@ -4,6 +4,8 @@ export interface ThreadMetadata extends Record<string, unknown> {
   createdByBot?: boolean;
 }
 
+export const BOT_CREATED_STATE: ThreadMetadata = { createdByBot: true };
+
 export async function ownsMessage(
   thread: Thread<ThreadMetadata>,
   message: Message,

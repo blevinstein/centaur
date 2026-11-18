@@ -15,14 +15,28 @@ const ADAPTER_FACTORIES: Record<Platform, (bot: Bot) => Adapter> = {
   slack: (bot) => createSlackAdapter({ botToken: bot.token, signingSecret: bot.webhookSecret }),
 };
 
-export interface BotChatDeps {
+export type BotChat = Chat<Record<string, Adapter>, ThreadMetadata>;
+
+export interface BotChatBaseDeps {
   bot: Bot;
-  params: ParameterStore;
-  registryState: StateAdapter;
   botState: StateAdapter;
-  dispatcher: RepositoryDispatcher;
   logger: Logger;
 }
+
+export interface BotChatDeps extends BotChatBaseDeps {
+  params: ParameterStore;
+  registryState: StateAdapter;
+  dispatcher: RepositoryDispatcher;
+}
+
+export const createChat = ({ bot, botState, logger }: BotChatBaseDeps): BotChat =>
+  new Chat<Record<string, Adapter>, ThreadMetadata>({
+    userName: bot.name,
+    adapters: { [bot.platform]: ADAPTER_FACTORIES[bot.platform](bot) },
+    state: botState,
+    concurrency: "concurrent",
+    logger,
+  });
 
 export function createBotChat({
   bot,
@@ -32,13 +46,7 @@ export function createBotChat({
   dispatcher,
   logger,
 }: BotChatDeps) {
-  const chat = new Chat<Record<string, Adapter>, ThreadMetadata>({
-    userName: bot.name,
-    adapters: { [bot.platform]: ADAPTER_FACTORIES[bot.platform](bot) },
-    state: botState,
-    concurrency: "concurrent",
-    logger,
-  });
+  const chat = createChat({ bot, botState, logger });
   const handle = createMessageHandler({
     bot,
     resolveAccess: createAccessResolver(bot, params, registryState),

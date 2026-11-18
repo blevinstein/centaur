@@ -3,7 +3,7 @@ import { createBotChat } from "./chat.js";
 import type { RepositoryDispatcher } from "./github.js";
 import type { WebHandler } from "./http.js";
 import type { ParameterStore } from "./parameters.js";
-import { type Bot, loadBots } from "./registry.js";
+import { type Bot, botStatePrefix, loadBots } from "./registry.js";
 
 export interface ReceiverDeps {
   params: ParameterStore;
@@ -29,7 +29,7 @@ export async function createReceiver({
         bot,
         params,
         registryState,
-        botState: stateFor(`bot:${bot.name}:`),
+        botState: stateFor(botStatePrefix(bot.name)),
         dispatcher,
         logger,
       });

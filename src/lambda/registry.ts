@@ -1,6 +1,6 @@
 import type { StateAdapter } from "chat";
 import { type CentaurConfig, PLATFORMS, type Platform } from "../config/index.js";
-import { PARAMETER_ROOT, type ParameterStore } from "./parameters.js";
+import { botParameter, PARAMETER_ROOT, type ParameterStore } from "./parameters.js";
 
 export interface Bot {
   name: string;
@@ -9,6 +9,8 @@ export interface Bot {
   token: string;
   webhookSecret: string;
 }
+
+export type BotSecrets = Omit<Bot, "repo">;
 
 export type RegistryEntry = Pick<CentaurConfig, "allow" | "destination">;
 
@@ -20,21 +22,47 @@ const WEBHOOK_SECRET_KEY: Record<Platform, string> = {
 const BOT_PARAMETER = new RegExp(`^${PARAMETER_ROOT}/bots/([^/]+)/([^/]+)$`);
 
 export const registryKey = (bot: string) => `registry:${bot}`;
+export const botStatePrefix = (bot: string) => `bot:${bot}:`;
+export const repoParameter = (bot: string) => botParameter(bot, "repo");
 
-export async function loadBots(params: ParameterStore): Promise<Bot[]> {
+function secretsOf(name: string, found: Record<string, string>): BotSecrets | undefined {
+  const platform = PLATFORMS.find((candidate) => candidate === found.platform);
+  const webhookSecret = platform && found[WEBHOOK_SECRET_KEY[platform]];
+  const { token } = found;
+  return platform && webhookSecret && token ? { name, platform, token, webhookSecret } : undefined;
+}
+
+const withRepo = (name: string, found: Record<string, string>): Bot | undefined => {
+  const secrets = secretsOf(name, found);
+  return secrets && found.repo ? { ...secrets, repo: found.repo } : undefined;
+};
+
+function groupByBot(entries: Record<string, string>) {
   const byBot = new Map<string, Record<string, string>>();
-  for (const [name, value] of Object.entries(await params.getByPath(`${PARAMETER_ROOT}/bots`))) {
+  for (const [name, value] of Object.entries(entries)) {
     const [, bot, key] = BOT_PARAMETER.exec(name) ?? [];
     if (bot && key) byBot.set(bot, { ...byBot.get(bot), [key]: value });
   }
-  return [...byBot].flatMap(([name, found]) => {
-    const platform = PLATFORMS.find((candidate) => candidate === found.platform);
-    const secret = platform && found[WEBHOOK_SECRET_KEY[platform]];
-    const { repo, token } = found;
-    return platform && secret && repo && token
-      ? [{ name, platform, repo, token, webhookSecret: secret }]
-      : [];
-  });
+  return byBot;
+}
+
+export async function loadBots(params: ParameterStore): Promise<Bot[]> {
+  const byBot = groupByBot(await params.getByPath(`${PARAMETER_ROOT}/bots`));
+  return [...byBot].flatMap(([name, found]) => withRepo(name, found) ?? []);
+}
+
+export async function loadBot(params: ParameterStore, name: string): Promise<Bot | undefined> {
+  const found = groupByBot(await params.getByPath(`${PARAMETER_ROOT}/bots/${name}`)).get(name);
+  return found && withRepo(name, found);
+}
+
+export async function loadBotBinding(
+  params: ParameterStore,
+  name: string,
+): Promise<{ secrets: BotSecrets | undefined; repo: string | undefined }> {
+  const found =
+    groupByBot(await params.getByPath(`${PARAMETER_ROOT}/bots/${name}`)).get(name) ?? {};
+  return { secrets: secretsOf(name, found), repo: found.repo };
 }
 
 export async function readRegistryEntry(
@@ -42,4 +70,12 @@ export async function readRegistryEntry(
   bot: string,
 ): Promise<RegistryEntry | null> {
   return state.get<RegistryEntry>(registryKey(bot));
+}
+
+export async function writeRegistryEntry(
+  state: StateAdapter,
+  bot: string,
+  entry: RegistryEntry,
+): Promise<void> {
+  await state.set(registryKey(bot), entry);
 }

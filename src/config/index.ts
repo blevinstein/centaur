@@ -3,6 +3,7 @@ import type { ZodError } from "zod";
 import { type CentaurConfig, centaurConfigSchema } from "./schema.js";
 
 export {
+  alias,
   type CentaurConfig,
   type ContextPolicy,
   centaurConfigSchema,
