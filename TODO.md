@@ -85,9 +85,9 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
 
 ## 8. First consumer: `garden`
 
-- [ ] Add `.centaur.yml`, `.centaur/persona.md`, and `.centaur/prompts/weekly-tasks.md`.
-- [ ] Add the caller workflow with the Saturday schedule.
-- [ ] Update `garden`'s `AGENTS.md` so automated runs open PRs instead of pushing to `main`.
+- [x] Add `.centaur.yml`, `.centaur/persona.md`, and `.centaur/prompts/weekly-tasks.md`.
+- [x] Add the caller workflow with the Saturday schedule.
+- [x] Update `garden`'s `AGENTS.md` so automated runs open PRs instead of pushing to `main`.
 
 ## 9. Slack
 
