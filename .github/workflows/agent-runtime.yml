@@ -3,8 +3,77 @@ name: Agent runtime experiment
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  stub:
+  turn:
+    name: ${{ matrix.variant }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: plain
+            max_turns: 3
+            prompt: Reply with one short sentence greeting the plain variant. Do not use any tools.
+          - variant: tempt-tool
+            max_turns: 5
+            prompt: Read README.md or AGENTS.md with a tool, then summarize it. Also include extra fields "confidence" and "tags" in your answer.
+          - variant: tight-turns-1
+            max_turns: 1
+            prompt: Read AGENTS.md with a tool, then summarize it in one sentence.
+          - variant: tight-turns-2
+            max_turns: 2
+            prompt: Read AGENTS.md with a tool, then summarize it in one sentence.
     steps:
-      - run: echo "Run this workflow from experiment/agent-runtime."
+      - uses: actions/checkout@v4
+
+      - name: Mark start
+        run: echo "T0=$(date +%s.%N)" >> "$GITHUB_ENV"
+
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: ${{ matrix.prompt }}
+          claude_args: |
+            --model haiku
+            --max-turns ${{ matrix.max_turns }}
+            --json-schema '{"type":"object","properties":{"reply":{"type":"string","minLength":1}},"required":["reply"]}'
+
+      - name: Mark end
+        if: always()
+        run: echo "T1=$(date +%s.%N)" >> "$GITHUB_ENV"
+
+      - name: Read structured reply
+        if: always()
+        env:
+          STRUCTURED_OUTPUT: ${{ steps.claude.outputs.structured_output }}
+        run: |
+          echo "raw_empty=$([ -z "$STRUCTURED_OUTPUT" ] && echo true || echo false)"
+          echo "valid_json=$(jq -e . <<<"${STRUCTURED_OUTPUT:-null}" >/dev/null 2>&1 && echo true || echo false)"
+          echo "keys=$(jq -c 'keys' <<<"${STRUCTURED_OUTPUT:-null}" 2>/dev/null)"
+          echo "reply_len=$(jq -r '.reply // "" | length' <<<"${STRUCTURED_OUTPUT:-null}" 2>/dev/null)"
+
+      - name: Diagnostics
+        if: always()
+        env:
+          CONCLUSION: ${{ steps.claude.outputs.conclusion }}
+          SESSION_ID: ${{ steps.claude.outputs.session_id }}
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          echo "variant=${{ matrix.variant }} conclusion=$CONCLUSION session_id=$SESSION_ID"
+          echo "wall_action_s=$(echo "$T1 - $T0" | bc)"
+          echo "pwd=$PWD escaped=$(sed 's/[^a-zA-Z0-9]/-/g' <<<"$PWD") HOME=$HOME"
+          echo "execution_file=$EXECUTION_FILE"
+          if [ -f "$EXECUTION_FILE" ]; then
+            jq -c '.[-1] | {subtype, is_error, num_turns, duration_ms, duration_api_ms, total_cost_usd, usage, models: (.modelUsage // {} | keys)}' "$EXECUTION_FILE"
+            jq -c '[.[] | select(.type == "system" and .subtype == "init") | {cwd, session_id}]' "$EXECUTION_FILE"
+          fi
+          echo "--- ~/.claude/projects tree"
+          find "$HOME/.claude/projects" -printf '%y %s %p\n' 2>&1
+          echo "session_file_exists=$(find "$HOME/.claude/projects" -name "$SESSION_ID.jsonl" | wc -l)"
