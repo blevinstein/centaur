@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Centaur - S3 session bucket and a GitHub OIDC role scoped to one GitHub owner.
+Description: Centaur - S3 session bucket, DynamoDB state table, and a GitHub OIDC role scoped to one GitHub owner.
 
 Parameters:
   GitHubOwner:
@@ -51,6 +51,42 @@ Resources:
             Prefix: sessions/
             ExpirationInDays: !Ref SessionExpirationDays
 
+  StateTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  StateTableAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Lets a role use the DynamoDB StateAdapter table. Attach it to the Lambda execution role.
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:DeleteItem
+              - dynamodb:Query
+            Resource: !GetAtt StateTable.Arn
+
   GitHubRole:
     Type: AWS::IAM::Role
     Properties:
@@ -88,3 +124,9 @@ Outputs:
     Value: !Ref SessionBucket
   RoleArn:
     Value: !GetAtt GitHubRole.Arn
+  StateTableName:
+    Value: !Ref StateTable
+  StateTableArn:
+    Value: !GetAtt StateTable.Arn
+  StateTableAccessPolicyArn:
+    Value: !Ref StateTableAccessPolicy

@@ -183,7 +183,10 @@ The adapter in `src/dynamodb-state/` uses one pay-per-request table (`pk`/`sk`, 
 key-value, and `dequeue` operations are single conditional writes. `appendToList` and `enqueue`
 write the entry and then trim, so a reader can briefly see more than `maxLength` entries, but the
 newest entries are never lost. A 44-test suite ported from `state-memory` passes against both
-`@chat-adapter/state-memory` and DynamoDB Local. Not yet exercised by `Chat` itself or on a
+`@chat-adapter/state-memory` and DynamoDB Local. `infra/centaur.yml` defines the table (retained on
+stack deletion, TTL on `ttl`, generated name) and a `StateTableAccessPolicy` managed policy limited
+to `GetItem`, `PutItem`, `UpdateItem`, `DeleteItem` and `Query` on the table ARN, which is every
+call the adapter makes; the Lambda role attaches it. Not yet exercised by `Chat` itself or on a
 deployed table.
 
 The SDK's webhook handlers take a web `Request` and return a `Response`. Lambda function URLs
