@@ -15,7 +15,9 @@ export const SLACK_CHANNEL_ID = "C0123";
 export const TOPIC_ID = 77;
 export const SLACK_POST_THREAD_ID = "slack:C0123:1700000000.000100";
 
-export const REGISTERED_ENTRY = { allow: ["maintainer"], destination: "household" };
+export const WORKSHOP_CHAT_ID = "-100900";
+export const REGISTERED_ENTRY = { allow: ["maintainer"], chats: ["household", "workshop"] };
+export const LEGACY_ENTRY = { allow: ["maintainer"], destination: "household" };
 
 export const ORPHAN_PARAMETERS: Record<string, string> = {
   "/centaur/bots/sprout/platform": "telegram",
@@ -28,7 +30,7 @@ export const configText = (overrides: Record<string, string | undefined> = {}) =
   Object.entries({
     bot: "sprout",
     platform: "telegram",
-    destination: "household",
+    chats: "[household]",
     allow: "[maintainer]",
     provider: "anthropic",
     model: "sonnet",
@@ -68,6 +70,8 @@ export function fakePosterChat(transcript: unknown[] = []) {
   const thread = {
     id: "telegram:-100500:77",
     adapter: { removeReaction },
+    channelId: `telegram:${HOUSEHOLD_CHAT_ID}`,
+    isDM: false,
     post: vi.fn(async () => ({ id: "sent-1" })),
     setState: vi.fn(async (next: ThreadMetadata) => {
       Object.assign(state, next);
@@ -98,6 +102,7 @@ export async function posterSetup(
   const params = fakeParameterStore({
     ...PARAMETERS,
     "/centaur/chats/notes-channel": SLACK_CHANNEL_ID,
+    "/centaur/chats/workshop": WORKSHOP_CHAT_ID,
     ...options.parameters,
   });
   const registryState = createMemoryState();
@@ -105,7 +110,7 @@ export async function posterSetup(
   await registryState.set("registry:garden", REGISTERED_ENTRY);
   await registryState.set("registry:notes", {
     allow: ["maintainer"],
-    destination: "notes-channel",
+    chats: ["notes-channel"],
   });
   const telegram = fakeTelegram();
   const oidc = fakeOidc();

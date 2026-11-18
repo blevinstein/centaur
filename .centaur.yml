@@ -1,6 +1,6 @@
 bot: centaur-test
 platform: telegram
-destination: blevinstein
+chats: [blevinstein]
 allow: [blevinstein]
 respond_to: all
 context:

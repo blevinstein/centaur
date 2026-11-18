@@ -22,10 +22,13 @@ const NEW_THREAD_OPENING = "Fresh thread. What would you like to do?";
 
 const dispatchPayload = z.object({ bot: alias, thread_id: z.string().min(1) });
 
+export type StartTarget = { destination: string } | { fromThreadId: string };
+
 export interface TurnState {
   mode: "reply" | "start-thread";
   bot: string;
   threadId?: string;
+  start?: StartTarget;
   policy: ContextPolicy;
   marker?: string;
   source?: ReactionSource;
@@ -54,6 +57,7 @@ export interface PrepareOutputs {
 interface Turn {
   mode: TurnState["mode"];
   threadId?: string;
+  start?: StartTarget;
   policy: ContextPolicy;
   marker?: string;
   source?: ReactionSource;
@@ -84,7 +88,12 @@ async function scheduledTurn(
   const prompt = config.prompts[name];
   if (!prompt) throw new Error(`.centaur.yml defines no prompt named "${name}"`);
   const scheduledTask = await readFile(join(deps.workspace, prompt.file), "utf8");
-  return { mode: "start-thread", policy: prompt.context, prompt: buildPrompt({ scheduledTask }) };
+  return {
+    mode: "start-thread",
+    policy: prompt.context,
+    start: { destination: prompt.destination },
+    prompt: buildPrompt({ scheduledTask }),
+  };
 }
 
 async function chatTurn(
@@ -138,6 +147,7 @@ async function chatTurn(
         await deps.poster.call({
           operation: "start-thread",
           bot: config.bot,
+          fromThreadId: threadId,
           text: NEW_THREAD_OPENING,
         });
         await clearReactions(deps.poster, source);
@@ -146,6 +156,7 @@ async function chatTurn(
       return {
         mode: "start-thread",
         policy: config.context.default,
+        start: { fromThreadId: threadId },
         source,
         prompt: buildPrompt({ messages: plan.seed }),
       };
@@ -218,6 +229,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     policy: turn.policy,
     sessionDirectory: directory,
     ...(turn.threadId ? { threadId: turn.threadId } : {}),
+    ...(turn.start ? { start: turn.start } : {}),
     ...(turn.marker ? { marker: turn.marker } : {}),
     ...(turn.source ? { source: turn.source } : {}),
   };

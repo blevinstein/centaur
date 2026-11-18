@@ -8,7 +8,7 @@ Per-consumer-repo configuration. The schema lives in `src/config/schema.ts` (zod
 ```yaml
 bot: garden
 platform: telegram
-destination: household
+chats: [household]             # chats the bot listens in; IDs in SSM at /centaur/chats/<alias>
 allow: [maintainer, spouse]
 respond_to: mention
 handle: garden_helper_bot      # the bot's @username; only used with respond_to: all
@@ -25,6 +25,7 @@ persona: .centaur/persona.md
 prompts:
   weekly-tasks:                 # file defaults to .centaur/prompts/weekly-tasks.md
     context: transcript         # overrides context.scheduled for this prompt
+    destination: household      # chat for the new thread; optional with a single chat
 ```
 
 ## Fields
@@ -33,9 +34,9 @@ prompts:
 |---|---|---|---|
 | `bot` | yes | | Bot alias; secrets live under `/centaur/bots/<bot>/` in SSM. |
 | `platform` | yes | | `telegram` or `slack`. |
-| `destination` | if `prompts` is set | | Named chat for scheduled outreach; ID in SSM at `/centaur/chats/<destination>`. |
+| `chats` | if `prompts` is set or `respond_to: all` | | Non-empty list of chat aliases (no duplicates); IDs in SSM at `/centaur/chats/<alias>`. The receiver accepts group messages only from these chats. Without `chats` the bot is DM-only. |
 | `allow` | yes (non-empty) | | Named users allowed to trigger turns; IDs in SSM. |
-| `respond_to` | no | `mention` | Which messages the bot answers: `mention` (mentions, DMs and topics it created) or `all` (every message from an allowed sender in `destination`; requires `destination`). See [plan.md](plan.md#routing-in-a-shared-telegram-group). |
+| `respond_to` | no | `mention` | Which messages the bot answers: `mention` (mentions, DMs and topics it created) or `all` (every message from an allowed sender in any of `chats`; requires `chats`). See [plan.md](plan.md#routing-in-a-shared-telegram-group). |
 | `context.default` | no | `transcript` | Policy for conversational threads: `fresh`, `transcript` or `resume`. |
 | `context.scheduled` | no | `fresh` | Policy for threads started by a scheduled prompt. |
 | `handle` | no | | The bot's platform username without `@`. With `respond_to: all` the prompt tells the agent people mention it as `@<handle>`. The workflow cannot learn it cheaply from the bot's identity, so it is configured. |
@@ -48,13 +49,22 @@ prompts:
 | `persona` | no | `.centaur/persona.md` | Repo-relative path to the persona file. |
 | `prompts` | no | `{}` | Scheduled prompts by name (see below). |
 
-Names (`bot`, `destination`, `allow` entries, prompt names) are lowercase aliases matching
-`[a-z0-9][a-z0-9_-]*`; real IDs never appear in the repo. Paths must be relative and stay inside
-the repo (no leading `/`, no `..`). Unknown keys are errors.
+Each prompt takes `file` (default `.centaur/prompts/<name>.md`), `context` (default
+`context.scheduled`) and `destination`: the chat alias where its scheduled run starts a thread. A
+prompt's `destination` must be one of `chats`. It may be omitted when `chats` has exactly one
+entry, which becomes the default; with several chats every prompt must name one.
+
+Names (`bot`, `chats` and `destination` entries, `allow` entries, prompt names) are lowercase
+aliases matching `[a-z0-9][a-z0-9_-]*`; real IDs never appear in the repo. Paths must be relative
+and stay inside the repo (no leading `/`, no `..`). Unknown keys are errors. A top-level
+`destination` (the pre-`chats` form) is rejected with a message pointing to `chats`.
+
+`/new` starts its thread in the chat the command came from (a DM stays in that DM), so it needs no
+configured destination. Replies go to the originating thread.
 
 ## Responding to all messages
 
-With `respond_to: all`, every message from an allowed sender in the `destination` chat (or a DM)
+With `respond_to: all`, every message from an allowed sender in any of the `chats` (or a DM)
 starts a turn, and the agent decides whether to answer: its structured output is either `reply` or
 `ignore: true`, and an ignored turn posts nothing but still advances the last-processed marker and
 saves the session. The prompt tells the agent the messages were not necessarily addressed to it
@@ -114,5 +124,7 @@ invalid YAML). Parsing never throws on bad input.
   first, and the two callers handle failure differently (reject registration vs fail the job).
 - **Cron stays in the workflow.** GitHub Actions only honors `schedule:` in workflow files, so
   duplicating cron in `.centaur.yml` would drift. The config only describes what a prompt is.
-- **`destination` is optional** so a DM-only or reply-only bot needs no named chat, but is
-  required once any scheduled prompt exists.
+- **`chats` is optional** so a DM-only bot needs no named chat, but is required once any scheduled
+  prompt exists or `respond_to` is `all`. The allowlist (`chats`) and the posting target
+  (`prompts.<name>.destination`) are separate, so a bot can listen in several chats and post each
+  prompt to one of them.

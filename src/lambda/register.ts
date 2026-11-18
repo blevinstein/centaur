@@ -32,7 +32,7 @@ export function createRegister({
     const { repository } = await oidc.verify(token);
     const parsed = parseCentaurConfig(configText);
     if (!parsed.ok) throw new Error(`invalid .centaur.yml:\n${formatIssues(parsed.issues)}`);
-    const { bot, platform, allow, destination, respond_to } = parsed.config;
+    const { bot, platform, allow, chats, respond_to } = parsed.config;
 
     const { secrets, repo: boundRepo } = await loadBotBinding(params, bot);
     if (!secrets) {
@@ -49,7 +49,7 @@ export function createRegister({
     await writeRegistryEntry(registryState, bot, {
       allow,
       respond_to,
-      ...(destination ? { destination } : {}),
+      ...(chats ? { chats } : {}),
     });
     if (platform === "telegram") {
       await telegram.setWebhook(

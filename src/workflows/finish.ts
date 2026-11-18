@@ -50,10 +50,12 @@ async function deliver(
     await poster.call({ operation: "post", bot: state.bot, threadId: state.threadId, text });
     return state.threadId;
   }
+  if (!state.start) throw new Error("the turn names no chat to start a thread in");
   const started = await poster.call<{ threadId: string }>({
     operation: "start-thread",
     bot: state.bot,
     text,
+    ...state.start,
     ...(title ? { title } : {}),
   });
   return started.threadId;

@@ -29,13 +29,25 @@ const toolList = z
 const promptSchema = z.strictObject({
   file: repoPath.optional(),
   context: contextPolicy.optional(),
+  destination: alias.optional(),
 });
+
+const chatList = z
+  .array(alias)
+  .min(1, "must list at least one chat")
+  .refine((chats) => new Set(chats).size === chats.length, "must not list a chat twice");
 
 export const centaurConfigSchema = z
   .strictObject({
     bot: alias,
     platform: z.enum(PLATFORMS),
-    destination: alias.optional(),
+    chats: chatList.optional(),
+    destination: z
+      .never({
+        error:
+          "is no longer a top-level key; list the chats the bot listens in under `chats` and name a prompt's chat under `prompts.<name>.destination`",
+      })
+      .optional(),
     allow: z.array(alias).min(1, "must list at least one user"),
     respond_to: z.enum(RESPOND_TO).default("mention"),
     context: z
@@ -57,29 +69,34 @@ export const centaurConfigSchema = z
     persona: repoPath.default(".centaur/persona.md"),
     prompts: z.record(alias, promptSchema).default({}),
   })
-  .transform((config) => ({
-    ...config,
-    prompts: Object.fromEntries(
-      Object.entries(config.prompts).map(([name, prompt]) => [
+  .transform((config, ctx) => {
+    const chats = config.chats ?? [];
+    const reject = (path: string[], message: string) =>
+      ctx.issues.push({ code: "custom", input: config, path, message });
+    if (chats.length === 0 && Object.keys(config.prompts).length > 0) {
+      reject(["chats"], "is required when prompts are defined, because they post to a chat");
+    }
+    if (chats.length === 0 && config.respond_to === "all") {
+      reject(["chats"], "is required when respond_to is all, because it names the chats it hears");
+    }
+    const prompts = Object.entries(config.prompts).map(([name, prompt]) => {
+      const destination = prompt.destination ?? (chats.length === 1 ? chats[0] : undefined);
+      const path = ["prompts", name, "destination"];
+      if (chats.length > 1 && destination === undefined) {
+        reject(path, "is required when the bot lists several chats");
+      } else if (destination !== undefined && !chats.includes(destination)) {
+        reject(path, `"${destination}" must be one of the chats listed under chats`);
+      }
+      return [
         name,
         {
           file: prompt.file ?? `.centaur/prompts/${name}.md`,
           context: prompt.context ?? config.context.scheduled,
+          destination: destination ?? "",
         },
-      ]),
-    ),
-  }))
-  .refine(
-    (config) => config.destination !== undefined || Object.keys(config.prompts).length === 0,
-    {
-      path: ["destination"],
-      message:
-        "is required when prompts are defined, because scheduled runs need a chat to post to",
-    },
-  )
-  .refine((config) => config.destination !== undefined || config.respond_to === "mention", {
-    path: ["destination"],
-    message: "is required when respond_to is all, because it names the chat the bot listens in",
+      ] as const;
+    });
+    return { ...config, prompts: Object.fromEntries(prompts) };
   });
 
 export type CentaurConfig = z.output<typeof centaurConfigSchema>;

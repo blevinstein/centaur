@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatIssues, parseCentaurConfig } from "../src/config/index.js";
-import { fullConfig, invalidConfigs, minimalConfig } from "./helpers/config-fixtures.js";
+import { fullConfig, invalidConfigs, minimalConfig, withExtra } from "./helpers/config-fixtures.js";
 
 describe("parseCentaurConfig", () => {
   it("applies defaults to a minimal config", () => {
@@ -28,7 +28,7 @@ describe("parseCentaurConfig", () => {
       config: {
         bot: "garden",
         platform: "telegram",
-        destination: "household",
+        chats: ["household", "workshop"],
         allow: ["maintainer", "spouse"],
         respond_to: "all",
         handle: "garden_helper_bot",
@@ -41,10 +41,43 @@ describe("parseCentaurConfig", () => {
         allowed_tools: ["Read", "Edit", "Write", "Glob", "Grep"],
         persona: ".centaur/persona.md",
         prompts: {
-          "weekly-tasks": { file: ".centaur/prompts/weekly-tasks.md", context: "transcript" },
-          seasonal: { file: ".centaur/prompts/season.md", context: "fresh" },
+          "weekly-tasks": {
+            file: ".centaur/prompts/weekly-tasks.md",
+            context: "transcript",
+            destination: "household",
+          },
+          seasonal: {
+            file: ".centaur/prompts/season.md",
+            context: "fresh",
+            destination: "workshop",
+          },
         },
       },
+    });
+  });
+
+  it("defaults a prompt's destination to the only chat", () => {
+    const result = parseCentaurConfig(withExtra("chats: [household]\nprompts: {weekly: {}}"));
+    expect(result).toMatchObject({
+      ok: true,
+      config: { prompts: { weekly: { destination: "household" } } },
+    });
+  });
+
+  it("accepts a prompt destination among several chats", () => {
+    const result = parseCentaurConfig(
+      withExtra("chats: [a, b]\nprompts: {weekly: {destination: b}}"),
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      config: { prompts: { weekly: { destination: "b" } } },
+    });
+  });
+
+  it("accepts a DM-only bot with no chats and no prompts", () => {
+    expect(parseCentaurConfig(withExtra("respond_to: mention"))).toMatchObject({
+      ok: true,
+      config: { prompts: {} },
     });
   });
 

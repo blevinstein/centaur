@@ -56,6 +56,17 @@ describe("message handler", () => {
     expect(dispatcher.dispatch).toHaveBeenCalledOnce();
   });
 
+  it.each(["-100500", "-100900"])(
+    "accepts a mention from chat %s when several chats are allowed",
+    async (chatId) => {
+      const { handle, dispatcher } = setup(accessFor({ chatIds: new Set(["-100500", "-100900"]) }));
+
+      await handle(fakeThread({ chatId }).thread, fakeMessage({ isMention: true }));
+
+      expect(dispatcher.dispatch).toHaveBeenCalledOnce();
+    },
+  );
+
   it("ignores group messages that are neither mentions nor in bot-created topics", async () => {
     const { handle, dispatcher, access } = setup();
     const { thread, post, addReaction } = fakeThread({ state: { createdByBot: false } });

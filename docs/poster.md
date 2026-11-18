@@ -12,7 +12,7 @@ to a repo (secrets plus `bots/<bot>/repo`) for every operation except `register`
 | `operation` | Fields | Result |
 |---|---|---|
 | `post` | `bot`, `threadId`, `text` | `{ messageId }` |
-| `start-thread` | `bot`, `text`, optional `title` | `{ threadId }` |
+| `start-thread` | `bot`, `text`, optional `title`, exactly one of `destination` (chat alias) or `fromThreadId` | `{ threadId }` |
 | `read` | `bot`, `threadId` | `{ messages: [{ id, userId, userName, fromBot, text, sentAt }] }`, oldest first |
 | `unreact` | `bot`, `threadId`, `messageIds` (1 to 50) | `{ results: [{ messageId, removed }] }` |
 | `register` | `token` (GitHub OIDC JWT), `config` (`.centaur.yml` text) | `{ bot, repo }` |
@@ -22,8 +22,12 @@ the bot's posts land in the stored transcript the receiver and `read` use.
 
 ## `start-thread`
 
-The destination chat is the bot's registered `destination` (registry entry, then
-`/centaur/chats/<destination>`).
+The destination chat comes from the request, so the poster never needs prompt names. Scheduled
+runs pass `destination`, the prompt's chat alias from `.centaur.yml`; it must be one of the bot's
+registered `chats`, and its ID is read from `/centaur/chats/<destination>`. `/new` passes
+`fromThreadId`, the thread the command came from, and the new thread starts in that thread's chat,
+which must be a registered chat or a DM. Registry entries written before `chats` existed carry a
+single `destination`, read as a one-item chat list.
 
 - **Telegram:** `createForumTopic` in the destination supergroup (the bot needs the Manage Topics
   admin right), named `title` or the first line of `text` (at most 128 characters), then `text` is
@@ -60,7 +64,7 @@ Then it parses `config` with `parseCentaurConfig` and, in order:
 1. requires the bot's `platform`, `token` and webhook/signing secret in SSM, with a platform that
    matches the config;
 2. refuses if `bots/<bot>/repo` holds a different repo (`centaur bot unbind` first);
-3. writes `bots/<bot>/repo`, then the registry entry `registry:<bot>` = `{ allow, destination }`;
+3. writes `bots/<bot>/repo`, then the registry entry `registry:<bot>` = `{ allow, respond_to, chats }` (`chats` omitted when the config has none);
 4. for Telegram, calls `setWebhook` with `<FUNCTION_URL>/telegram/<bot>` and the stored webhook
    secret. Slack needs no call.
 

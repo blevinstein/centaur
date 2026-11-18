@@ -22,10 +22,10 @@ export const message = (id: string, text: string, overrides: Partial<ChatMessage
 export const botMessage = (id: string, text: string) =>
   message(id, text, { fromBot: true, userName: "sprout" });
 
-export const configText = (extra = "") => `
+export const configText = (extra = "", chats = "[household]") => `
 bot: sprout
 platform: telegram
-destination: household
+chats: ${chats}
 allow: [maintainer]
 provider: anthropic
 model: sonnet

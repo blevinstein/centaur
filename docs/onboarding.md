@@ -100,7 +100,7 @@ That's all that's needed for group use. Optionally, to DM a bot: open its link
 Repeat for each consumer repo, after the bot exists (Telegram above, Slack below).
 
 1. In the repo, add:
-   - `.centaur.yml` ([schema](config.md): bot, platform, destination, `allow`, `respond_to`,
+   - `.centaur.yml` ([schema](config.md): bot, platform, `chats`, `allow`, `respond_to`,
      `handle`, context, model and cost-tuning fields, tool allowlist, persona);
    - `.centaur/persona.md`, and any scheduled prompts under `.centaur/prompts/`;
    - the caller workflow in `.github/workflows/`, copied from

@@ -3,8 +3,10 @@ import { readRegistryEntry } from "../src/lambda/registry.js";
 import {
   configText,
   FUNCTION_URL,
+  LEGACY_ENTRY,
   ORPHAN_PARAMETERS,
   posterSetup,
+  REGISTERED_ENTRY,
 } from "./helpers/poster-fixtures.js";
 
 const register = (
@@ -25,7 +27,7 @@ describe("register", () => {
     expect(params.values["/centaur/bots/sprout/repo"]).toBe("octo/sprout");
     expect(await readRegistryEntry(registryState, "sprout")).toEqual({
       allow: ["maintainer"],
-      destination: "household",
+      chats: ["household"],
       respond_to: "mention",
     });
     expect(telegram.setWebhook).toHaveBeenCalledExactlyOnceWith(
@@ -59,15 +61,37 @@ describe("register", () => {
     expect(telegram.setWebhook).not.toHaveBeenCalled();
   });
 
-  it("omits destination from the registry entry when the config has none", async () => {
+  it("omits chats from the registry entry when the config has none", async () => {
     const { poster, registryState } = await posterSetup({ parameters: ORPHAN_PARAMETERS });
 
-    await register(poster, configText({ destination: undefined }));
+    await register(poster, configText({ chats: undefined }));
 
     expect(await readRegistryEntry(registryState, "sprout")).toEqual({
       allow: ["maintainer"],
       respond_to: "mention",
     });
+  });
+
+  it("stores every chat, and replaces a legacy destination entry", async () => {
+    const { poster, registryState } = await posterSetup({ parameters: ORPHAN_PARAMETERS });
+    await registryState.set("registry:sprout", LEGACY_ENTRY);
+
+    await register(poster, configText({ chats: "[household, workshop]" }));
+
+    expect(await readRegistryEntry(registryState, "sprout")).toEqual({
+      allow: ["maintainer"],
+      respond_to: "mention",
+      chats: ["household", "workshop"],
+    });
+  });
+
+  it("rejects the legacy top-level destination key", async () => {
+    const { poster, registryState } = await posterSetup({ parameters: ORPHAN_PARAMETERS });
+
+    await expect(
+      register(poster, configText({ chats: undefined, destination: "household" })),
+    ).rejects.toThrow(/destination: .*`chats`/);
+    expect(await readRegistryEntry(registryState, "sprout")).toBeNull();
   });
 
   it("stores respond_to from the config in the registry entry", async () => {
@@ -98,7 +122,7 @@ describe("register", () => {
 
       expect(params.values).toEqual(before);
       expect(await readRegistryEntry(registryState, overrides.bot ?? "sprout")).toEqual(
-        overrides.bot === "garden" ? { allow: ["maintainer"], destination: "household" } : null,
+        overrides.bot === "garden" ? REGISTERED_ENTRY : null,
       );
       expect(telegram.setWebhook).not.toHaveBeenCalled();
     });

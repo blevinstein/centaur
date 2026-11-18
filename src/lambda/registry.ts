@@ -12,9 +12,14 @@ export interface Bot {
 
 export type BotSecrets = Omit<Bot, "repo">;
 
-export type RegistryEntry = Pick<CentaurConfig, "allow" | "destination"> & {
+export type RegistryEntry = Pick<CentaurConfig, "allow" | "chats"> & {
   respond_to?: RespondTo;
+  /** Written by registrations that predate `chats`; read as a one-item chat list. */
+  destination?: string;
 };
+
+export const registeredChats = (entry: RegistryEntry | null): string[] =>
+  entry?.chats ?? (entry?.destination ? [entry.destination] : []);
 
 const WEBHOOK_SECRET_KEY: Record<Platform, string> = {
   telegram: "webhook-secret",

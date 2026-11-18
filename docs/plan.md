@@ -41,15 +41,16 @@ in the diagram because it's invoked over IAM, not a public URL.
   uses its own state `keyPrefix` (`bot:<bot>:`) to keep dedupe keys apart. `concurrency` is
   `concurrent`, because the default `drop` strategy loses messages that arrive close together.
   The webhook path selects the bot: `/telegram/<bot>`, `/slack/<bot>`.
-- The registry entry `{allow, destination, respond_to}` for each bot is stored in state under
+- The registry entry `{allow, chats, respond_to}` for each bot is stored in state under
   `registry:<bot>` (written by `register`); the bound repo is in SSM at `bots/<bot>/repo`. With no
-  entry, nobody is allowed; an entry without `respond_to` means `mention`.
+  entry, nobody is allowed; an entry without `respond_to` means `mention`. An entry written before
+  `chats` existed has a single `destination`, which is read as a one-item `chats` list.
 - On a message:
   1. Adapter verifies the request (Telegram secret token, Slack signing secret) and deduplicates.
   2. Decide whether this bot owns the message (see [Routing in a shared Telegram
      group](#routing-in-a-shared-telegram-group)); ignore it if not. This comes first so that in a
      shared group only the owning bot ever replies to a stranger.
-  3. Reject chats other than the repo's `destination` (ignored silently) and senders not on the
+  3. Reject group chats other than the repo's `chats` (ignored silently; DMs are exempt) and senders not on the
      bot's allowlist (see [Security](#security)); unknown senders get a refusal and only their IDs
      are logged.
   4. Persist the message (the SDK's `persistThreadHistory` does this) and add a 👀 reaction, which
@@ -124,7 +125,7 @@ A manual `workflow_dispatch` registers and also runs the scheduled prompt, which
 setup check.
 
 A scheduled run starts a **new thread** (a new Telegram topic, or a new top-level Slack message)
-with a `fresh` context, and replies to it continue as normal conversation.
+in the prompt's `destination` chat (one of the bot's `chats`) with a `fresh` context, and replies to it continue as normal conversation.
 
 ### Configuration
 
@@ -141,7 +142,7 @@ anyone. Configuration lives in three places:
 # <repo>/.centaur.yml
 bot: garden                     # secrets live under /centaur/bots/garden/ in SSM
 platform: telegram              # telegram | slack
-destination: household          # named chat; ID in SSM at /centaur/chats/household
+chats: [household]              # chats the bot listens in; IDs in SSM at /centaur/chats/<alias>
 allow: [maintainer, spouse]     # named users; IDs in SSM at /centaur/users/<name>/<platform>
 context:
   default: transcript           # fresh | transcript | resume
@@ -166,7 +167,7 @@ The receiver has to map an incoming webhook to a repo without reading every repo
 2. It invokes the Lambda's `register` operation through the GitHub OIDC role, sending the parsed
    `.centaur.yml` and the calling repo name taken from the OIDC token's claims, not from input the
    workflow could forge.
-3. The Lambda upserts the registry entry (`bot → repo, platform, destination, allow`) in the state
+3. The Lambda upserts the registry entry (`bot → repo, platform, chats, allow`) in the state
    store. For Telegram it also calls `setWebhook` with the bot's token and secret from SSM, so
    webhook setup is never a manual step.
 4. Registration fails if the bot's secrets aren't in SSM. Creating them is the maintainer's
@@ -207,7 +208,7 @@ receive **all** group messages, so each bot must decide what's addressed to it:
 3. Everything else is ignored.
 
 A bot configured with `respond_to: all` replaces rules 1-3 with: every message from an allowed
-sender in its `destination` chat belongs to it, and the agent decides per turn whether to reply or
+sender in any of its `chats` belongs to it, and the agent decides per turn whether to reply or
 stay silent. Messages authored by bots (the Chat SDK's `author.isBot` and `author.isMe`) never
 belong to any bot in this mode, so two bots in one chat can't answer each other. The checks keep
 their order (ownership, chat allowlist, sender allowlist), but an unenrolled sender whose message

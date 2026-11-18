@@ -2,14 +2,22 @@ import { describe, expect, it } from "vitest";
 import { BOT_CREATED_STATE, ownsMessage } from "../src/lambda/ownership.js";
 import {
   HOUSEHOLD_CHAT_ID,
+  LEGACY_ENTRY,
   posterSetup,
   SLACK_CHANNEL_ID,
   SLACK_POST_THREAD_ID,
   TOPIC_ID,
+  WORKSHOP_CHAT_ID,
 } from "./helpers/poster-fixtures.js";
 import { fakeMessage, fakeThread } from "./helpers/receiver-fixtures.js";
 
 const GARDEN_THREAD = `telegram:${HOUSEHOLD_CHAT_ID}:${TOPIC_ID}`;
+const START_HOUSEHOLD = {
+  operation: "start-thread",
+  bot: "garden",
+  destination: "household",
+  text: "x",
+} as const;
 
 describe("poster post", () => {
   it("posts text into the thread through the bot's own chat and state prefix", async () => {
@@ -58,8 +66,7 @@ describe("poster start-thread", () => {
     const { poster, telegram, thread, chatMock, state } = await posterSetup();
 
     const result = await poster({
-      operation: "start-thread",
-      bot: "garden",
+      ...START_HOUSEHOLD,
       text: "Saturday tasks\nWater the beds",
       title: "Week 12",
     });
@@ -83,7 +90,7 @@ describe("poster start-thread", () => {
   it("names the topic after the first line of the text by default", async () => {
     const { poster, telegram } = await posterSetup();
 
-    await poster({ operation: "start-thread", bot: "garden", text: "  Saturday tasks\nmore" });
+    await poster({ ...START_HOUSEHOLD, text: "  Saturday tasks\nmore" });
 
     expect(telegram.createForumTopic).toHaveBeenCalledWith(
       "tg-token",
@@ -95,7 +102,12 @@ describe("poster start-thread", () => {
   it("starts a Slack thread with a top-level channel post and marks it bot-owned", async () => {
     const { poster, telegram, channelPost, chatMock, thread } = await posterSetup();
 
-    const result = await poster({ operation: "start-thread", bot: "notes", text: "Hello" });
+    const result = await poster({
+      operation: "start-thread",
+      bot: "notes",
+      destination: "notes-channel",
+      text: "Hello",
+    });
 
     expect(result).toEqual({ threadId: SLACK_POST_THREAD_ID });
     expect(chatMock.channel).toHaveBeenCalledWith(`slack:${SLACK_CHANNEL_ID}`);
@@ -106,13 +118,102 @@ describe("poster start-thread", () => {
     expect(telegram.createForumTopic).not.toHaveBeenCalled();
   });
 
-  it("fails without a registered destination", async () => {
-    const { poster, registryState, telegram } = await posterSetup();
-    await registryState.set("registry:garden", { allow: ["maintainer"] });
+  it("starts the topic in whichever registered chat the destination names", async () => {
+    const { poster, telegram } = await posterSetup();
 
-    await expect(poster({ operation: "start-thread", bot: "garden", text: "x" })).rejects.toThrow(
-      /no registered destination/,
+    await poster({ ...START_HOUSEHOLD, destination: "workshop", text: "x" });
+
+    expect(telegram.createForumTopic).toHaveBeenCalledWith("tg-token", WORKSHOP_CHAT_ID, "x");
+  });
+
+  it.each([
+    ["a chat the bot did not register", { destination: "notes-channel" }, undefined],
+    [
+      "a registered chat missing from SSM",
+      { destination: "household" },
+      "/centaur/chats/household",
+    ],
+  ])("rejects %s as the destination", async (_name, overrides, missingParameter) => {
+    const { poster, params, telegram } = await posterSetup();
+    if (missingParameter) delete params.values[missingParameter];
+
+    await expect(poster({ ...START_HOUSEHOLD, text: "x", ...overrides })).rejects.toThrow();
+    expect(telegram.createForumTopic).not.toHaveBeenCalled();
+  });
+
+  it("reads a legacy entry's destination as its only chat", async () => {
+    const { poster, registryState, telegram } = await posterSetup();
+    await registryState.set("registry:garden", LEGACY_ENTRY);
+
+    await poster({ ...START_HOUSEHOLD, text: "x" });
+    await expect(
+      poster({ ...START_HOUSEHOLD, destination: "workshop", text: "x" }),
+    ).rejects.toThrow(/no registered chat "workshop"/);
+
+    expect(telegram.createForumTopic).toHaveBeenCalledExactlyOnceWith(
+      "tg-token",
+      HOUSEHOLD_CHAT_ID,
+      "x",
     );
+  });
+
+  describe("from a thread", () => {
+    const fromThread = (chatId: string) => ({
+      operation: "start-thread" as const,
+      bot: "garden",
+      text: "fresh",
+      fromThreadId: `telegram:${chatId}:5`,
+    });
+
+    it.each([
+      ["the first registered chat", HOUSEHOLD_CHAT_ID],
+      ["another registered chat", WORKSHOP_CHAT_ID],
+    ])("starts the topic in %s", async (_name, chatId) => {
+      const { poster, telegram, thread } = await posterSetup();
+      Object.assign(thread, { channelId: `telegram:${chatId}` });
+
+      await poster(fromThread(chatId));
+
+      expect(telegram.createForumTopic).toHaveBeenCalledWith("tg-token", chatId, "fresh");
+    });
+
+    it("starts the thread in the DM it came from", async () => {
+      const { poster, telegram, thread } = await posterSetup();
+      Object.assign(thread, { channelId: "telegram:4242", isDM: true });
+
+      await poster(fromThread("4242"));
+
+      expect(telegram.createForumTopic).toHaveBeenCalledWith("tg-token", "4242", "fresh");
+    });
+
+    it("refuses a group chat the bot did not register", async () => {
+      const { poster, telegram, thread } = await posterSetup();
+      Object.assign(thread, { channelId: "telegram:-100777" });
+
+      await expect(poster(fromThread("-100777"))).rejects.toThrow(/not registered for chat/);
+      expect(telegram.createForumTopic).not.toHaveBeenCalled();
+    });
+
+    it("accepts the chat of a legacy entry", async () => {
+      const { poster, registryState, telegram } = await posterSetup();
+      await registryState.set("registry:garden", LEGACY_ENTRY);
+
+      await poster(fromThread(HOUSEHOLD_CHAT_ID));
+
+      expect(telegram.createForumTopic).toHaveBeenCalledOnce();
+    });
+  });
+
+  it.each([
+    ["neither a destination nor a thread", {}],
+    ["both a destination and a thread", { destination: "household", fromThreadId: "telegram:1:2" }],
+    ["an invalid destination alias", { destination: "Household" }],
+  ])("rejects a request with %s", async (_name, target) => {
+    const { poster, telegram } = await posterSetup();
+
+    await expect(
+      poster({ operation: "start-thread", bot: "garden", text: "x", ...target }),
+    ).rejects.toThrow();
     expect(telegram.createForumTopic).not.toHaveBeenCalled();
   });
 });

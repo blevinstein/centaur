@@ -106,7 +106,8 @@ Commands: `register`, `prepare`, `finish`, `notify-failure`.
    `allowed_tools` lacks `Read`, `Read(./.centaur-turn/**)` is added so it can.
 3. `create-pull-request` opens (or updates) `centaur/<bot>-<thread>` when files changed.
 4. `finish` takes the reply from the action's execution file, appends the pull request link, posts
-   it (`post`, or `start-thread` for scheduled prompts and `/new`), advances the marker and saves the
+   it (`post`, or `start-thread` for scheduled prompts and `/new`; `prepare` records the target in
+   the turn state: the prompt's `destination` alias, or the originating thread for `/new`), advances the marker and saves the
    session for `resume` threads. When the agent returned `ignore: true` nothing is posted unless a
    pull request was opened, in which case only its link is posted;  the marker and session are still saved.
    Last, it removes the 👀 reaction (`unreact`) from every message the turn processed, so a message
@@ -139,8 +140,9 @@ their own turn, which only determines whether that turn's session is saved.
 Parsed from the start of a message (`/cmd` or `/cmd@bot`, case-insensitive); any text after the
 command is a normal message.
 
-- `/new [text]`: acknowledges in the current thread, then starts a new thread seeded with `text` and
-  any later pending messages (a bare `/new` opens an empty thread without running the agent).
+- `/new [text]`: acknowledges in the current thread, then starts a new thread in the same chat
+  (`start-thread` with `fromThreadId`), seeded with `text` and any later pending messages (a bare
+  `/new` opens an empty thread without running the agent).
 - `/resume`, `/transcript`: switch the thread's policy for this and later turns.
 
 ### Last-processed marker

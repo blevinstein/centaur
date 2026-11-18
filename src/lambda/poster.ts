@@ -1,11 +1,18 @@
 import { type Adapter, type Chat, emoji, type Logger, type StateAdapter } from "chat";
 import { z } from "zod";
 import { alias, type Platform } from "../config/index.js";
+import { registeredChatIds } from "./access.js";
 import type { OidcVerifier } from "./oidc.js";
 import { BOT_CREATED_STATE, type ThreadMetadata } from "./ownership.js";
 import { chatParameter, type ParameterStore } from "./parameters.js";
 import { createRegister } from "./register.js";
-import { type Bot, botStatePrefix, loadBot, readRegistryEntry } from "./registry.js";
+import {
+  type Bot,
+  botStatePrefix,
+  loadBot,
+  readRegistryEntry,
+  registeredChats,
+} from "./registry.js";
 import type { TelegramApi } from "./telegram.js";
 
 const TOPIC_NAME_MAX = 128;
@@ -16,12 +23,21 @@ const threadId = z.string().min(1);
 
 export const posterRequestSchema = z.discriminatedUnion("operation", [
   z.strictObject({ operation: z.literal("post"), bot: alias, threadId, text }),
-  z.strictObject({
-    operation: z.literal("start-thread"),
-    bot: alias,
-    text,
-    title: z.string().min(1).max(TOPIC_NAME_MAX).optional(),
-  }),
+  z
+    .strictObject({
+      operation: z.literal("start-thread"),
+      bot: alias,
+      text,
+      title: z.string().min(1).max(TOPIC_NAME_MAX).optional(),
+      destination: alias.optional(),
+      fromThreadId: threadId.optional(),
+    })
+    .refine(
+      (request) => (request.destination === undefined) !== (request.fromThreadId === undefined),
+      {
+        message: "start-thread needs exactly one of destination and fromThreadId",
+      },
+    ),
   z.strictObject({ operation: z.literal("read"), bot: alias, threadId }),
   z.strictObject({
     operation: z.literal("unreact"),
@@ -92,10 +108,25 @@ export function createPoster(deps: PosterDeps) {
     return { bot, chat };
   };
 
-  const destinationChatId = async (bot: Bot) => {
+  const startChatId = async (
+    bot: Bot,
+    chat: PosterChat,
+    target: { destination?: string | undefined; fromThreadId?: string | undefined },
+  ) => {
     const entry = await readRegistryEntry(stateFor(""), bot.name);
-    const chatId = entry?.destination && (await params.get(chatParameter(entry.destination)));
-    if (!chatId) throw new Error(`bot "${bot.name}" has no registered destination chat`);
+    if (target.destination !== undefined) {
+      const chatId =
+        registeredChats(entry).includes(target.destination) &&
+        (await params.get(chatParameter(target.destination)));
+      if (!chatId)
+        throw new Error(`bot "${bot.name}" has no registered chat "${target.destination}"`);
+      return chatId;
+    }
+    const origin = chat.thread(target.fromThreadId as string);
+    const chatId = origin.channelId.slice(bot.platform.length + 1);
+    if (!origin.isDM && !(await registeredChatIds(params, entry)).has(chatId)) {
+      throw new Error(`bot "${bot.name}" is not registered for chat ${chatId}`);
+    }
     return chatId;
   };
 
@@ -115,7 +146,7 @@ export function createPoster(deps: PosterDeps) {
           bot,
           chat,
           {
-            chatId: await destinationChatId(bot),
+            chatId: await startChatId(bot, chat, request),
             text: request.text,
             title: request.title ?? firstLine(request.text),
           },

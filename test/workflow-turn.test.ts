@@ -196,8 +196,28 @@ describe("prepare", () => {
     const out = await prepare(deps());
     expect(out).toMatchObject({ skip: false, thread_id: "" });
     expect(aws.requests.at(-1)).toMatchObject({ operation: "post", text: "Started a new thread." });
-    expect(await state(root)).toMatchObject({ mode: "start-thread" });
+    expect(await state(root)).toMatchObject({
+      mode: "start-thread",
+      start: { fromThreadId: THREAD },
+    });
     expect(await prompt(root)).toContain("tomatoes");
+  });
+
+  it("finishes a /new seed turn by starting the thread in the originating chat", async () => {
+    const { deps, aws, root, executionFile, writeExecution } = await setup([
+      message("1", "/new tomatoes"),
+    ]);
+    await prepare(deps());
+    await writeExecution({ structured_output: { reply: "Tomatoes it is" } });
+
+    await finish({ workspace: root, executionFile, poster: aws.poster, storeFor: aws.storeFor });
+
+    expect(aws.requests.find((r) => r.operation === "start-thread")).toEqual({
+      operation: "start-thread",
+      bot: "sprout",
+      text: "Tomatoes it is",
+      fromThreadId: THREAD,
+    });
   });
 
   it("opens an empty thread for a bare /new without running the agent", async () => {
@@ -209,14 +229,30 @@ describe("prepare", () => {
       "start-thread",
       "unreact",
     ]);
+    expect(aws.requests[2]).toMatchObject({ fromThreadId: THREAD });
   });
 
-  it("builds a scheduled turn from the named prompt", async () => {
+  it("builds a scheduled turn from the named prompt, defaulting to the only chat", async () => {
     const { deps, root } = await setup([], configText("prompts: {weekly: {context: resume}}"));
     const out = await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
     expect(out.branch).toBe("centaur/sprout-weekly-42");
     expect(await prompt(root)).toContain("Post this week's tasks.");
-    expect(await state(root)).toMatchObject({ mode: "start-thread", policy: "resume" });
+    expect(await state(root)).toMatchObject({
+      mode: "start-thread",
+      policy: "resume",
+      start: { destination: "household" },
+    });
+  });
+
+  it("uses the prompt's own destination when the bot lists several chats", async () => {
+    const { deps, root } = await setup(
+      [],
+      configText("prompts: {weekly: {destination: workshop}}", "[household, workshop]"),
+    );
+
+    await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
+
+    expect(await state(root)).toMatchObject({ start: { destination: "workshop" } });
   });
 
   it.each([
@@ -329,6 +365,7 @@ describe("finish", () => {
     expect(aws.requests.map((r) => r.operation)).toEqual(["start-thread"]);
     expect(aws.requests.at(-1)).toMatchObject({
       operation: "start-thread",
+      destination: "household",
       text: "Tasks",
       title: "Week 47",
     });
