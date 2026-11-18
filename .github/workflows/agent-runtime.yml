@@ -2,101 +2,29 @@ name: Agent runtime experiment
 
 on:
   workflow_dispatch:
-    inputs:
-      session_id:
-        description: Session to resume (empty starts a new session)
-        default: ''
-      thread_key:
-        description: S3 thread key
-        default: exp1
-      restore_cwd:
-        description: Cwd whose escaped form names the restore dir (empty = workspace, none = skip jsonl restore)
-        default: ''
-      checkout_path:
-        description: actions/checkout path
-        default: ''
 
 permissions:
   id-token: write
   contents: read
 
-env:
-  THREAD_KEY: ${{ inputs.thread_key }}
-  RESUME_ID: ${{ inputs.session_id }}
-  S3_PREFIX: s3://${{ vars.SESSION_BUCKET }}/sessions/${{ inputs.thread_key }}
-
 jobs:
-  turn:
+  verify-session-role:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
+    env:
+      KEY: s3://${{ vars.SESSION_BUCKET }}/sessions/verify/probe.txt
     steps:
-      - uses: actions/checkout@v4
-        with:
-          path: ${{ inputs.checkout_path }}
-
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.SESSION_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Prepare turn
+      - name: Write, read, and delete a session object
         run: |
-          if [ -n "$RESUME_ID" ]; then
-            RCWD="${{ inputs.restore_cwd }}"; RCWD="${RCWD:-$GITHUB_WORKSPACE}"
-            ESCAPED=$(sed 's/[^a-zA-Z0-9]/-/g' <<<"$RCWD")
-            DIR="$HOME/.claude/projects/$ESCAPED"
-            mkdir -p "$DIR"
-            S=$(date +%s.%N)
-            [ "$RCWD" = none ] || aws s3 cp --only-show-errors "$S3_PREFIX/$RESUME_ID.jsonl" "$DIR/$RESUME_ID.jsonl"
-            aws s3 cp --only-show-errors "$S3_PREFIX/token.txt" "$RUNNER_TEMP/token.txt"
-            echo "restore_s=$(echo "$(date +%s.%N) - $S" | bc) restore_dir=$ESCAPED"
-            echo "CLAUDE_ARGS=--resume $RESUME_ID" >> "$GITHUB_ENV"
-            echo "PROMPT=What was the word I asked you to remember? Put just that word in the reply." >> "$GITHUB_ENV"
-          else
-            TOKEN="zebra$(openssl rand -hex 4)"
-            echo "$TOKEN" > "$RUNNER_TEMP/token.txt"
-            aws s3 cp --only-show-errors "$RUNNER_TEMP/token.txt" "$S3_PREFIX/token.txt"
-            echo "PROMPT=Remember the word $TOKEN. Reply with only a short acknowledgement." >> "$GITHUB_ENV"
-          fi
-
-      - name: Run Claude Code
-        id: claude
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          prompt: ${{ env.PROMPT }}
-          claude_args: |
-            --model haiku
-            --max-turns 3
-            ${{ env.CLAUDE_ARGS }}
-            --json-schema '{"type":"object","properties":{"reply":{"type":"string","minLength":1}},"required":["reply"]}'
-
-      - name: Persist session
-        if: always()
-        env:
-          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
-          SESSION_ID: ${{ steps.claude.outputs.session_id }}
-        run: |
-          SID="${SESSION_ID:-$(jq -r '[.[] | select(.subtype == "init")][0].session_id // empty' "${EXECUTION_FILE:-/dev/null}" 2>/dev/null)}"
-          echo "outcome=${{ steps.claude.outcome }} requested=$RESUME_ID"
-          jq -r '.[] | select(.type=="result") | "result subtype=\(.subtype) is_error=\(.is_error) errors=\((.errors//[])|length) sid=\(.session_id)"' "${EXECUTION_FILE:-/dev/null}" 2>&1 | head -3
-          FILE=$(find "$HOME/.claude/projects" -name "$SID.jsonl" | head -n1)
-          echo "session_id=$SID file_found=$([ -n "$FILE" ] && echo yes || echo no)"
-          echo "project_dir=$(basename "$(dirname "$FILE")")"
-          S=$(date +%s.%N)
-          aws s3 cp --only-show-errors "$FILE" "$S3_PREFIX/$SID.jsonl"
-          echo "key=sessions/$THREAD_KEY/$SID.jsonl bytes=$(stat -c %s "$FILE") upload_s=$(echo "$(date +%s.%N) - $S" | bc)"
-
-      - name: Check reply
-        if: always()
-        env:
-          STRUCTURED_OUTPUT: ${{ steps.claude.outputs.structured_output }}
-        run: |
-          REPLY=$(jq -r '.reply // empty' <<<"${STRUCTURED_OUTPUT:-null}")
-          TOKEN=$(cat "$RUNNER_TEMP/token.txt")
-          if [ -n "$RESUME_ID" ]; then
-            if grep -qF "$TOKEN" <<<"$REPLY"; then echo "RESUME_MATCH=true"; else echo "RESUME_MATCH=false reply_len=${#REPLY}"; exit 1; fi
-          else
-            echo "reply_len=${#REPLY}"
-          fi
+          echo probe > "$RUNNER_TEMP/probe.txt"
+          aws s3 cp --only-show-errors "$RUNNER_TEMP/probe.txt" "$KEY"
+          aws s3 cp --only-show-errors "$KEY" "$RUNNER_TEMP/back.txt"
+          cmp "$RUNNER_TEMP/probe.txt" "$RUNNER_TEMP/back.txt"
+          aws s3 ls "${KEY%/*}/" > /dev/null
+          echo "write/read/list ok"
+          if aws s3 rm --only-show-errors "$KEY"; then echo "delete ok"; else echo "delete denied (role has no s3:DeleteObject)"; fi
