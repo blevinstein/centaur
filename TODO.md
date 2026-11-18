@@ -125,7 +125,7 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
       `getUpdates` ID-hunting steps from `docs/onboarding.md` and `HUMAN_TODO.md`; chats and users
       are discovered through access requests.
 
-- [ ] Rewrite `README.md` for public consumption; it is badly out of date (still says design
+- [x] Rewrite `README.md` for public consumption; it is badly out of date (still says design
       phase). Cover: what centaur is and the architecture in one picture, a short demo of a chat
       exchange and the PR it produces, how a repo adopts it (the three files `.centaur.yml`,
       persona and prompts, the caller workflow, the repo variables and secret), a quick start for
