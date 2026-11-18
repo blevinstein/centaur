@@ -17,6 +17,12 @@ jobs:
   turn:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      CENTAUR_ROLE_ARN: ${{ vars.CENTAUR_ROLE_ARN }}
+      CENTAUR_AWS_REGION: ${{ vars.CENTAUR_AWS_REGION }}
+      CENTAUR_FUNCTION_NAME: ${{ vars.CENTAUR_FUNCTION_NAME }}
+      CENTAUR_OIDC_AUDIENCE: ${{ vars.CENTAUR_OIDC_AUDIENCE }}
+      CENTAUR_SESSION_BUCKET: ${{ vars.CENTAUR_SESSION_BUCKET }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-runtime

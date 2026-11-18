@@ -15,5 +15,5 @@ runs:
       run: npm ci && npm run build
     - uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: ${{ vars.CENTAUR_ROLE_ARN }}
-        aws-region: ${{ vars.CENTAUR_AWS_REGION }}
+        role-to-assume: ${{ env.CENTAUR_ROLE_ARN }}
+        aws-region: ${{ env.CENTAUR_AWS_REGION }}

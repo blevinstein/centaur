@@ -24,8 +24,6 @@ runs:
       id: prepare
       shell: bash
       env:
-        CENTAUR_FUNCTION_NAME: ${{ vars.CENTAUR_FUNCTION_NAME }}
-        CENTAUR_SESSION_BUCKET: ${{ vars.CENTAUR_SESSION_BUCKET }}
         PROMPT_NAME: ${{ inputs.prompt_name }}
       run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" prepare
 
@@ -70,8 +68,6 @@ runs:
       if: steps.prepare.outputs.skip != 'true'
       shell: bash
       env:
-        CENTAUR_FUNCTION_NAME: ${{ vars.CENTAUR_FUNCTION_NAME }}
-        CENTAUR_SESSION_BUCKET: ${{ vars.CENTAUR_SESSION_BUCKET }}
         EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
         PULL_REQUEST_URL: ${{ steps.pr.outputs.pull-request-url }}
       run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" finish

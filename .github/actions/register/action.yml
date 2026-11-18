@@ -6,6 +6,4 @@ runs:
     - name: Register the bot
       shell: bash
       env:
-        CENTAUR_FUNCTION_NAME: ${{ vars.CENTAUR_FUNCTION_NAME }}
-        CENTAUR_OIDC_AUDIENCE: ${{ vars.CENTAUR_OIDC_AUDIENCE }}
       run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" register
