@@ -36,17 +36,27 @@ in the diagram because it's invoked over IAM, not a public URL.
 ### Receiver Lambda
 
 - Node.js on Lambda with a public **function URL**. No API Gateway or ALB needed.
-- Chat SDK `Chat` instance with one adapter instance per registered bot, built from the registry
-  (see [Registration](#registration)) and SSM secrets at cold start. The webhook path selects the
-  bot: `/telegram/<bot>`, `/slack/<bot>`.
+- One Chat SDK `Chat` instance per registered bot, built from SSM secrets at cold start. Adapter
+  names are fixed and Telegram message IDs are shared across bots in a group, so each bot's `Chat`
+  uses its own state `keyPrefix` (`bot:<bot>:`) to keep dedupe keys apart. `concurrency` is
+  `concurrent`, because the default `drop` strategy loses messages that arrive close together.
+  The webhook path selects the bot: `/telegram/<bot>`, `/slack/<bot>`.
+- The registry entry `{allow, destination}` for each bot is stored in state under `registry:<bot>`
+  (written by `register`); the bound repo is in SSM at `bots/<bot>/repo`. With no entry, nobody is
+  allowed.
 - On a message:
   1. Adapter verifies the request (Telegram secret token, Slack signing secret) and deduplicates.
-  2. Reject senders not on the bot's allowlist (see [Security](#security)).
-  3. Decide whether this bot owns the message (see [Routing in a shared Telegram
-     group](#routing-in-a-shared-telegram-group)); ignore it if not.
-  4. Persist the message (the SDK's `persistThreadHistory` does this) and add a 👀 reaction.
-  5. Send a `repository_dispatch` to the bot's repo with the thread ID and message ID only. The
-     message text stays out of GitHub so it never lands in public logs.
+  2. Decide whether this bot owns the message (see [Routing in a shared Telegram
+     group](#routing-in-a-shared-telegram-group)); ignore it if not. This comes first so that in a
+     shared group only the owning bot ever replies to a stranger.
+  3. Reject chats other than the repo's `destination` (ignored silently) and senders not on the
+     bot's allowlist (see [Security](#security)); unknown senders get a refusal and only their IDs
+     are logged.
+  4. Persist the message (the SDK's `persistThreadHistory` does this) and add a 👀 reaction. A
+     failed reaction is logged and does not block the dispatch.
+  5. Send a `repository_dispatch` of type `centaur-message` to the bot's repo with payload
+     `{bot, thread_id, message_id}`. The message text stays out of GitHub so it never lands in
+     public logs.
 - Must finish before returning: Lambda freezes after the response, so no post-response work.
   Dispatching to GitHub is a single fast API call.
 - Secrets (bot tokens, webhook secrets, GitHub credential) in SSM Parameter Store or Secrets
@@ -182,7 +192,8 @@ Each thread has a policy, set when the thread starts and stored in thread metada
 One household supergroup with topics enabled holds every household bot as an admin. Admin bots
 receive **all** group messages, so each bot must decide what's addressed to it:
 
-1. A message in a topic that the bot created (recorded in thread metadata) belongs to that bot.
+1. A message in a topic that the bot created belongs to that bot. The poster records this by
+   setting `createdByBot: true` in the thread's state when it creates the topic.
 2. A mention of `@<bot>` anywhere (e.g. in the General topic) belongs to that bot. The bot answers
    by creating a new topic for the conversation, or replies in place for quick questions.
 3. Everything else is ignored.
@@ -204,7 +215,7 @@ DMs with a bot are always that bot's; DMs use reply chains, not topics (see
 - **Prompt injection.** Fetched web pages (plant care guides, weather sites) are untrusted input. The allowlist
   and PR review are the backstops; avoid giving agents tools that send data elsewhere.
 - **GitHub credential for dispatch.** A fine-grained PAT limited to the participating repos,
-  stored in SSM. `repository_dispatch` needs Contents: write, which also allows pushing, so every
+  stored in SSM at `/centaur/github/token`. `repository_dispatch` needs Contents: write, which also allows pushing, so every
   participating repo protects `main` with branch protection or rulesets. A PAT covers one
   resource owner and expires (30 days by default), so set a long expiry and a reminder; a GitHub
   App (1-hour installation tokens, multiple owners) is the upgrade path.

@@ -17,4 +17,7 @@
 - CloudFormation templates in `infra/` are validated with cfn-lint, pinned in
   `requirements-dev.txt`. One-time setup: `pyenv install 3.10.9` if missing (see `.python-version`),
   then `python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt`. Run `npm run lint:cfn`.
+- CLI (`src/cli/`, bin `centaur`): all SSM access goes through the `ParameterStore` interface in
+  `src/cli/parameter-store.ts`; tests use `test/helpers/fake-parameter-store.ts`. The SSM parameter
+  layout is in `docs/plan.md`. Never accept secrets as flags.
 - Biome covers code and JSON only; Markdown and YAML are not auto-formatted.

@@ -35,7 +35,7 @@ off as they land, and record findings that change the design back into `docs/`.
       tests, starting from `state-memory`'s test suite.
 - [ ] Run `Chat` end to end against the DynamoDB adapter and a deployed table, checking how the
       core uses the `appendToList` TTL, `maxLength`, and expired queue entries.
-- [ ] Add the state table (mirroring `stateTableInput`: pay-per-request, TTL on `ttl`) and its
+- [x] Add the state table (mirroring `stateTableInput`: pay-per-request, TTL on `ttl`) and its
       IAM access to `infra/centaur.yml`; make `chat` a runtime dependency once a Lambda consumes
       the package.
 - [ ] CloudFormation template: receiver/poster Lambda with a function URL, state backend, S3
@@ -46,14 +46,14 @@ off as they land, and record findings that change the design back into `docs/`.
 
 ## 4. Receiver and poster
 
-- [ ] Convert Lambda function URL events to and from web `Request`/`Response` for Chat SDK
+- [x] Convert Lambda function URL events to and from web `Request`/`Response` for Chat SDK
       webhook handlers.
-- [ ] Build the `Chat` instance from the registry and SSM secrets at cold start, with
+- [x] Build the `Chat` instance from the registry and SSM secrets at cold start, with
       per-bot webhook paths (`/telegram/<bot>`, `/slack/<bot>`).
-- [ ] Sender and chat allowlists; reply to unknown senders with a refusal and log their IDs.
-- [ ] Message ownership rules for a shared Telegram group (bot-created topics, mentions,
+- [x] Sender and chat allowlists; reply to unknown senders with a refusal and log their IDs.
+- [x] Message ownership rules for a shared Telegram group (bot-created topics, mentions,
       ignore the rest).
-- [ ] On an accepted message: 👀 reaction, then a `repository_dispatch` carrying IDs only.
+- [x] On an accepted message: 👀 reaction, then a `repository_dispatch` carrying IDs only.
 - [ ] Poster operations, invoked over IAM: post a reply, start a new thread or topic, read a
       thread transcript.
 - [ ] `register` operation: take the repo name from the OIDC claims, require existing bot
@@ -61,10 +61,10 @@ off as they land, and record findings that change the design back into `docs/`.
 
 ## 5. CLI
 
-- [ ] `centaur bot add|remove <bot> --platform <platform>`: store the token and generate the
+- [x] `centaur bot add|remove <bot> --platform <platform>`: store the token and generate the
       webhook secret in SSM.
-- [ ] `centaur user add <name> --<platform> <id>` and `centaur chat add <name> <id>`.
-- [ ] `centaur bot unbind <bot>` to release a bot from its repo.
+- [x] `centaur user add <name> --<platform> <id>` and `centaur chat add <name> <id>`.
+- [x] `centaur bot unbind <bot>` to release a bot from its repo.
 
 ## 6. Shared workflows
 
@@ -77,7 +77,7 @@ off as they land, and record findings that change the design back into `docs/`.
   - [ ] Per-thread `concurrency` group.
   - [ ] Keep message content out of logs and artifacts.
 - [ ] In-chat commands: `/new`, `/resume`, `/transcript`.
-- [ ] Define and validate the `.centaur.yml` schema.
+- [x] Define and validate the `.centaur.yml` schema.
 
 ## 7. End-to-end on Telegram
 
