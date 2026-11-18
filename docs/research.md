@@ -213,7 +213,9 @@ adapter on DynamoDB Local and found no adapter bugs. How the core uses the inter
 The SDK's webhook handlers take a web `Request` and return a `Response`. Lambda function URLs
 deliver a different event shape, so the receiver needs a small request/response conversion, and
 any work after the response must instead finish before returning, because Lambda freezes the
-process once the handler returns.
+process once the handler returns. The receiver does this by awaiting the SDK's `waitUntil` tasks
+before returning. Both the Telegram and Slack adapters answer an unsigned webhook with 401, which
+the receiver's router test checks without network access.
 
 ## Sources
 
