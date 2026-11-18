@@ -116,8 +116,12 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
 ## Later
 
 - [ ] Poster MCP tool for mid-turn questions and progress messages.
-- [ ] `triage_model`: a cheap model that decides whether to reply to unaddressed messages in
-      `respond_to: all` chats before the main agent runs (needs a second run per message).
+- [ ] Decision model: a cheap model that decides whether to reply to unaddressed messages in
+      `respond_to: all` chats before the main agent runs (see
+      https://docs.venice.ai/guides/features/decisions for the pattern). Preferably in the receiver,
+      before dispatch, so a skipped message costs no workflow run; it needs a model key in SSM and
+      a yes/no call that fits the webhook time budget. Leave it in the backlog; cheap models for
+      the main agent are enough for now.
 - [ ] Test how a turn behaves when `--max-budget-usd` stops a run before a structured reply.
 - [ ] Two bots in one group: with a second bot from BotFather, confirm the ownership rules route
       messages correctly (needs the maintainer to create the bot; see `HUMAN_TODO.md` then).
