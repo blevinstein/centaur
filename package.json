@@ -22,7 +22,6 @@
     "@chat-adapter/state-memory": "4.45.0",
     "@types/aws-lambda": "8.10.164",
     "@types/node": "24.19.2",
-    "chat": "4.45.0",
     "typescript": "7.0.2",
     "vitest": "5.1.0"
   },
@@ -30,6 +29,9 @@
     "@aws-sdk/client-dynamodb": "3.1171.0",
     "@aws-sdk/client-ssm": "3.1171.0",
     "@aws-sdk/lib-dynamodb": "3.1171.0",
+    "@chat-adapter/slack": "4.45.0",
+    "@chat-adapter/telegram": "4.45.0",
+    "chat": "4.45.0",
     "commander": "15.1.0",
     "yaml": "2.9.1",
     "zod": "4.6.7"

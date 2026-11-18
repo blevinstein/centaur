@@ -6,6 +6,7 @@ export {
   type CentaurConfig,
   type ContextPolicy,
   centaurConfigSchema,
+  PLATFORMS,
   type Platform,
 } from "./schema.js";
 
