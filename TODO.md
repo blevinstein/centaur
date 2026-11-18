@@ -95,13 +95,7 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
 - [x] Add the caller workflow with the Saturday schedule.
 - [x] Update `garden`'s `AGENTS.md` so automated runs open PRs instead of pushing to `main`.
 
-## 9. Slack
-
-- [ ] App manifest template with the required scopes and event URL.
-- [ ] If Slack's 3-second acknowledgement limit is missed (see [HUMAN_TODO.md](HUMAN_TODO.md)),
-      acknowledge first and finish the reaction and dispatch in the background.
-
-## Follow-ups
+## 9. Follow-ups
 
 - [ ] Align alias naming: the CLI accepts aliases matching `[a-z0-9][a-z0-9-]*` but the config
       schema's prompt `destination` allows underscores, so such an alias cannot be created with
@@ -112,23 +106,19 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
 - [ ] Cache SSM reads in the receiver; each accepted message makes 1 to 3 SSM calls.
 - [x] CLI: clearer error when piped stdin has too few lines (`Missing value for <name>.`).
 - [ ] Decide whether `destination` aliases are checked against SSM at register time.
-- [ ] Optional `centaur config check` command wrapping `parseCentaurConfig`.
-- [ ] Bound the transcript size rendered into the prompt (per-message cap, total budget).
-
+- [ ] Add `centaur config check` command wrapping `parseCentaurConfig`, and document it
+- [ ] Bound the transcript size rendered into the prompt (per-message cap, total budget). Consider using polytokenizer utils for this (github.com:blevinstein/polytokenizer)
 - [ ] Switch the package manager from npm to yarn or pnpm (pick one; the maintainer's other
       projects use yarn). Replace `package-lock.json` and update everything that calls npm:
       `AGENTS.md`, `scripts/deploy.sh`, `.github/workflows/*.yml` and the setup-runtime composite
       action (`npm ci && npm run build`), `.nvmrc`/Corepack pinning, the docs that say `npm run`,
       and the `bin` and `deploy-prod` scripts. Verify lint, typecheck, tests, the Lambda bundle and
       `actionlint` still pass.
-
 - [ ] Stop exposing thread IDs (Telegram chat and topic IDs) in the per-thread concurrency group
       name and the `centaur/<bot>-<thread>` PR branch name; use a short hash. Needed before any
       public consumer repo such as `garden`.
-
 - [x] Admin claim flow so the owner never looks up their own ID (`centaur admin claim <bot>`; see
       [docs/plan.md](docs/plan.md#access-requests)).
-
 - [x] Rewrite `README.md` for public consumption; it is badly out of date (still says design
       phase). Cover: what centaur is and the architecture in one picture, a short demo of a chat
       exchange and the PR it produces, how a repo adopts it (the three files `.centaur.yml`,
@@ -140,8 +130,31 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
       artwork directly: its usage guidelines restrict modification, so make an original
       centaur-cat hybrid.
 
-## Later
+## 10. MCP support
 
+- [ ] Poster MCP tool for mid-turn questions and progress messages.
+- [ ] Additional MCP servers configurable in `.centaur.yml`: a schema section listing servers
+      (name, command and args, or URL, plus env), written into the turn's MCP config for
+      `claude-code-action`, with secrets referenced by name from repo secrets and never inline.
+      Decide how `allowed_tools` names them (`mcp__<server>__*`) and how a consumer repo trusts
+      the servers it lists.
+
+## 11. Slack support
+
+- [ ] App manifest template with the required scopes and event URL.
+- [ ] If Slack's 3-second acknowledgement limit is missed (see [HUMAN_TODO.md](HUMAN_TODO.md)),
+      acknowledge first and finish the reaction and dispatch in the background.
+
+## Backlog (do not complete without human approval)
+
+- [ ] Plan for long-running agent turns (>15 mins) which will hit lambda function runtime limits.
+      This may happen if we are using MCP tools etc which take a while to respond.
+- [ ] Decision model: a cheap model that decides whether to reply to unaddressed messages in
+      `respond_to: all` chats before the main agent runs (see
+      https://docs.venice.ai/guides/features/decisions for the pattern). Preferably in the receiver,
+      before dispatch, so a skipped message costs no workflow run; it needs a model key in SSM and
+      a yes/no call that fits the webhook time budget. Leave it in the backlog; cheap models for
+      the main agent are enough for now.
 - [ ] Media lifecycle. Attachments from every registered repo's bots land under
       `attachments/<bot>/<thread>/` in the single shared session bucket, expiring on one global
       schedule (`AttachmentExpirationDays`). Decide: per-bot or per-repo retention and size
@@ -151,22 +164,9 @@ Human-only; see [HUMAN_TODO.md](HUMAN_TODO.md).
       encryption, lifecycle and access); non-image attachments (video, audio, documents); letting
       the agent fetch images beyond the newest 10 that `prepare` loads (`MAX_PROMPT_IMAGES`); and
       what the privacy story is for stored personal photos.
-
-- [ ] Poster MCP tool for mid-turn questions and progress messages.
-- [ ] Decision model: a cheap model that decides whether to reply to unaddressed messages in
-      `respond_to: all` chats before the main agent runs (see
-      https://docs.venice.ai/guides/features/decisions for the pattern). Preferably in the receiver,
-      before dispatch, so a skipped message costs no workflow run; it needs a model key in SSM and
-      a yes/no call that fits the webhook time budget. Leave it in the backlog; cheap models for
-      the main agent are enough for now.
 - [ ] Test how a turn behaves when `--max-budget-usd` stops a run before a structured reply.
 - [ ] Two bots in one group: with a second bot from BotFather, confirm the ownership rules route
       messages correctly (needs the maintainer to create the bot; see `HUMAN_TODO.md` then).
 - [ ] Agent-scheduled follow-ups via EventBridge Scheduler.
 - [ ] Per-thread turn or token caps for `resume` sessions.
 - [ ] Contribute the DynamoDB state adapter upstream, if we write one.
-- [ ] Additional MCP servers configurable in `.centaur.yml`: a schema section listing servers
-      (name, command and args, or URL, plus env), written into the turn's MCP config for
-      `claude-code-action`, with secrets referenced by name from repo secrets and never inline.
-      Decide how `allowed_tools` names them (`mcp__<server>__*`) and how a consumer repo trusts
-      the servers it lists.
