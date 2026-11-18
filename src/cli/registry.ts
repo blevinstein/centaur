@@ -43,7 +43,8 @@ export function selectedPlatformIds(options: Record<string, string | boolean | u
   return ids;
 }
 
-export const botPrefix = (bot: string) => `/centaur/bots/${bot}/`;
+export const BOTS_PREFIX = "/centaur/bots/";
+export const botPrefix = (bot: string) => `${BOTS_PREFIX}${bot}/`;
 export const botParameter = (bot: string, key: string) => `${botPrefix(bot)}${key}`;
 
 export async function requireBotPlatform(store: ParameterStore, bot: string): Promise<Platform> {

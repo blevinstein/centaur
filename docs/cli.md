@@ -48,6 +48,13 @@ Refuses if `bots/<bot>/platform` already exists; there is no overwrite or rotate
 remove` first. If the command fails partway (for example a missing secret), no `platform`
 parameter is written and the bot can simply be added again.
 
+### `centaur bot list`
+
+Prints one line per bot, sorted by name: `name  platform  repo=<owner/repo|->  token=<set|unset>`,
+followed by `github-token=<set|unset>` for the global [GitHub token](#centaur-github-token-set).
+`platform` and `repo` show `-` when missing or unbound. Only presence is reported, never values.
+Prints `No bots registered.` when no `bots/` parameters exist.
+
 ### `centaur bot remove <bot>`
 
 Deletes every parameter under `/centaur/bots/<bot>/`, including leftovers when `platform` is

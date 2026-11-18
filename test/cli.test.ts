@@ -110,6 +110,37 @@ describe("bot remove and unbind", () => {
   });
 });
 
+describe("bot list", () => {
+  it("says so when no bots exist", async () => {
+    const cli = createCliHarness();
+    await cli.run("bot", "list");
+    expect(cli.output.at(-1)).toBe("No bots registered.");
+  });
+
+  it("lists bots sorted by name with binding and token status, never values", async () => {
+    const cli = createCliHarness({ token: "secret-token", "github-token": "ghp_x" });
+    await cli.run("bot", "add", "notes", "--platform", "slack");
+    await cli.run("bot", "add", "garden", "--platform", "telegram");
+    await cli.run("bot", "add", "garden-2", "--platform", "telegram");
+    await cli.store.put("/centaur/bots/garden/repo", "me/garden", { secure: false });
+    await cli.store.delete(["/centaur/bots/garden-2/token"]);
+    await cli.run("bot", "list");
+    expect(cli.output.at(-1)).toBe(
+      [
+        "garden  telegram  repo=me/garden  token=set",
+        "garden-2  telegram  repo=-  token=unset",
+        "notes  slack  repo=-  token=set",
+        "github-token=unset",
+      ].join("\n"),
+    );
+
+    await cli.run("github-token", "set");
+    await cli.run("bot", "list");
+    expect(cli.output.at(-1)).toMatch(/github-token=set$/);
+    expect(cli.output.join("\n")).not.toContain("secret-token");
+  });
+});
+
 describe("removed user commands", () => {
   it.each([
     ["user", "add", "spouse", "--telegram", "1"],

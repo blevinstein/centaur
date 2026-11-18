@@ -2,9 +2,11 @@ import { randomBytes } from "node:crypto";
 import type { Command } from "commander";
 import type { CliContext } from "../context.js";
 import {
+  BOTS_PREFIX,
   botParameter,
   botPrefix,
   CliError,
+  GITHUB_TOKEN_PARAMETER,
   PLATFORMS,
   parseName,
   parsePlatform,
@@ -40,6 +42,34 @@ export function registerBotCommands(program: Command, context: CliContext): void
       }
       await context.store.put(botParameter(name, "platform"), platform, { secure: false });
       context.log(`Added ${platform} bot "${name}".`);
+    });
+
+  bot
+    .command("list")
+    .description("List bots with their platform, bound repo, and whether secrets are set")
+    .action(async () => {
+      const prefix = BOTS_PREFIX;
+      const keysByBot = new Map<string, Set<string>>();
+      for (const parameter of await context.store.listNames(prefix)) {
+        const [name, ...key] = parameter.slice(prefix.length).split("/");
+        if (name && key.length > 0) {
+          keysByBot.set(name, (keysByBot.get(name) ?? new Set()).add(key.join("/")));
+        }
+      }
+      if (keysByBot.size === 0) {
+        context.log("No bots registered.");
+        return;
+      }
+      const lines = await Promise.all(
+        [...keysByBot.keys()].sort().map(async (name) => {
+          const platform = await context.store.get(botParameter(name, "platform"));
+          const repo = await boundRepo(context, name);
+          const token = keysByBot.get(name)?.has("token") ? "set" : "unset";
+          return `${name}  ${platform ?? "-"}  repo=${repo ?? "-"}  token=${token}`;
+        }),
+      );
+      const githubToken = (await context.store.get(GITHUB_TOKEN_PARAMETER)) ? "set" : "unset";
+      context.log([...lines, `github-token=${githubToken}`].join("\n"));
     });
 
   bot
