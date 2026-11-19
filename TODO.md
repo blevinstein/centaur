@@ -272,6 +272,35 @@ agent proposes a change, a human reviews it, and the agent revises it.
 - [ ] Consider filtering comment authors by `author_association` in comment-mode `prepare`, since it
       answers every human comment since the last marked one.
 
+## 14. Agent-chosen PR targets
+
+The agent picks which PR its changes land on, in trusted code with fallbacks. Decisions (accepted):
+`pr_action: update|new` in comment turns, stacked on the original PR's head when that head is an
+ancestor of the working tree, else on the default branch; `existing_pr_number` in chat and
+scheduled turns, with candidates from any thread of the same bot (the PR need not be linked to the
+current thread); an invalid number falls back to the normal thread PR; defaults `comment_new: true`
+and `existing` enabled. Candidates and the final choice are re-derived from GitHub in trusted code
+(open, same repo, not a fork, `centaur/<bot>-` branch, authored by the workflow bot, and when a
+poster record exists it names the same bot); never from `.centaur-turn/state.json`, which the agent
+can write.
+
+- [ ] PR targets 1: config block `pull_requests` (`comment_new`, `existing: off|bot`) in
+      `src/config/schema.ts`, `replySchema` parameters (fields appear only when enabled),
+      `extractResult`/`resultMessage` fields, contract text, tests, docs. No behavior change yet.
+- [ ] PR targets 2: `prepare` lists candidate open PRs for the prompt (fenced as data, capped at 10).
+- [ ] PR targets 3: `plan-pr` validation as a pure function with a fake GitHub client and poster.
+- [ ] PR targets 4: `push-existing` transplant (patch, worktree, `git apply --3way`, plain push, fall
+      back on conflict), tested on real git repos.
+- [ ] PR targets 5: wire the `turn` action (`plan-pr`, conditional `create-pull-request` and
+      `push-existing`), chat note and marked PR comment.
+- [ ] PR targets 6: comment-mode `pr_action: new` (`pushNewBranch`, `createPullRequest`, double link).
+- [ ] PR targets 7: docs sweep, including the "dismiss stale approvals" advice.
+- [ ] PR targets 8: **[HUMAN ACTION]** real runs on `centaur-hello` (`-f prompt_name=pr-smoke`):
+      a second run updates an open PR, a merged or closed PR falls back, a comment `pr_action: new`
+      opens a stacked PR whose comments resolve to the same thread.
+- [ ] Move the security-relevant parts of the turn state out of the workspace, since the agent can
+      edit `.centaur-turn/state.json`.
+
 ## Backlog
 
 Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer saying so.
