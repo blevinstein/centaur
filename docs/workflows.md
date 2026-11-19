@@ -147,6 +147,9 @@ Commands: `register`, `prepare`, `pr-details`, `finish`, `notify-failure`.
    ones when the history is included) from the session bucket into `.centaur-turn/attachments/`,
    newest 10 at most, and lists each by path under its message; older images are listed as not
    loaded. A failed copy fails the turn.
+   When `mcp_servers` is set, it writes `.centaur-turn/mcp.json` (secrets as `${NAME}` references,
+   never values) and adds `--mcp-config` to `claude_args`; a referenced secret missing from the
+   step's environment fails `prepare` before anything is posted, naming it ([mcp.md](mcp.md)).
    It outputs the `claude_args` (model and tuning flags, `--allowedTools`, `--json-schema` requiring `reply` (or, for `respond_to: all` threads, `reply` or `ignore: true`; optionally `pr_title` and `pr_body`), persona
    via `--append-system-prompt-file`, `--resume <id>`). When there is nothing to do (everything
    processed, or only a `/resume` or `/transcript` command, which is acknowledged in the thread),

@@ -36,6 +36,11 @@ model: sonnet
 allowed_tools: Read,Edit
 ${extra}`;
 
+export const mcpConfigText = () =>
+  configText(
+    'mcp_servers:\n  linear:\n    url: https://mcp.linear.app/mcp\n    headers:\n      Authorization: { secret: LINEAR_API_KEY, prefix: "Bearer " }',
+  ).replace("Read,Edit", "Read,mcp__linear__*");
+
 type PosterHandler = (request: PosterRequest) => unknown;
 
 export function createFakeAws(handler: PosterHandler = () => ({})) {

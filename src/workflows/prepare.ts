@@ -10,6 +10,7 @@ import {
 import { threadKey } from "../thread-key.js";
 import type { AttachmentDownloader, PosterClient, ThreadStore } from "./aws.js";
 import { parseConfigOrThrow, readConfigText } from "./config-file.js";
+import { buildMcpConfig } from "./mcp-config.js";
 import { buildPrompt, replySchema } from "./prompt.js";
 import { clearReactions, type ReactionSource } from "./reactions.js";
 import { type AttachmentPath, type ChatMessage, pendingMessages, planTurn } from "./transcript.js";
@@ -17,6 +18,7 @@ import { type AttachmentPath, type ChatMessage, pendingMessages, planTurn } from
 export const TURN_DIR = ".centaur-turn";
 export const PROMPT_FILE = `${TURN_DIR}/prompt.md`;
 export const STATE_FILE = `${TURN_DIR}/state.json`;
+export const MCP_CONFIG_FILE = `${TURN_DIR}/mcp.json`;
 export const ATTACHMENT_DIR = `${TURN_DIR}/attachments`;
 export const MAX_PROMPT_IMAGES = 10;
 
@@ -43,6 +45,7 @@ export interface PrepareDeps {
   workspace: string;
   home: string;
   runId: string;
+  env: Record<string, string | undefined>;
   promptName?: string | undefined;
   clientPayload: unknown;
   poster: PosterClient;
@@ -213,8 +216,9 @@ export function buildClaudeArgs(input: {
   persona: string | undefined;
   resumeSessionId: string | undefined;
   canStaySilent: boolean;
+  mcpConfig?: string | undefined;
 }) {
-  const { config, persona, resumeSessionId, canStaySilent } = input;
+  const { config, persona, resumeSessionId, canStaySilent, mcpConfig } = input;
   const readRule = config.allowed_tools.includes("Read") ? [] : [`Read(./${TURN_DIR}/**)`];
   const tools = [...config.allowed_tools, ...readRule].join(",");
   return [
@@ -224,6 +228,7 @@ export function buildClaudeArgs(input: {
     `--max-turns ${config.max_turns}`,
     ...(config.max_budget_usd ? [`--max-budget-usd ${config.max_budget_usd}`] : []),
     `--json-schema '${JSON.stringify(replySchema(canStaySilent))}'`,
+    ...(mcpConfig ? [`--mcp-config ${mcpConfig}`] : []),
     ...(persona ? [`--append-system-prompt-file ${persona}`] : []),
     ...(resumeSessionId ? [`--resume ${resumeSessionId}`] : []),
   ].join(" ");
@@ -237,6 +242,13 @@ const exists = (path: string) =>
 
 export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   const config = parseConfigOrThrow(await readConfigText(deps.workspace));
+  const mcp = buildMcpConfig(config.mcp_servers, deps.env);
+  if (mcp.missingSecrets.length > 0) {
+    throw new Error(
+      `mcp_servers reference secrets that are not set in the turn step's env: ${mcp.missingSecrets.join(", ")}`,
+    );
+  }
+  const hasMcpServers = Object.keys(config.mcp_servers).length > 0;
   const directory = sessionDirectory(deps.home, deps.workspace);
   await mkdir(directory, { recursive: true });
   const turn = deps.promptName
@@ -258,6 +270,11 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   await mkdir(join(deps.workspace, TURN_DIR), { recursive: true });
   await writeFile(join(deps.workspace, PROMPT_FILE), turn.prompt);
   await writeFile(join(deps.workspace, STATE_FILE), JSON.stringify(state));
+  if (hasMcpServers) {
+    await writeFile(join(deps.workspace, MCP_CONFIG_FILE), JSON.stringify(mcp.config), {
+      mode: 0o600,
+    });
+  }
 
   const persona = (await exists(join(deps.workspace, config.persona))) ? config.persona : undefined;
   return {
@@ -271,6 +288,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
       persona,
       resumeSessionId: turn.resumeSessionId,
       canStaySilent: turn.canStaySilent === true,
+      mcpConfig: hasMcpServers ? MCP_CONFIG_FILE : undefined,
     }),
   };
 }

@@ -44,6 +44,7 @@ program.command("prepare").action(async () => {
     workspace: workspace(),
     home: homedir(),
     runId: env("GITHUB_RUN_ID"),
+    env: process.env,
     promptName: process.env.PROMPT_NAME || undefined,
     clientPayload: await clientPayload(),
     poster: poster(),

@@ -1,6 +1,7 @@
 # Additional MCP servers (design)
 
-Status: proposed, not built. This designs how a consumer repo adds MCP servers to a turn through
+Status: `prepare` writes the config and the turn fails on a missing secret; caller-workflow docs and
+real-server verification are pending (see TODO.md). This designs how a consumer repo adds MCP servers to a turn through
 `.centaur.yml` ([config.md](config.md), [workflows.md](workflows.md#agent-turn)). The agent has no
 MCP servers beyond the ones `claude-code-action` provides itself.
 
@@ -134,7 +135,7 @@ write tools.
 - Per tool: `mcp__linear__get_issue,mcp__linear__list_issues`. Recommended for servers with write
   or delete tools.
 
-`buildClaudeArgs` needs no change for this: entries pass through `--allowedTools` as today. The
+`buildClaudeArgs` only adds `--mcp-config`; entries pass through `--allowedTools` as today. The
 existing `Read(./.centaur-turn/**)` rule still applies; `mcp.json` is in that directory but holds no
 secrets.
 

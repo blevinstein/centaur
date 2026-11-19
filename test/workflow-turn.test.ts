@@ -5,16 +5,19 @@ import { threadKey } from "../src/thread-key.js";
 import { finish, notifyFailure } from "../src/workflows/finish.js";
 import {
   MAX_PROMPT_IMAGES,
+  MCP_CONFIG_FILE,
   PROMPT_FILE,
   type PrepareDeps,
   prepare,
   STATE_FILE,
 } from "../src/workflows/prepare.js";
+import { envRef } from "./helpers/config-fixtures.js";
 import {
   botMessage,
   configText,
   createFakeAws,
   createWorkspace,
+  mcpConfigText,
   message,
   pullRequestLink,
   THREAD,
@@ -36,6 +39,7 @@ async function setup(messages: ReturnType<typeof message>[], config = configText
     workspace: root,
     home,
     runId: "42",
+    env: {},
     clientPayload: { bot: "sprout", thread_id: THREAD, message_id: "1" },
     poster: aws.poster,
     attachments: aws.attachments,
@@ -213,6 +217,31 @@ describe("prepare", () => {
     const out = await prepare(deps());
     expect(out.claude_args).toContain("--model sonnet");
     expect(out.claude_args).toContain('"Edit,Read(./.centaur-turn/**)"');
+  });
+
+  it("writes mcp.json with secret references and passes --mcp-config", async () => {
+    const { deps, root } = await setup([message("1", "hi")], mcpConfigText());
+    const out = await prepare(deps({ env: { LINEAR_API_KEY: "lin_secret" } }));
+    const written = await readFile(join(root, MCP_CONFIG_FILE), "utf8");
+    expect(JSON.parse(written).mcpServers.linear.headers.Authorization).toBe(
+      envRef("LINEAR_API_KEY", "Bearer "),
+    );
+    expect(written).not.toContain("lin_secret");
+    expect(out.claude_args).toContain(`--mcp-config ${MCP_CONFIG_FILE}`);
+  });
+
+  it("fails before any side effect when an MCP secret is unset, naming it", async () => {
+    const { deps, aws, root } = await setup([message("1", "hi")], mcpConfigText());
+    await expect(prepare(deps())).rejects.toThrow(/LINEAR_API_KEY/);
+    expect(aws.requests).toEqual([]);
+    await expect(readFile(join(root, MCP_CONFIG_FILE))).rejects.toThrow();
+  });
+
+  it("writes no mcp.json and no --mcp-config without servers", async () => {
+    const { deps, root } = await setup([message("1", "hi")]);
+    const out = await prepare(deps());
+    expect(out.claude_args).not.toContain("--mcp-config");
+    await expect(readFile(join(root, MCP_CONFIG_FILE))).rejects.toThrow();
   });
 
   it.each([
