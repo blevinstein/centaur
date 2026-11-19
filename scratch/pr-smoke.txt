@@ -1,2 +1,2 @@
-This file is a pull request smoke test.
+This document serves as a smoke test for the pull request workflow.
 The review comment was received.
