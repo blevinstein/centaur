@@ -250,13 +250,22 @@ agent proposes a change, a human reviews it, and the agent revises it.
 - [x] PR comments 5: comment mode in `finish` (reply with the marker, plain `git push`, chat note,
       refresh the record).
 - [x] PR comments 6: wire the `turn` action with a `comment` input.
-- [ ] PR comments 7: `.github/workflows/centaur-pr-comment.yml` in this repo and the docs that say
+- [x] PR comments 7: `.github/workflows/centaur-pr-comment.yml` in this repo and the docs that say
       it exists.
 - [ ] PR comments 8: verify event coverage on a real PR (inline comment, batched review, inline
       reply, conversation comment, fork PR, bot comment) and settle
-      `pull_request_review_comment`.
+      `pull_request_review_comment`. Needs `centaur-pr-comment.yml` on `main`, the deployed poster
+      (`withThreadId`) and a real `centaur/` PR with a linked thread (**[HUMAN ACTION]**).
 - [ ] PR comments 9: reference consumer in `blevinstein/garden` and the end-to-end check, where a
       review comment on a `weekly-tasks` PR gets an in-thread reply and a pushed fix.
+
+- [ ] `centaur-pr-comment.yml` checks out the PR branch and then runs this repo's local actions from
+      it, so a PR that edits `.github/actions/**` runs its own edit on the next comment. Run the
+      actions from the default branch (or check the PR branch out into a subdirectory).
+- [ ] `resolve` treats any permission API error as "no write access"; warn on errors other than
+      403 and 404 so outages are visible.
+- [ ] Consider filtering comment authors by `author_association` in comment-mode `prepare`, since it
+      answers every human comment since the last marked one.
 
 ## Backlog
 

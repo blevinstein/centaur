@@ -61,3 +61,9 @@
 - Agent prompt guidance lives in `src/workflows/instructions/*.md` (copied to `dist/` by
   `yarn build`) and is overridable via `.centaur.yml` `instructions`. Anything the code parses or
   that guards untrusted input stays in `prompt.ts`, not in those files.
+- PR comment turns: `resolve` (`src/workflows/resolve.ts`) gates them and never outputs the raw thread
+  ID. `COMMENT_PULL_REQUEST` enables comment-mode `prepare`; `src/workflows/pull-request-comments.ts`
+  owns PR reading and comment rendering. Every comment the agent posts to a PR carries
+  `REPLY_MARKER`, and `finish` pushes with plain `git`.
+- `PrepareDeps.env` carries the secrets named in `mcp_servers`; `prepare` fails before any poster
+  call if one is unset. Tests that need git use `test/helpers/git-fixtures.ts`.

@@ -228,7 +228,9 @@ name>` for scheduled prompts) and the body is the footer alone.
 ### Comment turns
 
 A pull request comment turn answers the comments on a pull request the agent opened. It is
-designed in [pr-comments.md](pr-comments.md). Two jobs make it up:
+designed in [pr-comments.md](pr-comments.md). Consumers copy
+[`centaur-pr-comment.yml`](../.github/workflows/centaur-pr-comment.yml) (triggers `issue_comment` and
+`pull_request_review`). Two jobs make it up:
 
 - `resolve` runs `resolve-pr-comment` (the `resolve` command) with `GITHUB_TOKEN`, the OIDC token
   and the role variables. It needs `pull-requests: read` and `id-token: write`, and

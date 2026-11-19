@@ -1,8 +1,8 @@
 # Responding to pull request comments
 
 Design for turning comments on the pull requests the agent opened into agent turns. This is a
-design; steps 1-6 of the [implementation plan](#implementation-plan) are implemented (the consumer
-workflow file, real-pull-request verification and the reference consumer are not). Terms (thread key, context policy, marker, poster) are
+design; steps 1-7 of the [implementation plan](#implementation-plan) are implemented (real-pull-request
+verification and the reference consumer are not). Terms (thread key, context policy, marker, poster) are
 defined in [plan.md](plan.md), [workflows.md](workflows.md) and [poster.md](poster.md).
 
 The loop it completes: a chat turn or scheduled prompt opens `centaur/<bot>-<key>` (or
@@ -57,7 +57,9 @@ Event semantics that matter:
 
 Consumers add one file. Job-level `concurrency` may read `needs`, which is how the group can depend
 on the thread the `resolve` job found; a workflow-level group could not, because the `issue_comment`
-payload has no branch name.
+payload has no branch name. This repo's test consumer is
+[`.github/workflows/centaur-pr-comment.yml`](../.github/workflows/centaur-pr-comment.yml); it
+differs from the example below only in setting least-privilege `permissions` per job.
 
 ```yaml
 # .github/workflows/centaur-pr-comment.yml

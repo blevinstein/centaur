@@ -129,8 +129,10 @@ Repeat for each consumer repo, after the bot exists (Telegram above, Slack below
      and cost-tuning fields, tool allowlist, persona, and a `destination` chat alias on each
      scheduled prompt); it holds no list of chats or users;
    - `.centaur/persona.md`, and any scheduled prompts under `.centaur/prompts/`;
-   - the caller workflows in `.github/workflows/` (register, message, one per scheduled prompt),
-     copied from [workflows.md](workflows.md#consumer-workflows).
+   - the caller workflows in `.github/workflows/` (register, message, one per scheduled prompt, and optionally
+     `centaur-pr-comment.yml` to answer pull request comments), copied from
+     [workflows.md](workflows.md#consumer-workflows) and
+     [Comment turns](workflows.md#comment-turns).
 2. In the repo's Settings > Secrets and variables > Actions:
    - **Variables** (not secrets): `CENTAUR_ROLE_ARN`, `CENTAUR_AWS_REGION`,
      `CENTAUR_FUNCTION_NAME`, `CENTAUR_OIDC_AUDIENCE`, `CENTAUR_SESSION_BUCKET`; values are in
