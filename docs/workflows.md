@@ -183,6 +183,10 @@ Commands: `register`, `prepare`, `pr-details`, `finish`, `notify-failure`.
    When `mcp_servers` is set, it writes `.centaur-turn/mcp.json` (secrets as `${NAME}` references,
    never values) and adds `--mcp-config` to `claude_args`; a referenced secret missing from the
    step's environment fails `prepare` before anything is posted, naming it ([mcp.md](mcp.md)).
+   The prompt's instructions are the guidance from `instructions/{chat,comment,silence}.md` (or
+   the repo's `instructions` overrides in `.centaur.yml`, read from the checkout like the persona)
+   followed by fixed text in `prompt.ts`: the untrusted-input warning and the structured-output
+   fields the workflow parses (`reply`, `ignore`, `pr_title`, ...), which a repo cannot override.
    It outputs the `claude_args` (model and tuning flags, `--allowedTools`, `--json-schema` requiring `reply` (or, for `respond_to: all` threads, `reply` or `ignore: true`; optionally `pr_title` and `pr_body`), persona
    via `--append-system-prompt-file`, `--resume <id>`). When there is nothing to do (everything
    processed, or only a `/resume` or `/transcript` command, which is acknowledged in the thread),

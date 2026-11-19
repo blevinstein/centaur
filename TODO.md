@@ -246,7 +246,7 @@ agent proposes a change, a human reviews it, and the agent revises it.
 - [x] PR comments 3: `resolve-pr-comment` action and `resolve` command (event parsing, filters,
       permission and marker checks, outputs). Also restore the design's flag on
       `resolve-pull-request` so the raw `threadId` is returned only when asked for.
-- [ ] PR comments 4: comment mode in `prepare`.
+- [x] PR comments 4: comment mode in `prepare`.
 - [ ] PR comments 5: comment mode in `finish` (reply with the marker, plain `git push`, chat note,
       refresh the record).
 - [ ] PR comments 6: wire the `turn` action with a `comment` input.

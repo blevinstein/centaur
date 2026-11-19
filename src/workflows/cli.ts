@@ -6,6 +6,7 @@ import { finish, notifyFailure } from "./finish.js";
 import { maskValue, writeOutputs } from "./github-output.js";
 import { prepare } from "./prepare.js";
 import { describePullRequest } from "./pull-request.js";
+import { createPullRequestReader } from "./pull-request-comments.js";
 import { oidcTokenFetcher, registerRepo } from "./register.js";
 import { createGitHubClient, resolve } from "./resolve.js";
 
@@ -63,8 +64,24 @@ program.command("resolve").action(async () => {
   });
 });
 
+const commentDeps = () => {
+  const pullRequest = Number(process.env.COMMENT_PULL_REQUEST);
+  if (!process.env.COMMENT_PULL_REQUEST) return undefined;
+  if (!Number.isInteger(pullRequest) || pullRequest <= 0) {
+    throw new Error("COMMENT_PULL_REQUEST is not a pull request number");
+  }
+  return {
+    pullRequest,
+    repository: env("GITHUB_REPOSITORY"),
+    github: createPullRequestReader(env("GITHUB_TOKEN"), process.env.GITHUB_API_URL),
+    fetchToken: oidcTokenFetcher(process.env, env("CENTAUR_OIDC_AUDIENCE")),
+    mask: maskValue,
+  };
+};
+
 program.command("prepare").action(async () => {
   const outputs = await prepare({
+    comment: commentDeps(),
     workspace: workspace(),
     home: homedir(),
     runId: env("GITHUB_RUN_ID"),

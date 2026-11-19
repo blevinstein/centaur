@@ -294,7 +294,7 @@ No per-pull-request cap in the first version.
   consumer's `allowed_tools`; its token is the job's `GITHUB_TOKEN` with `contents` and
   `pull-requests` write only; a revision lands as a commit on a branch a human reviews and merges,
   and the agent cannot merge. The prompt delimits the comments as quoted data and says to treat
-  them as requests to revise the change, not as instructions overriding the persona.
+  them as requests to revise the change, not as instructions overriding the persona. That wording is fixed in `prompt.ts`; a repo's `instructions.comment` override replaces only the behavior guidance.
 - **Forks.** `issue_comment` on a fork's pull request runs with secrets, and the agent would check
   out and read code the commenter's fork controls. `resolve` therefore requires the head repository
   to equal the base repository and the branch to start with `centaur/`, in a script that does not

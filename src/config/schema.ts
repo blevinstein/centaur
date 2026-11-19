@@ -69,6 +69,12 @@ const promptSchema = z.strictObject({
   destination: alias,
 });
 
+const instructionsSchema = z.strictObject({
+  chat: repoPath.optional(),
+  comment: repoPath.optional(),
+  silence: repoPath.optional(),
+});
+
 const removedAccessKey = z
   .never({
     error:
@@ -110,6 +116,7 @@ export const centaurConfigSchema = z
       })
       .default({}),
     persona: repoPath.default(".centaur/persona.md"),
+    instructions: instructionsSchema.default({}),
     prompts: z.record(alias, promptSchema).default({}),
   })
   .superRefine((config, ctx) => {

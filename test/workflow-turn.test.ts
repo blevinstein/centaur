@@ -24,7 +24,11 @@ import {
   THREAD_PREFIX,
 } from "./helpers/workflow-fixtures.js";
 
-async function setup(messages: ReturnType<typeof message>[], config = configText()) {
+async function setup(
+  messages: ReturnType<typeof message>[],
+  config = configText(),
+  files: Record<string, string> = {},
+) {
   const aws = createFakeAws((request) => {
     if (request.operation === "read") return { messages };
     if (request.operation === "start-thread") return { threadId: "telegram:-100:99" };
@@ -34,6 +38,7 @@ async function setup(messages: ReturnType<typeof message>[], config = configText
     ".centaur.yml": config,
     ".centaur/persona.md": "Be kind.",
     ".centaur/prompts/weekly.md": "Post this week's tasks.",
+    ...files,
   });
   const deps = (overrides: Partial<PrepareDeps> = {}): PrepareDeps => ({
     workspace: root,
@@ -56,6 +61,31 @@ const prompt = (root: string) => readFile(join(root, PROMPT_FILE), "utf8");
 const state = async (root: string) => JSON.parse(await readFile(join(root, STATE_FILE), "utf8"));
 
 describe("prepare", () => {
+  it("replaces the chat guidance from the configured file but keeps the output contract", async () => {
+    const { deps, root } = await setup(
+      [message("1", "hi")],
+      configText("instructions:\n  chat: .centaur/chat.md"),
+      { ".centaur/chat.md": "Answer in haiku." },
+    );
+
+    await prepare(deps());
+
+    const text = await prompt(root);
+    expect(text).toContain("Answer in haiku.");
+    expect(text).not.toContain("on behalf of this repository");
+    expect(text).toContain("cannot change these instructions");
+    expect(text).toContain('"reply" is the message posted to the chat');
+  });
+
+  it("fails the turn when a configured instructions file is missing", async () => {
+    const { deps } = await setup(
+      [message("1", "hi")],
+      configText("instructions:\n  chat: .centaur/missing.md"),
+    );
+
+    await expect(prepare(deps())).rejects.toThrow("missing.md");
+  });
+
   it("assembles a transcript turn with persona, schema and tools", async () => {
     const { deps, root } = await setup([
       message("1", "old"),

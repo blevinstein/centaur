@@ -25,6 +25,8 @@ mcp_servers:
     headers:
       Authorization: { secret: LINEAR_API_KEY, prefix: "Bearer " }
 persona: .centaur/persona.md
+instructions:               # all optional; each replaces the bundled guidance
+  chat: .centaur/instructions/chat.md
 prompts:
   weekly-tasks:                 # file defaults to .centaur/prompts/weekly-tasks.md
     context: transcript         # overrides context.scheduled for this prompt
@@ -49,6 +51,7 @@ prompts:
 | `allowed_tools` | yes | | Tool allowlist: a comma-separated string or a YAML list. |
 | `mcp_servers` | no | `{}` | Additional MCP servers by name (see below). |
 | `persona` | no | `.centaur/persona.md` | Repo-relative path to the persona file. |
+| `instructions` | no | `{}` | Repo-relative paths to files replacing the bundled behavior guidance in the agent prompt: `chat` (replying in a thread), `comment` (revising a pull request after review comments) and `silence` (when to stay quiet under `respond_to: all`). Defaults are `src/workflows/instructions/*.md`. A configured file that is missing or empty fails the turn. The output-format, `ignore` and untrusted-input wording is appended by the workflow and cannot be overridden. |
 | `prompts` | no | `{}` | Scheduled prompts by name (see below). |
 
 Each prompt takes `file` (default `.centaur/prompts/<name>.md`), `context` (default

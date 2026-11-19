@@ -58,3 +58,6 @@
 - A new field in the agent's structured output goes in three places: `replySchema`
   (`src/workflows/prompt.ts`), `resultMessage` and `extractResult` (`src/workflows/finish.ts`), and
   `docs/workflows.md`. The PR step in `.github/actions/turn/action.yml` reads the `pr-details` outputs.
+- Agent prompt guidance lives in `src/workflows/instructions/*.md` (copied to `dist/` by
+  `yarn build`) and is overridable via `.centaur.yml` `instructions`. Anything the code parses or
+  that guards untrusted input stays in `prompt.ts`, not in those files.

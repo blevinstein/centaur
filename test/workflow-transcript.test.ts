@@ -106,7 +106,7 @@ describe("buildPrompt", () => {
     const messages = [message("1", "lunch?")];
     expect(buildPrompt({ messages })).not.toContain("stay silent");
     const prompt = buildPrompt({ messages, canStaySilent: true });
-    expect(prompt).toContain("not necessarily\naddressed to you");
+    expect(prompt).toContain("not necessarily addressed to you");
     expect(prompt).toContain("Reply when a message mentions you");
     expect(prompt).toContain('set "ignore" to true');
     expect(prompt).not.toContain("@");

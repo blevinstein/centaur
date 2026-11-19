@@ -122,23 +122,45 @@ const pullRequestResponse = z.object({
 });
 const permissionResponse = z.object({ permission: z.string() });
 
-/** Minimal GitHub REST client; errors name only the status, never a response body. */
+export interface GitHubRequester {
+  json<T>(path: string, schema: z.ZodType<T>): Promise<T>;
+  text(path: string, accept: string): Promise<string>;
+}
+
+/** GET-only GitHub REST access; errors name only the status, never a response body. */
+export function createGitHubRequester(
+  token: string,
+  apiUrl = "https://api.github.com",
+  fetchImpl: typeof fetch = fetch,
+): GitHubRequester {
+  const get = async (path: string, accept: string) => {
+    const response = await fetchImpl(`${apiUrl}${path}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: accept,
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+    if (!response.ok) throw new Error(`GitHub request failed (${response.status})`);
+    return response;
+  };
+  return {
+    async json(path, schema) {
+      return schema.parse(await (await get(path, "application/vnd.github+json")).json());
+    },
+    async text(path, accept) {
+      return (await get(path, accept)).text();
+    },
+  };
+}
+
 export function createGitHubClient(
   token: string,
   apiUrl = "https://api.github.com",
   fetchImpl: typeof fetch = fetch,
 ): GitHubClient {
-  const get = async <T>(path: string, schema: z.ZodType<T>) => {
-    const response = await fetchImpl(`${apiUrl}${path}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    });
-    if (!response.ok) throw new Error(`GitHub request failed (${response.status})`);
-    return schema.parse(await response.json());
-  };
+  const requester = createGitHubRequester(token, apiUrl, fetchImpl);
+  const get = requester.json;
   return {
     async pullRequest(repository, number) {
       const data = await get(`/repos/${repository}/pulls/${number}`, pullRequestResponse);

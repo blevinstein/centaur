@@ -10,10 +10,24 @@ import {
 import { threadKey } from "../thread-key.js";
 import type { AttachmentDownloader, PosterClient, ThreadStore } from "./aws.js";
 import { parseConfigOrThrow, readConfigText } from "./config-file.js";
+import { type Instructions, loadInstructions } from "./instructions.js";
 import { buildMcpConfig } from "./mcp-config.js";
 import { buildPrompt, replySchema } from "./prompt.js";
+import {
+  type PullRequestReader,
+  pendingComments,
+  renderComments,
+  singleInlineThread,
+  truncateDiff,
+} from "./pull-request-comments.js";
 import { clearReactions, type ReactionSource } from "./reactions.js";
-import { type AttachmentPath, type ChatMessage, pendingMessages, planTurn } from "./transcript.js";
+import {
+  type AttachmentPath,
+  type ChatMessage,
+  pendingMessages,
+  planTurn,
+  threadPolicy,
+} from "./transcript.js";
 
 export const TURN_DIR = ".centaur-turn";
 export const PROMPT_FILE = `${TURN_DIR}/prompt.md`;
@@ -30,9 +44,12 @@ const dispatchPayload = z.object({ bot: alias, thread_id: z.string().min(1) });
 export type StartTarget = { destination: string } | { fromThreadId: string };
 
 export interface TurnState {
-  mode: "reply" | "start-thread";
+  mode: "reply" | "start-thread" | "comment";
   bot: string;
   threadId?: string;
+  pullRequest?: number;
+  /** The inline comment thread (root comment ID) the reply belongs in, when there is just one. */
+  replyTo?: number;
   promptName?: string;
   start?: StartTarget;
   policy: ContextPolicy;
@@ -41,7 +58,17 @@ export interface TurnState {
   sessionDirectory: string;
 }
 
+/** Present when a pull request comment, not a chat message or a schedule, triggered the turn. */
+export interface CommentDeps {
+  pullRequest: number;
+  repository: string;
+  github: PullRequestReader;
+  fetchToken: () => Promise<string>;
+  mask: (value: string) => void;
+}
+
 export interface PrepareDeps {
+  comment?: CommentDeps | undefined;
   workspace: string;
   home: string;
   runId: string;
@@ -65,6 +92,9 @@ export interface PrepareOutputs {
 interface Turn {
   mode: TurnState["mode"];
   threadId?: string;
+  branch?: string;
+  pullRequest?: number;
+  replyTo?: number;
   start?: StartTarget;
   policy: ContextPolicy;
   marker?: string;
@@ -103,6 +133,7 @@ const skipped: PrepareOutputs = {
 async function scheduledTurn(
   deps: PrepareDeps,
   config: CentaurConfig,
+  instructions: Instructions,
   name: string,
 ): Promise<Turn> {
   const prompt = config.prompts[name];
@@ -112,13 +143,14 @@ async function scheduledTurn(
     mode: "start-thread",
     policy: prompt.context,
     start: { destination: prompt.destination },
-    prompt: buildPrompt({ scheduledTask }),
+    prompt: buildPrompt({ scheduledTask, instructions }),
   };
 }
 
 async function chatTurn(
   deps: PrepareDeps,
   config: CentaurConfig,
+  instructions: Instructions,
   directory: string,
 ): Promise<Turn | undefined> {
   const payload = dispatchPayload.parse(deps.clientPayload);
@@ -179,7 +211,7 @@ async function chatTurn(
         policy: config.context.default,
         start: { fromThreadId: threadId },
         source,
-        prompt: buildPrompt({ messages: plan.seed, attachmentPath }),
+        prompt: buildPrompt({ messages: plan.seed, attachmentPath, instructions }),
       };
     }
     case "reply": {
@@ -201,6 +233,7 @@ async function chatTurn(
         ...(canStaySilent ? { canStaySilent } : {}),
         prompt: buildPrompt({
           canStaySilent,
+          instructions,
           handle: config.handle,
           history,
           messages: plan.pending,
@@ -209,6 +242,79 @@ async function chatTurn(
       };
     }
   }
+}
+
+async function commentTurn(
+  deps: PrepareDeps,
+  comment: CommentDeps,
+  config: CentaurConfig,
+  instructions: Instructions,
+  directory: string,
+): Promise<Turn | undefined> {
+  const token = await comment.fetchToken();
+  comment.mask(token);
+  const resolved = await deps.poster.call<
+    { found: false } | { found: true; bot: string; threadId: string }
+  >({
+    operation: "resolve-pull-request",
+    token,
+    pullRequest: comment.pullRequest,
+    withThreadId: true,
+  });
+  if (!resolved.found) return undefined;
+  comment.mask(resolved.threadId);
+  if (resolved.bot !== config.bot) {
+    throw new Error(
+      `pull request is linked to bot "${resolved.bot}" but .centaur.yml configures "${config.bot}"`,
+    );
+  }
+  const threadId = resolved.threadId;
+  const [details, all, { messages }] = await Promise.all([
+    comment.github.details(comment.repository, comment.pullRequest),
+    comment.github.comments(comment.repository, comment.pullRequest),
+    deps.poster.call<{ messages: ChatMessage[] }>({
+      operation: "read",
+      bot: config.bot,
+      threadId,
+    }),
+  ]);
+  const pending = pendingComments(all, details.createdAt);
+  if (pending.length === 0) return undefined;
+
+  const policy = threadPolicy(messages, config.context.default);
+  const resumeSessionId =
+    policy === "resume"
+      ? await deps.storeFor(config.bot, threadId).restoreSession(directory)
+      : undefined;
+  const hasSession = resumeSessionId !== undefined;
+  const showHistory = policy === "transcript" || (policy === "resume" && !hasSession);
+  const history = showHistory ? messages : [];
+  const attachmentPath = await loadAttachments(deps, history);
+  const diff = hasSession
+    ? undefined
+    : truncateDiff(await comment.github.diff(comment.repository, comment.pullRequest));
+  const replyTo = singleInlineThread(pending);
+  return {
+    mode: "comment",
+    threadId,
+    branch: details.headRef,
+    pullRequest: comment.pullRequest,
+    policy,
+    canStaySilent: true,
+    ...(replyTo ? { replyTo } : {}),
+    ...(resumeSessionId ? { resumeSessionId } : {}),
+    prompt: buildPrompt({
+      history,
+      attachmentPath,
+      instructions,
+      pullRequest: {
+        title: details.title,
+        body: details.body,
+        diff,
+        comments: renderComments(all, pending),
+      },
+    }),
+  };
 }
 
 export function buildClaudeArgs(input: {
@@ -251,9 +357,15 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   const hasMcpServers = Object.keys(config.mcp_servers).length > 0;
   const directory = sessionDirectory(deps.home, deps.workspace);
   await mkdir(directory, { recursive: true });
+  if (deps.promptName && deps.comment) {
+    throw new Error("a turn is either a scheduled prompt or a pull request comment, not both");
+  }
+  const instructions = await loadInstructions(deps.workspace, config.instructions);
   const turn = deps.promptName
-    ? await scheduledTurn(deps, config, deps.promptName)
-    : await chatTurn(deps, config, directory);
+    ? await scheduledTurn(deps, config, instructions, deps.promptName)
+    : deps.comment
+      ? await commentTurn(deps, deps.comment, config, instructions, directory)
+      : await chatTurn(deps, config, instructions, directory);
   if (!turn) return skipped;
 
   const state: TurnState = {
@@ -263,6 +375,8 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     sessionDirectory: directory,
     ...(deps.promptName ? { promptName: deps.promptName } : {}),
     ...(turn.threadId ? { threadId: turn.threadId } : {}),
+    ...(turn.pullRequest ? { pullRequest: turn.pullRequest } : {}),
+    ...(turn.replyTo ? { replyTo: turn.replyTo } : {}),
     ...(turn.start ? { start: turn.start } : {}),
     ...(turn.marker ? { marker: turn.marker } : {}),
     ...(turn.source ? { source: turn.source } : {}),
@@ -279,8 +393,10 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   const persona = (await exists(join(deps.workspace, config.persona))) ? config.persona : undefined;
   return {
     skip: false,
-    thread_id: turn.threadId ?? "",
-    branch: `centaur/${config.bot}-${turn.threadId ? threadKey(config.bot, turn.threadId) : safeRef(`${deps.promptName ?? "new"}-${deps.runId}`)}`,
+    thread_id: turn.mode === "comment" ? "" : (turn.threadId ?? ""),
+    branch:
+      turn.branch ??
+      `centaur/${config.bot}-${turn.threadId ? threadKey(config.bot, turn.threadId) : safeRef(`${deps.promptName ?? "new"}-${deps.runId}`)}`,
     base_url: PROVIDER_SETTINGS[config.provider].base_url ?? "",
     api_key_secret: PROVIDER_SETTINGS[config.provider].api_key_secret,
     claude_args: buildClaudeArgs({

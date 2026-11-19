@@ -24,6 +24,7 @@ describe("parseCentaurConfig", () => {
         model: "sonnet",
         allowed_tools: ["Read", "Edit"],
         persona: ".centaur/persona.md",
+        instructions: {},
         mcp_servers: {},
         prompts: {},
       },
@@ -46,6 +47,7 @@ describe("parseCentaurConfig", () => {
         model: "sonnet",
         allowed_tools: ["Read", "Edit", "Write", "Glob", "Grep"],
         persona: ".centaur/persona.md",
+        instructions: {},
         mcp_servers: {},
         prompts: {
           "weekly-tasks": {
@@ -70,6 +72,16 @@ describe("parseCentaurConfig", () => {
       ok: true,
       config: { respond_to: "all", prompts: { weekly: { destination: "household" } } },
     });
+  });
+
+  it("accepts instruction overrides as repo-relative paths only", () => {
+    expect(parseCentaurConfig(withExtra("instructions: {chat: .centaur/chat.md}"))).toMatchObject({
+      ok: true,
+      config: { instructions: { chat: ".centaur/chat.md" } },
+    });
+    for (const extra of ["instructions: {chat: ../x.md}", "instructions: {other: a.md}"]) {
+      expect(parseCentaurConfig(withExtra(extra)).ok).toBe(false);
+    }
   });
 
   it("accepts allowed_tools as a list", () => {
