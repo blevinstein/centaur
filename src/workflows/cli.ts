@@ -7,6 +7,7 @@ import { maskValue, writeOutputs } from "./github-output.js";
 import { prepare } from "./prepare.js";
 import { describePullRequest } from "./pull-request.js";
 import { oidcTokenFetcher, registerRepo } from "./register.js";
+import { createGitHubClient, resolve } from "./resolve.js";
 
 const env = (name: string) => {
   const value = process.env[name];
@@ -20,11 +21,10 @@ const storeFor = (bot: string, threadId: string) =>
 const attachments = () => createAttachmentDownloader(env("CENTAUR_SESSION_BUCKET"));
 const workspace = () => process.env.GITHUB_WORKSPACE ?? process.cwd();
 
+const readEvent = async () => JSON.parse(await readFile(env("GITHUB_EVENT_PATH"), "utf8"));
+
 async function clientPayload() {
-  const event = JSON.parse(await readFile(env("GITHUB_EVENT_PATH"), "utf8")) as {
-    client_payload?: unknown;
-  };
-  return event.client_payload;
+  return ((await readEvent()) as { client_payload?: unknown }).client_payload;
 }
 
 const program = new Command("centaur-workflow");
@@ -37,6 +37,30 @@ program.command("register").action(async () => {
     mask: maskValue,
   });
   console.log(`Registered bot "${result.bot}" for ${result.repo}`);
+});
+
+program.command("resolve").action(async () => {
+  const outcome = await resolve({
+    eventName: env("GITHUB_EVENT_NAME"),
+    event: await readEvent(),
+    repository: env("GITHUB_REPOSITORY"),
+    github: createGitHubClient(env("GITHUB_TOKEN"), process.env.GITHUB_API_URL),
+    poster: poster(),
+    fetchToken: oidcTokenFetcher(process.env, env("CENTAUR_OIDC_AUDIENCE")),
+    mask: maskValue,
+  });
+  if (outcome.skip) {
+    console.log(`Skipping: ${outcome.reason}`);
+    await writeOutputs(env("GITHUB_OUTPUT"), { skip: "true" });
+    return;
+  }
+  await writeOutputs(env("GITHUB_OUTPUT"), {
+    skip: "false",
+    bot: outcome.bot,
+    thread_key: outcome.threadKey,
+    head_ref: outcome.headRef,
+    pull_request: String(outcome.pullRequest),
+  });
 });
 
 program.command("prepare").action(async () => {

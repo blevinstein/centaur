@@ -17,7 +17,7 @@ to a repo (secrets plus `bots/<bot>/repo`) for every operation except `register`
 | `unreact` | `bot`, `threadId`, `messageIds` (1 to 50) | `{ results: [{ messageId, removed }] }` |
 | `register` | `token` (GitHub OIDC JWT), `config` (`.centaur.yml` text) | `{ bot, repo }` |
 | `link-pull-request` | `token` (GitHub OIDC JWT), `bot`, `threadId`, `pullRequest` (number) | `{ linked: true }` |
-| `resolve-pull-request` | `token` (GitHub OIDC JWT), `pullRequest` (number) | `{ found: false }` or `{ found: true, bot, threadKey, threadId }` |
+| `resolve-pull-request` | `token` (GitHub OIDC JWT), `pullRequest` (number), optional `withThreadId` (boolean) | `{ found: false }` or `{ found: true, bot, threadKey }`, plus `threadId` only when `withThreadId` is true |
 
 All thread operations go through the bot's own Chat instance and state prefix (`bot:<bot>:`), so
 the bot's posts land in the stored transcript the receiver and `read` use.
@@ -90,11 +90,11 @@ restarts the TTL. An unknown, unbound or differently bound bot fails the request
 `resolve-pull-request` reads the record for the caller's repository and number. It returns
 `{ found: false }` when there is no record, the record has expired, or the bot is no longer bound
 to the caller's repository; none of these is an error, so callers skip silently. A hit restarts the
-TTL, so a pull request with activity never expires, and returns the bot, the 12-hex thread key
-(`threadKey` in `src/thread-key.ts`) and the raw `threadId`. The thread ID is the sensitive part
-(a chat ID): the caller must mask it (`::add-mask::`) before anything else and never write it to a
-job output, step output, log, or any GitHub-visible place. The thread key is what outputs and
-concurrency groups use.
+TTL, so a pull request with activity never expires, and returns the bot and the 12-hex thread key
+(`threadKey` in `src/thread-key.ts`). The raw `threadId` is returned only when the request sets
+`withThreadId: true`. It is the sensitive part (a chat ID): a caller that asks for it must mask it
+(`::add-mask::`) before anything else and never write it to a job output, step output, log, or any
+GitHub-visible place. The thread key is what outputs and concurrency groups use.
 
 ## Lambda configuration
 

@@ -43,7 +43,11 @@ export function createPullRequests({ params, state, oidc }: PullRequestDeps) {
     return { linked: true };
   };
 
-  const resolve = async (request: { token: string; pullRequest: number }) => {
+  const resolve = async (request: {
+    token: string;
+    pullRequest: number;
+    withThreadId?: boolean | undefined;
+  }) => {
     const { repository } = await oidc.verify(request.token);
     const key = pullRequestKey(repository, request.pullRequest);
     const record = await state.get<PullRequestRecord>(key);
@@ -53,7 +57,7 @@ export function createPullRequests({ params, state, oidc }: PullRequestDeps) {
       found: true,
       bot: record.bot,
       threadKey: threadKey(record.bot, record.threadId),
-      threadId: record.threadId,
+      ...(request.withThreadId ? { threadId: record.threadId } : {}),
     };
   };
 

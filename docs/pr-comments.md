@@ -327,8 +327,10 @@ Each step is independently reviewable and could become a TODO item.
    prompts), as a warning on failure. Unit tests with a fake poster.
 3. **`resolve-pr-comment` action and `resolve` command** in `src/workflows/`: parse the event file,
    filter (bot, fork, branch, state), check permission, apply the marker check, call
-   `resolve-pull-request`, write outputs (`skip`, `bot`, `thread_key`, `head_ref`). Tests with a
-   fake GitHub client.
+   `resolve-pull-request`, write outputs (`skip`, `bot`, `thread_key`, `head_ref`, `pull_request`).
+   Tests with a fake GitHub client. Implemented as `src/workflows/resolve.ts` and
+   `.github/actions/resolve-pr-comment`; it reads the event file and the GitHub API with the
+   job's `GITHUB_TOKEN` (`pull-requests: read`), and never asks the poster for the raw thread ID.
 4. **Comment mode in `prepare`**: a pull request comment source next to `chatTurn`, producing the
    prompt (comments since the last marked comment, inline context, diff, history by policy) and the
    `TurnState`. No marker or reaction handling.

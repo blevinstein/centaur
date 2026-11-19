@@ -1,0 +1,31 @@
+name: Centaur resolve PR comment
+description: Decide whether an issue_comment or pull_request_review event on a pull request should start a turn, and find the bot and thread the pull request belongs to. Run after checkout and the centaur setup-runtime step; needs the id-token write permission and a pull-requests read permission.
+inputs:
+  github_token:
+    description: Token used to read the pull request and the commenter's repository permission.
+    default: ${{ github.token }}
+outputs:
+  skip:
+    description: "'true' when the event should not start a turn."
+    value: ${{ steps.resolve.outputs.skip }}
+  bot:
+    description: The bot that owns the pull request's thread.
+    value: ${{ steps.resolve.outputs.bot }}
+  thread_key:
+    description: The 12-hex thread key, for the concurrency group. Never the raw thread ID.
+    value: ${{ steps.resolve.outputs.thread_key }}
+  head_ref:
+    description: The pull request's head branch. Pass it only to actions/checkout.
+    value: ${{ steps.resolve.outputs.head_ref }}
+  pull_request:
+    description: The pull request number.
+    value: ${{ steps.resolve.outputs.pull_request }}
+runs:
+  using: composite
+  steps:
+    - name: Resolve the pull request comment
+      id: resolve
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" resolve

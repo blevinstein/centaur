@@ -29,7 +29,7 @@ afterEach(() => {
 });
 
 describe("link-pull-request and resolve-pull-request", () => {
-  it("resolves a linked pull request to its bot, thread key and raw thread", async () => {
+  it("resolves a linked pull request to its bot and thread key without the raw thread", async () => {
     const { poster, oidc } = await setup();
 
     await expect(poster(LINK)).resolves.toEqual({ linked: true });
@@ -40,8 +40,23 @@ describe("link-pull-request and resolve-pull-request", () => {
       found: true,
       bot: "garden",
       threadKey: threadKey("garden", THREAD_ID),
+    });
+  });
+
+  it("returns the raw thread only when asked with withThreadId", async () => {
+    const { poster } = await setup();
+    await poster(LINK);
+
+    await expect(poster({ ...RESOLVE, withThreadId: true })).resolves.toEqual({
+      found: true,
+      bot: "garden",
+      threadKey: threadKey("garden", THREAD_ID),
       threadId: THREAD_ID,
     });
+    await expect(poster({ ...RESOLVE, withThreadId: false })).resolves.not.toHaveProperty(
+      "threadId",
+    );
+    await expect(poster({ ...RESOLVE, withThreadId: "yes" })).rejects.toThrow();
   });
 
   it("stores the record under the caller's repository with a 90-day expiry", async () => {

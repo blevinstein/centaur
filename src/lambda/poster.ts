@@ -54,6 +54,7 @@ export const posterRequestSchema = z.discriminatedUnion("operation", [
     operation: z.literal("resolve-pull-request"),
     token: z.string().min(1),
     pullRequest,
+    withThreadId: z.boolean().optional(),
   }),
 ]);
 
