@@ -179,6 +179,15 @@ describe("pushChanges", () => {
     expect(files).toContain("new/file.md");
   });
 
+  it("never stages the turn directory when it is not ignored", async () => {
+    const { work, write } = await createClone({ ignoreTurnDir: false });
+    await write("plan.md", "basil\n");
+    await write(".centaur-turn/prompt.md", "never committed");
+
+    expect(await pushChanges(work, "Use basil")).toBe(1);
+    expect(await git(work, "ls-files")).not.toContain(".centaur-turn");
+  });
+
   it("pushes nothing when there are no changes", async () => {
     const { work, remoteLog } = await createClone();
 

@@ -6,7 +6,7 @@ const BOT_IDENTITY = [
   "-c",
   "user.email=41898282+github-actions[bot]@users.noreply.github.com",
 ];
-const TURN_FILES_EXCLUDE = ":(exclude).centaur-turn";
+const TURN_DIR_PATH = ".centaur-turn";
 
 /**
  * Commits the working tree changes (if any) onto the checked-out pull request branch and pushes it
@@ -18,10 +18,10 @@ export async function pushChanges(
   exec: Exec = execCommand,
 ): Promise<number> {
   const git = (...args: string[]) => exec("git", ["-C", workspace, ...args]);
-  if ((await git("status", "--porcelain", "--", ".", TURN_FILES_EXCLUDE)).trim() !== "") {
-    await git("add", "--all", "--", ".", TURN_FILES_EXCLUDE);
-    await git(...BOT_IDENTITY, "commit", "--message", message);
-  }
+  await git("add", "--all");
+  await git("reset", "--quiet", "--", TURN_DIR_PATH);
+  const staged = await git("diff", "--cached", "--name-only");
+  if (staged.trim() !== "") await git(...BOT_IDENTITY, "commit", "--message", message);
   const ahead = Number((await git("rev-list", "--count", "@{upstream}..HEAD")).trim());
   if (ahead > 0) await git("push");
   return ahead;
