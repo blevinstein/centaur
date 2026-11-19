@@ -1,6 +1,9 @@
 name: Centaur agent turn
-description: One agent turn. Answers the dispatched chat message, or with prompt_name starts a new thread from that prompt in .centaur.yml. Run after checkout and the centaur setup-runtime step.
+description: One agent turn. Answers the dispatched chat message, or with prompt_name starts a new thread from that prompt in .centaur.yml, or with comment answers the comments on that pull request. Run after checkout and the centaur setup-runtime step.
 inputs:
+  comment:
+    description: Number of a pull request to answer comments on (the resolve job's pull_request output), with its head branch checked out. Pushes to that branch instead of opening a pull request, and needs contents and pull-requests write plus id-token write.
+    default: ""
   prompt_name:
     description: Name of a prompt in .centaur.yml; starts a new thread instead of answering a dispatched message.
     default: ""
@@ -25,6 +28,8 @@ runs:
       shell: bash
       env:
         PROMPT_NAME: ${{ inputs.prompt_name }}
+        COMMENT_PULL_REQUEST: ${{ inputs.comment }}
+        GITHUB_TOKEN: ${{ github.token }}
       run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" prepare
 
     - name: Route model API to a custom base URL
@@ -46,7 +51,7 @@ runs:
 
     - name: Describe pull request
       id: pr_details
-      if: steps.prepare.outputs.skip != 'true'
+      if: steps.prepare.outputs.skip != 'true' && inputs.comment == ''
       shell: bash
       env:
         EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
@@ -55,7 +60,7 @@ runs:
 
     - name: Open pull request
       id: pr
-      if: steps.prepare.outputs.skip != 'true'
+      if: steps.prepare.outputs.skip != 'true' && inputs.comment == ''
       uses: peter-evans/create-pull-request@v8
       with:
         token: ${{ github.token }}
@@ -71,4 +76,6 @@ runs:
         EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
         PULL_REQUEST_URL: ${{ steps.pr.outputs.pull-request-url }}
         PULL_REQUEST_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+        COMMENT_PULL_REQUEST: ${{ inputs.comment }}
+        GITHUB_TOKEN: ${{ github.token }}
       run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" finish

@@ -96,6 +96,9 @@ TTL, so a pull request with activity never expires, and returns the bot and the 
 (`::add-mask::`) before anything else and never write it to a job output, step output, log, or any
 GitHub-visible place. The thread key is what outputs and concurrency groups use.
 
+After a comment turn, `finish` calls `link-pull-request` again for the same pull request and
+thread, which restarts the TTL.
+
 ## Lambda configuration
 
 Environment variables (set by `infra/centaur.yml`; see [deploy.md](deploy.md)):

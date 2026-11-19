@@ -66,6 +66,29 @@ export interface PullRequestReader {
   diff(repository: string, number: number): Promise<string>;
 }
 
+export interface PullRequestWriter {
+  /** Posts a conversation comment, or a reply in the inline thread rooted at `replyTo`. */
+  comment(repository: string, number: number, body: string, replyTo?: number): Promise<void>;
+}
+
+/** Posts to a pull request with the job's token; errors name only the HTTP status. */
+export function createPullRequestWriter(
+  token: string,
+  apiUrl?: string,
+  fetchImpl?: typeof fetch,
+): PullRequestWriter {
+  const requester = createGitHubRequester(token, apiUrl, fetchImpl);
+  return {
+    comment: (repository, number, body, replyTo) =>
+      requester.post(
+        replyTo === undefined
+          ? `/repos/${repository}/issues/${number}/comments`
+          : `/repos/${repository}/pulls/${number}/comments/${replyTo}/replies`,
+        { body },
+      ),
+  };
+}
+
 async function paginate<T>(
   requester: GitHubRequester,
   path: string,

@@ -1,7 +1,8 @@
 # Responding to pull request comments
 
 Design for turning comments on the pull requests the agent opened into agent turns. This is a
-design only; nothing here is implemented. Terms (thread key, context policy, marker, poster) are
+design; steps 1-6 of the [implementation plan](#implementation-plan) are implemented (the consumer
+workflow file, real-pull-request verification and the reference consumer are not). Terms (thread key, context policy, marker, poster) are
 defined in [plan.md](plan.md), [workflows.md](workflows.md) and [poster.md](poster.md).
 
 The loop it completes: a chat turn or scheduled prompt opens `centaur/<bot>-<key>` (or
@@ -84,6 +85,11 @@ jobs:
       bot: ${{ steps.resolve.outputs.bot }}
       thread_key: ${{ steps.resolve.outputs.thread_key }}
       head_ref: ${{ steps.resolve.outputs.head_ref }}
+      pull_request: ${{ steps.resolve.outputs.pull_request }}
+    permissions:
+      contents: read
+      pull-requests: read
+      id-token: write
     env:
       CENTAUR_ROLE_ARN: ${{ vars.CENTAUR_ROLE_ARN }}
       CENTAUR_AWS_REGION: ${{ vars.CENTAUR_AWS_REGION }}
@@ -117,11 +123,13 @@ jobs:
       - uses: ./.github/actions/setup-runtime
       - uses: ./.github/actions/turn
         with:
-          comment: "true"
+          comment: ${{ needs.resolve.outputs.pull_request }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
       - if: failure()
         uses: ./.github/actions/notify-failure
+        with:
+          comment: ${{ needs.resolve.outputs.pull_request }}
 ```
 
 Notes on the shape:
@@ -335,10 +343,11 @@ Each step is independently reviewable and could become a TODO item.
    prompt (comments since the last marked comment, inline context, diff, history by policy) and the
    `TurnState`. No marker or reaction handling.
 5. **Comment mode in `finish`**: post the reply (conversation or inline reply, with the marker),
-   push commits, post the chat note, refresh the record. A `push` command replaces
-   `create-pull-request` in this mode.
-6. **Wire the `turn` action** with a `comment` input (skipping `pr-details` and
-   `create-pull-request`, adding `push`) and the failure notice to the pull request.
+   push commits, post the chat note, refresh the record. `finish` itself commits and pushes
+   (`src/workflows/push.ts`) in this mode; there is no separate `push` command.
+6. **Wire the `turn` action** with a `comment` input (the pull request number; sets
+   `COMMENT_PULL_REQUEST`, skips `pr-details` and `create-pull-request`) and the failure notice to
+   the pull request through `notify-failure`'s `comment` input.
 7. **Example and docs**: `.github/workflows/centaur-pr-comment.yml` in this repo (the test
    consumer), and `docs/workflows.md`, `docs/onboarding.md`, `docs/plan.md` updated to say it exists.
 8. **Verify event coverage** on a real pull request: single inline comment, batched review,

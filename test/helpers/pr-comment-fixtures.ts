@@ -1,13 +1,28 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { vi } from "vitest";
 import { threadKey } from "../../src/thread-key.js";
-import type { PrepareDeps } from "../../src/workflows/prepare.js";
+import type { FinishDeps } from "../../src/workflows/finish.js";
+import {
+  type PrepareDeps,
+  STATE_FILE,
+  TURN_DIR,
+  type TurnState,
+} from "../../src/workflows/prepare.js";
 import type {
   PullRequestComment,
   PullRequestDetails,
   PullRequestReader,
+  PullRequestWriter,
 } from "../../src/workflows/pull-request-comments.js";
 import { REPLY_MARKER } from "../../src/workflows/resolve.js";
-import { configText, createFakeAws, createWorkspace, THREAD } from "./workflow-fixtures.js";
+import {
+  configText,
+  createFakeAws,
+  createWorkspace,
+  pullRequestLink,
+  THREAD,
+} from "./workflow-fixtures.js";
 
 export const PULL_REQUEST = 12;
 export const HEAD_REF = `centaur/sprout-${threadKey("sprout", THREAD)}`;
@@ -104,4 +119,44 @@ export async function commentSetup(
     },
   });
   return { aws, github, mask, root, home, deps };
+}
+
+export const PR_URL = "https://github.example/octo/sprout/pull/12";
+
+export async function commentFinishSetup(
+  options: { state?: Partial<TurnState>; pushed?: number; fail?: "chat" | "push" } = {},
+) {
+  const aws = createFakeAws((request) => {
+    if (request.operation === "post" && options.fail === "chat") throw new Error("chat is down");
+    return {};
+  });
+  const { root, home } = await createWorkspace({});
+  const state: TurnState = {
+    mode: "comment",
+    bot: "sprout",
+    threadId: THREAD,
+    pullRequest: PULL_REQUEST,
+    policy: "transcript",
+    sessionDirectory: join(home, "session"),
+    ...options.state,
+  };
+  await mkdir(join(root, TURN_DIR), { recursive: true });
+  await writeFile(join(root, STATE_FILE), JSON.stringify(state));
+  const executionFile = join(root, "execution.json");
+  const writeExecution = (entry: object) =>
+    writeFile(executionFile, JSON.stringify([{ type: "system" }, { type: "result", ...entry }]));
+  const github: PullRequestWriter = { comment: vi.fn(async () => {}) };
+  const push = vi.fn(async (_message: string) => {
+    if (options.fail === "push") throw new Error("push rejected");
+    return options.pushed ?? 0;
+  });
+  const deps = (): FinishDeps => ({
+    workspace: root,
+    executionFile,
+    poster: aws.poster,
+    storeFor: aws.storeFor,
+    pullRequestLink: pullRequestLink(0),
+    comment: { repository: "octo/sprout", pullRequestUrl: PR_URL, github, push },
+  });
+  return { aws, root, home, github, push, deps, writeExecution };
 }

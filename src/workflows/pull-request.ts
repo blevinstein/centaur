@@ -1,10 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { cleanBody, cleanTitle } from "./clean-text.js";
 import { extractResult } from "./finish.js";
 import { STATE_FILE, type TurnState } from "./prepare.js";
 
-export const MAX_TITLE_LENGTH = 100;
-export const MAX_BODY_LENGTH = 4000;
+export { cleanBody, cleanTitle, MAX_BODY_LENGTH, MAX_TITLE_LENGTH } from "./clean-text.js";
+
 const DEFAULT_TITLE = "Centaur agent changes";
 
 export interface PullRequestDetails {
@@ -17,24 +18,6 @@ export interface PullRequestDeps {
   executionFile: string;
   runUrl: string;
 }
-
-const truncate = (text: string, max: number) =>
-  text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
-
-// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are stripped on purpose
-const CONTROL_CHARACTERS = /[\u0000-\u0008\u000b-\u001f\u007f]/g;
-
-export const cleanTitle = (text: string | undefined) =>
-  truncate(
-    text?.replaceAll(/\s+/g, " ").replaceAll(CONTROL_CHARACTERS, "").trim() ?? "",
-    MAX_TITLE_LENGTH,
-  );
-
-export const cleanBody = (text: string | undefined) =>
-  truncate(
-    text?.replaceAll("\r\n", "\n").replaceAll(CONTROL_CHARACTERS, "").trim() ?? "",
-    MAX_BODY_LENGTH,
-  );
 
 const origin = (state: TurnState) =>
   state.promptName

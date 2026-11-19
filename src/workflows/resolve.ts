@@ -125,9 +125,10 @@ const permissionResponse = z.object({ permission: z.string() });
 export interface GitHubRequester {
   json<T>(path: string, schema: z.ZodType<T>): Promise<T>;
   text(path: string, accept: string): Promise<string>;
+  post(path: string, body: unknown): Promise<void>;
 }
 
-/** GET-only GitHub REST access; errors name only the status, never a response body. */
+/** GitHub REST access; errors name only the status, never a response body. */
 export function createGitHubRequester(
   token: string,
   apiUrl = "https://api.github.com",
@@ -150,6 +151,19 @@ export function createGitHubRequester(
     },
     async text(path, accept) {
       return (await get(path, accept)).text();
+    },
+    async post(path, body) {
+      const response = await fetchImpl(`${apiUrl}${path}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "Content-Type": "application/json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error(`GitHub request failed (${response.status})`);
     },
   };
 }

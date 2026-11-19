@@ -6,7 +6,8 @@ import { finish, notifyFailure } from "./finish.js";
 import { maskValue, writeOutputs } from "./github-output.js";
 import { prepare } from "./prepare.js";
 import { describePullRequest } from "./pull-request.js";
-import { createPullRequestReader } from "./pull-request-comments.js";
+import { createPullRequestReader, createPullRequestWriter } from "./pull-request-comments.js";
+import { pushChanges } from "./push.js";
 import { oidcTokenFetcher, registerRepo } from "./register.js";
 import { createGitHubClient, resolve } from "./resolve.js";
 
@@ -64,18 +65,38 @@ program.command("resolve").action(async () => {
   });
 });
 
-const commentDeps = () => {
-  const pullRequest = Number(process.env.COMMENT_PULL_REQUEST);
+const commentPullRequest = () => {
   if (!process.env.COMMENT_PULL_REQUEST) return undefined;
+  const pullRequest = Number(process.env.COMMENT_PULL_REQUEST);
   if (!Number.isInteger(pullRequest) || pullRequest <= 0) {
     throw new Error("COMMENT_PULL_REQUEST is not a pull request number");
   }
+  return pullRequest;
+};
+
+const oidcFetcher = () => oidcTokenFetcher(process.env, env("CENTAUR_OIDC_AUDIENCE"));
+
+const commentDeps = () => {
+  const pullRequest = commentPullRequest();
+  if (!pullRequest) return undefined;
   return {
     pullRequest,
     repository: env("GITHUB_REPOSITORY"),
     github: createPullRequestReader(env("GITHUB_TOKEN"), process.env.GITHUB_API_URL),
-    fetchToken: oidcTokenFetcher(process.env, env("CENTAUR_OIDC_AUDIENCE")),
+    fetchToken: oidcFetcher(),
     mask: maskValue,
+  };
+};
+
+const commentFinishDeps = () => {
+  const pullRequest = commentPullRequest();
+  if (!pullRequest) return undefined;
+  const repository = env("GITHUB_REPOSITORY");
+  return {
+    repository,
+    pullRequestUrl: `${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${repository}/pull/${pullRequest}`,
+    github: createPullRequestWriter(env("GITHUB_TOKEN"), process.env.GITHUB_API_URL),
+    push: (message: string) => pushChanges(workspace(), message),
   };
 };
 
@@ -116,25 +137,29 @@ program.command("finish").action(() => {
   return finish({
     workspace: workspace(),
     executionFile: env("EXECUTION_FILE"),
+    comment: commentFinishDeps(),
     pullRequestUrl: process.env.PULL_REQUEST_URL || undefined,
-    pullRequestLink:
-      Number.isInteger(pullRequestNumber) && pullRequestNumber > 0
-        ? {
-            number: pullRequestNumber,
-            fetchToken: () => oidcTokenFetcher(process.env, env("CENTAUR_OIDC_AUDIENCE"))(),
-            mask: maskValue,
-          }
-        : undefined,
+    pullRequestLink: {
+      number:
+        Number.isInteger(pullRequestNumber) && pullRequestNumber > 0
+          ? pullRequestNumber
+          : undefined,
+      fetchToken: () => oidcFetcher()(),
+      mask: maskValue,
+    },
     poster: poster(),
     storeFor,
   });
 });
 
-program
-  .command("notify-failure")
-  .action(() =>
-    notifyFailure({ workspace: workspace(), poster: poster(), runUrl: env("RUN_URL") }),
-  );
+program.command("notify-failure").action(() =>
+  notifyFailure({
+    workspace: workspace(),
+    poster: poster(),
+    runUrl: env("RUN_URL"),
+    comment: commentFinishDeps(),
+  }),
+);
 
 program.parseAsync().catch((error: Error) => {
   console.error(`::error::${error.message.replaceAll("\n", "%0A")}`);

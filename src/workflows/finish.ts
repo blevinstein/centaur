@@ -2,8 +2,13 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import type { PosterClient, ThreadStore } from "./aws.js";
+import { cleanTitle } from "./clean-text.js";
 import { STATE_FILE, type TurnState } from "./prepare.js";
+import type { PullRequestWriter } from "./pull-request-comments.js";
 import { clearReactions } from "./reactions.js";
+import { REPLY_MARKER } from "./resolve.js";
+
+const DEFAULT_COMMIT_MESSAGE = "Address review comments";
 
 const resultMessage = z.object({
   type: z.literal("result"),
@@ -34,12 +39,21 @@ export function extractResult(executionFileText: string) {
 }
 
 export interface PullRequestLink {
-  number: number;
+  number?: number | undefined;
   fetchToken: () => Promise<string>;
   mask: (value: string) => void;
 }
 
+/** Present when the turn answers a pull request comment. */
+export interface CommentFinishDeps {
+  repository: string;
+  pullRequestUrl: string;
+  github: PullRequestWriter;
+  push: (message: string) => Promise<number>;
+}
+
 export interface FinishDeps {
+  comment?: CommentFinishDeps | undefined;
   workspace: string;
   executionFile: string;
   pullRequestUrl?: string | undefined;
@@ -92,7 +106,7 @@ async function linkPullRequest(
   bot: string,
   threadId: string,
 ) {
-  if (!link) return;
+  if (!link || link.number === undefined) return;
   try {
     const token = await link.fetchToken();
     link.mask(token);
@@ -110,11 +124,62 @@ async function linkPullRequest(
   }
 }
 
+const plural = (count: number) => `${count} commit${count === 1 ? "" : "s"}`;
+
+/**
+ * Pushes the working tree changes, posts the marked reply on the pull request and a content-free
+ * note in the chat thread. Returns the thread and the pull request the turn answered.
+ */
+async function finishComment(
+  deps: FinishDeps,
+  comment: CommentFinishDeps,
+  state: TurnState,
+  result: ReturnType<typeof extractResult>,
+) {
+  if (state.mode !== "comment" || !state.threadId || !state.pullRequest) {
+    throw new Error("comment finish needs a comment turn state");
+  }
+  const pushed = await comment.push(cleanTitle(result.prTitle) || DEFAULT_COMMIT_MESSAGE);
+  const body = result.reply ?? (pushed > 0 ? `Pushed ${plural(pushed)}.` : undefined);
+  if (body) {
+    await comment.github.comment(
+      comment.repository,
+      state.pullRequest,
+      `${REPLY_MARKER}\n${body}`,
+      state.replyTo,
+    );
+    const note = result.reply
+      ? `Replied on ${comment.pullRequestUrl}${pushed > 0 ? ` and pushed ${plural(pushed)}` : ""}`
+      : `Pushed ${plural(pushed)} to ${comment.pullRequestUrl}`;
+    try {
+      await deps.poster.call({
+        operation: "post",
+        bot: state.bot,
+        threadId: state.threadId,
+        text: note,
+      });
+    } catch (error) {
+      console.warn(
+        `::warning::could not post the note to the chat thread (${(error as Error).constructor.name})`,
+      );
+    }
+  }
+  return { threadId: state.threadId, pullRequest: state.pullRequest };
+}
+
 export async function finish(deps: FinishDeps) {
   const state = await readState(deps.workspace);
   const result = extractResult(await readFile(deps.executionFile, "utf8"));
-  const threadId = await deliverReply(deps, state, result);
-  await linkPullRequest(deps.poster, deps.pullRequestLink, state.bot, threadId);
+  let threadId: string;
+  let link = deps.pullRequestLink;
+  if (deps.comment) {
+    const answered = await finishComment(deps, deps.comment, state, result);
+    threadId = answered.threadId;
+    link = link && { ...link, number: answered.pullRequest };
+  } else {
+    threadId = await deliverReply(deps, state, result);
+  }
+  await linkPullRequest(deps.poster, link, state.bot, threadId);
 
   const store = deps.storeFor(state.bot, threadId);
   if (state.marker) await store.writeMarker(state.marker);
@@ -125,21 +190,28 @@ export async function finish(deps: FinishDeps) {
 }
 
 export async function notifyFailure(
-  deps: Pick<FinishDeps, "workspace" | "poster"> & { runUrl: string },
+  deps: Pick<FinishDeps, "workspace" | "poster"> & {
+    runUrl: string;
+    comment?: Pick<CommentFinishDeps, "repository" | "github"> | undefined;
+  },
 ) {
   const state = await readState(deps.workspace).catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") return undefined;
     throw error;
   });
   if (!state) return;
+  const text = `That turn failed. Details are in the workflow run: ${deps.runUrl}`;
   try {
-    if (state.mode === "reply" && state.threadId) {
-      await deps.poster.call({
-        operation: "post",
-        bot: state.bot,
-        threadId: state.threadId,
-        text: `That turn failed. Details are in the workflow run: ${deps.runUrl}`,
-      });
+    if (state.threadId && (state.mode === "reply" || state.mode === "comment")) {
+      await deps.poster.call({ operation: "post", bot: state.bot, threadId: state.threadId, text });
+    }
+    if (state.mode === "comment" && state.pullRequest && deps.comment) {
+      await deps.comment.github.comment(
+        deps.comment.repository,
+        state.pullRequest,
+        `${REPLY_MARKER}\n${text}`,
+        state.replyTo,
+      );
     }
   } finally {
     await clearReactions(deps.poster, state.source);

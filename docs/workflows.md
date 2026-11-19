@@ -9,8 +9,9 @@ operations they invoke, and [config.md](config.md) for `.centaur.yml`.
 |---|---|
 | `setup-runtime` | Builds the workflow scripts from the action's own checkout and assumes the AWS role through OIDC. Run once per job, after checking out the consumer repo. |
 | `register` | Validates `.centaur.yml`, requests a GitHub OIDC token for the poster's audience and invokes `register`. |
-| `turn` | One agent turn: answers a dispatched chat message, or (with `prompt_name`) starts a new thread from a scheduled prompt. Outputs `skip` and `pull-request-url`. |
-| `notify-failure` | Posts a failure notice in the thread and clears the 👀 reactions. Use with `if: failure()`; does nothing if the turn never started. |
+| `resolve-pr-comment` | Decides whether a pull request comment event starts a turn and which bot and thread it belongs to; see [Comment turns](#comment-turns). |
+| `turn` | One agent turn: answers a dispatched chat message, or (with `prompt_name`) starts a new thread from a scheduled prompt, or (with `comment`) answers the comments on a pull request. Outputs `skip` and `pull-request-url`. |
+| `notify-failure` | Posts a failure notice in the thread (and, with `comment`, on the pull request) and clears the 👀 reactions. Use with `if: failure()`; does nothing if the turn never started. |
 
 ## Consumer workflows
 
@@ -170,7 +171,7 @@ centaur repo must be readable by the consumer's `GITHUB_TOKEN` (public, or grant
 read the variables above through the `vars` context; API keys are inputs of `turn` because
 composite actions cannot read secrets.
 
-Commands: `register`, `prepare`, `pr-details`, `finish`, `notify-failure`.
+Commands: `register`, `resolve`, `prepare`, `pr-details`, `finish`, `notify-failure`.
 
 ## Agent turn
 
@@ -223,6 +224,45 @@ reach `create-pull-request` as step outputs passed to action inputs, never inter
 followed by a footer linking the workflow run and naming the bot and the scheduled prompt (never the
 thread ID). When a field is missing or empty the title is `Centaur agent changes` (with `: <prompt
 name>` for scheduled prompts) and the body is the footer alone.
+
+### Comment turns
+
+A pull request comment turn answers the comments on a pull request the agent opened. It is
+designed in [pr-comments.md](pr-comments.md). Two jobs make it up:
+
+- `resolve` runs `resolve-pr-comment` (the `resolve` command) with `GITHUB_TOKEN`, the OIDC token
+  and the role variables. It needs `pull-requests: read` and `id-token: write`, and
+  `CENTAUR_OIDC_AUDIENCE` in its environment, because it asks the poster to resolve the pull
+  request. Outputs: `skip`, `bot`, `thread_key`, `head_ref`, `pull_request`.
+- `turn` checks out `head_ref`, runs the `turn` action with `comment: <pull_request>` and the same
+  concurrency group as chat turns of that thread, and `notify-failure` with the same `comment`.
+  It needs `contents: write`, `pull-requests: write` and `id-token: write`.
+
+With `comment` set, the action passes `COMMENT_PULL_REQUEST` and `GITHUB_TOKEN` to `prepare`,
+`finish` and `notify-failure`, and skips `pr-details` and `create-pull-request`. The steps differ
+from a chat turn as follows:
+
+- `prepare` (comment mode) resolves the thread through the poster (masking the raw thread ID),
+  answers every human comment newer than the agent's latest marked comment, and records
+  `mode: comment`, `pullRequest` and, when the comments are all in one inline thread, `replyTo` in
+  the turn state. It writes no marker and clears no reactions; the output `branch` is the pull
+  request head.
+- `finish` first commits and pushes: working tree changes (excluding `.centaur-turn/`) are
+  committed as `github-actions[bot]` with the agent's `pr_title` (cleaned like a pull request
+  title, default `Address review comments`), then a plain `git push` updates the branch. Then it
+  posts the `reply` as a pull request comment, with `<!-- centaur:reply -->` as its first line:
+  a reply in the inline thread when `replyTo` is set, else a conversation comment. For
+  `ignore: true` nothing is posted unless commits were pushed, in which case the comment is
+  `Pushed N commit(s).`. It then posts a note in the chat thread, `Replied on <pull request URL>`
+  plus `and pushed N commit(s)` (or `Pushed N commit(s) to <URL>`), never any comment content, and
+  refreshes the pull request's thread record with `link-pull-request`. The chat note and the
+  record refresh are warnings on failure; a failed push or comment fails the turn. For `resume`
+  threads the session is saved; the chat marker is never touched.
+- `notify-failure` posts its notice to the chat thread and, marked, to the pull request (inside
+  the inline thread when `replyTo` is set).
+
+Comment text and replies are never logged; `GITHUB_TOKEN` and the OIDC token are masked or
+Actions-masked, and the raw thread ID is never printed.
 
 `concurrency: centaur-<bot>-<thread key>` serializes turns per thread, where the thread key is the
 first 12 hex characters of a SHA-256 over the bot and thread ID (`src/thread-key.ts`), computed by

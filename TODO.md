@@ -247,9 +247,9 @@ agent proposes a change, a human reviews it, and the agent revises it.
       permission and marker checks, outputs). Also restore the design's flag on
       `resolve-pull-request` so the raw `threadId` is returned only when asked for.
 - [x] PR comments 4: comment mode in `prepare`.
-- [ ] PR comments 5: comment mode in `finish` (reply with the marker, plain `git push`, chat note,
+- [x] PR comments 5: comment mode in `finish` (reply with the marker, plain `git push`, chat note,
       refresh the record).
-- [ ] PR comments 6: wire the `turn` action with a `comment` input.
+- [x] PR comments 6: wire the `turn` action with a `comment` input.
 - [ ] PR comments 7: `.github/workflows/centaur-pr-comment.yml` in this repo and the docs that say
       it exists.
 - [ ] PR comments 8: verify event coverage on a real PR (inline comment, batched review, inline
