@@ -205,7 +205,7 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
       recommendations accepted.
 - [x] MCP servers 1: schema and validation (`mcp_servers`, `secretRef`, name refinements and the
       `allowed_tools` cross-checks in `src/config/schema.ts`), with tests and `docs/config.md`.
-- [ ] MCP servers 2: pure `buildMcpConfig(servers, env)` in `src/workflows/`, with tests.
+- [x] MCP servers 2: pure `buildMcpConfig(servers, env)` in `src/workflows/`, with tests.
 - [ ] MCP servers 3: `prepare` writes `.centaur-turn/mcp.json`, `buildClaudeArgs` adds
       `--mcp-config`, and the turn fails on a missing secret.
 - [ ] MCP servers 4: caller-workflow docs (`env:` pattern, the `Bash` caveat) in
@@ -242,7 +242,7 @@ agent proposes a change, a human reviews it, and the agent revises it.
       [docs/pr-comments.md](docs/pr-comments.md), all recommendations accepted.
 - [x] PR comments 1: poster operations `link-pull-request` and `resolve-pull-request` (state-table
       record keyed by repo and PR number, repo check, TTL), with tests and `docs/poster.md`.
-- [ ] PR comments 2: `finish` links the PR to its thread (chat turns and scheduled prompts).
+- [x] PR comments 2: `finish` links the PR to its thread (chat turns and scheduled prompts).
 - [ ] PR comments 3: `resolve-pr-comment` action and `resolve` command (event parsing, filters,
       permission and marker checks, outputs). Also restore the design's flag on
       `resolve-pull-request` so the raw `threadId` is returned only when asked for.
