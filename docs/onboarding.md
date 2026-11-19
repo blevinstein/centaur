@@ -136,7 +136,9 @@ Repeat for each consumer repo, after the bot exists (Telegram above, Slack below
      `CENTAUR_FUNCTION_NAME`, `CENTAUR_OIDC_AUDIENCE`, `CENTAUR_SESSION_BUCKET`; values are in
      [workflows.md](workflows.md#variables-and-secrets).
    - **Secret** for the bot's `provider` (`ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY`), plus
-     anything the agent's tools need.
+     anything the agent's tools need. For each secret named in `mcp_servers`, add an `env:` line to
+     the `turn` step of the caller workflows and keep `Bash` out of `allowed_tools`
+     ([MCP server secrets](workflows.md#mcp-server-secrets)).
 3. Settings > Actions > General: enable "Allow GitHub Actions to create and approve pull
    requests".
 4. If the centaur repo is private, open its Settings > Actions > General > Access and allow

@@ -208,7 +208,7 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
 - [x] MCP servers 2: pure `buildMcpConfig(servers, env)` in `src/workflows/`, with tests.
 - [x] MCP servers 3: `prepare` writes `.centaur-turn/mcp.json`, `buildClaudeArgs` adds
       `--mcp-config`, and the turn fails on a missing secret.
-- [ ] MCP servers 4: caller-workflow docs (`env:` pattern, the `Bash` caveat) in
+- [x] MCP servers 4: caller-workflow docs (`env:` pattern, the `Bash` caveat) in
       `docs/workflows.md` and `docs/onboarding.md`.
 - [ ] MCP servers 5: verify against one real remote server in a consumer repo, confirming `${VAR}`
       expansion in `--mcp-config` files and the `mcp__<server>__*` wildcard.

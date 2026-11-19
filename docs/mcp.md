@@ -1,7 +1,7 @@
 # Additional MCP servers (design)
 
-Status: `prepare` writes the config and the turn fails on a missing secret; caller-workflow docs and
-real-server verification are pending (see TODO.md). This designs how a consumer repo adds MCP servers to a turn through
+Status: `prepare` writes the config and the turn fails on a missing secret; real-server verification is
+pending (see TODO.md). This designs how a consumer repo adds MCP servers to a turn through
 `.centaur.yml` ([config.md](config.md), [workflows.md](workflows.md#agent-turn)). The agent has no
 MCP servers beyond the ones `claude-code-action` provides itself.
 

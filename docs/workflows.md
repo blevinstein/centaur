@@ -100,6 +100,39 @@ To add another scheduled prompt, add a `prompts:` entry to `.centaur.yml` and a 
 last one. Because the consumer owns the job, it can add its own steps before or after the actions
 (for example to fetch data the prompt needs).
 
+## MCP server secrets
+
+Composite actions cannot read `secrets.*`, so a secret named in `mcp_servers` reaches the turn only
+through `env:` on the `turn` step. List exactly the secrets the config references; the config cannot
+use any the caller did not list. For this `.centaur.yml`:
+
+```yaml
+mcp_servers:
+  tracker:
+    url: https://mcp.example.com/mcp
+    headers:
+      Authorization: { secret: TRACKER_API_KEY, prefix: "Bearer " }
+allowed_tools: "Read,mcp__tracker__*"
+```
+
+the caller's `turn` step is:
+
+```yaml
+      - uses: <owner>/centaur/.github/actions/turn@main
+        env:
+          TRACKER_API_KEY: ${{ secrets.TRACKER_API_KEY }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+```
+
+`.centaur-turn/mcp.json` holds `Bearer ${TRACKER_API_KEY}`, never the value. If a referenced secret
+is unset or empty, `prepare` fails the turn naming it.
+
+The secret is also in the environment of the agent process, so an allowed `Bash` tool can read it.
+Keep `Bash` out of `allowed_tools` for repos that pass MCP secrets, or accept that the agent can
+read them.
+
 ## This repo as a test consumer
 
 This repo is its own consumer, for end-to-end testing: `.centaur.yml` binds the `centaur-test` bot
