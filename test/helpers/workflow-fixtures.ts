@@ -8,6 +8,7 @@ import {
   createThreadStore,
   type Exec,
 } from "../../src/workflows/aws.js";
+import type { ReplySchemaOptions } from "../../src/workflows/prompt.js";
 import type { ChatMessage } from "../../src/workflows/transcript.js";
 
 export const BUCKET = "session-bucket";
@@ -108,3 +109,14 @@ export async function createWorkspace(files: Record<string, string>) {
   }
   return { root, home };
 }
+
+export const schemaOptions = (overrides: Partial<ReplySchemaOptions> = {}): ReplySchemaOptions => ({
+  canStaySilent: false,
+  mode: "reply",
+  allowNewPr: false,
+  allowExisting: false,
+  ...overrides,
+});
+
+export const executionText = (structuredOutput: object) =>
+  JSON.stringify([{ type: "result", structured_output: structuredOutput }]);

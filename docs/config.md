@@ -52,6 +52,7 @@ prompts:
 | `mcp_servers` | no | `{}` | Additional MCP servers by name (see below). |
 | `persona` | no | `.centaur/persona.md` | Repo-relative path to the persona file. |
 | `instructions` | no | `{}` | Repo-relative paths to files replacing the bundled behavior guidance in the agent prompt: `chat` (replying in a thread), `comment` (revising a pull request after review comments) and `silence` (when to stay quiet under `respond_to: all`). Defaults are `src/workflows/instructions/*.md`. A configured file that is missing or empty fails the turn. The output-format, `ignore` and untrusted-input wording is appended by the workflow and cannot be overridden. |
+| `pull_requests` | no | `{}` | Which pull request the agent may target, a strict block. `comment_new` (default `true`) lets a pull request comment turn set `pr_action: new` to open a separate pull request instead of updating the original. `existing` (`bot`, the default, or `off`) lets chat and scheduled turns set `existing_pr_number` to land changes on an open pull request of the same bot, from any of its threads. A disabled switch removes the field from the agent's output schema and prompt. |
 | `prompts` | no | `{}` | Scheduled prompts by name (see below). |
 
 Each prompt takes `file` (default `.centaur/prompts/<name>.md`), `context` (default

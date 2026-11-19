@@ -3,6 +3,7 @@ import { PROVIDERS } from "./providers.js";
 
 export const PLATFORMS = ["telegram", "slack"] as const;
 export const CONTEXT_POLICIES = ["fresh", "transcript", "resume"] as const;
+export const PR_EXISTING_SCOPES = ["off", "bot"] as const;
 export const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"] as const;
 export const RESPOND_TO = ["mention", "all"] as const;
 
@@ -115,6 +116,12 @@ export const centaurConfigSchema = z
         }
       })
       .default({}),
+    pull_requests: z
+      .strictObject({
+        comment_new: z.boolean().default(true),
+        existing: z.enum(PR_EXISTING_SCOPES).default("bot"),
+      })
+      .default({ comment_new: true, existing: "bot" }),
     persona: repoPath.default(".centaur/persona.md"),
     instructions: instructionsSchema.default({}),
     prompts: z.record(alias, promptSchema).default({}),
@@ -160,6 +167,7 @@ export const centaurConfigSchema = z
   }));
 
 export type CentaurConfig = z.output<typeof centaurConfigSchema>;
+export type PullRequestsConfig = CentaurConfig["pull_requests"];
 export type Platform = (typeof PLATFORMS)[number];
 export type RespondTo = (typeof RESPOND_TO)[number];
 export type ContextPolicy = (typeof CONTEXT_POLICIES)[number];

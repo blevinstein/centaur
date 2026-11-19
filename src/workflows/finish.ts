@@ -20,6 +20,8 @@ const resultMessage = z.object({
       new_thread_title: z.string().min(1).optional(),
       pr_title: z.string().optional(),
       pr_body: z.string().optional(),
+      pr_action: z.enum(["update", "new"]).optional(),
+      existing_pr_number: z.number().int().positive().optional(),
     })
     .refine((output) => (output.reply !== undefined) !== (output.ignore === true)),
 });
@@ -34,6 +36,8 @@ export function extractResult(executionFileText: string) {
     title: parsed.data.structured_output.new_thread_title,
     prTitle: parsed.data.structured_output.pr_title,
     prBody: parsed.data.structured_output.pr_body,
+    prAction: parsed.data.structured_output.pr_action,
+    existingPr: parsed.data.structured_output.existing_pr_number,
     sessionId: parsed.data.session_id,
   };
 }
@@ -167,9 +171,21 @@ async function finishComment(
   return { threadId: state.threadId, pullRequest: state.pullRequest };
 }
 
+/** Drops a target field that does not apply to the turn's mode, warning without its content. */
+function ignoreMisplacedTargets(state: TurnState, result: ReturnType<typeof extractResult>) {
+  const comment = state.mode === "comment";
+  const misplaced = comment ? "existing_pr_number" : "pr_action";
+  if ((comment ? result.existingPr : result.prAction) === undefined) return result;
+  console.warn(`::warning::ignoring ${misplaced}, which does not apply to this kind of turn`);
+  return comment ? { ...result, existingPr: undefined } : { ...result, prAction: undefined };
+}
+
 export async function finish(deps: FinishDeps) {
   const state = await readState(deps.workspace);
-  const result = extractResult(await readFile(deps.executionFile, "utf8"));
+  const result = ignoreMisplacedTargets(
+    state,
+    extractResult(await readFile(deps.executionFile, "utf8")),
+  );
   let threadId: string;
   let link = deps.pullRequestLink;
   if (deps.comment) {

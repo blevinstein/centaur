@@ -25,6 +25,7 @@ describe("parseCentaurConfig", () => {
         allowed_tools: ["Read", "Edit"],
         persona: ".centaur/persona.md",
         instructions: {},
+        pull_requests: { comment_new: true, existing: "bot" },
         mcp_servers: {},
         prompts: {},
       },
@@ -48,6 +49,7 @@ describe("parseCentaurConfig", () => {
         allowed_tools: ["Read", "Edit", "Write", "Glob", "Grep"],
         persona: ".centaur/persona.md",
         instructions: {},
+        pull_requests: { comment_new: true, existing: "bot" },
         mcp_servers: {},
         prompts: {
           "weekly-tasks": {
@@ -63,6 +65,24 @@ describe("parseCentaurConfig", () => {
         },
       },
     });
+  });
+
+  it("parses and validates the pull_requests block", () => {
+    expect(parseCentaurConfig(withExtra("pull_requests: {existing: off}"))).toMatchObject({
+      ok: true,
+      config: { pull_requests: { comment_new: true, existing: "off" } },
+    });
+    expect(parseCentaurConfig(withExtra("pull_requests: {comment_new: false}"))).toMatchObject({
+      ok: true,
+      config: { pull_requests: { comment_new: false, existing: "bot" } },
+    });
+    for (const extra of [
+      "pull_requests: {existing: thread}",
+      "pull_requests: {comment_new: yes please}",
+      "pull_requests: {other: 1}",
+    ]) {
+      expect(parseCentaurConfig(withExtra(extra)).ok).toBe(false);
+    }
   });
 
   it("accepts respond_to all and prompts without any chat list", () => {

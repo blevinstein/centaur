@@ -284,7 +284,7 @@ and `existing` enabled. Candidates and the final choice are re-derived from GitH
 poster record exists it names the same bot); never from `.centaur-turn/state.json`, which the agent
 can write.
 
-- [ ] PR targets 1: config block `pull_requests` (`comment_new`, `existing: off|bot`) in
+- [x] PR targets 1: config block `pull_requests` (`comment_new`, `existing: off|bot`) in
       `src/config/schema.ts`, `replySchema` parameters (fields appear only when enabled),
       `extractResult`/`resultMessage` fields, contract text, tests, docs. No behavior change yet.
 - [ ] PR targets 2: `prepare` lists candidate open PRs for the prompt (fenced as data, capped at 10).

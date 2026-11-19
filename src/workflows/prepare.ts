@@ -145,7 +145,7 @@ async function scheduledTurn(
     mode: "start-thread",
     policy: prompt.context,
     start: { destination: prompt.destination },
-    prompt: buildPrompt({ scheduledTask, instructions }),
+    prompt: buildPrompt({ scheduledTask, instructions, ...prTargetFlags(config) }),
   };
 }
 
@@ -213,7 +213,12 @@ async function chatTurn(
         policy: config.context.default,
         start: { fromThreadId: threadId },
         source,
-        prompt: buildPrompt({ messages: plan.seed, attachmentPath, instructions }),
+        prompt: buildPrompt({
+          messages: plan.seed,
+          attachmentPath,
+          instructions,
+          ...prTargetFlags(config),
+        }),
       };
     }
     case "reply": {
@@ -235,6 +240,7 @@ async function chatTurn(
         ...(canStaySilent ? { canStaySilent } : {}),
         prompt: buildPrompt({
           canStaySilent,
+          ...prTargetFlags(config),
           instructions,
           handle: config.handle,
           history,
@@ -309,6 +315,7 @@ async function commentTurn(
       history,
       attachmentPath,
       instructions,
+      ...prTargetFlags(config),
       pullRequest: {
         title: details.title,
         body: details.body,
@@ -319,14 +326,21 @@ async function commentTurn(
   };
 }
 
+const prTargetFlags = (config: CentaurConfig) => ({
+  allowNewPr: config.pull_requests.comment_new,
+  allowExisting: config.pull_requests.existing !== "off",
+});
+
 export function buildClaudeArgs(input: {
   config: CentaurConfig;
   persona: string | undefined;
   resumeSessionId: string | undefined;
   canStaySilent: boolean;
+  mode: TurnState["mode"];
   mcpConfig?: string | undefined;
 }) {
-  const { config, persona, resumeSessionId, canStaySilent, mcpConfig } = input;
+  const { config, persona, resumeSessionId, canStaySilent, mode, mcpConfig } = input;
+  const { allowNewPr, allowExisting } = prTargetFlags(config);
   const readRule = config.allowed_tools.includes("Read") ? [] : [`Read(./${TURN_DIR}/**)`];
   const tools = [...config.allowed_tools, ...readRule].join(",");
   return [
@@ -335,7 +349,7 @@ export function buildClaudeArgs(input: {
     `--allowedTools "${tools}"`,
     `--max-turns ${config.max_turns}`,
     ...(config.max_budget_usd ? [`--max-budget-usd ${config.max_budget_usd}`] : []),
-    `--json-schema '${JSON.stringify(replySchema(canStaySilent))}'`,
+    `--json-schema '${JSON.stringify(replySchema({ canStaySilent, mode, allowNewPr, allowExisting }))}'`,
     ...(mcpConfig ? [`--mcp-config ${mcpConfig}`] : []),
     ...(persona ? [`--append-system-prompt-file ${persona}`] : []),
     ...(resumeSessionId ? [`--resume ${resumeSessionId}`] : []),
@@ -412,6 +426,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
       persona,
       resumeSessionId: turn.resumeSessionId,
       canStaySilent: turn.canStaySilent === true,
+      mode: turn.mode,
       mcpConfig: hasMcpServers ? MCP_CONFIG_FILE : undefined,
     }),
   };

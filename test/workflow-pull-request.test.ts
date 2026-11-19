@@ -1,8 +1,9 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { extractResult } from "../src/workflows/finish.js";
 import { STATE_FILE } from "../src/workflows/prepare.js";
-import { replySchema } from "../src/workflows/prompt.js";
+import { buildPrompt, replySchema } from "../src/workflows/prompt.js";
 import {
   cleanTitle,
   describePullRequest,
@@ -11,6 +12,7 @@ import {
   pullRequestDetails,
 } from "../src/workflows/pull-request.js";
 import { RUN_URL, turnState, writePullRequestTurn } from "./helpers/pull-request-fixtures.js";
+import { executionText, schemaOptions } from "./helpers/workflow-fixtures.js";
 
 describe("pullRequestDetails", () => {
   it("uses the agent's title and body, followed by a run link", () => {
@@ -88,8 +90,68 @@ describe("describePullRequest", () => {
 
 describe("replySchema", () => {
   it("offers the pull request fields without requiring them", () => {
-    const schema = replySchema(false);
+    const schema = replySchema(schemaOptions());
     expect(Object.keys(schema.properties)).toEqual(expect.arrayContaining(["pr_title", "pr_body"]));
     expect(schema.required).toEqual(["reply"]);
+  });
+
+  it.each([
+    ["comment", { allowNewPr: true }, "pr_action", { enum: ["update", "new"] }],
+    ["reply", { allowExisting: true }, "existing_pr_number", { type: "integer", minimum: 1 }],
+    [
+      "start-thread",
+      { allowExisting: true },
+      "existing_pr_number",
+      { type: "integer", minimum: 1 },
+    ],
+  ] as const)("adds the %s target field only when enabled", (mode, flags, field, expected) => {
+    const schema = replySchema(schemaOptions({ mode, ...flags }));
+    expect(schema.properties).toHaveProperty(field, expected);
+    expect(schema.additionalProperties).toBe(false);
+    expect(replySchema(schemaOptions({ mode })).properties).not.toHaveProperty(field);
+  });
+
+  it("omits the field that does not fit the mode", () => {
+    const both = { allowNewPr: true, allowExisting: true };
+    expect(replySchema(schemaOptions({ mode: "comment", ...both })).properties).not.toHaveProperty(
+      "existing_pr_number",
+    );
+    expect(replySchema(schemaOptions({ mode: "reply", ...both })).properties).not.toHaveProperty(
+      "pr_action",
+    );
+  });
+});
+
+describe("pull request target contract", () => {
+  const comment = { pullRequest: { title: "t", body: "b", comments: "c" } };
+
+  it("explains each field only when enabled", () => {
+    expect(buildPrompt({ ...comment, allowNewPr: true })).toContain('"pr_action"');
+    expect(buildPrompt(comment)).not.toContain("pr_action");
+    expect(buildPrompt({ allowExisting: true })).toContain('"existing_pr_number"');
+    expect(buildPrompt({})).not.toContain("existing_pr_number");
+  });
+});
+
+describe("extractResult pull request targets", () => {
+  it("returns the target fields", () => {
+    expect(
+      extractResult(executionText({ reply: "ok", pr_action: "new", existing_pr_number: 7 })),
+    ).toMatchObject({ prAction: "new", existingPr: 7 });
+    expect(extractResult(executionText({ reply: "ok" }))).toMatchObject({
+      prAction: undefined,
+      existingPr: undefined,
+    });
+  });
+
+  it.each([
+    { pr_action: "merge" },
+    { existing_pr_number: 1.5 },
+    { existing_pr_number: 0 },
+    { existing_pr_number: "7" },
+  ])("rejects %j", (bad) => {
+    expect(() => extractResult(executionText({ reply: "ok", ...bad }))).toThrow(
+      "no structured reply",
+    );
   });
 });

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseCommand } from "../src/workflows/commands.js";
 import { buildPrompt, replySchema } from "../src/workflows/prompt.js";
 import { pendingMessages, planTurn, threadPolicy } from "../src/workflows/transcript.js";
-import { botMessage, message } from "./helpers/workflow-fixtures.js";
+import { botMessage, message, schemaOptions } from "./helpers/workflow-fixtures.js";
 
 describe("parseCommand", () => {
   it.each([
@@ -120,9 +120,9 @@ describe("buildPrompt", () => {
   });
 
   it("requires a reply unless silence is allowed", () => {
-    expect(replySchema(false)).toMatchObject({ required: ["reply"] });
-    expect(replySchema(false).properties).not.toHaveProperty("ignore");
-    expect(replySchema(true)).toMatchObject({
+    expect(replySchema(schemaOptions())).toMatchObject({ required: ["reply"] });
+    expect(replySchema(schemaOptions()).properties).not.toHaveProperty("ignore");
+    expect(replySchema(schemaOptions({ canStaySilent: true }))).toMatchObject({
       required: [],
       properties: { ignore: { type: "boolean" } },
     });

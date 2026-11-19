@@ -42,6 +42,18 @@ describe("finish in comment mode", () => {
     });
   });
 
+  it("ignores existing_pr_number in a comment turn with a content-free warning", async () => {
+    const { deps, writeExecution } = await commentFinishSetup();
+    await writeExecution({ structured_output: { reply: "Done.", existing_pr_number: 12 } });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    await finish(deps());
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("::warning::ignoring"));
+    expect(warn.mock.calls.flat().join()).not.toContain("12");
+    warn.mockRestore();
+  });
+
   it("replies in the inline thread and falls back to a default commit message", async () => {
     const { github, push, deps, writeExecution } = await commentFinishSetup({
       state: { replyTo: 77 },

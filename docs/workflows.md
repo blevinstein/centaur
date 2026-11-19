@@ -188,7 +188,7 @@ Commands: `register`, `resolve`, `prepare`, `pr-details`, `finish`, `notify-fail
    the repo's `instructions` overrides in `.centaur.yml`, read from the checkout like the persona)
    followed by fixed text in `prompt.ts`: the untrusted-input warning and the structured-output
    fields the workflow parses (`reply`, `ignore`, `pr_title`, ...), which a repo cannot override.
-   It outputs the `claude_args` (model and tuning flags, `--allowedTools`, `--json-schema` requiring `reply` (or, for `respond_to: all` threads, `reply` or `ignore: true`; optionally `pr_title` and `pr_body`), persona
+   It outputs the `claude_args` (model and tuning flags, `--allowedTools`, `--json-schema` requiring `reply` (or, for `respond_to: all` threads, `reply` or `ignore: true`; optionally `pr_title`, `pr_body`, and the `pr_action` or `existing_pr_number` target field when enabled), persona
    via `--append-system-prompt-file`, `--resume <id>`). When there is nothing to do (everything
    processed, or only a `/resume` or `/transcript` command, which is acknowledged in the thread),
    the remaining steps are skipped.
@@ -224,6 +224,13 @@ reach `create-pull-request` as step outputs passed to action inputs, never inter
 followed by a footer linking the workflow run and naming the bot and the scheduled prompt (never the
 thread ID). When a field is missing or empty the title is `Centaur agent changes` (with `: <prompt
 name>` for scheduled prompts) and the body is the footer alone.
+
+Two more optional fields choose the pull request a turn targets, each present only when
+`pull_requests` in `.centaur.yml` enables it: `pr_action` (`update` or `new`, comment turns) and
+`existing_pr_number` (a positive integer, chat and scheduled turns). `extractResult` returns them as
+`prAction` and `existingPr`; a malformed value fails the reply like any other schema violation, and
+`finish` ignores a field that does not fit the turn's mode with a `::warning::` that names no
+content. Nothing acts on either field yet.
 
 ### Comment turns
 
