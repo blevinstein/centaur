@@ -261,7 +261,7 @@ agent proposes a change, a human reviews it, and the agent revises it.
       reply); each fires `pull_request_review` or `issue_comment` only, so
       `pull_request_review_comment` is not needed. A commenter without write access and a fork PR
       are skipped with the expected reasons. Bot senders are covered by unit tests only.
-- [ ] PR comments 9: reference consumer in `blevinstein/garden` and the end-to-end check, where a
+- [x] PR comments 9: reference consumer in `blevinstein/garden` and the end-to-end check, where a
       review comment on a `weekly-tasks` PR gets an in-thread reply and a pushed fix.
 
 - [x] `centaur-pr-comment.yml` checks out the PR branch and then runs this repo's local actions from
