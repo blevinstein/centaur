@@ -12,3 +12,5 @@ prompts:
     destination: blevinstein
   pr-smoke:
     destination: blevinstein
+  pr-update:
+    destination: blevinstein
