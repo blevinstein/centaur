@@ -2,6 +2,10 @@ name: Centaur hello
 
 on:
   workflow_dispatch:
+    inputs:
+      prompt_name:
+        description: Prompt in .centaur.yml to run.
+        default: hello
 
 permissions:
   contents: write
@@ -23,7 +27,7 @@ jobs:
       - uses: ./.github/actions/setup-runtime
       - uses: ./.github/actions/turn
         with:
-          prompt_name: hello
+          prompt_name: ${{ inputs.prompt_name }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
       - if: failure()

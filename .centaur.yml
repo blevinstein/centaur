@@ -5,8 +5,10 @@ context:
   default: transcript
 provider: anthropic
 model: sonnet
-allowed_tools: "Read,Glob,Grep"
+allowed_tools: "Read,Glob,Grep,Write,Edit"
 persona: .centaur/persona.md
 prompts:
   hello:
+    destination: blevinstein
+  pr-smoke:
     destination: blevinstein
