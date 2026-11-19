@@ -67,3 +67,6 @@
   `REPLY_MARKER`, and `finish` pushes with plain `git`.
 - `PrepareDeps.env` carries the secrets named in `mcp_servers`; `prepare` fails before any poster
   call if one is unset. Tests that need git use `test/helpers/git-fixtures.ts`.
+- Comment turns run the actions and read `.centaur.yml`, the persona and the instructions from a
+  default-branch checkout (`.centaur-trusted`, via `config_root`); the PR branch is the workspace
+  root. Don't use `./.github/actions` in a job that checks out untrusted code.

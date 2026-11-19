@@ -264,7 +264,7 @@ agent proposes a change, a human reviews it, and the agent revises it.
 - [ ] PR comments 9: reference consumer in `blevinstein/garden` and the end-to-end check, where a
       review comment on a `weekly-tasks` PR gets an in-thread reply and a pushed fix.
 
-- [ ] `centaur-pr-comment.yml` checks out the PR branch and then runs this repo's local actions from
+- [x] `centaur-pr-comment.yml` checks out the PR branch and then runs this repo's local actions from
       it, so a PR that edits `.github/actions/**` runs its own edit on the next comment. Run the
       actions from the default branch (or check the PR branch out into a subdirectory).
 - [ ] `resolve` treats any permission API error as "no write access"; warn on errors other than
