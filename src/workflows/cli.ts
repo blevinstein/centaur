@@ -2,8 +2,15 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { Command } from "commander";
 import { createAttachmentDownloader, createPosterClient, createThreadStore } from "./aws.js";
+import { parseConfigOrThrow, readConfigText } from "./config-file.js";
 import { finish, notifyFailure } from "./finish.js";
 import { maskValue, writeOutputs } from "./github-output.js";
+import {
+  createPullRequestTargetClient,
+  type PrTarget,
+  planOutputs,
+  planTarget,
+} from "./pr-target.js";
 import { prepare } from "./prepare.js";
 import { describePullRequest } from "./pull-request.js";
 import { createPullRequestReader, createPullRequestWriter } from "./pull-request-comments.js";
@@ -88,6 +95,18 @@ const commentDeps = () => {
   };
 };
 
+const targetDeps = () => {
+  const repository = process.env.GITHUB_REPOSITORY;
+  const token = process.env.GITHUB_TOKEN;
+  if (!repository || !token) return undefined;
+  return {
+    repository,
+    github: createPullRequestTargetClient(token, process.env.GITHUB_API_URL),
+    fetchToken: () => oidcFetcher()(),
+    mask: maskValue,
+  };
+};
+
 const commentFinishDeps = () => {
   const pullRequest = commentPullRequest();
   if (!pullRequest) return undefined;
@@ -103,6 +122,7 @@ const commentFinishDeps = () => {
 program.command("prepare").action(async () => {
   const outputs = await prepare({
     comment: commentDeps(),
+    targets: targetDeps(),
     workspace: workspace(),
     configRoot: process.env.CENTAUR_CONFIG_ROOT || undefined,
     home: homedir(),
@@ -122,6 +142,25 @@ program.command("prepare").action(async () => {
     base_url: outputs.base_url,
     api_key_secret: outputs.api_key_secret,
   });
+});
+
+program.command("plan-pr").action(async () => {
+  const config = parseConfigOrThrow(
+    await readConfigText(process.env.CENTAUR_CONFIG_ROOT || workspace()),
+  );
+  const targets = targetDeps();
+  const requested = Number(process.env.EXISTING_PR_NUMBER);
+  const plan: PrTarget =
+    targets && config.pull_requests.existing !== "off"
+      ? await planTarget(
+          { ...targets, bot: config.bot, poster: poster() },
+          process.env.EXISTING_PR_NUMBER ? requested : undefined,
+        )
+      : { target: "thread" };
+  if (plan.target === "thread" && plan.fallbackReason) {
+    console.log(`::notice::Using the thread's pull request (${plan.fallbackReason})`);
+  }
+  await writeOutputs(env("GITHUB_OUTPUT"), planOutputs(plan));
 });
 
 program.command("pr-details").action(async () => {

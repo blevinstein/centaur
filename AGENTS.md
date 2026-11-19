@@ -70,3 +70,7 @@
 - Comment turns run the actions and read `.centaur.yml`, the persona and the instructions from a
   default-branch checkout (`.centaur-trusted`, via `config_root`); the PR branch is the workspace
   root. Don't use `./.github/actions` in a job that checks out untrusted code.
+- The structured-output fields `pr_action` and `existing_pr_number` are gated by the
+  `pull_requests` config; `prTargetFlags(config)` in `src/workflows/prepare.ts` feeds both the
+  schema and the prompt. `checkCandidate` in `src/workflows/pr-target.ts` is the only place a PR
+  target is validated; never trust a PR number from `.centaur-turn/state.json`.

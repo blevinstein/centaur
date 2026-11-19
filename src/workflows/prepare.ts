@@ -12,7 +12,8 @@ import type { AttachmentDownloader, PosterClient, ThreadStore } from "./aws.js";
 import { parseConfigOrThrow, readConfigText } from "./config-file.js";
 import { type Instructions, loadInstructions } from "./instructions.js";
 import { buildMcpConfig } from "./mcp-config.js";
-import { buildPrompt, replySchema } from "./prompt.js";
+import { type CandidateDeps, listCandidates, type TargetDeps } from "./pr-target.js";
+import { buildPrompt, type PullRequestCandidate, replySchema } from "./prompt.js";
 import {
   type PullRequestReader,
   pendingComments,
@@ -69,6 +70,8 @@ export interface CommentDeps {
 
 export interface PrepareDeps {
   comment?: CommentDeps | undefined;
+  /** Lets chat and scheduled turns list pull requests the agent may update. */
+  targets?: TargetDeps | undefined;
   workspace: string;
   /** Directory holding `.centaur.yml`, the instructions and the persona. Defaults to `workspace`. */
   configRoot?: string | undefined;
@@ -104,6 +107,7 @@ interface Turn {
   prompt: string;
   resumeSessionId?: string;
   canStaySilent?: boolean;
+  allowExisting: boolean;
 }
 
 const localAttachment = (key: string) => `${ATTACHMENT_DIR}/${basename(key)}`;
@@ -141,11 +145,13 @@ async function scheduledTurn(
   const prompt = config.prompts[name];
   if (!prompt) throw new Error(`.centaur.yml defines no prompt named "${name}"`);
   const scheduledTask = await readFile(join(deps.workspace, prompt.file), "utf8");
+  const targets = prTargetFlags(config, await existingTargets(deps, config));
   return {
     mode: "start-thread",
     policy: prompt.context,
     start: { destination: prompt.destination },
-    prompt: buildPrompt({ scheduledTask, instructions, ...prTargetFlags(config) }),
+    allowExisting: targets.allowExisting,
+    prompt: buildPrompt({ scheduledTask, instructions, ...targets }),
   };
 }
 
@@ -208,16 +214,18 @@ async function chatTurn(
         await clearReactions(deps.poster, source);
         return undefined;
       }
+      const targets = prTargetFlags(config, await existingTargets(deps, config));
       return {
         mode: "start-thread",
         policy: config.context.default,
         start: { fromThreadId: threadId },
         source,
+        allowExisting: targets.allowExisting,
         prompt: buildPrompt({
           messages: plan.seed,
           attachmentPath,
           instructions,
-          ...prTargetFlags(config),
+          ...targets,
         }),
       };
     }
@@ -230,8 +238,10 @@ async function chatTurn(
         plan.policy === "transcript" || (plan.policy === "resume" && !resumeSessionId);
       const history = showHistory ? messages.filter((m) => !pendingIds.has(m.id)) : [];
       const attachmentPath = await loadAttachments(deps, [...history, ...plan.pending]);
+      const targets = prTargetFlags(config, await existingTargets(deps, config));
       return {
         mode: "reply",
+        allowExisting: targets.allowExisting,
         threadId,
         policy: plan.policy,
         source,
@@ -240,7 +250,7 @@ async function chatTurn(
         ...(canStaySilent ? { canStaySilent } : {}),
         prompt: buildPrompt({
           canStaySilent,
-          ...prTargetFlags(config),
+          ...targets,
           instructions,
           handle: config.handle,
           history,
@@ -309,13 +319,14 @@ async function commentTurn(
     pullRequest: comment.pullRequest,
     policy,
     canStaySilent: true,
+    allowExisting: false,
     ...(replyTo ? { replyTo } : {}),
     ...(resumeSessionId ? { resumeSessionId } : {}),
     prompt: buildPrompt({
       history,
       attachmentPath,
       instructions,
-      ...prTargetFlags(config),
+      ...prTargetFlags(config, NO_EXISTING_TARGETS),
       pullRequest: {
         title: details.title,
         body: details.body,
@@ -326,9 +337,33 @@ async function commentTurn(
   };
 }
 
-const prTargetFlags = (config: CentaurConfig) => ({
+interface ExistingTargets {
+  allowExisting: boolean;
+  candidates: PullRequestCandidate[];
+}
+
+const NO_EXISTING_TARGETS: ExistingTargets = { allowExisting: false, candidates: [] };
+
+/**
+ * Lists the pull requests the agent may update. With none, or when GitHub or the poster fails
+ * (a warning, never a failed turn), the prompt omits the section and the schema omits the field.
+ */
+async function existingTargets(deps: PrepareDeps, config: CentaurConfig): Promise<ExistingTargets> {
+  if (config.pull_requests.existing === "off" || !deps.targets) return NO_EXISTING_TARGETS;
+  const candidateDeps: CandidateDeps = { ...deps.targets, bot: config.bot, poster: deps.poster };
+  try {
+    const candidates = await listCandidates(candidateDeps);
+    return { allowExisting: candidates.length > 0, candidates };
+  } catch (error) {
+    console.warn(`::warning::Could not list pull requests to update: ${(error as Error).message}`);
+    return NO_EXISTING_TARGETS;
+  }
+}
+
+const prTargetFlags = (config: CentaurConfig, existing: ExistingTargets) => ({
   allowNewPr: config.pull_requests.comment_new,
-  allowExisting: config.pull_requests.existing !== "off",
+  allowExisting: existing.allowExisting,
+  candidates: existing.candidates,
 });
 
 export function buildClaudeArgs(input: {
@@ -337,10 +372,11 @@ export function buildClaudeArgs(input: {
   resumeSessionId: string | undefined;
   canStaySilent: boolean;
   mode: TurnState["mode"];
+  allowExisting: boolean;
   mcpConfig?: string | undefined;
 }) {
-  const { config, persona, resumeSessionId, canStaySilent, mode, mcpConfig } = input;
-  const { allowNewPr, allowExisting } = prTargetFlags(config);
+  const { config, persona, resumeSessionId, canStaySilent, mode, allowExisting, mcpConfig } = input;
+  const allowNewPr = config.pull_requests.comment_new;
   const readRule = config.allowed_tools.includes("Read") ? [] : [`Read(./${TURN_DIR}/**)`];
   const tools = [...config.allowed_tools, ...readRule].join(",");
   return [
@@ -427,6 +463,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
       resumeSessionId: turn.resumeSessionId,
       canStaySilent: turn.canStaySilent === true,
       mode: turn.mode,
+      allowExisting: turn.allowExisting,
       mcpConfig: hasMcpServers ? MCP_CONFIG_FILE : undefined,
     }),
   };

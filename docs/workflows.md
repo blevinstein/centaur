@@ -232,6 +232,23 @@ Two more optional fields choose the pull request a turn targets, each present on
 `finish` ignores a field that does not fit the turn's mode with a `::warning::` that names no
 content. Nothing acts on either field yet.
 
+`prepare` lists the pull requests a chat or scheduled turn may update when `existing` is `bot`:
+open pull requests of this repository, not forks, from `centaur/<bot>-` branches authored by
+`github-actions[bot]`, newest 10 by number. When the poster has a `resolve-pull-request` record it
+must name the same bot; a missing record is allowed (older pull requests predate linking), and a
+poster error excludes the pull request. The prompt gets an "Open pull requests you may update"
+section of numbers and fenced titles, noted as data, and the schema gets `existing_pr_number`. With
+no candidates, or when GitHub fails (a `::warning::`, never a failed turn), the section, the field
+and the "number must be listed" sentence are all omitted. `prepare` needs `GITHUB_REPOSITORY` and
+`GITHUB_TOKEN` for this and lists nothing without them. Comment turns list nothing.
+
+`centaur-workflow plan-pr` re-derives the same candidate set from GitHub, never from
+`.centaur-turn/state.json`, and checks `EXISTING_PR_NUMBER` against it. It writes the outputs
+`target` (`existing` or `thread`), `number` and `head_ref` for `existing`, and `fallback_reason`
+for `thread` (`not_open`, `not_candidate`, `not_allowed`, `lookup_failed`, or empty), none of which
+carries pull request content. An absent or malformed number means `thread` with no reason. The
+action does not call it yet.
+
 ### Comment turns
 
 A pull request comment turn answers the comments on a pull request the agent opened. It is

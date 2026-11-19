@@ -89,7 +89,7 @@ export function createPullRequestWriter(
   };
 }
 
-async function paginate<T>(
+export async function paginate<T>(
   requester: GitHubRequester,
   path: string,
   schema: z.ZodType<T>,

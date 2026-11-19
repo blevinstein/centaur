@@ -287,8 +287,8 @@ can write.
 - [x] PR targets 1: config block `pull_requests` (`comment_new`, `existing: off|bot`) in
       `src/config/schema.ts`, `replySchema` parameters (fields appear only when enabled),
       `extractResult`/`resultMessage` fields, contract text, tests, docs. No behavior change yet.
-- [ ] PR targets 2: `prepare` lists candidate open PRs for the prompt (fenced as data, capped at 10).
-- [ ] PR targets 3: `plan-pr` validation as a pure function with a fake GitHub client and poster.
+- [x] PR targets 2: `prepare` lists candidate open PRs for the prompt (fenced as data, capped at 10).
+- [x] PR targets 3: `plan-pr` validation as a pure function with a fake GitHub client and poster.
 - [ ] PR targets 4: `push-existing` transplant (patch, worktree, `git apply --3way`, plain push, fall
       back on conflict), tested on real git repos.
 - [ ] PR targets 5: wire the `turn` action (`plan-pr`, conditional `create-pull-request` and
@@ -298,6 +298,11 @@ can write.
 - [ ] PR targets 8: **[HUMAN ACTION]** real runs on `centaur-hello` (`-f prompt_name=pr-smoke`):
       a second run updates an open PR, a merged or closed PR falls back, a comment `pr_action: new`
       opens a stacked PR whose comments resolve to the same thread.
+- [ ] Match `centaur/<bot>-` branches exactly in `checkCandidate` (a bot named `sprout` also
+      matches `sprout-2`'s branches when no poster record exists).
+- [ ] Rank PR candidates by update time instead of number if busy repos show stale ones.
+- [ ] Investigate the intermittent failure in `test/chat-dynamodb-state.test.ts` ("drops the oldest
+      queued message beyond maxQueueSize").
 - [ ] Move the security-relevant parts of the turn state out of the workspace, since the agent can
       edit `.centaur-turn/state.json`.
 
