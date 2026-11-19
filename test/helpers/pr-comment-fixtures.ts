@@ -121,10 +121,19 @@ export async function commentSetup(
   return { aws, github, mask, root, home, deps };
 }
 
+export const NEW_PULL_REQUEST = 20;
+export const NEW_PR_URL = "https://github.example/octo/sprout/pull/20";
+export const ORIGINAL_SHA = "a".repeat(40);
+export const RUN_URL = "https://github.example/octo/sprout/actions/runs/99";
 export const PR_URL = "https://github.example/octo/sprout/pull/12";
 
 export async function commentFinishSetup(
-  options: { state?: Partial<TurnState>; pushed?: number; fail?: "chat" | "push" } = {},
+  options: {
+    state?: Partial<TurnState>;
+    pushed?: number;
+    fail?: "chat" | "push";
+    newPr?: { stacked: boolean } | "no-changes";
+  } = {},
 ) {
   const aws = createFakeAws((request) => {
     if (request.operation === "post" && options.fail === "chat") throw new Error("chat is down");
@@ -145,7 +154,18 @@ export async function commentFinishSetup(
   const executionFile = join(root, "execution.json");
   const writeExecution = (entry: object) =>
     writeFile(executionFile, JSON.stringify([{ type: "system" }, { type: "result", ...entry }]));
-  const github: PullRequestWriter = { comment: vi.fn(async () => {}) };
+  const github: PullRequestWriter = {
+    comment: vi.fn(async () => {}),
+    head: vi.fn(async () => ({ ref: HEAD_REF, sha: ORIGINAL_SHA })),
+    defaultBranch: vi.fn(async () => "main"),
+    createPullRequest: vi.fn(async () => ({ number: NEW_PULL_REQUEST, url: NEW_PR_URL })),
+  };
+  const pushNew = vi.fn(
+    async (_options: { branch: string; message: string; originalHeadSha: string }) => {
+      if (options.fail === "push") throw new Error("push rejected");
+      return options.newPr === "no-changes" ? undefined : (options.newPr ?? { stacked: true });
+    },
+  );
   const push = vi.fn(async (_message: string) => {
     if (options.fail === "push") throw new Error("push rejected");
     return options.pushed ?? 0;
@@ -156,7 +176,15 @@ export async function commentFinishSetup(
     poster: aws.poster,
     storeFor: aws.storeFor,
     pullRequestLink: pullRequestLink(0),
-    comment: { repository: "octo/sprout", pullRequestUrl: PR_URL, github, push },
+    comment: {
+      repository: "octo/sprout",
+      pullRequestUrl: PR_URL,
+      github,
+      push,
+      ...(options.newPr
+        ? { newPullRequest: { runId: "99", attempt: "2", runUrl: RUN_URL, push: pushNew } }
+        : {}),
+    },
   });
-  return { aws, root, home, github, push, deps, writeExecution };
+  return { aws, root, home, github, push, pushNew, deps, writeExecution };
 }

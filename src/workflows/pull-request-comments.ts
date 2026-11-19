@@ -13,6 +13,9 @@ const pullRequestResponse = z.object({
   created_at: timestamp,
   head: z.object({ ref: z.string() }),
 });
+const headResponse = z.object({ head: z.object({ ref: z.string(), sha: z.string() }) });
+const repositoryResponse = z.object({ default_branch: z.string() });
+const createdResponse = z.object({ number: z.number(), html_url: z.string() });
 const issueCommentResponse = z.object({
   id: z.number(),
   body: z.string().nullish(),
@@ -67,6 +70,13 @@ export interface PullRequestReader {
 }
 
 export interface PullRequestWriter {
+  /** The head branch and commit of a pull request. */
+  head(repository: string, number: number): Promise<{ ref: string; sha: string }>;
+  defaultBranch(repository: string): Promise<string>;
+  createPullRequest(
+    repository: string,
+    pullRequest: { title: string; body: string; head: string; base: string },
+  ): Promise<{ number: number; url: string }>;
   /** Posts a conversation comment, or a reply in the inline thread rooted at `replyTo`. */
   comment(repository: string, number: number, body: string, replyTo?: number): Promise<void>;
 }
@@ -79,6 +89,21 @@ export function createPullRequestWriter(
 ): PullRequestWriter {
   const requester = createGitHubRequester(token, apiUrl, fetchImpl);
   return {
+    async head(repository, number) {
+      const data = await requester.json(`/repos/${repository}/pulls/${number}`, headResponse);
+      return data.head;
+    },
+    async defaultBranch(repository) {
+      return (await requester.json(`/repos/${repository}`, repositoryResponse)).default_branch;
+    },
+    async createPullRequest(repository, pullRequest) {
+      const created = await requester.postJson(
+        `/repos/${repository}/pulls`,
+        pullRequest,
+        createdResponse,
+      );
+      return { number: created.number, url: created.html_url };
+    },
     comment: (repository, number, body, replyTo) =>
       requester.post(
         replyTo === undefined

@@ -1,12 +1,22 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { threadKey } from "../src/thread-key.js";
 import { finish, notifyFailure } from "../src/workflows/finish.js";
 import { createPullRequestWriter } from "../src/workflows/pull-request-comments.js";
-import { pushChanges } from "../src/workflows/push.js";
+import { pushChanges, pushNewBranch } from "../src/workflows/push.js";
 import { REPLY_MARKER } from "../src/workflows/resolve.js";
 import { createClone, git } from "./helpers/git-fixtures.js";
-import { commentFinishSetup, PR_URL, PULL_REQUEST } from "./helpers/pr-comment-fixtures.js";
+import {
+  commentFinishSetup,
+  HEAD_REF,
+  NEW_PR_URL,
+  NEW_PULL_REQUEST,
+  ORIGINAL_SHA,
+  PR_URL,
+  PULL_REQUEST,
+  RUN_URL,
+} from "./helpers/pr-comment-fixtures.js";
 import { THREAD, THREAD_PREFIX } from "./helpers/workflow-fixtures.js";
 
 const posts = (aws: { requests: { operation: string }[] }) =>
@@ -159,6 +169,118 @@ describe("finish in comment mode", () => {
   });
 });
 
+describe("finish in comment mode with pr_action new", () => {
+  const newOutput = {
+    reply: "Split out.",
+    pr_action: "new",
+    pr_title: "Add  basil",
+    pr_body: "Why.",
+  };
+
+  it("opens a stacked pull request, replies, notes the chat and links both pull requests", async () => {
+    const { aws, github, push, pushNew, deps, writeExecution } = await commentFinishSetup({
+      newPr: { stacked: true },
+      state: { replyTo: 77 },
+    });
+    await writeExecution({ structured_output: newOutput });
+
+    await finish(deps());
+
+    const branch = `centaur/sprout-${threadKey("sprout", THREAD)}-99-2`;
+    expect(push).not.toHaveBeenCalled();
+    expect(pushNew).toHaveBeenCalledWith({
+      branch,
+      message: "Add basil",
+      originalHeadSha: ORIGINAL_SHA,
+    });
+    expect(github.createPullRequest).toHaveBeenCalledWith("octo/sprout", {
+      title: "Add basil",
+      body: `Why.\n\n---\n\nOpened from a comment on #12 in [this workflow run](${RUN_URL}). Stacked on #12.`,
+      head: branch,
+      base: HEAD_REF,
+    });
+    expect(github.comment).toHaveBeenCalledWith(
+      "octo/sprout",
+      PULL_REQUEST,
+      `${REPLY_MARKER}\nSplit out.\n\nOpened #${NEW_PULL_REQUEST} for this.`,
+      77,
+    );
+    expect(posts(aws)).toEqual([
+      {
+        operation: "post",
+        bot: "sprout",
+        threadId: THREAD,
+        text: `Opened #${NEW_PULL_REQUEST} from comment on #12: ${NEW_PR_URL}`,
+      },
+    ]);
+    const links = aws.requests.filter((r) => r.operation === "link-pull-request");
+    expect(links.map((r) => r.pullRequest)).toEqual([NEW_PULL_REQUEST, PULL_REQUEST]);
+    expect(JSON.stringify(aws.requests)).not.toContain("Split out.");
+  });
+
+  it("bases the pull request on the default branch when it is not stacked", async () => {
+    const { github, deps, writeExecution } = await commentFinishSetup({
+      newPr: { stacked: false },
+    });
+    await writeExecution({ structured_output: { reply: "Done.", pr_action: "new" } });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    await finish(deps());
+
+    expect(github.createPullRequest).toHaveBeenCalledWith(
+      "octo/sprout",
+      expect.objectContaining({
+        title: "Centaur agent changes",
+        base: "main",
+        body: `Opened from a comment on #12 in [this workflow run](${RUN_URL}).`,
+      }),
+    );
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("without a pr_title"));
+    warn.mockRestore();
+  });
+
+  it("opens no pull request when there are no changes, but still replies", async () => {
+    const { aws, github, deps, writeExecution } = await commentFinishSetup({
+      newPr: "no-changes",
+    });
+    await writeExecution({ structured_output: newOutput });
+
+    await finish(deps());
+
+    expect(github.createPullRequest).not.toHaveBeenCalled();
+    expect(github.comment).toHaveBeenCalledWith(
+      "octo/sprout",
+      PULL_REQUEST,
+      `${REPLY_MARKER}\nSplit out.\n\nThere were no changes, so no pull request was opened.`,
+      undefined,
+    );
+    expect(posts(aws)[0]).toMatchObject({ text: `Replied on ${PR_URL}` });
+    expect(aws.requests.filter((r) => r.operation === "link-pull-request")).toHaveLength(1);
+  });
+
+  it("fails the turn before opening or replying when the push fails", async () => {
+    const { github, deps, writeExecution } = await commentFinishSetup({
+      newPr: { stacked: true },
+      fail: "push",
+    });
+    await writeExecution({ structured_output: newOutput });
+
+    await expect(finish(deps())).rejects.toThrow("push rejected");
+    expect(github.createPullRequest).not.toHaveBeenCalled();
+    expect(github.comment).not.toHaveBeenCalled();
+  });
+
+  it("keeps the update behavior when comment_new is off", async () => {
+    const { github, push, deps, writeExecution } = await commentFinishSetup({ pushed: 1 });
+    await writeExecution({ structured_output: newOutput });
+
+    await finish(deps());
+
+    expect(push).toHaveBeenCalledWith("Add basil");
+    expect(github.createPullRequest).not.toHaveBeenCalled();
+  });
+});
+
 describe("notifyFailure in comment mode", () => {
   it("tells the thread and the pull request, with the marker", async () => {
     const { aws, github, deps } = await commentFinishSetup({ state: { replyTo: 5 } });
@@ -217,6 +339,80 @@ describe("pushChanges", () => {
   });
 });
 
+describe("pushNewBranch", () => {
+  const NEW = "centaur/branch-99-1";
+  const headSha = async (work: string) => (await git(work, "rev-parse", "HEAD")).trim();
+
+  it("pushes a new branch as the Actions bot and leaves the original branch alone", async () => {
+    const { work, write, remoteLog } = await createClone();
+    const originalHeadSha = await headSha(work);
+    await write("plan.md", "basil\n");
+    await write(".centaur-turn/prompt.md", "never committed");
+    await write(".centaur-trusted/x.md", "never committed");
+
+    const pushed = await pushNewBranch(work, {
+      branch: NEW,
+      message: "Use basil",
+      originalHeadSha,
+    });
+
+    expect(pushed).toEqual({ stacked: true });
+    expect(await remoteLog(NEW)).toBe("Use basil|github-actions[bot]\ninit|t\n");
+    expect(await remoteLog()).toBe("init|t\n");
+    const files = await git(work, "ls-files");
+    expect(files).not.toContain(".centaur-turn");
+    expect(files).not.toContain(".centaur-trusted");
+  });
+
+  it("is not stacked when the original head is not an ancestor", async () => {
+    const { work, write } = await createClone();
+    const originalHeadSha = await headSha(work);
+    await git(work, "commit", "--amend", "-m", "rewritten");
+    await write("plan.md", "basil\n");
+
+    expect(await pushNewBranch(work, { branch: NEW, message: "m", originalHeadSha })).toEqual({
+      stacked: false,
+    });
+  });
+
+  it("pushes commits the agent made itself", async () => {
+    const { work, write, remoteLog } = await createClone();
+    const originalHeadSha = await headSha(work);
+    await write("plan.md", "basil\n");
+    await git(work, "commit", "-am", "agent commit");
+
+    expect(await pushNewBranch(work, { branch: NEW, message: "unused", originalHeadSha })).toEqual({
+      stacked: true,
+    });
+    expect(await remoteLog(NEW)).toContain("agent commit|t");
+  });
+
+  it("does nothing when there are no changes", async () => {
+    const { work, remote } = await createClone();
+    const originalHeadSha = await headSha(work);
+
+    expect(
+      await pushNewBranch(work, { branch: NEW, message: "m", originalHeadSha }),
+    ).toBeUndefined();
+    expect(await git(remote, "branch", "--list", NEW)).toBe("");
+  });
+
+  it("fails when the push is rejected", async () => {
+    const { work, write } = await createClone();
+    const originalHeadSha = await headSha(work);
+    await write("other.md", "x");
+    await git(work, "add", "other.md");
+    await git(work, "commit", "-m", "diverged");
+    await git(work, "push", "origin", `HEAD:${NEW}`);
+    await git(work, "reset", "--hard", originalHeadSha);
+    await write("plan.md", "basil\n");
+
+    await expect(
+      pushNewBranch(work, { branch: NEW, message: "m", originalHeadSha }),
+    ).rejects.toThrow();
+  });
+});
+
 describe("createPullRequestWriter", () => {
   const writer = () => {
     const fetchImpl = vi.fn(async (..._args: unknown[]) => new Response("{}", { status: 201 }));
@@ -240,6 +436,29 @@ describe("createPullRequestWriter", () => {
     expect(fetchImpl.mock.calls[0]?.[0]).toBe(
       "https://api.test/repos/octo/sprout/pulls/12/comments/77/replies",
     );
+  });
+
+  it("opens a pull request and reads the head and default branch", async () => {
+    const fetchImpl = vi.fn(async (url: unknown) =>
+      String(url).endsWith("/pulls")
+        ? new Response(JSON.stringify({ number: 20, html_url: "https://x/pull/20" }), {
+            status: 201,
+          })
+        : new Response(JSON.stringify({ default_branch: "trunk", head: { ref: "b", sha: "s" } })),
+    );
+    const w = createPullRequestWriter("tok", "https://api.test", fetchImpl as typeof fetch);
+
+    const pullRequest = { title: "T", body: "B", head: "h", base: "b" };
+    expect(await w.createPullRequest("octo/sprout", pullRequest)).toEqual({
+      number: 20,
+      url: "https://x/pull/20",
+    });
+    expect(fetchImpl.mock.calls[0]).toEqual([
+      "https://api.test/repos/octo/sprout/pulls",
+      expect.objectContaining({ method: "POST", body: JSON.stringify(pullRequest) }),
+    ]);
+    expect(await w.head("octo/sprout", 12)).toEqual({ ref: "b", sha: "s" });
+    expect(await w.defaultBranch("octo/sprout")).toBe("trunk");
   });
 
   it("reports only the status on failure", async () => {

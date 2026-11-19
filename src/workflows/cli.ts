@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { Command } from "commander";
 import { createAttachmentDownloader, createPosterClient, createThreadStore } from "./aws.js";
+import { cleanTitle } from "./clean-text.js";
 import { parseConfigOrThrow, readConfigText } from "./config-file.js";
 import { finish, notifyFailure } from "./finish.js";
 import { maskValue, writeOutputs } from "./github-output.js";
@@ -14,7 +15,8 @@ import {
 import { prepare } from "./prepare.js";
 import { describePullRequest } from "./pull-request.js";
 import { createPullRequestReader, createPullRequestWriter } from "./pull-request-comments.js";
-import { pushChanges } from "./push.js";
+import { pushChanges, pushNewBranch } from "./push.js";
+import { pushExisting } from "./push-existing.js";
 import { oidcTokenFetcher, registerRepo } from "./register.js";
 import { createGitHubClient, resolve } from "./resolve.js";
 
@@ -119,6 +121,20 @@ const commentFinishDeps = () => {
   };
 };
 
+const newPullRequestDeps = async () => {
+  const config = parseConfigOrThrow(
+    await readConfigText(process.env.CENTAUR_CONFIG_ROOT || workspace()),
+  );
+  if (!config.pull_requests.comment_new) return undefined;
+  const runId = env("GITHUB_RUN_ID");
+  return {
+    runId,
+    attempt: env("GITHUB_RUN_ATTEMPT"),
+    runUrl: `${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${env("GITHUB_REPOSITORY")}/actions/runs/${runId}`,
+    push: (options: Parameters<typeof pushNewBranch>[1]) => pushNewBranch(workspace(), options),
+  };
+};
+
 program.command("prepare").action(async () => {
   const outputs = await prepare({
     comment: commentDeps(),
@@ -163,6 +179,30 @@ program.command("plan-pr").action(async () => {
   await writeOutputs(env("GITHUB_OUTPUT"), planOutputs(plan));
 });
 
+program.command("push-existing").action(async () => {
+  const number = Number(env("TARGET_PR_NUMBER"));
+  const repository = env("GITHUB_REPOSITORY");
+  const result = await pushExisting({
+    workspace: workspace(),
+    headRef: env("TARGET_HEAD_REF"),
+    number,
+    pullRequestUrl: `${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${repository}/pull/${number}`,
+    message: cleanTitle(process.env.PR_TITLE) || "Centaur agent changes",
+    tempDir: process.env.RUNNER_TEMP || undefined,
+  });
+  if (!result.ok) console.log(`::notice::Could not update the pull request (${result.reason})`);
+  await writeOutputs(env("GITHUB_OUTPUT"), {
+    fallback: String(!result.ok),
+    reason: result.ok ? "" : result.reason,
+    ...(result.ok && result.commits === 1
+      ? {
+          "pull-request-url": result.url,
+          "pull-request-number": String(result.number),
+        }
+      : {}),
+  });
+});
+
 program.command("pr-details").action(async () => {
   const details = await describePullRequest({
     workspace: workspace(),
@@ -172,12 +212,13 @@ program.command("pr-details").action(async () => {
   await writeOutputs(env("GITHUB_OUTPUT"), { ...details });
 });
 
-program.command("finish").action(() => {
+program.command("finish").action(async () => {
   const pullRequestNumber = Number(process.env.PULL_REQUEST_NUMBER);
+  const comment = commentFinishDeps();
   return finish({
     workspace: workspace(),
     executionFile: env("EXECUTION_FILE"),
-    comment: commentFinishDeps(),
+    comment: comment && { ...comment, newPullRequest: await newPullRequestDeps() },
     pullRequestUrl: process.env.PULL_REQUEST_URL || undefined,
     pullRequestLink: {
       number:

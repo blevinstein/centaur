@@ -297,6 +297,12 @@ comment content: chat threads can be group chats, and the comment text and the a
 already on the pull request. The thread is the one the poster resolved. If the chat post fails it is
 a warning; the pull request reply is the source of truth.
 
+**New pull request.** With `pr_action: new` (see [workflows.md](workflows.md#comment-turns)) the
+changes go to a new branch `centaur/<bot>-<thread key>-<run id>-<run attempt>` and a new pull
+request, stacked on the original's head branch when that head is an ancestor, else based on the
+default branch. The original pull request gets only the marked reply (with `Opened #M for this.`).
+`link-pull-request` is called for both, and the chat note is `Opened #M from comment on #N: <URL>`.
+
 Failure: `notify-failure` posts its generic notice (with the run URL) to the pull request as a
 marked comment, and to the thread, so the commenter is not left waiting.
 

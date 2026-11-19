@@ -249,6 +249,18 @@ for `thread` (`not_open`, `not_candidate`, `not_allowed`, `lookup_failed`, or em
 carries pull request content. An absent or malformed number means `thread` with no reason. The
 action does not call it yet.
 
+`centaur-workflow push-existing` moves the agent's changes onto the planned pull request without
+touching the workspace. It reads `TARGET_HEAD_REF` and `TARGET_PR_NUMBER` (the `plan-pr` outputs)
+and `PR_TITLE` for the commit message. It stages everything except `.centaur-turn` and
+`.centaur-trusted`, writes a binary patch to the runner temp directory, fetches the branch, adds a
+detached worktree at its tip, runs `git apply --3way --index`, commits as `github-actions[bot]` and
+pushes with plain `git push` (never forced). It validates `TARGET_HEAD_REF` first (`centaur/`
+prefix, no `..`, no whitespace or leading dash). Outputs: `fallback` (`true` on any failure),
+`reason` (`invalid_ref`, `patch_failed`, `fetch_failed`, `conflict`, `push_rejected`; never file
+contents), and on success `pull-request-url` and `pull-request-number`. With no changes it succeeds
+and sets neither. On failure the worktree is removed and the workspace is as the agent left it, so
+the action can fall back to `create-pull-request`. The action does not call it yet.
+
 ### Comment turns
 
 A pull request comment turn answers the comments on a pull request the agent opened. It is
@@ -292,6 +304,21 @@ from a chat turn as follows:
   refreshes the pull request's thread record with `link-pull-request`. The chat note and the
   record refresh are warnings on failure; a failed push or comment fails the turn. For `resume`
   threads the session is saved; the chat marker is never touched.
+- `pr_action: new` (when `pull_requests.comment_new` is on) makes `finish` open a separate pull
+  request instead of pushing to the original branch, which gets no new commits. Trusted code
+  creates the branch `centaur/<bot>-<thread key>-<run id>-<run attempt>` (the `centaur/` prefix
+  keeps later comments resolvable), commits the working tree changes as `github-actions[bot]`
+  with the cleaned `pr_title` (default `Centaur agent changes`, with a warning when it is missing)
+  and pushes with plain `git push`; a failed push fails the turn. The base is the original pull
+  request's head branch when its head commit is an ancestor of the new branch (the new pull
+  request says `Stacked on #N`), otherwise the default branch. The body is the cleaned `pr_body`
+  plus a footer naming the comment's pull request and the run. The marked reply on the original
+  pull request is the agent's `reply` plus `Opened #M for this.` (or a note that nothing changed
+  and no pull request was opened). The chat note is `Opened #M from comment on #N: <URL>`, and
+  `link-pull-request` is called for both pull requests, so a comment on the new one resolves to the
+  same thread. The turn action does not need to change for this: it already passes
+  `GITHUB_RUN_ID`, and `finish` also reads `GITHUB_RUN_ATTEMPT`, `GITHUB_SERVER_URL` and the
+  config.
 - `notify-failure` posts its notice to the chat thread and, marked, to the pull request (inside
   the inline thread when `replyTo` is set).
 

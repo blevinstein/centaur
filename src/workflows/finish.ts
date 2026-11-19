@@ -1,14 +1,16 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
+import { threadKey } from "../thread-key.js";
 import type { PosterClient, ThreadStore } from "./aws.js";
-import { cleanTitle } from "./clean-text.js";
+import { cleanBody, cleanTitle } from "./clean-text.js";
 import { STATE_FILE, type TurnState } from "./prepare.js";
 import type { PullRequestWriter } from "./pull-request-comments.js";
 import { clearReactions } from "./reactions.js";
-import { REPLY_MARKER } from "./resolve.js";
+import { BRANCH_PREFIX, REPLY_MARKER } from "./resolve.js";
 
 const DEFAULT_COMMIT_MESSAGE = "Address review comments";
+const DEFAULT_NEW_TITLE = "Centaur agent changes";
 
 const resultMessage = z.object({
   type: z.literal("result"),
@@ -48,8 +50,21 @@ export interface PullRequestLink {
   mask: (value: string) => void;
 }
 
+/** Present when `pull_requests.comment_new` is on, so a comment turn may open its own pull request. */
+export interface NewPullRequestDeps {
+  runId: string;
+  attempt: string;
+  runUrl: string;
+  push: (options: {
+    branch: string;
+    message: string;
+    originalHeadSha: string;
+  }) => Promise<{ stacked: boolean } | undefined>;
+}
+
 /** Present when the turn answers a pull request comment. */
 export interface CommentFinishDeps {
+  newPullRequest?: NewPullRequestDeps | undefined;
   repository: string;
   pullRequestUrl: string;
   github: PullRequestWriter;
@@ -128,6 +143,47 @@ async function linkPullRequest(
   }
 }
 
+/**
+ * Pushes the turn's changes to a new branch and opens a pull request from it, stacked on the
+ * original pull request's branch when that branch's head is an ancestor of the new one, otherwise
+ * on the default branch. Returns undefined when the working tree has no changes.
+ */
+async function openNewPullRequest(
+  comment: CommentFinishDeps,
+  newPr: NewPullRequestDeps,
+  state: { bot: string; threadId: string; pullRequest: number },
+  result: ReturnType<typeof extractResult>,
+) {
+  const title = cleanTitle(result.prTitle);
+  if (!title) {
+    console.warn("::warning::pr_action new came without a pr_title; using a default title");
+  }
+  const original = await comment.github.head(comment.repository, state.pullRequest);
+  const branch = `${BRANCH_PREFIX}${state.bot}-${threadKey(state.bot, state.threadId)}-${newPr.runId}-${newPr.attempt}`;
+  const pushed = await newPr.push({
+    branch,
+    message: title || DEFAULT_NEW_TITLE,
+    originalHeadSha: original.sha,
+  });
+  if (!pushed) return undefined;
+  const base = pushed.stacked
+    ? original.ref
+    : await comment.github.defaultBranch(comment.repository);
+  const description = cleanBody(result.prBody);
+  const footer = [
+    `Opened from a comment on #${state.pullRequest} in [this workflow run](${newPr.runUrl}).`,
+    pushed.stacked && `Stacked on #${state.pullRequest}.`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return comment.github.createPullRequest(comment.repository, {
+    title: title || DEFAULT_NEW_TITLE,
+    body: description ? `${description}\n\n---\n\n${footer}` : footer,
+    head: branch,
+    base,
+  });
+}
+
 const plural = (count: number) => `${count} commit${count === 1 ? "" : "s"}`;
 
 /**
@@ -143,8 +199,28 @@ async function finishComment(
   if (state.mode !== "comment" || !state.threadId || !state.pullRequest) {
     throw new Error("comment finish needs a comment turn state");
   }
-  const pushed = await comment.push(cleanTitle(result.prTitle) || DEFAULT_COMMIT_MESSAGE);
-  const body = result.reply ?? (pushed > 0 ? `Pushed ${plural(pushed)}.` : undefined);
+  const asNew = result.prAction === "new" && comment.newPullRequest;
+  const opened = asNew
+    ? await openNewPullRequest(
+        comment,
+        asNew,
+        { bot: state.bot, threadId: state.threadId, pullRequest: state.pullRequest },
+        result,
+      )
+    : undefined;
+  const pushed = asNew
+    ? 0
+    : await comment.push(cleanTitle(result.prTitle) || DEFAULT_COMMIT_MESSAGE);
+  const body = asNew
+    ? [
+        result.reply,
+        opened
+          ? `Opened #${opened.number} for this.`
+          : "There were no changes, so no pull request was opened.",
+      ]
+        .filter(Boolean)
+        .join("\n\n")
+    : (result.reply ?? (pushed > 0 ? `Pushed ${plural(pushed)}.` : undefined));
   if (body) {
     await comment.github.comment(
       comment.repository,
@@ -152,9 +228,11 @@ async function finishComment(
       `${REPLY_MARKER}\n${body}`,
       state.replyTo,
     );
-    const note = result.reply
-      ? `Replied on ${comment.pullRequestUrl}${pushed > 0 ? ` and pushed ${plural(pushed)}` : ""}`
-      : `Pushed ${plural(pushed)} to ${comment.pullRequestUrl}`;
+    const note = opened
+      ? `Opened #${opened.number} from comment on #${state.pullRequest}: ${opened.url}`
+      : result.reply
+        ? `Replied on ${comment.pullRequestUrl}${pushed > 0 ? ` and pushed ${plural(pushed)}` : ""}`
+        : `Pushed ${plural(pushed)} to ${comment.pullRequestUrl}`;
     try {
       await deps.poster.call({
         operation: "post",
@@ -168,7 +246,7 @@ async function finishComment(
       );
     }
   }
-  return { threadId: state.threadId, pullRequest: state.pullRequest };
+  return { threadId: state.threadId, pullRequest: state.pullRequest, opened: opened?.number };
 }
 
 /** Drops a target field that does not apply to the turn's mode, warning without its content. */
@@ -192,6 +270,9 @@ export async function finish(deps: FinishDeps) {
     const answered = await finishComment(deps, deps.comment, state, result);
     threadId = answered.threadId;
     link = link && { ...link, number: answered.pullRequest };
+    if (link && answered.opened !== undefined) {
+      await linkPullRequest(deps.poster, { ...link, number: answered.opened }, state.bot, threadId);
+    }
   } else {
     threadId = await deliverReply(deps, state, result);
   }
