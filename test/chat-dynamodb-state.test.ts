@@ -1,5 +1,5 @@
 import type { Message } from "chat";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDynamoDbState } from "../src/dynamodb-state/index.js";
 import { createFreshTable, scanItems } from "./helpers/dynamodb-local.js";
 import {
@@ -80,6 +80,10 @@ describe("Chat on the DynamoDB state adapter: default drop strategy", () => {
 });
 
 describe("Chat on the DynamoDB state adapter: queue strategy", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   async function chatWithBlockedFirstMessage(concurrency: object) {
     const { table, state } = await freshState();
     const harness = await startFakeChat({
@@ -87,23 +91,25 @@ describe("Chat on the DynamoDB state adapter: queue strategy", () => {
       concurrency: { strategy: "queue", ...concurrency },
     });
     const gate = createGate();
+    const started = createGate();
     const handled = vi.fn<(id: string, skipped: string[]) => void>();
     harness.chat.onNewMention(async (_thread, message, context) => {
       handled(message.id, ids(context?.skipped ?? []));
       if (message.id === "m1") {
+        started.open();
         await gate.opened;
       }
     });
-    return { ...harness, table, state, gate, handled };
+    return { ...harness, table, state, gate, started, handled };
   }
 
   it("queues behind the held lock, then drains the latest with the earlier ones skipped", async () => {
-    const { receive, table, state, gate, handled } = await chatWithBlockedFirstMessage({
+    const { receive, table, state, gate, started, handled } = await chatWithBlockedFirstMessage({
       queueEntryTtlMs: QUEUE_ENTRY_TTL_MS,
     });
 
     const first = receive(fakeIncomingMessage("m1"));
-    await vi.waitFor(async () => expect(await state.acquireLock(FAKE_THREAD_ID, 1)).toBeNull());
+    await started.opened;
     await receive(fakeIncomingMessage("m2"));
     await receive(fakeIncomingMessage("m3"));
 
@@ -124,12 +130,12 @@ describe("Chat on the DynamoDB state adapter: queue strategy", () => {
   });
 
   it("drops the oldest queued message beyond maxQueueSize", async () => {
-    const { receive, state, gate, handled } = await chatWithBlockedFirstMessage({
+    const { receive, state, gate, started, handled } = await chatWithBlockedFirstMessage({
       maxQueueSize: 2,
     });
 
     const first = receive(fakeIncomingMessage("m1"));
-    await vi.waitFor(async () => expect(await state.acquireLock(FAKE_THREAD_ID, 1)).toBeNull());
+    await started.opened;
     for (const id of ["m2", "m3", "m4"]) {
       await receive(fakeIncomingMessage(id));
     }
@@ -144,14 +150,15 @@ describe("Chat on the DynamoDB state adapter: queue strategy", () => {
   });
 
   it("discards queued entries that expired before the lock holder finished", async () => {
-    const { receive, state, gate, handled } = await chatWithBlockedFirstMessage({
-      queueEntryTtlMs: 20,
+    const { receive, state, gate, started, handled } = await chatWithBlockedFirstMessage({
+      queueEntryTtlMs: QUEUE_ENTRY_TTL_MS,
     });
+    vi.useFakeTimers({ toFake: ["Date"] });
 
     const first = receive(fakeIncomingMessage("m1"));
-    await vi.waitFor(async () => expect(await state.acquireLock(FAKE_THREAD_ID, 1)).toBeNull());
+    await started.opened;
     await receive(fakeIncomingMessage("m2"));
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    vi.setSystemTime(Date.now() + QUEUE_ENTRY_TTL_MS + 1);
     expect(await state.queueDepth(FAKE_THREAD_ID)).toBe(1);
 
     gate.open();
