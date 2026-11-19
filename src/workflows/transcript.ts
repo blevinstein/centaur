@@ -57,9 +57,10 @@ export function planTurn(input: {
     .map(withoutCommand)
     .filter((m) => m.text !== "" || m.attachments.length > 0);
   if (newIndex >= 0) return { kind: "new-thread", seed: relevant };
-  return relevant.length === 0
+  if (relevant.length > 0) return { kind: "reply", policy, pending: relevant };
+  return pending.some((m) => parseCommand(m.text).command)
     ? { kind: "ack", policy }
-    : { kind: "reply", policy, pending: relevant };
+    : { kind: "skip" };
 }
 
 /** Maps an attachment key to the file the agent can open, or undefined when it was not loaded. */

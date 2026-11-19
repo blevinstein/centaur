@@ -76,6 +76,10 @@ describe("planTurn", () => {
     expect(plan([message("1", "/transcript")])).toEqual({ kind: "ack", policy: "transcript" });
   });
 
+  it("skips empty messages that carry no command", () => {
+    expect(plan([message("1", "")])).toEqual({ kind: "skip" });
+  });
+
   it("starts a new thread seeded from the /new message onward", () => {
     const result = plan([
       message("1", "old"),
