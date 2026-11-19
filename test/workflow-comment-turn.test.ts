@@ -15,6 +15,7 @@ import {
 import {
   botMessage,
   configText,
+  createWorkspace,
   message,
   THREAD,
   THREAD_PREFIX,
@@ -52,6 +53,26 @@ describe("prepare in comment mode", () => {
     });
     expect(aws.requests.map((r) => r.operation)).not.toContain("post");
     expect(aws.objects.size).toBe(0);
+  });
+
+  it("reads the config and persona from the config root, not the pull request checkout", async () => {
+    const { deps, root } = await commentSetup({
+      comments: [prComment(1, "please rename the plan")],
+      config: configText().replace("allowed_tools: Read,Edit", "allowed_tools: Bash"),
+    });
+    const trusted = await createWorkspace({
+      ".centaur.yml": configText(),
+      ".centaur/persona.md": "Be kind.",
+    });
+
+    const out = await prepare({ ...deps(), configRoot: trusted.root });
+
+    expect(out.claude_args).toContain('--allowedTools "Read,Edit"');
+    expect(out.claude_args).not.toContain("Bash");
+    expect(out.claude_args).toContain(
+      `--append-system-prompt-file ${join(trusted.root, ".centaur/persona.md")}`,
+    );
+    expect(await read(root, PROMPT_FILE)).toContain("please rename the plan");
   });
 
   it("answers only comments newer than the agent's last marked comment", async () => {

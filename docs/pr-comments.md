@@ -100,9 +100,9 @@ jobs:
       CENTAUR_SESSION_BUCKET: ${{ vars.CENTAUR_SESSION_BUCKET }}
     steps:
       - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-runtime
+      - uses: blevinstein/centaur/.github/actions/setup-runtime@main
       - id: resolve
-        uses: ./.github/actions/resolve-pr-comment
+        uses: blevinstein/centaur/.github/actions/resolve-pr-comment@main
 
   turn:
     needs: resolve
@@ -122,14 +122,14 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ needs.resolve.outputs.head_ref }}
-      - uses: ./.github/actions/setup-runtime
-      - uses: ./.github/actions/turn
+      - uses: blevinstein/centaur/.github/actions/setup-runtime@main
+      - uses: blevinstein/centaur/.github/actions/turn@main
         with:
           comment: ${{ needs.resolve.outputs.pull_request }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
       - if: failure()
-        uses: ./.github/actions/notify-failure
+        uses: blevinstein/centaur/.github/actions/notify-failure@main
         with:
           comment: ${{ needs.resolve.outputs.pull_request }}
 ```
@@ -139,12 +139,57 @@ Notes on the shape:
 - The group string is identical to the one in `centaur-message.yml`, so a comment turn and a chat
   turn on the same thread run one at a time and never push to the branch concurrently. The key is
   the hashed thread key, never the raw thread ID.
+- The actions come from the centaur repository, never from the checkout of the pull request branch:
+  the turn runs with write tokens and the OIDC role, so a pull request that edits the code it runs
+  would otherwise run that code on its next comment. See [Trust boundary](#trust-boundary).
 - `head_ref` is the pull request head branch, bot-controlled text that reaches `actions/checkout` only as
   an input, never a shell script.
 - The comment body is never used in an `if:` or `run:` expression.
 - A job skipped by `if:` is not a failure, so cheap rejections do not notify anyone.
 - GitHub keeps one pending run per concurrency group and cancels older pending ones. A comment
   whose run is superseded must not be lost; see [Context policy](#context-policy-and-the-prompt).
+
+### Trust boundary
+
+The `turn` job holds `contents: write`, `pull-requests: write` and the OIDC role, and the agent
+edits files the pull request's author (the agent itself, steered by commenters) controls. The
+actions, the built `dist/` runtime and `.centaur.yml` (tools, budget, MCP servers, persona and
+instruction overrides) must therefore come from trusted code, while the agent's working tree, and
+what `finish` commits and pushes, is the pull request branch.
+
+- **Consumers** use `blevinstein/centaur/.github/actions/<name>@main` (or a pinned tag or SHA). The
+  actions and `dist/` are then built from the centaur checkout under `_actions`, never from the
+  consumer's pull request checkout, so a pull request cannot change them. Check out `head_ref` at
+  the workspace root as in the example above; `prepare`, `finish` and the push work on that
+  checkout.
+- **`.centaur.yml` is read from the default branch.** A pull request that edited it (say to widen
+  `allowed_tools`) would otherwise take effect on its next comment turn. A consumer that wants
+  this check out the default branch into a second directory and pass it as the turn action's
+  `config_root`, with `.centaur-trusted` added to `.git/info/exclude` so `finish` does not commit it:
+
+  ```yaml
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.resolve.outputs.head_ref }}
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .centaur-trusted
+          persist-credentials: false
+      - run: echo .centaur-trusted >> .git/info/exclude
+      - uses: blevinstein/centaur/.github/actions/setup-runtime@main
+      - uses: blevinstein/centaur/.github/actions/turn@main
+        with:
+          comment: ${{ needs.resolve.outputs.pull_request }}
+          config_root: ${{ github.workspace }}/.centaur-trusted
+  ```
+
+  Without `config_root`, config, instructions and persona come from the pull request branch.
+- **This repository** is its own consumer and so would run its edited local actions. Its workflow
+  checks out the default branch into `.centaur-trusted` and uses
+  `./.centaur-trusted/.github/actions/...` and `config_root`; the `resolve` job checks out the
+  default branch alone, because for `pull_request_review` the default checkout is the pull
+  request's merge commit.
 
 ## Mapping a pull request to its thread
 

@@ -236,9 +236,17 @@ designed in [pr-comments.md](pr-comments.md). Consumers copy
   and the role variables. It needs `pull-requests: read` and `id-token: write`, and
   `CENTAUR_OIDC_AUDIENCE` in its environment, because it asks the poster to resolve the pull
   request. Outputs: `skip`, `bot`, `thread_key`, `head_ref`, `pull_request`.
-- `turn` checks out `head_ref`, runs the `turn` action with `comment: <pull_request>` and the same
+- `turn` checks out `head_ref` as the agent's working tree, runs the `turn` action with `comment: <pull_request>` and the same
   concurrency group as chat turns of that thread, and `notify-failure` with the same `comment`.
   It needs `contents: write`, `pull-requests: write` and `id-token: write`.
+
+The actions and runtime must not come from the pull request checkout, since the turn holds write
+tokens and the OIDC role. Consumers using `blevinstein/centaur/.github/actions/...@main` already
+get that; they may also pass `config_root` (a checkout of the default branch) so that `.centaur.yml`,
+the instructions and the persona are read from the default branch instead of the pull request
+branch. This repo, which uses its own actions locally, checks out the default branch into
+`.centaur-trusted` and runs `./.centaur-trusted/.github/actions/...`. See
+[Trust boundary](pr-comments.md#trust-boundary).
 
 With `comment` set, the action passes `COMMENT_PULL_REQUEST` and `GITHUB_TOKEN` to `prepare`,
 `finish` and `notify-failure`, and skips `pr-details` and `create-pull-request`. The steps differ

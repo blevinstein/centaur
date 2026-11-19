@@ -104,6 +104,7 @@ program.command("prepare").action(async () => {
   const outputs = await prepare({
     comment: commentDeps(),
     workspace: workspace(),
+    configRoot: process.env.CENTAUR_CONFIG_ROOT || undefined,
     home: homedir(),
     runId: env("GITHUB_RUN_ID"),
     env: process.env,

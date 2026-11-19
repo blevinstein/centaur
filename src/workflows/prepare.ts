@@ -70,6 +70,8 @@ export interface CommentDeps {
 export interface PrepareDeps {
   comment?: CommentDeps | undefined;
   workspace: string;
+  /** Directory holding `.centaur.yml`, the instructions and the persona. Defaults to `workspace`. */
+  configRoot?: string | undefined;
   home: string;
   runId: string;
   env: Record<string, string | undefined>;
@@ -347,7 +349,8 @@ const exists = (path: string) =>
   );
 
 export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
-  const config = parseConfigOrThrow(await readConfigText(deps.workspace));
+  const configRoot = deps.configRoot ?? deps.workspace;
+  const config = parseConfigOrThrow(await readConfigText(configRoot));
   const mcp = buildMcpConfig(config.mcp_servers, deps.env);
   if (mcp.missingSecrets.length > 0) {
     throw new Error(
@@ -360,7 +363,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   if (deps.promptName && deps.comment) {
     throw new Error("a turn is either a scheduled prompt or a pull request comment, not both");
   }
-  const instructions = await loadInstructions(deps.workspace, config.instructions);
+  const instructions = await loadInstructions(configRoot, config.instructions);
   const turn = deps.promptName
     ? await scheduledTurn(deps, config, instructions, deps.promptName)
     : deps.comment
@@ -390,7 +393,12 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     });
   }
 
-  const persona = (await exists(join(deps.workspace, config.persona))) ? config.persona : undefined;
+  const personaPath = join(configRoot, config.persona);
+  const persona = (await exists(personaPath))
+    ? deps.configRoot
+      ? personaPath
+      : config.persona
+    : undefined;
   return {
     skip: false,
     thread_id: turn.mode === "comment" ? "" : (turn.threadId ?? ""),
