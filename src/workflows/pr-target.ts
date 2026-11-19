@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { PosterClient } from "./aws.js";
+import { extractResult } from "./finish.js";
 import { paginate } from "./pull-request-comments.js";
 import { BRANCH_PREFIX, createGitHubRequester, type PullRequestInfo } from "./resolve.js";
 
@@ -159,3 +160,22 @@ export const planOutputs = (plan: PrTarget): Record<string, string> =>
   plan.target === "existing"
     ? { target: "existing", number: String(plan.number), head_ref: plan.headRef }
     : { target: "thread", fallback_reason: plan.fallbackReason ?? "" };
+
+/** The agent's `existing_pr_number`, read from its structured output; absent when unreadable. */
+export function requestedPullRequest(executionFileText: string): number | undefined {
+  try {
+    return extractResult(executionFileText).existingPr;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Plans the turn's target; without GitHub access or with `existing: off` it is the thread's. */
+export async function planForTurn(
+  deps: CandidateDeps | undefined,
+  existing: "bot" | "off",
+  executionFileText: string,
+): Promise<PrTarget> {
+  if (!deps || existing === "off") return { target: "thread" };
+  return planTarget(deps, requestedPullRequest(executionFileText));
+}

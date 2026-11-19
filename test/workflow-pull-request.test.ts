@@ -39,6 +39,12 @@ describe("pullRequestDetails", () => {
     expect(chat.body).not.toContain("telegram");
   });
 
+  it("words the footer for an update", () => {
+    const details = pullRequestDetails(turnState({ promptName: "weekly" }), RUN_URL, {}, "Updated");
+
+    expect(details.body).toMatch(/^Updated by the scheduled prompt `weekly`/);
+  });
+
   it("flattens and bounds the title and bounds the body", () => {
     expect(cleanTitle("one\ntwo\r\n\tthree\u0000")).toBe("one two three");
     const details = pullRequestDetails(turnState(), RUN_URL, {

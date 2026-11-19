@@ -1,12 +1,12 @@
 import { type Exec, execCommand } from "./aws.js";
 
-const BOT_IDENTITY = [
+export const BOT_IDENTITY = [
   "-c",
   "user.name=github-actions[bot]",
   "-c",
   "user.email=41898282+github-actions[bot]@users.noreply.github.com",
 ];
-const NEVER_COMMITTED = [".centaur-turn", ".centaur-trusted"];
+export const NEVER_COMMITTED = [".centaur-turn", ".centaur-trusted"];
 
 const gitIn =
   (workspace: string, exec: Exec) =>

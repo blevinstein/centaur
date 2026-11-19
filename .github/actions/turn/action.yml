@@ -22,7 +22,7 @@ outputs:
     value: ${{ steps.prepare.outputs.skip }}
   pull-request-url:
     description: URL of the pull request the agent opened, if any.
-    value: ${{ steps.pr.outputs.pull-request-url }}
+    value: ${{ steps.push_existing.outputs.pull-request-url || steps.pr.outputs.pull-request-url }}
 runs:
   using: composite
   steps:
@@ -62,9 +62,29 @@ runs:
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" pr-details
 
+    - name: Plan pull request target
+      id: plan
+      if: steps.prepare.outputs.skip != 'true' && inputs.comment == ''
+      shell: bash
+      env:
+        EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
+        CENTAUR_CONFIG_ROOT: ${{ inputs.config_root }}
+        GITHUB_TOKEN: ${{ github.token }}
+      run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" plan-pr
+
+    - name: Update existing pull request
+      id: push_existing
+      if: steps.prepare.outputs.skip != 'true' && inputs.comment == '' && steps.plan.outputs.target == 'existing'
+      shell: bash
+      env:
+        TARGET_HEAD_REF: ${{ steps.plan.outputs.head_ref }}
+        TARGET_PR_NUMBER: ${{ steps.plan.outputs.number }}
+        PR_TITLE: ${{ steps.pr_details.outputs.title }}
+      run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" push-existing
+
     - name: Open pull request
       id: pr
-      if: steps.prepare.outputs.skip != 'true' && inputs.comment == ''
+      if: steps.prepare.outputs.skip != 'true' && inputs.comment == '' && (steps.plan.outputs.target == 'thread' || steps.push_existing.outputs.fallback == 'true')
       uses: peter-evans/create-pull-request@v8
       with:
         token: ${{ github.token }}
@@ -78,8 +98,12 @@ runs:
       shell: bash
       env:
         EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
-        PULL_REQUEST_URL: ${{ steps.pr.outputs.pull-request-url }}
-        PULL_REQUEST_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+        PULL_REQUEST_URL: ${{ steps.push_existing.outputs.pull-request-url || steps.pr.outputs.pull-request-url }}
+        PULL_REQUEST_NUMBER: ${{ steps.push_existing.outputs.pull-request-number || steps.pr.outputs.pull-request-number }}
+        PULL_REQUEST_UPDATED: ${{ steps.push_existing.outputs.pull-request-url != '' }}
+        FALLBACK_REASON: ${{ steps.plan.outputs.fallback_reason || steps.push_existing.outputs.reason }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        CENTAUR_CONFIG_ROOT: ${{ inputs.config_root }}
         COMMENT_PULL_REQUEST: ${{ inputs.comment }}
         GITHUB_TOKEN: ${{ github.token }}
       run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" finish

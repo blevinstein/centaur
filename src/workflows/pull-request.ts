@@ -19,20 +19,21 @@ export interface PullRequestDeps {
   runUrl: string;
 }
 
-const origin = (state: TurnState) =>
+const origin = (state: TurnState, verb: string) =>
   state.promptName
-    ? `Opened by the scheduled prompt \`${state.promptName}\` of bot \`${state.bot}\``
-    : `Opened by a chat turn of bot \`${state.bot}\``;
+    ? `${verb} by the scheduled prompt \`${state.promptName}\` of bot \`${state.bot}\``
+    : `${verb} by a chat turn of bot \`${state.bot}\``;
 
 export function pullRequestDetails(
   state: TurnState,
   runUrl: string,
   agent: { title?: string | undefined; body?: string | undefined } = {},
+  verb = "Opened",
 ): PullRequestDetails {
   const fallbackTitle = state.promptName
     ? cleanTitle(`${DEFAULT_TITLE}: ${state.promptName}`)
     : DEFAULT_TITLE;
-  const footer = `${origin(state)} in [this workflow run](${runUrl}).`;
+  const footer = `${origin(state, verb)} in [this workflow run](${runUrl}).`;
   const description = cleanBody(agent.body);
   return {
     title: cleanTitle(agent.title) || fallbackTitle,

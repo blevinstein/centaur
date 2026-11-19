@@ -291,7 +291,7 @@ can write.
 - [x] PR targets 3: `plan-pr` validation as a pure function with a fake GitHub client and poster.
 - [x] PR targets 4: `push-existing` transplant (patch, worktree, `git apply --3way`, plain push, fall
       back on conflict), tested on real git repos.
-- [ ] PR targets 5: wire the `turn` action (`plan-pr`, conditional `create-pull-request` and
+- [x] PR targets 5: wire the `turn` action (`plan-pr`, conditional `create-pull-request` and
       `push-existing`), chat note and marked PR comment.
 - [x] PR targets 6: comment-mode `pr_action: new` (`pushNewBranch`, `createPullRequest`, double link).
 - [ ] PR targets 7: docs sweep, including the "dismiss stale approvals" advice.

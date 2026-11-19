@@ -195,13 +195,21 @@ Commands: `register`, `resolve`, `prepare`, `pr-details`, `finish`, `notify-fail
 2. `claude-code-action` runs with a constant prompt telling it to read the prompt file. If
    `allowed_tools` lacks `Read`, `Read(./.centaur-turn/**)` is added so it can.
 3. `pr-details` builds the pull request title and body from the agent's optional `pr_title` and
-   `pr_body` structured output (see below). `create-pull-request` then opens (or updates)
-   `centaur/<bot>-<thread>` when files changed, using the title as both commit message and title.
+   `pr_body` structured output (see below). `plan-pr` then decides where the changes land (see
+   below). Unless the plan chose an existing pull request and `push-existing` updated it,
+   `create-pull-request` opens (or updates) `centaur/<bot>-<thread>` when files changed, using the
+   title as both commit message and title.
 4. `finish` takes the reply from the action's execution file, appends the pull request link, posts
    it (`post`, or `start-thread` for scheduled prompts and `/new`; `prepare` records the target in
    the turn state: the prompt's `destination` alias, which the poster resolves to a chat approved for the bot, or the originating thread for `/new`), advances the marker and saves the
    session for `resume` threads. When the agent returned `ignore: true` nothing is posted unless a
-   pull request was opened, in which case only its link is posted;  the marker and session are still saved.
+   pull request was opened or updated, in which case only its link is posted;  the marker and session are still saved.
+   The link reads `Pull request: <url>`, or `Updated pull request: <url>` when `push-existing`
+   updated an existing one (it also posts a `<!-- centaur:reply -->` conversation comment there
+   with the title and body, leaving the pull request's own title and body alone). When the
+   agent's choice fell back, the note adds `Could not update #N (<reason>); opened the usual pull
+   request instead.`, with the reason code from `plan-pr` or `push-existing`; it is omitted when no
+   pull request was opened.
    When `create-pull-request` produced a pull request, `finish` also links it to the thread it
    replied in (for scheduled prompts, the thread just started) with the poster's
    `link-pull-request`, authenticated by the same OIDC token as `register`; a failure is a warning
@@ -230,7 +238,7 @@ Two more optional fields choose the pull request a turn targets, each present on
 `existing_pr_number` (a positive integer, chat and scheduled turns). `extractResult` returns them as
 `prAction` and `existingPr`; a malformed value fails the reply like any other schema violation, and
 `finish` ignores a field that does not fit the turn's mode with a `::warning::` that names no
-content. Nothing acts on either field yet.
+content.
 
 `prepare` lists the pull requests a chat or scheduled turn may update when `existing` is `bot`:
 open pull requests of this repository, not forks, from `centaur/<bot>-` branches authored by
@@ -243,11 +251,13 @@ and the "number must be listed" sentence are all omitted. `prepare` needs `GITHU
 `GITHUB_TOKEN` for this and lists nothing without them. Comment turns list nothing.
 
 `centaur-workflow plan-pr` re-derives the same candidate set from GitHub, never from
-`.centaur-turn/state.json`, and checks `EXISTING_PR_NUMBER` against it. It writes the outputs
+`.centaur-turn/state.json`, and checks the agent's `existing_pr_number`, read from the execution
+file (`EXECUTION_FILE`) like `pr-details` and `finish` do, against it. With `existing: off` or
+without `GITHUB_TOKEN` it plans `thread` without calling GitHub. It reads `.centaur.yml` from
+`CENTAUR_CONFIG_ROOT` when set. It writes the outputs
 `target` (`existing` or `thread`), `number` and `head_ref` for `existing`, and `fallback_reason`
 for `thread` (`not_open`, `not_candidate`, `not_allowed`, `lookup_failed`, or empty), none of which
-carries pull request content. An absent or malformed number means `thread` with no reason. The
-action does not call it yet.
+carries pull request content. An absent or malformed number means `thread` with no reason.
 
 `centaur-workflow push-existing` moves the agent's changes onto the planned pull request without
 touching the workspace. It reads `TARGET_HEAD_REF` and `TARGET_PR_NUMBER` (the `plan-pr` outputs)
@@ -259,7 +269,13 @@ prefix, no `..`, no whitespace or leading dash). Outputs: `fallback` (`true` on 
 `reason` (`invalid_ref`, `patch_failed`, `fetch_failed`, `conflict`, `push_rejected`; never file
 contents), and on success `pull-request-url` and `pull-request-number`. With no changes it succeeds
 and sets neither. On failure the worktree is removed and the workspace is as the agent left it, so
-the action can fall back to `create-pull-request`. The action does not call it yet.
+the action falls back to `create-pull-request`, which runs when the plan is `thread` or
+`push-existing` reported `fallback`. `push-existing` runs only for an `existing` plan; the
+action passes `TARGET_HEAD_REF`, `TARGET_PR_NUMBER` and the `pr-details` title as `PR_TITLE`.
+`finish` receives `PULL_REQUEST_URL` and `PULL_REQUEST_NUMBER` from whichever step produced the
+pull request, `PULL_REQUEST_UPDATED` (`true` when `push-existing` updated one),
+`FALLBACK_REASON` and `RUN_URL`. An updated existing pull request is not linked to the current
+thread; `resolve-pull-request` already refreshed its link while the plan was validated.
 
 ### Comment turns
 
@@ -285,7 +301,8 @@ branch. This repo, which uses its own actions locally, checks out the default br
 [Trust boundary](pr-comments.md#trust-boundary).
 
 With `comment` set, the action passes `COMMENT_PULL_REQUEST` and `GITHUB_TOKEN` to `prepare`,
-`finish` and `notify-failure`, and skips `pr-details` and `create-pull-request`. The steps differ
+`finish` and `notify-failure` (and `CENTAUR_CONFIG_ROOT` to `prepare` and `finish`, so `finish`
+reads `pull_requests.comment_new` from the trusted config root, not the pull request branch), and skips `pr-details` and `create-pull-request`. The steps differ
 from a chat turn as follows:
 
 - `prepare` (comment mode) resolves the thread through the poster (masking the raw thread ID),

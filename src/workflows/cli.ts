@@ -6,12 +6,7 @@ import { cleanTitle } from "./clean-text.js";
 import { parseConfigOrThrow, readConfigText } from "./config-file.js";
 import { finish, notifyFailure } from "./finish.js";
 import { maskValue, writeOutputs } from "./github-output.js";
-import {
-  createPullRequestTargetClient,
-  type PrTarget,
-  planOutputs,
-  planTarget,
-} from "./pr-target.js";
+import { createPullRequestTargetClient, planForTurn, planOutputs } from "./pr-target.js";
 import { prepare } from "./prepare.js";
 import { describePullRequest } from "./pull-request.js";
 import { createPullRequestReader, createPullRequestWriter } from "./pull-request-comments.js";
@@ -165,14 +160,11 @@ program.command("plan-pr").action(async () => {
     await readConfigText(process.env.CENTAUR_CONFIG_ROOT || workspace()),
   );
   const targets = targetDeps();
-  const requested = Number(process.env.EXISTING_PR_NUMBER);
-  const plan: PrTarget =
-    targets && config.pull_requests.existing !== "off"
-      ? await planTarget(
-          { ...targets, bot: config.bot, poster: poster() },
-          process.env.EXISTING_PR_NUMBER ? requested : undefined,
-        )
-      : { target: "thread" };
+  const plan = await planForTurn(
+    targets && { ...targets, bot: config.bot, poster: poster() },
+    config.pull_requests.existing,
+    await readFile(env("EXECUTION_FILE"), "utf8"),
+  );
   if (plan.target === "thread" && plan.fallbackReason) {
     console.log(`::notice::Using the thread's pull request (${plan.fallbackReason})`);
   }
@@ -212,6 +204,20 @@ program.command("pr-details").action(async () => {
   await writeOutputs(env("GITHUB_OUTPUT"), { ...details });
 });
 
+const updatedPullRequestDeps = () => {
+  const number = Number(process.env.PULL_REQUEST_NUMBER);
+  if (process.env.PULL_REQUEST_UPDATED !== "true" || !Number.isInteger(number) || number <= 0) {
+    return undefined;
+  }
+  const repository = env("GITHUB_REPOSITORY");
+  return {
+    repository,
+    runUrl: env("RUN_URL"),
+    number,
+    github: createPullRequestWriter(env("GITHUB_TOKEN"), process.env.GITHUB_API_URL),
+  };
+};
+
 program.command("finish").action(async () => {
   const pullRequestNumber = Number(process.env.PULL_REQUEST_NUMBER);
   const comment = commentFinishDeps();
@@ -219,6 +225,8 @@ program.command("finish").action(async () => {
     workspace: workspace(),
     executionFile: env("EXECUTION_FILE"),
     comment: comment && { ...comment, newPullRequest: await newPullRequestDeps() },
+    updatedPullRequest: updatedPullRequestDeps(),
+    fallbackReason: process.env.FALLBACK_REASON || undefined,
     pullRequestUrl: process.env.PULL_REQUEST_URL || undefined,
     pullRequestLink: {
       number:

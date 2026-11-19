@@ -5,6 +5,7 @@ import { threadKey } from "../thread-key.js";
 import type { PosterClient, ThreadStore } from "./aws.js";
 import { cleanBody, cleanTitle } from "./clean-text.js";
 import { STATE_FILE, type TurnState } from "./prepare.js";
+import { pullRequestDetails } from "./pull-request.js";
 import type { PullRequestWriter } from "./pull-request-comments.js";
 import { clearReactions } from "./reactions.js";
 import { BRANCH_PREFIX, REPLY_MARKER } from "./resolve.js";
@@ -71,7 +72,18 @@ export interface CommentFinishDeps {
   push: (message: string) => Promise<number>;
 }
 
+/** Present when the turn's changes were pushed to an existing pull request. */
+export interface UpdatedPullRequestDeps {
+  repository: string;
+  runUrl: string;
+  number: number;
+  github: Pick<PullRequestWriter, "comment">;
+}
+
 export interface FinishDeps {
+  updatedPullRequest?: UpdatedPullRequestDeps | undefined;
+  /** Why the agent's chosen pull request was not updated; the usual pull request was opened. */
+  fallbackReason?: string | undefined;
   comment?: CommentFinishDeps | undefined;
   workspace: string;
   executionFile: string;
@@ -110,12 +122,47 @@ async function deliverReply(
   state: TurnState,
   result: ReturnType<typeof extractResult>,
 ) {
-  const text = [result.reply, deps.pullRequestUrl && `Pull request: ${deps.pullRequestUrl}`]
+  const { pullRequestUrl, updatedPullRequest, fallbackReason } = deps;
+  const text = [
+    result.reply,
+    pullRequestUrl &&
+      `${updatedPullRequest ? "Updated pull request" : "Pull request"}: ${pullRequestUrl}`,
+    pullRequestUrl &&
+      !updatedPullRequest &&
+      fallbackReason &&
+      result.existingPr !== undefined &&
+      `Could not update #${result.existingPr} (${fallbackReason}); opened the usual pull request instead.`,
+  ]
     .filter(Boolean)
     .join("\n\n");
   if (text) return deliver(deps.poster, state, text, result.title);
   if (!state.threadId) throw new Error("the agent can only stay silent in an existing thread");
   return state.threadId;
+}
+
+/** Best-effort: leaves the title and body of the updated pull request alone. */
+async function commentOnUpdatedPullRequest(
+  updated: UpdatedPullRequestDeps,
+  state: TurnState,
+  result: ReturnType<typeof extractResult>,
+) {
+  const details = pullRequestDetails(
+    state,
+    updated.runUrl,
+    { title: result.prTitle, body: result.prBody },
+    "Updated",
+  );
+  try {
+    await updated.github.comment(
+      updated.repository,
+      updated.number,
+      `${REPLY_MARKER}\n**${details.title}**\n\n${details.body}`,
+    );
+  } catch (error) {
+    console.warn(
+      `::warning::could not comment on the updated pull request (${(error as Error).constructor.name})`,
+    );
+  }
 }
 
 /** Best-effort: a failure is reported as a warning naming only the error type. */
@@ -274,6 +321,10 @@ export async function finish(deps: FinishDeps) {
       await linkPullRequest(deps.poster, { ...link, number: answered.opened }, state.bot, threadId);
     }
   } else {
+    if (deps.updatedPullRequest) {
+      await commentOnUpdatedPullRequest(deps.updatedPullRequest, state, result);
+      link = link && { ...link, number: undefined };
+    }
     threadId = await deliverReply(deps, state, result);
   }
   await linkPullRequest(deps.poster, link, state.bot, threadId);

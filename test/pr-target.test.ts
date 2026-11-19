@@ -3,10 +3,13 @@ import {
   checkCandidate,
   listCandidates,
   MAX_CANDIDATES,
+  planForTurn,
   planOutputs,
   planTarget,
+  requestedPullRequest,
 } from "../src/workflows/pr-target.js";
 import { candidatePr, targetSetup } from "./helpers/pr-target-fixtures.js";
+import { executionText } from "./helpers/workflow-fixtures.js";
 
 describe("checkCandidate", () => {
   it("accepts an open, same-repo, bot-authored branch with no poster record", async () => {
@@ -181,5 +184,51 @@ describe("planOutputs", () => {
       fallback_reason: "not_open",
     });
     expect(planOutputs({ target: "thread" })).toEqual({ target: "thread", fallback_reason: "" });
+  });
+});
+
+describe("requestedPullRequest", () => {
+  it("reads existing_pr_number from the agent's structured output", () => {
+    expect(requestedPullRequest(executionText({ reply: "ok", existing_pr_number: 7 }))).toBe(7);
+    expect(requestedPullRequest(executionText({ reply: "ok" }))).toBeUndefined();
+  });
+
+  it("is absent for unreadable output or a malformed number", () => {
+    expect(requestedPullRequest("not json")).toBeUndefined();
+    expect(
+      requestedPullRequest(executionText({ reply: "ok", existing_pr_number: -1 })),
+    ).toBeUndefined();
+    expect(requestedPullRequest(executionText({ existing_pr_number: 3 }))).toBeUndefined();
+  });
+});
+
+describe("planForTurn", () => {
+  const execution = executionText({ reply: "ok", existing_pr_number: 5 });
+
+  it("targets the agent's open candidate", async () => {
+    const { candidateDeps } = targetSetup({ open: [candidatePr(5)] });
+
+    await expect(planForTurn(candidateDeps, "bot", execution)).resolves.toMatchObject({
+      target: "existing",
+      number: 5,
+    });
+  });
+
+  it("uses the thread's pull request when existing is off or there is no GitHub access", async () => {
+    const { candidateDeps, github } = targetSetup({ open: [candidatePr(5)] });
+
+    await expect(planForTurn(candidateDeps, "off", execution)).resolves.toEqual({
+      target: "thread",
+    });
+    await expect(planForTurn(undefined, "bot", execution)).resolves.toEqual({ target: "thread" });
+    expect(github.listOpenPullRequests).not.toHaveBeenCalled();
+  });
+
+  it("uses the thread's pull request, without a reason, when the agent named none", async () => {
+    const { candidateDeps } = targetSetup({ open: [candidatePr(5)] });
+
+    await expect(
+      planForTurn(candidateDeps, "bot", executionText({ reply: "ok" })),
+    ).resolves.toEqual({ target: "thread" });
   });
 });

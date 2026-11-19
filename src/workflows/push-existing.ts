@@ -2,15 +2,9 @@ import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Exec, execCommand } from "./aws.js";
+import { BOT_IDENTITY, NEVER_COMMITTED } from "./push.js";
 import { BRANCH_PREFIX } from "./resolve.js";
 
-const BOT_IDENTITY = [
-  "-c",
-  "user.name=github-actions[bot]",
-  "-c",
-  "user.email=41898282+github-actions[bot]@users.noreply.github.com",
-];
-const NEVER_COMMITTED = [".centaur-turn", ".centaur-trusted"];
 const SAFE_HEAD_REF = /^[A-Za-z0-9._/-]+$/;
 
 export type PushExistingFailure =

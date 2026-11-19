@@ -804,3 +804,96 @@ describe("prepare pull request candidates", () => {
     expect(await prompt(turn.root)).toContain("#3:");
   });
 });
+
+describe("finish with an existing pull request target", () => {
+  const URL = "https://example.test/pr/9";
+
+  async function finished(
+    structured: object,
+    extra: Partial<Parameters<typeof finish>[0]> = {},
+    config = configText(),
+  ) {
+    const turn = await setup([message("1", "hi")], config);
+    await prepare(turn.deps());
+    await turn.writeExecution({ structured_output: structured });
+    const github = { comment: vi.fn(async () => {}) };
+    await finish({
+      workspace: turn.root,
+      executionFile: turn.executionFile,
+      poster: turn.aws.poster,
+      storeFor: turn.aws.storeFor,
+      pullRequestLink: pullRequestLink(9),
+      ...extra,
+    });
+    const posted = turn.aws.requests.find((r) => r.operation === "post");
+    return { ...turn, github, text: (posted as { text?: string } | undefined)?.text };
+  }
+
+  const updated = (comment = vi.fn(async () => {})) => ({
+    pullRequestUrl: URL,
+    updatedPullRequest: {
+      repository: "octo/sprout",
+      runUrl: "https://example.test/run/1",
+      number: 9,
+      github: { comment },
+    },
+  });
+
+  it("announces the update, comments with the title and body, and does not link the pull request", async () => {
+    const comment = vi.fn(async () => {});
+    const { text, aws } = await finished(
+      { reply: "Done.", pr_title: "Add basil", pr_body: "More herbs." },
+      updated(comment),
+    );
+
+    expect(text).toBe(`Done.\n\nUpdated pull request: ${URL}`);
+    expect(comment).toHaveBeenCalledWith(
+      "octo/sprout",
+      9,
+      expect.stringMatching(
+        /^<!-- centaur:reply -->\n\*\*Add basil\*\*\n\nMore herbs\.\n\n---\n\nUpdated by a chat turn of bot `sprout` in \[this workflow run\]/,
+      ),
+    );
+    expect(aws.requests.map((r) => r.operation)).not.toContain("link-pull-request");
+  });
+
+  it("posts only the update link when the agent ignores the messages", async () => {
+    const { text } = await finished({ ignore: true }, updated(), configText("respond_to: all"));
+
+    expect(text).toBe(`Updated pull request: ${URL}`);
+  });
+
+  it("still delivers the reply when the comment on the existing pull request fails", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const comment = vi.fn(async () => {
+      throw new Error("secret detail");
+    });
+    const { text } = await finished({ reply: "Done." }, updated(comment));
+
+    expect(text).toBe(`Done.\n\nUpdated pull request: ${URL}`);
+    expect(warn.mock.calls.flat().join()).toContain("could not comment");
+    expect(warn.mock.calls.flat().join()).not.toContain("secret detail");
+    warn.mockRestore();
+  });
+
+  it("warns about the fallback after opening the usual pull request, and still links it", async () => {
+    const { text, aws } = await finished(
+      { reply: "Done.", existing_pr_number: 7 },
+      { pullRequestUrl: URL, fallbackReason: "conflict" },
+    );
+
+    expect(text).toBe(
+      `Done.\n\nPull request: ${URL}\n\nCould not update #7 (conflict); opened the usual pull request instead.`,
+    );
+    expect(aws.requests.map((r) => r.operation)).toContain("link-pull-request");
+  });
+
+  it("omits the fallback warning when no pull request was opened", async () => {
+    const { text } = await finished(
+      { reply: "Done.", existing_pr_number: 7 },
+      { fallbackReason: "not_open" },
+    );
+
+    expect(text).toBe("Done.");
+  });
+});
