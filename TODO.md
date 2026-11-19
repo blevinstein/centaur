@@ -252,15 +252,15 @@ agent proposes a change, a human reviews it, and the agent revises it.
 - [x] PR comments 6: wire the `turn` action with a `comment` input.
 - [x] PR comments 7: `.github/workflows/centaur-pr-comment.yml` in this repo and the docs that say
       it exists.
-- [ ] PR comments 8: verify event coverage on a real PR (inline comment, batched review, inline
+- [x] PR comments 8: verify event coverage on a real PR (inline comment, batched review, inline
       reply, conversation comment, fork PR, bot comment) and settle
       `pull_request_review_comment`. Needs `centaur-pr-comment.yml` on `main`, the deployed poster
       (`withThreadId`) and a real `centaur/` PR with a linked thread (**[HUMAN ACTION]**).
       Verified on a real PR (run `centaur-hello` with `-f prompt_name=pr-smoke`): conversation
       comment, inline comment, batched review (conversation reply) and inline reply (threaded
       reply); each fires `pull_request_review` or `issue_comment` only, so
-      `pull_request_review_comment` is not needed. Still to verify, with a second GitHub account:
-      a commenter without write access, a bot comment, and a fork PR.
+      `pull_request_review_comment` is not needed. A commenter without write access and a fork PR
+      are skipped with the expected reasons. Bot senders are covered by unit tests only.
 - [ ] PR comments 9: reference consumer in `blevinstein/garden` and the end-to-end check, where a
       review comment on a `weekly-tasks` PR gets an in-thread reply and a pushed fix.
 
