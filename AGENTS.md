@@ -59,7 +59,7 @@
   (`src/workflows/prompt.ts`), `resultMessage` and `extractResult` (`src/workflows/finish.ts`), and
   `docs/workflows.md`. The PR step in `.github/actions/turn/action.yml` reads the `pr-details` outputs.
 - Agent prompt guidance lives in `src/workflows/instructions/*.md` (copied to `dist/` by
-  `yarn build`) and is overridable via `.centaur.yml` `instructions`. Anything the code parses or
+  `yarn build`) and is overridable via the config's `instructions`. Anything the code parses or
   that guards untrusted input stays in `prompt.ts`, not in those files.
 - PR comment turns: `resolve` (`src/workflows/resolve.ts`) gates them and never outputs the raw thread
   ID. `COMMENT_PULL_REQUEST` enables comment-mode `prepare`; `src/workflows/pull-request-comments.ts`
@@ -72,7 +72,7 @@
   runner-only) out of the Lambda bundle: do not re-export it from `src/config/index.ts`.
 - `PrepareDeps.env` carries the secrets named in `mcp_servers`; `prepare` fails before any poster
   call if one is unset. Tests that need git use `test/helpers/git-fixtures.ts`.
-- Comment turns run the actions and read `.centaur.yml`, the persona and the instructions from a
+- Comment turns run the actions and read the config (`.centaur.yml` or `.centaur/config.yml`), the persona and the instructions from a
   default-branch checkout (`.centaur-trusted`, via `config_root`); the PR branch is the workspace
   root. Don't use `./.github/actions` in a job that checks out untrusted code.
 - The structured-output fields `pr_action` and `existing_pr_number` are gated by the
@@ -85,3 +85,5 @@
   (`test/turn-action.test.ts`).
 - Tests must not synchronize on side-effecting probes such as `acquireLock`; wait on a gate the
   handler opens, and fake `Date` instead of sleeping past a TTL.
+- Read the config only through `findConfigFile`/`readConfigText` (`src/workflows/config-file.ts`);
+  never hard-code a config path. `.centaur/config.yml` and `.centaur.yml` are both supported.

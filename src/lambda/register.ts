@@ -31,7 +31,7 @@ export function createRegister({
   return async ({ token, config: configText }: RegisterRequest) => {
     const { repository } = await oidc.verify(token);
     const parsed = parseCentaurConfig(configText);
-    if (!parsed.ok) throw new Error(`invalid .centaur.yml:\n${formatIssues(parsed.issues)}`);
+    if (!parsed.ok) throw new Error(`invalid Centaur config:\n${formatIssues(parsed.issues)}`);
     const { bot, platform, respond_to } = parsed.config;
 
     const { secrets, repo: boundRepo } = await loadBotBinding(params, bot);

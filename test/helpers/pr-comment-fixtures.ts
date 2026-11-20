@@ -69,6 +69,7 @@ export async function commentSetup(
     comments: PullRequestComment[];
     messages?: ReturnType<typeof import("./workflow-fixtures.js").message>[];
     config?: string;
+    configFile?: string;
     files?: Record<string, string>;
     bot?: string;
     found?: boolean;
@@ -98,7 +99,7 @@ export async function commentSetup(
   };
   const mask = vi.fn();
   const { root, home } = await createWorkspace({
-    ".centaur.yml": options.config ?? configText(),
+    [options.configFile ?? ".centaur.yml"]: options.config ?? configText(),
     ".centaur/persona.md": "Be kind.",
     ...options.files,
   });

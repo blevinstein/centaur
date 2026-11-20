@@ -3,7 +3,7 @@
 Status: implemented and verified against the remote GitHub MCP server, using the Actions token as the
 bearer. `prepare` writes the config and the turn fails on a missing secret. `register` enforces the
 operator policy below. This describes how a consumer repo adds MCP servers to a turn through
-`.centaur.yml` ([config.md](config.md), [workflows.md](workflows.md#agent-turn)). The agent has no
+the config ([config.md](config.md), [workflows.md](workflows.md#agent-turn)). The agent has no
 MCP servers beyond the ones `claude-code-action` provides itself.
 
 ## What `claude-code-action` accepts
@@ -82,7 +82,7 @@ rather than starting a server that fails to authenticate.
 ## Secrets
 
 Composite actions cannot read `secrets.*` themselves; only the caller workflow can. `turn` already
-takes the two model keys as inputs for this reason, but arbitrary names defined in `.centaur.yml`
+takes the two model keys as inputs for this reason, but arbitrary names defined in the config
 cannot be declared as inputs in advance. Options:
 
 | Option | Mechanism | Assessment |
@@ -93,7 +93,7 @@ cannot be declared as inputs in advance. Options:
 | D. Caller JSON of named secrets | `mcp_secrets: ${{ toJSON({LINEAR_API_KEY: secrets.LINEAR_API_KEY}) }}` | Same exposure as C with an extra parse step and an input to document. |
 
 Recommendation: C. The caller workflow is the consent boundary: a secret reaches the turn only when
-the consumer wrote a line naming it, and a `.centaur.yml` edit cannot widen that set. Env set on the
+the consumer wrote a line naming it, and a config edit cannot widen that set. Env set on the
 `uses:` step is inherited by the composite action's steps.
 
 `prepare` must not write the secret into `mcp.json`. It writes the config with Claude Code's
@@ -145,11 +145,11 @@ secrets.
 A server entry is code execution (`command`) or a data and credential channel (`url`, `headers`)
 with the turn's secrets. The question is who can introduce one.
 
-Which config a turn reads: `prepare` reads `.centaur.yml` from the workspace, which the caller's
+Which config a turn reads: `prepare` reads the config from the workspace, which the caller's
 `actions/checkout` populates. The caller workflows run on `repository_dispatch` and `schedule`,
 which GitHub only runs from the default branch, and check out its head. So turns read config from
 the default branch, never from a pull request branch. The agent's own pull requests
-(`centaur/<bot>-<thread>`) can edit `.centaur.yml`, but the edit has no effect until a human merges
+(`centaur/<bot>-<thread>`) can edit the config, but the edit has no effect until a human merges
 it. `register` also runs on pushes to the default branch.
 
 Consequences:
@@ -159,7 +159,7 @@ Consequences:
   what a merge grants less obvious in a diff.
 - A bot-authored pull request that adds a server is the realistic attack: a prompt-injected agent
   proposes `mcp_servers` plus `allowed_tools` entries that exfiltrate secrets. Review of
-  `.centaur.yml` changes in agent pull requests is the control, which is why the mitigations below
+  config changes in agent pull requests is the control, which is why the mitigations below
   make the dangerous shapes fail validation instead of relying on a reviewer to notice them.
 - Another workflow (a manual `workflow_dispatch` on a feature branch) can run a turn from a branch
   config. That is the maintainer's explicit act and needs no extra handling.

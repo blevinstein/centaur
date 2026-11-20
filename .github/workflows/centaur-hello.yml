@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       prompt_name:
-        description: Prompt in .centaur.yml to run.
+        description: Prompt in the Centaur config to run.
         default: hello
 
 permissions:

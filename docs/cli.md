@@ -24,7 +24,7 @@ The CLI talks to SSM through the AWS SDK's default credential chain and region (
 ## Names
 
 Bot names and chat aliases given to the CLI must match `[a-z0-9][a-z0-9_-]*` (lowercase letters,
-digits, `-` and `_`), the same pattern `.centaur.yml` uses. Anything else is rejected before SSM is
+digits, `-` and `_`), the same pattern the config uses. Anything else is rejected before SSM is
 touched.
 
 ## Commands
@@ -167,7 +167,7 @@ Deletes `/centaur/github/token`. Refuses if no token is stored.
 
 ### `centaur config check [path]`
 
-Validates a `.centaur.yml` (default: `.centaur.yml` in the current directory) with the same parser
+Validates a config file (default: `.centaur.yml` or `.centaur/config.yml` in the current directory) with the same parser
 the receiver and workflows use, and prints `<path> is valid.` or every issue with its dotted path.
 It runs offline: no SSM access or AWS credentials are needed. It does not check that aliases in
 `chats` resolve to anything in SSM. Exits 1 if the file is missing, is not valid YAML, or fails
@@ -176,6 +176,7 @@ the schema; see [Parsing](config.md#parsing).
 ```sh
 centaur config check
 centaur config check path/to/.centaur.yml
+centaur config check path/to/.centaur/config.yml
 ```
 
 ## Supplying secrets
@@ -234,7 +235,7 @@ export AWS_PROFILE=centaur AWS_REGION=us-east-1
 centaur bot add garden --platform telegram      # paste the BotFather token at the hidden prompt
 ```
 
-Then push the repo's `.centaur.yml`; its `register` job binds the bot (`bots/garden/repo`) and sets
+Then push the repo's config; its `register` job binds the bot (`bots/garden/repo`) and sets
 the webhook. Run `centaur admin claim garden` and open the link to become the admin; chats and users then arrive as access requests. If you already know an ID, `centaur access approve garden
 chat <id> --name "Garden Club"` or `centaur access approve garden user <id>` approves it directly.
 To retire the bot later, run `centaur bot unbind garden` and `centaur bot remove

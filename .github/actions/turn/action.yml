@@ -1,14 +1,14 @@
 name: Centaur agent turn
-description: One agent turn. Answers the dispatched chat message, or with prompt_name starts a new thread from that prompt in .centaur.yml, or with comment answers the comments on that pull request. Run after checkout and the centaur setup-runtime step.
+description: One agent turn. Answers the dispatched chat message, or with prompt_name starts a new thread from that prompt in the Centaur config, or with comment answers the comments on that pull request. Run after checkout and the centaur setup-runtime step.
 inputs:
   comment:
     description: Number of a pull request to answer comments on (the resolve job's pull_request output), with its head branch checked out. Pushes to that branch instead of opening a pull request, and needs contents and pull-requests write plus id-token write.
     default: ""
   config_root:
-    description: Directory to read .centaur.yml, the instructions and the persona from, instead of the workspace. Set it to a checkout of the default branch for a pull request comment turn, so the pull request cannot change the agent's tools or persona.
+    description: Directory to read the Centaur config, the instructions and the persona from, instead of the workspace. Set it to a checkout of the default branch for a pull request comment turn, so the pull request cannot change the agent's tools or persona.
     default: ""
   prompt_name:
-    description: Name of a prompt in .centaur.yml; starts a new thread instead of answering a dispatched message.
+    description: Name of a prompt in the Centaur config; starts a new thread instead of answering a dispatched message.
     default: ""
   anthropic_api_key:
     description: Used when the bot's provider is anthropic.

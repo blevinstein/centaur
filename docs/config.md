@@ -1,9 +1,25 @@
-# `.centaur.yml`
+# Centaur config (`.centaur.yml` or `.centaur/config.yml`)
 
 Per-consumer-repo configuration. The schema lives in `src/config/schema.ts` (zod); the receiver,
 `register` operation and shared workflows all go through `parseCentaurConfig(text)` from
 `src/config/`. See [plan.md](plan.md#configuration) for how the file fits into the system and
 [onboarding.md](onboarding.md#adding-a-repo) for setup. MCP server design: [mcp.md](mcp.md).
+
+## Location
+
+The config lives in one of two places, both permanently supported:
+
+- `.centaur.yml` at the repo root: best for a repo that needs only the config, or a few files.
+- `.centaur/config.yml`: best for a repo with many prompts, instructions and other files under
+  `.centaur/`, so everything Centaur reads sits in one directory.
+
+Every reader (`prepare`, `register`, the turn's `config_root` copy and `centaur config check`)
+looks for both. If exactly one exists it is used. If both exist, they fail naming both files;
+remove one. If neither exists, they fail naming both paths.
+
+Paths inside the config (`persona`, `instructions`, prompt files) are relative to the repo root,
+not to the config file, and the MCP policy is `.centaur/mcp-policy.cedar` at the repo root, wherever
+the config lives. The register workflow's `paths` filter lists both locations.
 
 ```yaml
 bot: garden
@@ -79,7 +95,7 @@ server needs at least one such entry. At registration and on every turn every se
 
 ## Access
 
-`.centaur.yml` holds no allowlist: `allow` and `chats` are validation errors that point to `centaur
+The config holds no allowlist: `allow` and `chats` are validation errors that point to `centaur
 access`. Access is only what the admin approves. The effective access for a bot is the platform's
 admin (implicitly allowed everywhere on their platform, and never blockable) plus the chats and
 users approved for that bot through an [access request](plan.md#access-requests) or `centaur access
@@ -178,7 +194,7 @@ invalid YAML). Parsing never throws on bad input.
 - **Result, not exceptions.** `register` and the workflows need to report every issue, not just the
   first, and the two callers handle failure differently (reject registration vs fail the job).
 - **Cron stays in the workflow.** GitHub Actions only honors `schedule:` in workflow files, so
-  duplicating cron in `.centaur.yml` would drift. The config only describes what a prompt is.
+  duplicating cron in the config would drift. The config only describes what a prompt is.
 - **No allowlist in the repo.** Who may talk to the bot is the admin's decision, made from their
   phone, so it cannot be widened by a pull request. The repo only names where a scheduled prompt
   posts (`prompts.<name>.destination`), and that chat must still be approved.

@@ -1,11 +1,16 @@
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { CONFIG_FILES } from "../src/workflows/config-file.js";
 import { createCliHarness } from "./helpers/cli.js";
 import { invalidConfigs, minimalConfig, withMcp } from "./helpers/config-fixtures.js";
 import { PERMIT_ANY_REMOTE, PERMIT_GITHUB } from "./helpers/mcp-policy-fixtures.js";
 import { createWorkspace } from "./helpers/workflow-fixtures.js";
 
+const servers = withMcp("  linear:\n    url: https://mcp.linear.app/mcp", "mcp__linear__*");
+
 describe("config check", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("reports a valid file and touches no parameters", async () => {
     const { root } = await createWorkspace({ ".centaur.yml": minimalConfig });
     const cli = createCliHarness();
@@ -42,8 +47,39 @@ describe("config check", () => {
     );
   });
 
+  describe.each(CONFIG_FILES)("with the config at %s", (configFile) => {
+    it("resolves the file from the current directory when no path is given", async () => {
+      const { root } = await createWorkspace({ [configFile]: minimalConfig });
+      vi.spyOn(process, "cwd").mockReturnValue(root);
+      const cli = createCliHarness();
+
+      await cli.run("config", "check");
+
+      expect(cli.output.join("\n")).toContain(`${join(root, configFile)} is valid`);
+    });
+
+    it("reads the policy at the repo root", async () => {
+      const { root } = await createWorkspace({
+        [configFile]: servers,
+        ".centaur/mcp-policy.cedar": PERMIT_ANY_REMOTE,
+      });
+      await expect(
+        createCliHarness().run("config", "check", join(root, configFile)),
+      ).resolves.not.toThrow();
+    });
+  });
+
+  it("fails with no path when both config files exist", async () => {
+    const { root } = await createWorkspace({
+      ".centaur.yml": minimalConfig,
+      ".centaur/config.yml": minimalConfig,
+    });
+    vi.spyOn(process, "cwd").mockReturnValue(root);
+
+    await expect(createCliHarness().run("config", "check")).rejects.toThrow(/remove one/);
+  });
+
   describe("with mcp_servers", () => {
-    const servers = withMcp("  linear:\n    url: https://mcp.linear.app/mcp", "mcp__linear__*");
     const check = async (files: Record<string, string>) => {
       const { root } = await createWorkspace({ ".centaur.yml": servers, ...files });
       return createCliHarness().run("config", "check", join(root, ".centaur.yml"));

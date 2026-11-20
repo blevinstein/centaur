@@ -15,7 +15,7 @@ to a repo (secrets plus `bots/<bot>/repo`) for every operation except `register`
 | `start-thread` | `bot`, `text`, optional `title`, exactly one of `destination` (chat alias) or `fromThreadId` | `{ threadId }` |
 | `read` | `bot`, `threadId` | `{ messages: [{ id, userId, userName, fromBot, text, attachments, sentAt }] }`, oldest first; `attachments` are the S3 keys of the message's stored images (see [Attachments](#attachments)) |
 | `unreact` | `bot`, `threadId`, `messageIds` (1 to 50) | `{ results: [{ messageId, removed }] }` |
-| `register` | `token` (GitHub OIDC JWT), `config` (`.centaur.yml` text) | `{ bot, repo }` |
+| `register` | `token` (GitHub OIDC JWT), `config` (the config file's text) | `{ bot, repo }` |
 | `link-pull-request` | `token` (GitHub OIDC JWT), `bot`, `threadId`, `pullRequest` (number) | `{ linked: true }` |
 | `resolve-pull-request` | `token` (GitHub OIDC JWT), `pullRequest` (number), optional `withThreadId` (boolean) | `{ found: false }` or `{ found: true, bot, threadKey }`, plus `threadId` only when `withThreadId` is true |
 
@@ -25,7 +25,7 @@ the bot's posts land in the stored transcript the receiver and `read` use.
 ## `start-thread`
 
 The destination chat comes from the request, so the poster never needs prompt names. Scheduled
-runs pass `destination`, the prompt's chat alias from `.centaur.yml`. The poster reads its ID from
+runs pass `destination`, the prompt's chat alias from the config. The poster reads its ID from
 `/centaur/chats/<destination>` and requires that chat to be approved for the bot and not blocked. An unknown alias, an unapproved chat or a blocked
 chat fails the request with an error that names the alias and, for an unapproved chat, the
 `centaur access approve <bot> chat <id>` command that fixes it. `/new` passes `fromThreadId`, the

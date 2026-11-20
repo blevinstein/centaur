@@ -85,7 +85,7 @@ Without an admin for the bot's platform, unknown chats are ignored and unknown u
 you aren't enrolled to talk to me." (a bot with `respond_to: all` ignores unenrolled people in the
 group silently); the user ID is logged either way.
 
-There is no allowlist in `.centaur.yml`; access is only what you approve. Manual alternative, no
+There is no allowlist in the config; access is only what you approve. Manual alternative, no
 request needed: if you already know an ID, approve it for one bot with `centaur access approve
 garden chat <id> --name "Household"` (a supergroup's ID is negative, `-100...`; `--alias` picks the
 alias) or `centaur access approve garden user <id>`. The receiver logs the IDs of unknown chats
@@ -125,7 +125,7 @@ That's all that's needed for group use. Optionally, to DM a bot: open its link
 Repeat for each consumer repo, after the bot exists (Telegram above, Slack below).
 
 1. In the repo, add:
-   - `.centaur.yml` ([schema](config.md): bot, platform, `respond_to`, `handle`, context, model
+   - `.centaur.yml`, or `.centaur/config.yml` for a repo with many files under `.centaur/` ([schema](config.md): bot, platform, `respond_to`, `handle`, context, model
      and cost-tuning fields, tool allowlist, persona, and a `destination` chat alias on each
      scheduled prompt); it holds no list of chats or users;
    - `.centaur/persona.md`, and any scheduled prompts under `.centaur/prompts/`;
@@ -148,7 +148,7 @@ Repeat for each consumer repo, after the bot exists (Telegram above, Slack below
    requests".
 4. If the centaur repo is private, open its Settings > Actions > General > Access and allow
    repositories under the owner to use its actions.
-5. Register the bot: push a change to `.centaur.yml` on the default branch, or run the workflow
+5. Register the bot: push a change to the config on the default branch, or run the workflow
    manually so the `register` job runs. Check that `bots/<bot>/repo` now exists in SSM.
 6. Approve the chat each scheduled prompt posts to if it is not approved yet: mention the bot there
    and answer the request, or run `centaur access approve <bot> chat <id> --name "<title>"`; the
@@ -177,7 +177,7 @@ Each bot, and so each repo, gets its own Slack app, mirroring Telegram.
    (`xoxb-...`).
 3. Store both: `centaur bot add <bot> --platform slack` prompts for `token` (the bot token), then
    `signing-secret` ([secret inputs](cli.md#supplying-secrets)).
-4. Set `platform: slack` in the repo's `.centaur.yml`, push to register, and invite the bot to its
+4. Set `platform: slack` in the repo's config, push to register, and invite the bot to its
    channel (`/invite @<bot>`).
 5. Become the admin: run `centaur admin claim <bot>` and DM the bot `claim <code>` with the code
    it prints. Later chats and users are admitted by [access

@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { threadKey } from "../src/thread-key.js";
+import { CONFIG_FILES } from "../src/workflows/config-file.js";
 import { finish, notifyFailure } from "../src/workflows/finish.js";
 import {
   MAX_PROMPT_IMAGES,
@@ -35,6 +36,7 @@ async function setup(
   messages: ReturnType<typeof message>[],
   config = configText(),
   files: Record<string, string> = {},
+  configFile = ".centaur.yml",
 ) {
   const aws = createFakeAws((request) => {
     if (request.operation === "read") return { messages };
@@ -42,7 +44,7 @@ async function setup(
     return { messageId: "m" };
   });
   const { root, home } = await createWorkspace({
-    ".centaur.yml": config,
+    [configFile]: config,
     ".centaur/persona.md": "Be kind.",
     ".centaur/prompts/weekly.md": "Post this week's tasks.",
     ...files,
@@ -477,9 +479,14 @@ describe("prepare", () => {
     await expect(prepare(deps(overrides))).rejects.toThrow(error);
   });
 
+  it.each(CONFIG_FILES)("reads the config from %s", async (configFile) => {
+    const { deps } = await setup([message("1", "hi")], configText(), {}, configFile);
+    expect((await prepare(deps())).skip).toBe(false);
+  });
+
   it("reports config problems", async () => {
     const { deps } = await setup([], "bot: Bad");
-    await expect(prepare(deps())).rejects.toThrow(/\.centaur\.yml is invalid[\s\S]*bot/);
+    await expect(prepare(deps())).rejects.toThrow(/The Centaur config is invalid[\s\S]*bot/);
   });
 });
 

@@ -63,7 +63,7 @@ describe("prepare in comment mode", () => {
       config: configText().replace("allowed_tools: Read,Edit", "allowed_tools: Bash"),
     });
     const trusted = await createWorkspace({
-      ".centaur.yml": configText(),
+      ".centaur/config.yml": configText(),
       ".centaur/persona.md": "Be kind.",
     });
 
@@ -75,6 +75,15 @@ describe("prepare in comment mode", () => {
       `--append-system-prompt-file ${join(trusted.root, ".centaur/persona.md")}`,
     );
     expect(await read(root, PROMPT_FILE)).toContain("please rename the plan");
+  });
+
+  it("reads a config at .centaur/config.yml from the pull request checkout", async () => {
+    const { deps } = await commentSetup({
+      comments: [prComment(1, "please rename the plan")],
+      configFile: ".centaur/config.yml",
+    });
+
+    expect((await prepare(deps())).skip).toBe(false);
   });
 
   it("answers only comments newer than the agent's last marked comment", async () => {

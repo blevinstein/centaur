@@ -3,12 +3,12 @@
 Consumer repos compose composite actions from this repo's `.github/actions/` into their own
 workflows, one workflow per concern (register, chat messages, each scheduled prompt). See
 [plan.md](plan.md#shared-actions-centaurgithubactions) for the design, [poster.md](poster.md) for the
-operations they invoke, and [config.md](config.md) for `.centaur.yml`.
+operations they invoke, and [config.md](config.md) for the config.
 
 | Action | Purpose |
 |---|---|
 | `setup-runtime` | Builds the workflow scripts from the action's own checkout and assumes the AWS role through OIDC. Run once per job, after checking out the consumer repo. |
-| `register` | Validates `.centaur.yml`, requests a GitHub OIDC token for the poster's audience and invokes `register`. |
+| `register` | Validates the config, requests a GitHub OIDC token for the poster's audience and invokes `register`. |
 | `resolve-pr-comment` | Decides whether a pull request comment event starts a turn and which bot and thread it belongs to; see [Comment turns](#comment-turns). |
 | `turn` | One agent turn: answers a dispatched chat message, or (with `prompt_name`) starts a new thread from a scheduled prompt, or (with `comment`) answers the comments on a pull request. Outputs `skip` and `pull-request-url`. |
 | `notify-failure` | Posts a failure notice in the thread (and, with `comment`, on the pull request) and clears the 👀 reactions. Use with `if: failure()`; does nothing if the turn never started. |
@@ -23,7 +23,7 @@ name: Centaur register
 on:
   push:
     branches: [main]
-    paths: [.centaur.yml]
+    paths: [.centaur.yml, .centaur/config.yml]
   workflow_dispatch:
 permissions:
   contents: read
@@ -97,7 +97,7 @@ Pin `@main` to a tag or SHA for stability. Callers must grant the permissions sh
 for the agent's pull request. Enable "Allow GitHub Actions to create and approve pull requests" in the
 repo settings. Pull requests opened with the default token do not trigger other workflows.
 
-To add another scheduled prompt, add a `prompts:` entry to `.centaur.yml` and a workflow like the
+To add another scheduled prompt, add a `prompts:` entry to the config and a workflow like the
 last one. Because the consumer owns the job, it can add its own steps before or after the actions
 (for example to fetch data the prompt needs).
 
@@ -156,7 +156,7 @@ Set as repository or organization **variables**:
 | `CENTAUR_OIDC_AUDIENCE` | The poster's `OIDC_AUDIENCE`. |
 | `CENTAUR_SESSION_BUCKET` | `BucketName` output (agent turns only). |
 
-The API base URL comes from the bot's `provider` in `.centaur.yml`, not from a variable.
+The API base URL comes from the bot's `provider` in the config, not from a variable.
 
 **Secret** the API key named by the bot's `provider` (`ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY`), plus anything the agent's tools need.
 
@@ -175,7 +175,7 @@ Commands: `register`, `resolve`, `prepare`, `pr-details`, `finish`, `notify-fail
 
 ## Agent turn
 
-1. `prepare` reads `.centaur.yml`, reads the thread from the poster (`read`), determines the
+1. `prepare` reads the config, reads the thread from the poster (`read`), determines the
    unprocessed messages and the context policy, and writes the prompt to `.centaur-turn/prompt.md`.
    It copies the images attached to the messages the prompt shows (pending ones, plus the earlier
    ones when the history is included) from the session bucket into `.centaur-turn/attachments/`,
@@ -189,7 +189,7 @@ Commands: `register`, `resolve`, `prepare`, `pr-details`, `finish`, `notify-fail
    and fails the turn before any poster call when a server is not permitted, the policy is missing
    or invalid, or it cannot be fetched ([Operator policy](mcp.md#operator-policy)).
    The prompt's instructions are the guidance from `instructions/{chat,comment,silence}.md` (or
-   the repo's `instructions` overrides in `.centaur.yml`, read from the checkout like the persona)
+   the repo's `instructions` overrides in the config, read from the checkout like the persona)
    followed by fixed text in `prompt.ts`: the untrusted-input warning and the structured-output
    fields the workflow parses (`reply`, `ignore`, `pr_title`, ...), which a repo cannot override.
    It outputs the `claude_args` (model and tuning flags, `--allowedTools`, `--json-schema` requiring `reply` (or, for `respond_to: all` threads, `reply` or `ignore: true`; optionally `pr_title`, `pr_body`, and the `pr_action` or `existing_pr_number` target field when enabled), persona
@@ -240,7 +240,7 @@ name>` for scheduled prompts) and the body is the footer alone.
 ### Choosing the pull request
 
 Two more optional fields choose the pull request a turn targets, each present only when
-`pull_requests` in `.centaur.yml` enables it: `pr_action` (`update` or `new`, comment turns) and
+`pull_requests` in the config enables it: `pr_action` (`update` or `new`, comment turns) and
 `existing_pr_number` (a positive integer, chat and scheduled turns). `extractResult` returns them as
 `prAction` and `existingPr`; a malformed value fails the reply like any other schema violation, and
 `finish` ignores a field that does not fit the turn's mode with a `::warning::` that names no
@@ -259,7 +259,7 @@ and the "number must be listed" sentence are all omitted. `prepare` needs `GITHU
 `centaur-workflow plan-pr` re-derives the same candidate set from GitHub, never from
 `.centaur-turn/state.json`, and checks the agent's `existing_pr_number`, read from the execution
 file (`EXECUTION_FILE`) like `pr-details` and `finish` do, against it. With `existing: off` or
-without `GITHUB_TOKEN` it plans `thread` without calling GitHub. It reads `.centaur.yml` from
+without `GITHUB_TOKEN` it plans `thread` without calling GitHub. It reads the config from
 `CENTAUR_CONFIG_ROOT` when set. It writes the outputs
 `target` (`existing` or `thread`), `number` and `head_ref` for `existing`, and `fallback_reason`
 for `thread` (`not_open`, `not_candidate`, `not_allowed`, `lookup_failed`, or empty), none of which
@@ -343,7 +343,7 @@ designed in [pr-comments.md](pr-comments.md). Consumers copy
 
 The actions and runtime must not come from the pull request checkout, since the turn holds write
 tokens and the OIDC role. Consumers using `blevinstein/centaur/.github/actions/...@main` already
-get that; they may also pass `config_root` (a checkout of the default branch) so that `.centaur.yml`,
+get that; they may also pass `config_root` (a checkout of the default branch) so that the config,
 the instructions and the persona are read from the default branch instead of the pull request
 branch. This repo, which uses its own actions locally, checks out the default branch into
 `.centaur-trusted` and runs `./.centaur-trusted/.github/actions/...`. See

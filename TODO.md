@@ -201,7 +201,7 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
 
 - [ ] Poster MCP tool for mid-turn questions and progress messages (builds on the MCP server
       config below).
-- [x] Design additional MCP servers in `.centaur.yml`: [docs/mcp.md](docs/mcp.md), all
+- [x] Design additional MCP servers in the config: [docs/mcp.md](docs/mcp.md), all
       recommendations accepted.
 - [x] MCP servers 1: schema and validation (`mcp_servers`, `secretRef`, name refinements and the
       `allowed_tools` cross-checks in `src/config/schema.ts`), with tests and `docs/config.md`.

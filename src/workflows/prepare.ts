@@ -76,7 +76,7 @@ export interface PrepareDeps {
   /** Lets chat and scheduled turns list pull requests the agent may update. */
   targets?: TargetDeps | undefined;
   workspace: string;
-  /** Directory holding `.centaur.yml`, the instructions and the persona. Defaults to `workspace`. */
+  /** Directory holding the Centaur config, the instructions and the persona. Defaults to `workspace`. */
   configRoot?: string | undefined;
   home: string;
   runId: string;
@@ -146,7 +146,7 @@ async function scheduledTurn(
   name: string,
 ): Promise<Turn> {
   const prompt = config.prompts[name];
-  if (!prompt) throw new Error(`.centaur.yml defines no prompt named "${name}"`);
+  if (!prompt) throw new Error(`The Centaur config defines no prompt named "${name}"`);
   const scheduledTask = await readFile(join(deps.workspace, prompt.file), "utf8");
   const targets = prTargetFlags(config, await existingTargets(deps, config));
   return {
@@ -167,7 +167,7 @@ async function chatTurn(
   const payload = dispatchPayload.parse(deps.clientPayload);
   if (payload.bot !== config.bot) {
     throw new Error(
-      `dispatch is for bot "${payload.bot}" but .centaur.yml configures "${config.bot}"`,
+      `dispatch is for bot "${payload.bot}" but the Centaur config configures "${config.bot}"`,
     );
   }
   const threadId = payload.thread_id;
@@ -286,7 +286,7 @@ async function commentTurn(
   comment.mask(resolved.threadId);
   if (resolved.bot !== config.bot) {
     throw new Error(
-      `pull request is linked to bot "${resolved.bot}" but .centaur.yml configures "${config.bot}"`,
+      `pull request is linked to bot "${resolved.bot}" but the Centaur config configures "${config.bot}"`,
     );
   }
   const threadId = resolved.threadId;

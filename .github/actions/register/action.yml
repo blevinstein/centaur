@@ -1,5 +1,5 @@
 name: Centaur register
-description: Validate .centaur.yml and bind its bot to this repository. Needs the id-token write permission and the centaur setup-runtime step before it.
+description: Validate the Centaur config and bind its bot to this repository. Needs the id-token write permission and the centaur setup-runtime step before it.
 runs:
   using: composite
   steps:

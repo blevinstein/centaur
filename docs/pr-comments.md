@@ -153,7 +153,7 @@ Notes on the shape:
 
 The `turn` job holds `contents: write`, `pull-requests: write` and the OIDC role, and the agent
 edits files the pull request's author (the agent itself, steered by commenters) controls. The
-actions, the built `dist/` runtime and `.centaur.yml` (tools, budget, MCP servers, persona and
+actions, the built `dist/` runtime and the config (tools, budget, MCP servers, persona and
 instruction overrides) must therefore come from trusted code, while the agent's working tree, and
 what `finish` commits and pushes, is the pull request branch.
 
@@ -162,7 +162,7 @@ what `finish` commits and pushes, is the pull request branch.
   consumer's pull request checkout, so a pull request cannot change them. Check out `head_ref` at
   the workspace root as in the example above; `prepare`, `finish` and the push work on that
   checkout.
-- **`.centaur.yml` is read from the default branch.** A pull request that edited it (say to widen
+- **The config is read from the default branch.** A pull request that edited it (say to widen
   `allowed_tools`) would otherwise take effect on its next comment turn. A consumer that wants
   this check out the default branch into a second directory and pass it as the turn action's
   `config_root`, with `.centaur-trusted` added to `.git/info/exclude` so `finish` does not commit it:
@@ -375,7 +375,7 @@ No per-pull-request cap in the first version.
   fork checks live in the centaur action, and the consumer's branch protection should require
   review for workflow changes.
 - **Cost.** Every comment from a writer starts an agent turn. `max_turns` and `max_budget_usd` from
-  `.centaur.yml` still bound each turn; the `timeout-minutes` bounds the job.
+  the config still bound each turn; the `timeout-minutes` bounds the job.
 
 ## Implementation plan
 

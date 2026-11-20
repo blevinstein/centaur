@@ -70,7 +70,7 @@ You review and merge it; the next turn sees the new note.
 A repo needs three things, plus some Actions settings. Full steps:
 [docs/onboarding.md](docs/onboarding.md#adding-a-repo).
 
-**1. `.centaur.yml`** at the repo root ([every field](docs/config.md)):
+**1. `.centaur.yml`** (or `.centaur/config.yml`) at the repo root ([every field](docs/config.md)):
 
 ```yaml
 bot: garden
@@ -164,7 +164,7 @@ centaur bot add garden --platform telegram
 ```
 
 5. In the repo, add the three files above and set its variables and secret, then push
-   `.centaur.yml` to the default branch. The `register` job binds the bot to the repo and sets the
+   the config to the default branch. The `register` job binds the bot to the repo and sets the
    webhook.
 6. Become the admin: `centaur admin claim garden`, open the link it prints, and tap **Start**.
 7. Mention the bot from your chat. It DMs you an access request; react 👍 to approve the chat (and
@@ -174,7 +174,7 @@ centaur bot add garden --platform telegram
 
 - **Admin approval only.** The agent holds repo write access and secrets, so only the platform's
   admin and the chats and users the admin approved can trigger turns. Approvals live in SSM, not in
-  the repo, so a pull request cannot widen access. `.centaur.yml` has no allowlist. Unknown senders
+  the repo, so a pull request cannot widen access. The config has no allowlist. Unknown senders
   trigger an access request to the admin (👍 approves, 👎 denies and blocks); a bot creates at most
   10 requests per hour. See [access requests](docs/plan.md#access-requests).
 - **No message content in GitHub.** Dispatch payloads carry IDs only; transcripts are fetched from
@@ -205,7 +205,7 @@ centaur bot add garden --platform telegram
 ## Docs
 
 - [docs/plan.md](docs/plan.md): architecture, components, security, access requests, SSM layout.
-- [docs/config.md](docs/config.md): `.centaur.yml` reference.
+- [docs/config.md](docs/config.md): config file reference.
 - [docs/workflows.md](docs/workflows.md): shared workflows, caller workflow, variables, context
   policies.
 - [docs/deploy.md](docs/deploy.md): CloudFormation stack and deploy script.

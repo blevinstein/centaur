@@ -83,12 +83,12 @@ turn is done, and the `register` operation (see
 
 One agent turn:
 
-1. Check out the consumer repo; read its `.centaur.yml`.
+1. Check out the consumer repo; read its config (`.centaur.yml` or `.centaur/config.yml`).
 2. Assemble context according to the thread's [context policy](#context-management).
 3. Run `claude-code-action` with the consumer repo's tool allowlist and a `--json-schema` that
    requires `reply` (text for chat) and optionally `new_thread_title`, `pr_title` and `pr_body`.
    When the bot's `respond_to` is `all`, `reply` becomes optional and the agent may instead return
-   `ignore: true` to stay silent. Model, effort, turn and budget limits come from `.centaur.yml`
+   `ignore: true` to stay silent. Model, effort, turn and budget limits come from the config
    (see [config](config.md)).
 4. Invoke the poster with `structured_output.reply`, unless the agent ignored the messages (the
    marker still advances and the session is still saved; an opened pull request is still linked).
@@ -105,7 +105,7 @@ last-processed marker, not just the message that triggered it.
 
 ### Consumer repo workflow (in each repo, a few lines)
 
-Each consumer has one workflow per concern: `register` (on pushes touching `.centaur.yml` and on
+Each consumer has one workflow per concern: `register` (on pushes touching `.centaur.yml` or `.centaur/config.yml` and on
 manual dispatch), `message` (on `repository_dispatch` of type `centaur-message`) and one per
 scheduled prompt. Each composes the `setup-runtime`, `register`, `turn` and `notify-failure`
 actions. The full files are in [workflows.md](workflows.md#consumer-workflows). A scheduled
@@ -121,7 +121,7 @@ anyone. Configuration lives in three places:
 
 | What | Where | Example |
 |---|---|---|
-| Bot identity, platform, routing, and agent behavior | Each consumer repo's `.centaur.yml` | `bot: garden`, `platform: telegram` |
+| Bot identity, platform, routing, and agent behavior | Each consumer repo's config (`.centaur.yml` or `.centaur/config.yml`) | `bot: garden`, `platform: telegram` |
 | Secrets, personal identifiers and access | SSM Parameter Store, managed with a CLI in this repo | Bot tokens, webhook secrets, the admin, approved and blocked chats and users, chat aliases |
 | Deployment parameters | CloudFormation parameter overrides, kept in the deployer's own private infra repo | GitHub owner for the OIDC trust policy, stack name |
 
@@ -145,7 +145,7 @@ prompts:
 The remaining fields (`handle`, `effort`, `max_turns`, `max_budget_usd`, per-prompt `file` and
 `context`) are in [config.md](config.md).
 
-Names in `.centaur.yml` are aliases; the real IDs never appear in any repo, so a public consumer
+Names in the config are aliases; the real IDs never appear in any repo, so a public consumer
 repo reveals only aliases. The file carries no allowlist (`allow` and `chats` are validation
 errors); who may talk to the bot is decided only by the admin.
 
@@ -155,9 +155,9 @@ The receiver has to map an incoming webhook to a repo without reading every repo
 **registers** itself:
 
 1. The consumer repo's caller workflow has a `register` job that runs on pushes to the default
-   branch that touch `.centaur.yml`, and on `workflow_dispatch`.
+   branch that touch the config, and on `workflow_dispatch`.
 2. It invokes the Lambda's `register` operation through the GitHub OIDC role, sending the parsed
-   `.centaur.yml` and the calling repo name taken from the OIDC token's claims, not from input the
+   config and the calling repo name taken from the OIDC token's claims, not from input the
    workflow could forge.
 3. The Lambda upserts the registry entry (`bot → respond_to`) in the state store. For Telegram it also calls `setWebhook` with the bot's token and secret from SSM, so
    webhook setup is never a manual step.
@@ -180,7 +180,7 @@ Each thread has a context policy.
 | `transcript` | Above plus the thread's chat messages, rendered into the prompt | Chat SDK history (already persisted) | Default for conversations; cheap and easy to inspect |
 | `resume` | The full prior Claude session, including tool calls and results | Session `.jsonl` in S3, keyed by thread | Multi-turn work where earlier tool results matter (e.g. building a plan over several replies) |
 
-- Defaults come from `.centaur.yml` (`context.default`, and `context.scheduled` or the prompt's
+- Defaults come from the config (`context.default`, and `context.scheduled` or the prompt's
   own `context` for scheduled runs).
 - In-chat overrides: `/new` (start a new thread), `/resume` and `/transcript` (switch the
   current thread's policy). Telegram slash commands aren't an SDK feature, so these are parsed
@@ -244,7 +244,7 @@ DMs with a bot are always that bot's; DMs use reply chains, not topics (see
 
 ## Access requests
 
-Access is only what the admin approves; `.centaur.yml` has no allowlist. The admin admits chats and
+Access is only what the admin approves; the config has no allowlist. The admin admits chats and
 users without touching SSM by hand: the bot asks them, and they answer from their phone.
 
 **Flow.**
