@@ -218,6 +218,12 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
       (fail closed; see [docs/mcp.md](docs/mcp.md#operator-policy)). **[HUMAN APPROVAL]** Merge the
       policy file to the default branch together with, or before, any `mcp_servers` config, and add a
       `CODEOWNERS` entry or ruleset requiring review on it.
+- [x] MCP servers 7: global operator policy `infra/mcp-policy.cedar`, zipped into the Lambda by
+      `scripts/deploy.sh` and served by the poster's `get-mcp-policy`; merged with the repo policy
+      into one Cedar set on the runner (a global `forbid` cannot be lifted). Not verified live.
+      **[HUMAN ACTION]** Deploy the stack (`yarn deploy-prod`) so the poster serves `get-mcp-policy`;
+      until then every turn and registration with `mcp_servers` fails closed. Then confirm a turn
+      with `mcp_servers` still passes and an unpinned local server is denied.
 - [ ] Explore **approval-required** MCP servers: a level between deny and allow where the operator
       policy marks a server (or tool) as needing a human decision, and the bot asks in Telegram (with
       emoji reactions or buttons) before the turn uses it. Consider both synchronous (the turn waits)

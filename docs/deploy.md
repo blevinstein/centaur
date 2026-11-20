@@ -42,7 +42,8 @@ scripts/deploy.sh --stack centaur --params-file parameters-prod.json
 The script:
 
 1. Runs `yarn bundle:lambda` (esbuild bundles `src/lambda/handler.ts` and its dependencies into
-   `dist/lambda/index.mjs`), zips it, and names it `centaur/lambda-<sha256-prefix>.zip`. The
+   `dist/lambda/index.mjs`), zips it together with `infra/mcp-policy.cedar` when that file exists
+   (the global MCP policy; see [mcp.md](mcp.md#operator-policy)), and names it `centaur/lambda-<sha256-prefix>.zip`. The
    content-addressed key makes each code change a new key, so the function updates.
 2. If the stack does not exist (or has no `CodeBucketName` output), deploys it with
    `DeployLambda=FALSE`. That creates everything except the Lambda, its role, log group, function

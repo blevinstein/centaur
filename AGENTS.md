@@ -67,8 +67,9 @@
   `REPLY_MARKER`, and `finish` pushes with plain `git`.
 - `mcp_servers` are checked against the Cedar policy `.centaur/mcp-policy.cedar` as it exists on the
   repository's default branch, fetched through the GitHub API (`src/workflows/mcp-policy-check.ts`),
-  never the workspace copy, because a turn can run on any branch. `prepare` and `registerRepo` run
-  the check before any poster call and fail closed. Keep `src/config/mcp-policy.ts` (cedar-wasm,
+  never the workspace copy, because a turn can run on any branch, merged with the global
+  `infra/mcp-policy.cedar` (zipped by `scripts/deploy.sh`, served by the poster's `get-mcp-policy`).
+  `prepare` and `registerRepo` run the check before any other poster call and fail closed. Keep `src/config/mcp-policy.ts` (cedar-wasm,
   runner-only) out of the Lambda bundle: do not re-export it from `src/config/index.ts`.
 - `PrepareDeps.env` carries the secrets named in `mcp_servers`; `prepare` fails before any poster
   call if one is unset. Tests that need git use `test/helpers/git-fixtures.ts`.

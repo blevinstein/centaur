@@ -248,7 +248,7 @@ describe("prepare in comment mode", () => {
       });
 
       await expect(prepare({ ...deps(), env })).rejects.toThrow(
-        /mcp_servers\.linear: no \.centaur\/mcp-policy\.cedar on the default branch/,
+        /mcp_servers\.linear: no global operator policy and no \.centaur\/mcp-policy\.cedar on the default branch/,
       );
       expect(aws.requests).toEqual([]);
     });

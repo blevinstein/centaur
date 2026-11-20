@@ -39,7 +39,11 @@ const mcpPolicyDeps = () => {
   const repository = process.env.GITHUB_REPOSITORY;
   const token = process.env.GITHUB_TOKEN;
   if (!repository || !token) return undefined;
-  return { repository, github: createGitHubRequester(token, process.env.GITHUB_API_URL) };
+  return {
+    repository,
+    github: createGitHubRequester(token, process.env.GITHUB_API_URL),
+    poster: poster(),
+  };
 };
 
 program.command("register").action(async () => {

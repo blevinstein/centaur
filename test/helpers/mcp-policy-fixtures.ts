@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import type { PosterClient } from "../../src/workflows/aws.js";
 import { GitHubRequestError, type GitHubRequester } from "../../src/workflows/resolve.js";
 import { localServerYaml, mcpServersFrom } from "./config-fixtures.js";
 
@@ -18,6 +19,9 @@ export const permitForBot = (bot: string) =>
 
 export const FORBID_UNTRUSTED = `forbid(principal, action, resource)
   when { resource.host like "*.untrusted.example" };`;
+
+export const FORBID_UNLESS_GITHUB = `forbid(principal, action, resource)
+  unless { resource.host == "${GITHUB_HOST}" };`;
 
 const serverOf = (servers: ReturnType<typeof mcpServersFrom>, name: string) => {
   const server = servers[name];
@@ -58,6 +62,8 @@ export function fakePolicyGitHub(
     defaultBranch?: string;
     repositoryStatus?: number;
     contentsStatus?: number;
+    globalPolicy?: string;
+    posterFails?: boolean;
   } = {},
 ) {
   const paths: string[] = [];
@@ -79,5 +85,18 @@ export function fakePolicyGitHub(
     post: unused,
     postJson: unused,
   };
-  return { github, paths, deps: { repository: POLICY_REPOSITORY, github } };
+  const posterRequests: unknown[] = [];
+  const poster: PosterClient = {
+    call: vi.fn(async (request) => {
+      posterRequests.push(request);
+      if (options.posterFails) throw new Error("poster get-mcp-policy failed (Error)");
+      return { policy: options.globalPolicy ?? null } as never;
+    }),
+  };
+  return {
+    github,
+    paths,
+    posterRequests,
+    deps: { repository: POLICY_REPOSITORY, github, poster },
+  };
 }

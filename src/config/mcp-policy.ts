@@ -40,15 +40,18 @@ export function describeServer(server: McpServer) {
   };
 }
 
+export type PolicyLayer = "global" | "repo";
+export type PolicyLayers = Partial<Record<PolicyLayer, string | undefined>>;
+
 type ParsedPolicies = { policies: Record<string, string> } | { errors: string[] };
 
-function parsePolicies(text: string): ParsedPolicies {
+function parsePolicies(text: string, layer: PolicyLayer = "repo"): ParsedPolicies {
   const parts = policySetTextToParts(text);
   if (parts.type === "failure") return { errors: messagesOf(parts.errors) };
   if (parts.policy_templates.length > 0) return { errors: ["templates are not supported"] };
   return {
     policies: Object.fromEntries(
-      parts.policies.map((policy, index) => [`policy.${index}`, policy]),
+      parts.policies.map((policy, index) => [`${layer}.${index}`, policy]),
     ),
   };
 }
@@ -79,12 +82,25 @@ function authorize(bot: string, name: string, server: McpServer, policies: Recor
     : "not permitted by any policy";
 }
 
+function mergePolicies(layers: PolicyLayers): ParsedPolicies {
+  const policies: Record<string, string> = {};
+  const errors: string[] = [];
+  for (const [layer, text] of Object.entries(layers) as [PolicyLayer, string | undefined][]) {
+    if (text === undefined) continue;
+    const parsed = parsePolicies(text, layer);
+    if ("errors" in parsed) errors.push(...parsed.errors.map((error) => `${layer}: ${error}`));
+    else Object.assign(policies, parsed.policies);
+  }
+  return errors.length > 0 ? { errors } : { policies };
+}
+
+/** A bare string is the repo layer. Both layers form one policy set: any `forbid` wins. */
 export function checkMcpPolicy(
   bot: string,
   servers: Record<string, McpServer>,
-  policyText: string,
+  policy: string | PolicyLayers,
 ): ConfigIssue[] {
-  const parsed = parsePolicies(policyText);
+  const parsed = mergePolicies(typeof policy === "string" ? { repo: policy } : policy);
   return Object.entries(servers).flatMap(([name, server]) => {
     const message =
       "errors" in parsed
@@ -94,8 +110,8 @@ export function checkMcpPolicy(
   });
 }
 
-export function validateMcpPolicy(text: string): string[] {
-  const parsed = parsePolicies(text);
+export function validateMcpPolicy(text: string, layer: PolicyLayer = "repo"): string[] {
+  const parsed = parsePolicies(text, layer);
   if ("errors" in parsed) return parsed.errors;
   const answer = validate({
     schema: MCP_POLICY_SCHEMA,

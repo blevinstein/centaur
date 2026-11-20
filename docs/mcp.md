@@ -170,7 +170,7 @@ Mitigations, in order of recommendation:
 
 1. Secrets only through the caller `env:` (above). A merged config cannot reach a secret the caller
    did not list.
-2. A Cedar policy in the repo at `.centaur/mcp-policy.cedar`, always read from the default branch
+2. A Cedar policy: the deployer's global file plus the repo's `.centaur/mcp-policy.cedar`, the latter always read from the default branch
    (see [Operator policy](#operator-policy)). Config that violates it fails registration and every
    turn. A pull request that edits the policy has no effect until it is merged, so protect the file
    with required review.
@@ -184,30 +184,50 @@ Mitigations, in order of recommendation:
 
 ## Operator policy
 
-Every `mcp_servers` entry is authorized against a [Cedar](https://www.cedarpolicy.com/) policy file
-in the consumer repo at the fixed path `.centaur/mcp-policy.cedar`. The path is not configurable:
-a config field pointing at the file could be edited in the same pull request that adds the server.
-There is one file per repo, with no global or per-bot layers and no merging.
+Every `mcp_servers` entry is authorized against a [Cedar](https://www.cedarpolicy.com/) policy set
+made of two layers:
 
-**Default branch only.** Both enforcement points fetch the file through the GitHub contents API at
+- the **global** layer, `infra/mcp-policy.cedar` in the deployer's repo, bundled into the Lambda zip
+  by `scripts/deploy.sh` and applying to every registered repo; an absent file means no global layer;
+- the **repo** layer, `.centaur/mcp-policy.cedar` in the consumer repo, at a fixed path. The path is
+  not configurable: a config field pointing at the file could be edited in the same pull request
+  that adds the server.
+
+The layers are merged into one policy set (policy ids `global.N` and `repo.N`), so the usual Cedar
+rules compose them: a server is allowed when some `permit` in either layer matches and no `forbid`
+in either layer does. A global `forbid` therefore cannot be lifted by a repo. Write allowlist
+ceilings as `forbid(...) unless { ... }`. A global `permit` is a default for every repo, and with
+one a repo needs no policy file of its own; with no global permit the repo layer must permit each
+server. With neither layer present, every server is denied. There are no per-bot layers.
+
+This repo's global file forbids plain-HTTP remote servers and unpinned local packages, and permits
+nothing, so each repo still has to permit its own servers.
+
+**Default branch only.** Both enforcement points fetch the repo layer through the GitHub contents API at
 the repository's default branch (`GET /repos/{owner}/{repo}/contents/.centaur/mcp-policy.cedar?ref=<default branch>`,
 with the default branch from `GET /repos/{owner}/{repo}`). They never read the workspace copy,
 because a turn can run on another branch (`workflow_dispatch`) and the agent can edit files in the
 checkout. A pull request that changes the policy therefore has no effect until it is merged.
 
-**Where it runs.** On the runner, in one shared check, before any poster call:
+**Where it runs.** On the runner, in one shared check, before any other poster call:
 
 - `register` (the `register` action), so registration fails early;
 - `prepare`, on every turn mode including pull request comment turns, so a policy change takes
   effect on the next turn without re-registering.
 
-The Lambda and poster are not involved. The workflows need `contents: read` on the `GITHUB_TOKEN`
-(the register action passes `github.token`, as the turn action already does).
+The check reads the global layer through the poster's argument-free `get-mcp-policy` operation,
+which returns the bundled file's text or `null` ([poster.md](poster.md)); it is the only poster call
+that precedes the check. The poster is invoked with IAM-authorized AWS credentials, as for `post` and
+`read`, so the operation carries no OIDC token. The workflows need `contents: read` on the
+`GITHUB_TOKEN` (the register action passes `github.token`, as the turn action already does).
 
 **Fail closed.** If `mcp_servers` is non-empty, the check fails, naming each server
-(`mcp_servers.ghmcp: not permitted by any policy`), when the default branch has no policy file (404),
-the file or repository cannot be fetched (any other error), the policy does not parse, or
-evaluation errors. A config without `mcp_servers` never fetches a policy.
+(`mcp_servers.ghmcp: not permitted by any policy`), when neither layer exists (no bundled global
+file and a 404 for the repo file), the poster call fails, the repo file or repository cannot be
+fetched (any other error), either policy does not parse, or evaluation errors. Messages name the
+layer that failed (`cannot read the global operator policy: ...`, `operator policy is invalid: global: ...`)
+or the policy that denied (`forbidden by policy global.0`). A config without `mcp_servers` never
+fetches a policy.
 
 **Model.** Each server is a request: principal `Bot::"<bot>"`, action `Action::"UseServer"`, resource
 `McpServer::"<name>"`. The resource attributes are always all present:
@@ -248,12 +268,12 @@ forbid(principal, action, resource) when { resource.host like "*.untrusted.examp
 **Protect the file.** Require review on `.centaur/mcp-policy.cedar` with a `CODEOWNERS` entry or a
 repository ruleset, since anyone who can merge a change to it can permit any server.
 
-**Trade-off.** There is no central operator layer: each repo owner sets their own policy, so the
-policy limits what a pull request can add, not what the repo's owners choose.
+**Protect the global file.** It ships with a deploy, so changes need the deployer's normal review.
+The global layer is the only part a repo owner cannot change.
 
 Check a config and its policy locally with `centaur config check [path]`. That command reads the
 local `.centaur/mcp-policy.cedar` next to the config, which is convenient for editing but is not what
-enforcement uses.
+enforcement uses. Add `--global-policy infra/mcp-policy.cedar` to check against the global layer too.
 
 ## Out of scope
 
@@ -281,7 +301,7 @@ enforcement uses.
 5. Verify end to end against one real server (a remote one) in a consumer repo, confirming `${VAR}`
    expansion for `--mcp-config` files and the `mcp__<server>__*` wildcard under the pinned
    `claude-code-action` version.
-6. Policy: the repo's `.centaur/mcp-policy.cedar`, read from the default branch and enforced in
+6. Policy: the global `infra/mcp-policy.cedar` plus the repo's `.centaur/mcp-policy.cedar`, read from the default branch and enforced in
    `register` and `prepare` ([Operator policy](#operator-policy)).
 
 ## Decisions
@@ -301,8 +321,8 @@ The maintainer accepted every recommendation below.
    Recommendation: schema accepts both, but the first release enforces nothing beyond pinning
    guidance, and the operator policy rejects everything, `command` servers included, until a policy permits it.
 6. **Operator policy location.** SSM parameter owned by the admin vs a repo file. Decided: a repo file
-   at a fixed path, always read from the default branch, trading a central operator layer for no
-   AWS state.
+   at a fixed path, always read from the default branch, plus a global file bundled with the Lambda
+   for the operator's ceiling, so neither needs AWS state.
 7. **Config source for turns.** Keep reading the default branch (current behaviour). Recommendation:
    keep, and state it as an invariant in [workflows.md](workflows.md).
 8. **Reserved names.** Reject `github*` server names. Recommendation: yes, since the action lets a

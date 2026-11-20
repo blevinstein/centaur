@@ -5,10 +5,12 @@ import {
   checkMcpPolicy,
   describeServer,
   isPinned,
+  type PolicyLayers,
   validateMcpPolicy,
 } from "../src/config/mcp-policy.js";
 import {
   docsSearchServer,
+  FORBID_UNLESS_GITHUB,
   FORBID_UNTRUSTED,
   githubServer,
   githubServers,
@@ -103,7 +105,7 @@ describe("checkMcpPolicy", () => {
       untrustedServers,
       `${PERMIT_ANY_REMOTE}\n${FORBID_UNTRUSTED}`,
     );
-    expect(issue?.message).toMatch(/forbidden by policy policy\.1/);
+    expect(issue?.message).toMatch(/forbidden by policy repo\.1/);
   });
 
   it("denies every server when the policy does not parse", () => {
@@ -111,6 +113,51 @@ describe("checkMcpPolicy", () => {
     expect(issues).toEqual([
       { path: "mcp_servers.ghmcp", message: expect.stringMatching(/^operator policy is invalid/) },
     ]);
+  });
+
+  describe("with global and repo layers", () => {
+    const ceiling = FORBID_UNLESS_GITHUB;
+
+    it.each<[string, Parameters<typeof checkMcpPolicy>[1], PolicyLayers, string | undefined]>([
+      [
+        "a repo permit inside the global ceiling",
+        githubServers,
+        { global: ceiling, repo: PERMIT_GITHUB },
+        undefined,
+      ],
+      [
+        "a repo permit cannot lift a global forbid",
+        untrustedServers,
+        { global: ceiling, repo: PERMIT_ANY_REMOTE },
+        "forbidden by policy global.0",
+      ],
+      ["a global permit alone authorizes", githubServers, { global: PERMIT_GITHUB }, undefined],
+      [
+        "a global permit is a default for repos with no policy",
+        githubServers,
+        { global: PERMIT_GITHUB, repo: "" },
+        undefined,
+      ],
+      ["a repo permit alone authorizes", githubServers, { repo: PERMIT_GITHUB }, undefined],
+      [
+        "a ceiling alone permits nothing",
+        githubServers,
+        { global: ceiling },
+        "not permitted by any policy",
+      ],
+    ])("%s", (_name, servers, layers, message) => {
+      expect(checkMcpPolicy("garden", servers, layers).map((issue) => issue.message)).toEqual(
+        message === undefined ? [] : [message],
+      );
+    });
+
+    it("names the invalid layer", () => {
+      const [issue] = checkMcpPolicy("garden", githubServers, {
+        global: "permit(",
+        repo: PERMIT_GITHUB,
+      });
+      expect(issue?.message).toMatch(/^operator policy is invalid: global: /);
+    });
   });
 
   it("denies when a policy errors during evaluation", () => {
@@ -161,5 +208,34 @@ describe("this repo's .centaur/mcp-policy.cedar", () => {
 
   it("denies the read-write GitHub endpoint", () => {
     expect(checkMcpPolicy(bot, githubServers, policy)).toHaveLength(1);
+  });
+});
+
+describe("this repo's infra/mcp-policy.cedar", () => {
+  const global = readFileSync("infra/mcp-policy.cedar", "utf8");
+  const repo = readFileSync(".centaur/mcp-policy.cedar", "utf8");
+
+  it("validates against the schema", () => {
+    expect(validateMcpPolicy(global, "global")).toEqual([]);
+  });
+
+  it.each<[string, Parameters<typeof checkMcpPolicy>[1], boolean]>([
+    ["an https remote server", githubServers, true],
+    ["a pinned npx package", npxServers("pkg@1.2.3"), true],
+    ["an unpinned npx package", npxServers("pkg@latest"), false],
+  ])("as a ceiling over a permit-anything repo policy: %s", (_name, servers, allowed) => {
+    const issues = checkMcpPolicy("garden", servers, {
+      global,
+      repo: `${PERMIT_ANY_REMOTE}\n${PERMIT_PINNED_NPX}`,
+    });
+    expect(issues).toHaveLength(allowed ? 0 : 1);
+  });
+
+  it("leaves this repo's own servers permitted", () => {
+    const parsed = parseCentaurConfig(readFileSync(".centaur.yml", "utf8"));
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+    expect(checkMcpPolicy(parsed.config.bot, parsed.config.mcp_servers, { global, repo })).toEqual(
+      [],
+    );
   });
 });

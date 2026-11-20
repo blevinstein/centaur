@@ -118,6 +118,7 @@ export async function posterSetup(
     attachments?: Record<string, string[]>;
     registryState?: StateAdapter;
     repository?: string;
+    globalMcpPolicy?: string;
   } = {},
 ) {
   const params = fakeParameterStore({
@@ -145,6 +146,7 @@ export async function posterSetup(
     attachments,
     telegram,
     oidc,
+    globalMcpPolicy: async () => options.globalMcpPolicy,
     functionUrl: FUNCTION_URL,
     logger,
   });

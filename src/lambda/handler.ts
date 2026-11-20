@@ -6,6 +6,7 @@ import { createCachedParameterStore } from "./cached-parameters.js";
 import { createChat } from "./chat.js";
 import { createGitHubDispatcher } from "./github.js";
 import { wrapHandler } from "./http.js";
+import { readBundledMcpPolicy } from "./mcp-policy.js";
 import { createGitHubOidcVerifier } from "./oidc.js";
 import {
   createSsmParameterStore,
@@ -67,6 +68,7 @@ async function buildPoster() {
       owner: requiredEnv("GITHUB_OWNER"),
       audience: requiredEnv("OIDC_AUDIENCE"),
     }),
+    globalMcpPolicy: readBundledMcpPolicy(),
     functionUrl,
     logger,
   });

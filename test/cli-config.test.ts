@@ -3,7 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CONFIG_FILES } from "../src/workflows/config-file.js";
 import { createCliHarness } from "./helpers/cli.js";
 import { invalidConfigs, minimalConfig, withMcp } from "./helpers/config-fixtures.js";
-import { PERMIT_ANY_REMOTE, PERMIT_GITHUB } from "./helpers/mcp-policy-fixtures.js";
+import {
+  FORBID_UNLESS_GITHUB,
+  PERMIT_ANY_REMOTE,
+  PERMIT_GITHUB,
+} from "./helpers/mcp-policy-fixtures.js";
 import { createWorkspace } from "./helpers/workflow-fixtures.js";
 
 const servers = withMcp("  linear:\n    url: https://mcp.linear.app/mcp", "mcp__linear__*");
@@ -80,9 +84,9 @@ describe("config check", () => {
   });
 
   describe("with mcp_servers", () => {
-    const check = async (files: Record<string, string>) => {
+    const check = async (files: Record<string, string>, ...flags: string[]) => {
       const { root } = await createWorkspace({ ".centaur.yml": servers, ...files });
-      return createCliHarness().run("config", "check", join(root, ".centaur.yml"));
+      return createCliHarness().run("config", "check", join(root, ".centaur.yml"), ...flags);
     };
 
     it("accepts servers the sibling policy permits", async () => {
@@ -101,6 +105,28 @@ describe("config check", () => {
       await expect(check({ ".centaur/mcp-policy.cedar": "permit(" })).rejects.toThrow(
         /mcp-policy\.cedar: /,
       );
+    });
+
+    it("applies a global policy given by path", async () => {
+      const { root } = await createWorkspace({ "global.cedar": FORBID_UNLESS_GITHUB });
+
+      await expect(
+        check(
+          { ".centaur/mcp-policy.cedar": PERMIT_ANY_REMOTE },
+          "--global-policy",
+          join(root, "global.cedar"),
+        ),
+      ).rejects.toThrow(/mcp_servers\.linear: forbidden by policy global\.0/);
+    });
+
+    it("fails when the global policy cannot be read", async () => {
+      await expect(
+        check(
+          { ".centaur/mcp-policy.cedar": PERMIT_ANY_REMOTE },
+          "--global-policy",
+          "/nonexistent.cedar",
+        ),
+      ).rejects.toThrow(/Cannot read \/nonexistent\.cedar/);
     });
 
     it("fails when there is no policy file", async () => {

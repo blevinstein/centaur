@@ -90,7 +90,7 @@ string or `{ secret: NAME, prefix?: string }`, where `NAME` matches `[A-Z][A-Z0-
 The parser also checks `allowed_tools` against the servers: every `mcp__<name>` or `mcp__<name>__...`
 entry must name a defined server (`mcp__github*` entries for the action's built-ins are ignored), and every
 server needs at least one such entry. At registration and on every turn every server is also checked against the repo's
-`.centaur/mcp-policy.cedar` on the default branch, and with no policy any `mcp_servers` entry fails
+`.centaur/mcp-policy.cedar` on the default branch and the deployer's global policy, and with neither any `mcp_servers` entry fails
 ([Operator policy](mcp.md#operator-policy)). See [mcp.md](mcp.md) for the secrets and trust model.
 
 ## Access

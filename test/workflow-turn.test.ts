@@ -303,7 +303,7 @@ describe("prepare", () => {
       const { deps: mcpPolicy } = fakePolicyGitHub();
 
       await expect(prepare(deps({ env, mcpPolicy }))).rejects.toThrow(
-        /mcp_servers\.linear: no \.centaur\/mcp-policy\.cedar on the default branch/,
+        /mcp_servers\.linear: no global operator policy and no \.centaur\/mcp-policy\.cedar on the default branch/,
       );
       expect(aws.requests).toEqual([]);
       await expect(readFile(join(root, PROMPT_FILE))).rejects.toThrow();
@@ -314,7 +314,7 @@ describe("prepare", () => {
       const { deps: mcpPolicy } = fakePolicyGitHub({ contentsStatus: 503 });
 
       await expect(prepare(deps({ env, mcpPolicy }))).rejects.toThrow(
-        /mcp_servers\.linear: cannot read the operator policy: GitHub request failed \(503\)/,
+        /mcp_servers\.linear: cannot read the repo operator policy: GitHub request failed \(503\)/,
       );
       expect(aws.requests).toEqual([]);
     });

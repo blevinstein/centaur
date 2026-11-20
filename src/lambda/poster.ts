@@ -3,6 +3,7 @@ import { z } from "zod";
 import { alias, type Platform } from "../config/index.js";
 import { createAccessResolver } from "./access.js";
 import type { AttachmentStore } from "./attachments.js";
+import type { McpPolicyReader } from "./mcp-policy.js";
 import type { OidcVerifier } from "./oidc.js";
 import { BOT_CREATED_STATE, type ThreadMetadata } from "./ownership.js";
 import { chatParameter, type ParameterStore } from "./parameters.js";
@@ -42,6 +43,7 @@ export const posterRequestSchema = z.discriminatedUnion("operation", [
     threadId,
     messageIds: z.array(z.string().min(1)).min(1).max(UNREACT_MAX_MESSAGES),
   }),
+  z.strictObject({ operation: z.literal("get-mcp-policy") }),
   z.strictObject({ operation: z.literal("register"), token: z.string().min(1), config: text }),
   z.strictObject({
     operation: z.literal("link-pull-request"),
@@ -72,6 +74,7 @@ export interface PosterDeps {
   attachments: AttachmentStore;
   telegram: TelegramApi;
   oidc: OidcVerifier;
+  globalMcpPolicy: McpPolicyReader;
   functionUrl: string;
   logger: Pick<Logger, "warn">;
 }
@@ -164,6 +167,8 @@ export function createPoster(deps: PosterDeps) {
     switch (request.operation) {
       case "register":
         return register(request);
+      case "get-mcp-policy":
+        return { policy: (await deps.globalMcpPolicy()) ?? null };
       case "link-pull-request":
         return pullRequests.link(request);
       case "resolve-pull-request":

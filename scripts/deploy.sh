@@ -52,7 +52,12 @@ yarn bundle:lambda
 build="$(mktemp -d)"
 trap 'rm -rf "$build"' EXIT
 cp dist/lambda/index.mjs "$build/index.mjs"
-(cd "$build" && zip -q -X lambda.zip index.mjs)
+lambda_files=(index.mjs)
+if [ -f infra/mcp-policy.cedar ]; then
+  cp infra/mcp-policy.cedar "$build/mcp-policy.cedar"
+  lambda_files+=(mcp-policy.cedar)
+fi
+(cd "$build" && zip -q -X lambda.zip "${lambda_files[@]}")
 code_key="centaur/lambda-$(shasum -a 256 "$build/lambda.zip" | cut -c1-16).zip"
 
 bucket="$(code_bucket)"
