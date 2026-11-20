@@ -1,7 +1,7 @@
 # Additional MCP servers (design)
 
-Status: `prepare` writes the config and the turn fails on a missing secret; real-server verification is
-pending (see TODO.md). This designs how a consumer repo adds MCP servers to a turn through
+Status: implemented and verified against the remote GitHub MCP server, using the Actions token as the
+bearer. `prepare` writes the config and the turn fails on a missing secret. This describes how a consumer repo adds MCP servers to a turn through
 `.centaur.yml` ([config.md](config.md), [workflows.md](workflows.md#agent-turn)). The agent has no
 MCP servers beyond the ones `claude-code-action` provides itself.
 
@@ -98,9 +98,8 @@ the consumer wrote a line naming it, and a `.centaur.yml` edit cannot widen that
 `${NAME}` expansion (supported in `env`, `args`, `url` and `headers` of MCP config), so the file holds
 references and the value stays in the process environment; the MCP client expands it when it starts
 the server. `prefix` becomes literal text around the reference (`"Bearer ${LINEAR_API_KEY}"`).
-Implementation must verify expansion works for a file passed with `--mcp-config`; if it does not,
-fall back to writing values into the file with mode `0600` under `.centaur-turn/`, which is
-git-excluded and not part of a pull request.
+`${NAME}` expansion in the `headers` of a file passed with `--mcp-config` is verified against a real
+remote server, so the file never holds the value.
 
 Residual exposure: the secret is in the environment of the agent process, so any allowed `Bash` tool
 can read it. Consumers who list secrets for a server should keep `Bash` out of `allowed_tools`, or

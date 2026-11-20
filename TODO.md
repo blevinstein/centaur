@@ -210,8 +210,9 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
       `--mcp-config`, and the turn fails on a missing secret.
 - [x] MCP servers 4: caller-workflow docs (`env:` pattern, the `Bash` caveat) in
       `docs/workflows.md` and `docs/onboarding.md`.
-- [ ] MCP servers 5: verify against one real remote server in a consumer repo, confirming `${VAR}`
-      expansion in `--mcp-config` files and the `mcp__<server>__*` wildcard.
+- [x] MCP servers 5: verified against the GitHub MCP server (`https://api.githubcopilot.com/mcp/`)
+      in this repo: `${VAR}` expansion in `--mcp-config` headers and the `mcp__ghmcp__*` wildcard
+      both work. The Actions token has no user identity, so `get_me` is not exposed to it.
 - [ ] MCP servers 6: operator policy in SSM, `centaur mcp-policy set|show`, and enforcement in
       `register` and `prepare`.
 
