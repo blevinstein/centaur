@@ -233,6 +233,8 @@ followed by a footer linking the workflow run and naming the bot and the schedul
 thread ID). When a field is missing or empty the title is `Centaur agent changes` (with `: <prompt
 name>` for scheduled prompts) and the body is the footer alone.
 
+### Choosing the pull request
+
 Two more optional fields choose the pull request a turn targets, each present only when
 `pull_requests` in `.centaur.yml` enables it: `pr_action` (`update` or `new`, comment turns) and
 `existing_pr_number` (a positive integer, chat and scheduled turns). `extractResult` returns them as
@@ -276,6 +278,49 @@ action passes `TARGET_HEAD_REF`, `TARGET_PR_NUMBER` and the `pr-details` title a
 pull request, `PULL_REQUEST_UPDATED` (`true` when `push-existing` updated one),
 `FALLBACK_REASON` and `RUN_URL`. An updated existing pull request is not linked to the current
 thread; `resolve-pull-request` already refreshed its link while the plan was validated.
+
+**Validity.** `checkCandidate` (`src/workflows/pr-target.ts`) is the only place a target is
+validated, for both the prompt's list and `plan-pr`. A pull request is valid when it is open, its
+base and head repositories are both this repository (not a fork), its head branch starts with
+`centaur/<bot>-`, it was opened by `github-actions[bot]`, and, when the poster has a
+`resolve-pull-request` record for it, the record names the same bot. A missing record passes; a
+poster failure rejects.
+
+**Fallbacks.** A target that is absent, malformed or invalid never fails the turn. The changes go
+to the thread's normal pull request (`centaur/<bot>-<thread key>`), as if no number was given.
+`plan-pr` rejects with `not_open`, `not_candidate` (wrong repository, branch, or author),
+`not_allowed` (the record names another bot) or `lookup_failed` (a GitHub or poster error), and
+logs a `::notice::` with the code. An absent or malformed number and `existing: off` fall back
+without a reason. `push-existing` falls back with its own reason (`invalid_ref`, `patch_failed`,
+`fetch_failed`, `conflict`, `push_rejected`), leaving the workspace untouched so the usual pull
+request is opened from it. Whenever the agent named a number and a pull request was then opened
+for the thread, `finish` appends `Could not update #N (<reason>); opened the usual pull request
+instead.` to the chat reply, for `plan-pr` rejections as well as `push-existing` failures. Nothing
+is added when the plan fell back without a reason or no pull request was opened (no file changes).
+
+**Updating.** An update is one plain commit, pushed without force to the target's branch, plus a
+marked conversation comment with the new title and body. The pull request's own title and body are
+not edited and it is not linked to the current thread.
+
+**Stacking.** For a comment turn's `pr_action: new`, the base is the original pull request's head
+branch when its head commit is an ancestor of the working tree, else the default branch
+([Comment turns](#comment-turns)).
+
+**Security.** The agent can write `.centaur-turn/state.json`, so nothing in it decides a target:
+`plan-pr` re-derives the candidate set from GitHub and the poster, and `existing_pr_number` is read
+from the action's execution file and checked against that set. Poster operations and the
+repository come from the verified OIDC claim and the workflow's environment, never from agent
+output. A pull request number is only an index into the validated set. Pull request titles in the
+prompt are fenced as data. The push uses the workflow's `GITHUB_TOKEN`, so it is subject to the
+branch protection or rulesets of the target branch, and, like every push made with that token, it
+does not trigger workflows (see [plan.md](plan.md#security)).
+
+**Reviewing agent updates.** An update adds commits to a pull request that may already be
+approved. In repositories that require approvals, enable "Dismiss stale pull request approvals when
+new commits are pushed" in the branch protection rule or ruleset for the default branch, so an
+agent update cannot ride an earlier approval. Also protect the default branch (required reviews or
+rulesets), since Centaur never merges and relies on that review. Setting `pull_requests.existing:
+off` removes the path.
 
 ### Comment turns
 

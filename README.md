@@ -186,6 +186,9 @@ centaur bot add garden --platform telegram
   and `allowed_tools` set its price. Tuning: [docs/config.md](docs/config.md#tuning-cost).
 - **Reviewed changes.** The agent works through an explicit `allowed_tools` allowlist and its edits
   arrive as pull requests. Protect the default branch, because the dispatch token can also push.
+  The agent may add commits to an open pull request of the same bot, so where approvals are
+  required, enable "Dismiss stale pull request approvals when new commits are pushed"
+  ([docs/workflows.md](docs/workflows.md#choosing-the-pull-request)).
   Fetched web pages are untrusted input; avoid tools that send data elsewhere
   ([docs/plan.md](docs/plan.md#security)).
 

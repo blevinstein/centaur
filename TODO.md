@@ -294,7 +294,7 @@ can write.
 - [x] PR targets 5: wire the `turn` action (`plan-pr`, conditional `create-pull-request` and
       `push-existing`), chat note and marked PR comment.
 - [x] PR targets 6: comment-mode `pr_action: new` (`pushNewBranch`, `createPullRequest`, double link).
-- [ ] PR targets 7: docs sweep, including the "dismiss stale approvals" advice.
+- [x] PR targets 7: docs sweep, including the "dismiss stale approvals" advice.
 - [x] PR targets 8: **[HUMAN ACTION]** real runs on `centaur-hello` (`-f prompt_name=pr-smoke`):
       a second run updates an open PR, a merged or closed PR falls back, a comment `pr_action: new`
       opens a stacked PR whose comments resolve to the same thread.

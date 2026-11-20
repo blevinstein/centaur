@@ -230,6 +230,12 @@ DMs with a bot are always that bot's; DMs use reply chains, not topics (see
   a "push to main" convention for automated runs.
 - **Prompt injection.** Fetched web pages (plant care guides, weather sites) are untrusted input. The allowlist
   and PR review are the backstops; avoid giving agents tools that send data elsewhere.
+- **Agent-chosen pull request targets.** Chat and scheduled turns may update an open pull request
+  of the same bot (`pull_requests.existing`), and comment turns may open a stacked one
+  (`comment_new`). The target is re-validated from GitHub and the poster, never from the turn state
+  the agent can write. Because an update pushes new commits to a possibly approved pull request,
+  enable "Dismiss stale pull request approvals when new commits are pushed" where approvals are
+  required. See [workflows.md](workflows.md#choosing-the-pull-request).
 - **GitHub credential for dispatch.** A fine-grained PAT limited to the participating repos,
   stored in SSM at `/centaur/github/token`. `repository_dispatch` needs Contents: write, which also allows pushing, so every
   participating repo protects `main` with branch protection or rulesets. A PAT covers one
