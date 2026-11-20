@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo/mascot.png" alt="Centaur mascot: a smiling woman with pink hair and eight octopus tentacles for legs" width="200">
+  <img src="assets/logo/mascot.png" alt="Centaur mascot: a smiling purple octopus with cat ears riding on a centaur's horse body" width="200">
 </p>
 
 # centaur
