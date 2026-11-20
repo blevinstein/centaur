@@ -5,7 +5,7 @@ context:
   default: transcript
 provider: anthropic
 model: sonnet
-allowed_tools: "Read,Glob,Grep,Write,Edit,mcp__ghmcp__get_me,mcp__ghmcp__search_repositories"
+allowed_tools: "Read,Glob,Grep,Write,Edit,mcp__ghmcp__*"
 persona: .centaur/persona.md
 prompts:
   hello:
