@@ -5,7 +5,7 @@ context:
   default: transcript
 provider: anthropic
 model: sonnet
-allowed_tools: "Read,Glob,Grep,Write,Edit"
+allowed_tools: "Read,Glob,Grep,Write,Edit,mcp__ghmcp__get_me,mcp__ghmcp__search_repositories"
 persona: .centaur/persona.md
 prompts:
   hello:
@@ -14,3 +14,11 @@ prompts:
     destination: blevinstein
   pr-update:
     destination: blevinstein
+  mcp-smoke:
+    destination: blevinstein
+mcp_servers:
+  ghmcp:
+    url: https://api.githubcopilot.com/mcp/
+    headers:
+      Authorization: { secret: GITHUB_MCP_TOKEN, prefix: "Bearer " }
+      X-MCP-Readonly: "true"
