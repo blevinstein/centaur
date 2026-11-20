@@ -65,6 +65,10 @@
   ID. `COMMENT_PULL_REQUEST` enables comment-mode `prepare`; `src/workflows/pull-request-comments.ts`
   owns PR reading and comment rendering. Every comment the agent posts to a PR carries
   `REPLY_MARKER`, and `finish` pushes with plain `git`.
+- `register` checks `mcp_servers` against the operator's Cedar policy (`src/config/mcp-policy.ts`,
+  merged from `/centaur/policy/mcp` and `bots/<bot>/mcp-policy`) and fails closed. The package's
+  wasm is embedded in the Lambda bundle by `scripts/cedar-lambda.ts` (see `bundle:lambda`); import
+  it only through `@cedar-policy/cedar-wasm/nodejs`.
 - `PrepareDeps.env` carries the secrets named in `mcp_servers`; `prepare` fails before any poster
   call if one is unset. Tests that need git use `test/helpers/git-fixtures.ts`.
 - Comment turns run the actions and read `.centaur.yml`, the persona and the instructions from a

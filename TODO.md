@@ -213,8 +213,18 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
 - [x] MCP servers 5: verified against the GitHub MCP server (`https://api.githubcopilot.com/mcp/`)
       in this repo: `${VAR}` expansion in `--mcp-config` headers and the `mcp__ghmcp__*` wildcard
       both work. The Actions token has no user identity, so `get_me` is not exposed to it.
-- [ ] MCP servers 6: operator policy in SSM, `centaur mcp-policy set|show`, and enforcement in
-      `register` and `prepare`.
+- [x] MCP servers 6: operator Cedar policy in SSM (global and per bot, merged, fail closed),
+      `centaur mcp-policy set|show|clear`, and enforcement in `register` (see
+      [docs/mcp.md](docs/mcp.md#operator-policy)). **[HUMAN APPROVAL]** Roll out in this order: deploy
+      the stack, `centaur mcp-policy set` a global policy that permits `api.githubcopilot.com`, then merge
+      the `ghmcp` config, or its next `register` fails.
+- [ ] Explore **approval-required** MCP servers: a level between deny and allow where the operator
+      policy marks a server (or tool) as needing a human decision, and the bot asks in Telegram (with
+      emoji reactions or buttons) before the turn uses it. Consider both synchronous (the turn waits)
+      and asynchronous (the turn proceeds without it, and a later turn is offered it) variants. It also
+      needs a way to express the third outcome in Cedar (for example a separate `RequireApproval`
+      action) and a state record for decisions. Keep the harness small: explore first, decide scope
+      before building.
 
 ## 12. Slack support
 

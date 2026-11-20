@@ -466,6 +466,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@cedar-policy/cedar-wasm@npm:4.14.0":
+  version: 4.14.0
+  resolution: "@cedar-policy/cedar-wasm@npm:4.14.0"
+  checksum: 10c0/0b3efa92c4d6c99b4ee37e1104ded262dcedbf0eab99de9a73eb432a2afbe6d3b30c0498e83282e148fe8f24b0700f13c6c736713232bc7aac40417433a6353f
+  languageName: node
+  linkType: hard
+
 "@chat-adapter/catalog@npm:4.45.0":
   version: 4.45.0
   resolution: "@chat-adapter/catalog@npm:4.45.0"
@@ -1387,6 +1394,7 @@ __metadata:
     "@aws-sdk/client-ssm": "npm:3.1171.0"
     "@aws-sdk/lib-dynamodb": "npm:3.1171.0"
     "@biomejs/biome": "npm:2.6.8"
+    "@cedar-policy/cedar-wasm": "npm:4.14.0"
     "@chat-adapter/slack": "npm:4.45.0"
     "@chat-adapter/state-memory": "npm:4.45.0"
     "@chat-adapter/telegram": "npm:4.45.0"

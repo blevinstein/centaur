@@ -425,6 +425,8 @@ IDs and names are plain `String`.
 | `admin-claim/<platform>` | String (JSON) | `centaur admin claim`; deleted on use, failure limit or `--cancel` |
 | `chats/<alias>` | String | access request approval; `centaur access approve` |
 | `github/token` | SecureString | `centaur github-token set` |
+| `policy/mcp` | String (Cedar) | `centaur mcp-policy set`; global MCP server policy |
+| `bots/<bot>/mcp-policy` | String (Cedar) | `centaur mcp-policy set --bot`; merged with the global policy |
 
 `bots/<bot>/repo` is the bot's binding: the `owner/repo` that registered it. `register` must
 refuse to overwrite it with a different repo, and `centaur bot remove` refuses while it is set.

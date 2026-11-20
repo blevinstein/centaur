@@ -1,7 +1,8 @@
 # Additional MCP servers (design)
 
 Status: implemented and verified against the remote GitHub MCP server, using the Actions token as the
-bearer. `prepare` writes the config and the turn fails on a missing secret. This describes how a consumer repo adds MCP servers to a turn through
+bearer. `prepare` writes the config and the turn fails on a missing secret. `register` enforces the
+operator policy below. This describes how a consumer repo adds MCP servers to a turn through
 `.centaur.yml` ([config.md](config.md), [workflows.md](workflows.md#agent-turn)). The agent has no
 MCP servers beyond the ones `claude-code-action` provides itself.
 
@@ -71,7 +72,7 @@ Everything that can be checked from the file alone is checked by `parseCentaurCo
   `mcp_servers` (a typo would otherwise silently allow nothing);
 - cross-field: every server has at least one `mcp__<name>` entry in `allowed_tools`, since a
   configured but unallowed server only costs start-up time and tool-list tokens;
-- the trust policy below, if the repo or the operator configures one.
+- the operator policy below, checked by `register` only (it needs SSM).
 
 Checked only at turn time, in `prepare`: every `{secret: NAME}` has a non-empty environment variable
 `NAME`. A missing one fails the turn with the name and the caller-workflow line that supplies it,
@@ -168,11 +169,10 @@ Mitigations, in order of recommendation:
 
 1. Secrets only through the caller `env:` (above). A merged config cannot reach a secret the caller
    did not list.
-2. Policy file owned by the operator, not the repo: an optional `/centaur/policy/mcp` SSM parameter
-   (allowed `url` host patterns, allowed `command` values with required version pin pattern) that
-   `prepare` and `register` check. Config that violates it fails registration and the turn. It is
-   outside any pull request's reach, matching the "no allowlist in the repo" decision for chat
-   access ([config.md](config.md#design-decisions)).
+2. Policy owned by the operator, not the repo: Cedar text in SSM that `register` checks (see
+   [Operator policy](#operator-policy)). Config that violates it fails registration. It is outside
+   any pull request's reach, matching the "no allowlist in the repo" decision for chat access
+   ([config.md](config.md#design-decisions)).
 3. Remote servers only by default: reject `command` servers unless the policy permits specific
    commands. Remote servers cannot run code on the runner.
 4. Pinned packages: when `command` is allowed, require `npx`/`uvx` arguments to carry an exact
@@ -180,6 +180,54 @@ Mitigations, in order of recommendation:
    what runs. Container images by digest if `docker` is ever allowed.
 5. Surface changes: `register` (which runs on merge to the default branch) lists the configured
    servers in its job summary so additions are visible after the fact.
+
+## Operator policy
+
+`register` authorizes every entry in `mcp_servers` against [Cedar](https://www.cedarpolicy.com/)
+policies stored in SSM, outside any pull request's reach:
+
+| Parameter | Scope |
+|---|---|
+| `/centaur/policy/mcp` | every bot |
+| `/centaur/bots/<bot>/mcp-policy` | one bot |
+
+Manage them with `centaur mcp-policy set --file <path> [--bot <bot>]`, `show [--bot <bot>]` and
+`clear [--bot <bot>]`. `set` validates the file against the schema below, so a misspelled attribute
+or action is refused. `centaur bot remove` deletes the bot's policy with its other parameters.
+
+**Fail closed.** With no policy at all, any `mcp_servers` entry fails registration, naming the
+server (`mcp_servers.ghmcp: not permitted by any policy`). A config without `mcp_servers` never reads a
+policy. An unparseable stored policy, or a policy that errors while evaluating, denies.
+
+**Merge rule.** The global and bot policies are evaluated together as one Cedar policy set, so a
+server is allowed when some `permit` from either matches and no `forbid` from either does. A bot
+policy can add permits or its own forbids. A global `forbid` is a guardrail no bot policy can lift,
+because Cedar has no priorities. To make a default that bots may override, write it as a `permit` in
+each bot's policy rather than as a global one.
+
+**Model.** Each server is a request: principal `Bot::"<bot>"`, action `Action::"UseServer"`, resource
+`McpServer::"<name>"`. The resource attributes are always all present:
+
+| Attribute | Remote server | Local (stdio) server |
+|---|---|---|
+| `transport` | `"remote"` | `"stdio"` |
+| `host`, `url` | URL hostname and full URL | `""` |
+| `command`, `args` (set of strings) | `""`, empty | the command and its arguments |
+| `pinned` (bool) | `false` | the first argument not starting with `-` ends in an exact version, such as `pkg@1.4.2` or `pkg==1.4.2` (not `@latest`, a range or a bare name) |
+
+```cedar
+permit(principal, action == Action::"UseServer", resource)
+  when { resource.transport == "remote" && resource.host == "api.githubcopilot.com" };
+
+permit(principal == Bot::"garden", action == Action::"UseServer", resource)
+  when { resource.transport == "stdio" && resource.command == "npx" && resource.pinned };
+
+forbid(principal, action, resource) when { resource.host like "*.untrusted.example" };
+```
+
+A policy change applies at each bot's next registration (a push to the default branch); running
+turns are unaffected. Enforcement is at registration only: `prepare` and the poster do not
+re-check. The Lambda role reads the two parameters through `ssm:GetParameter`.
 
 ## Out of scope
 
@@ -207,11 +255,8 @@ Mitigations, in order of recommendation:
 5. Verify end to end against one real server (a remote one) in a consumer repo, confirming `${VAR}`
    expansion for `--mcp-config` files and the `mcp__<server>__*` wildcard under the pinned
    `claude-code-action` version.
-6. Policy (separate change): the SSM policy parameter, CLI support (`centaur mcp-policy set/show`),
-   and enforcement in `register` and `prepare`.
-
-Steps 1 to 5 deliver the feature with caller-`env:` secrets as the only gate; step 6 hardens it and
-can follow.
+6. Policy: the SSM policy parameters, `centaur mcp-policy set|show|clear`, and enforcement in
+   `register` ([Operator policy](#operator-policy)).
 
 ## Decisions
 
@@ -228,7 +273,7 @@ The maintainer accepted every recommendation below.
    both; document per-tool for servers with write tools.
 5. **Local `command` servers.** Permit them in the schema at all, or ship URL servers only first.
    Recommendation: schema accepts both, but the first release enforces nothing beyond pinning
-   guidance, and the policy in step 6 defaults to rejecting `command` once it exists.
+   guidance, and the operator policy rejects everything, `command` servers included, until a policy permits it.
 6. **Operator policy location.** SSM parameter owned by the admin vs a repo file. Recommendation: SSM,
    consistent with access control living outside the repo.
 7. **Config source for turns.** Keep reading the default branch (current behaviour). Recommendation:
