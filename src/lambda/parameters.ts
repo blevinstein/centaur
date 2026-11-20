@@ -20,8 +20,6 @@ export interface ParameterStore {
 }
 
 export const botParameter = (bot: string, key: string) => `${PARAMETER_ROOT}/bots/${bot}/${key}`;
-export const mcpPolicyParameter = (bot: string) => botParameter(bot, "mcp-policy");
-export const GLOBAL_MCP_POLICY_PARAMETER = `${PARAMETER_ROOT}/policy/mcp`;
 export const CHATS_PREFIX = `${PARAMETER_ROOT}/chats`;
 export const chatParameter = (name: string) => `${CHATS_PREFIX}/${name}`;
 export const FUNCTION_URL_PARAMETER = `${PARAMETER_ROOT}/function-url`;

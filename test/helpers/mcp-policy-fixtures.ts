@@ -1,3 +1,5 @@
+import { vi } from "vitest";
+import { GitHubRequestError, type GitHubRequester } from "../../src/workflows/resolve.js";
 import { localServerYaml, mcpServersFrom } from "./config-fixtures.js";
 
 export const GITHUB_HOST = "api.githubcopilot.com";
@@ -16,9 +18,6 @@ export const permitForBot = (bot: string) =>
 
 export const FORBID_UNTRUSTED = `forbid(principal, action, resource)
   when { resource.host like "*.untrusted.example" };`;
-
-export const forbidForBot = (bot: string) =>
-  `forbid(principal == Bot::"${bot}", action, resource);`;
 
 const serverOf = (servers: ReturnType<typeof mcpServersFrom>, name: string) => {
   const server = servers[name];
@@ -43,3 +42,42 @@ export const GITHUB_SERVER_CONFIG = {
   mcp_servers: `{ghmcp: {url: "https://${GITHUB_HOST}/mcp/"}}`,
   allowed_tools: '"Read, mcp__ghmcp__*"',
 };
+
+export const POLICY_REPOSITORY = "octo/sprout";
+
+export const policyPath = (ref: string) =>
+  `/repos/${POLICY_REPOSITORY}/contents/.centaur/mcp-policy.cedar?ref=${ref}`;
+
+export const WORKSPACE_PERMIT_FILES = {
+  ".centaur/mcp-policy.cedar": PERMIT_ANY_REMOTE,
+};
+
+export function fakePolicyGitHub(
+  options: {
+    policy?: string;
+    defaultBranch?: string;
+    repositoryStatus?: number;
+    contentsStatus?: number;
+  } = {},
+) {
+  const paths: string[] = [];
+  const unused = vi.fn(async () => {
+    throw new Error("unexpected GitHub call");
+  });
+  const github: GitHubRequester = {
+    json: vi.fn(async (path, schema) => {
+      paths.push(path);
+      if (options.repositoryStatus) throw new GitHubRequestError(options.repositoryStatus);
+      return schema.parse({ default_branch: options.defaultBranch ?? "main" });
+    }),
+    text: vi.fn(async (path) => {
+      paths.push(path);
+      if (options.contentsStatus) throw new GitHubRequestError(options.contentsStatus);
+      if (options.policy === undefined) throw new GitHubRequestError(404);
+      return options.policy;
+    }),
+    post: unused,
+    postJson: unused,
+  };
+  return { github, paths, deps: { repository: POLICY_REPOSITORY, github } };
+}

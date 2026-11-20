@@ -184,6 +184,10 @@ Commands: `register`, `resolve`, `prepare`, `pr-details`, `finish`, `notify-fail
    When `mcp_servers` is set, it writes `.centaur-turn/mcp.json` (secrets as `${NAME}` references,
    never values) and adds `--mcp-config` to `claude_args`; a referenced secret missing from the
    step's environment fails `prepare` before anything is posted, naming it ([mcp.md](mcp.md)).
+   Before anything else, `prepare` checks the servers against `.centaur/mcp-policy.cedar` as it
+   exists on the repository's default branch, fetched through the GitHub API (never the checkout),
+   and fails the turn before any poster call when a server is not permitted, the policy is missing
+   or invalid, or it cannot be fetched ([Operator policy](mcp.md#operator-policy)).
    The prompt's instructions are the guidance from `instructions/{chat,comment,silence}.md` (or
    the repo's `instructions` overrides in `.centaur.yml`, read from the checkout like the persona)
    followed by fixed text in `prompt.ts`: the untrusted-input warning and the structured-output

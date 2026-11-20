@@ -141,8 +141,9 @@ Repeat for each consumer repo, after the bot exists (Telegram above, Slack below
      anything the agent's tools need. For each secret named in `mcp_servers`, add an `env:` line to
      the `turn` step of the caller workflows and keep `Bash` out of `allowed_tools`
      ([MCP server secrets](workflows.md#mcp-server-secrets)). A repo that configures
-     `mcp_servers` cannot register until the operator has set a policy that permits them
-     (`centaur mcp-policy set`, [Operator policy](mcp.md#operator-policy)).
+     `mcp_servers` cannot register or run turns until its default branch has a
+     `.centaur/mcp-policy.cedar` that permits them
+     ([Operator policy](mcp.md#operator-policy)).
 3. Settings > Actions > General: enable "Allow GitHub Actions to create and approve pull
    requests".
 4. If the centaur repo is private, open its Settings > Actions > General > Access and allow

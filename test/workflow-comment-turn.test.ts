@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { PROMPT_FILE, prepare, STATE_FILE } from "../src/workflows/prepare.js";
 import { fence } from "../src/workflows/pull-request-comments.js";
+import { fakePolicyGitHub, PERMIT_ANY_REMOTE } from "./helpers/mcp-policy-fixtures.js";
 import {
   agentComment,
   commentSetup,
@@ -16,6 +17,7 @@ import {
   botMessage,
   configText,
   createWorkspace,
+  mcpConfigText,
   message,
   THREAD,
   THREAD_PREFIX,
@@ -223,5 +225,33 @@ describe("prepare in comment mode", () => {
     const { deps } = await commentSetup({ comments: [] });
 
     await expect(prepare({ ...deps(), promptName: "weekly" })).rejects.toThrow(/not both/);
+  });
+
+  describe("MCP operator policy", () => {
+    const env = { LINEAR_API_KEY: "lin_secret" };
+
+    it("enforces the default branch policy before any poster call", async () => {
+      const { deps, aws } = await commentSetup({
+        comments: [prComment(1, "hi")],
+        config: mcpConfigText(),
+        files: { ".centaur/mcp-policy.cedar": PERMIT_ANY_REMOTE },
+        mcpPolicy: fakePolicyGitHub().deps,
+      });
+
+      await expect(prepare({ ...deps(), env })).rejects.toThrow(
+        /mcp_servers\.linear: no \.centaur\/mcp-policy\.cedar on the default branch/,
+      );
+      expect(aws.requests).toEqual([]);
+    });
+
+    it("allows a server the default branch policy permits", async () => {
+      const { deps } = await commentSetup({
+        comments: [prComment(1, "hi")],
+        config: mcpConfigText(),
+        mcpPolicy: fakePolicyGitHub({ policy: PERMIT_ANY_REMOTE }).deps,
+      });
+
+      expect((await prepare({ ...deps(), env })).skip).toBe(false);
+    });
   });
 });

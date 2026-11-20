@@ -129,6 +129,12 @@ export interface GitHubRequester {
   postJson<T>(path: string, body: unknown, schema: z.ZodType<T>): Promise<T>;
 }
 
+export class GitHubRequestError extends Error {
+  constructor(readonly status: number) {
+    super(`GitHub request failed (${status})`);
+  }
+}
+
 /** GitHub REST access; errors name only the status, never a response body. */
 export function createGitHubRequester(
   token: string,
@@ -143,7 +149,7 @@ export function createGitHubRequester(
         "X-GitHub-Api-Version": "2022-11-28",
       },
     });
-    if (!response.ok) throw new Error(`GitHub request failed (${response.status})`);
+    if (!response.ok) throw new GitHubRequestError(response.status);
     return response;
   };
   const send = async (path: string, body: unknown) => {
@@ -157,7 +163,7 @@ export function createGitHubRequester(
       },
       body: JSON.stringify(body),
     });
-    if (!response.ok) throw new Error(`GitHub request failed (${response.status})`);
+    if (!response.ok) throw new GitHubRequestError(response.status);
     return response;
   };
   return {

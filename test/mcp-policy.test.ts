@@ -1,10 +1,15 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { checkMcpPolicy, validateMcpPolicy } from "../src/config/index.js";
-import { describeServer, isPinned } from "../src/config/mcp-policy.js";
+import { parseCentaurConfig } from "../src/config/index.js";
+import {
+  checkMcpPolicy,
+  describeServer,
+  isPinned,
+  validateMcpPolicy,
+} from "../src/config/mcp-policy.js";
 import {
   docsSearchServer,
   FORBID_UNTRUSTED,
-  forbidForBot,
   githubServer,
   githubServers,
   npxServers,
@@ -87,72 +92,34 @@ describe("checkMcpPolicy", () => {
     ["a permit scoped to this bot allows", githubServers, permitForBot("garden"), true],
     ["a permit scoped to another bot denies", githubServers, permitForBot("other"), false],
   ])("%s", (_name, servers, policy, allowed) => {
-    expect(paths(checkMcpPolicy("garden", servers, { global: policy }))).toEqual(
+    expect(paths(checkMcpPolicy("garden", servers, policy ?? ""))).toEqual(
       allowed ? [] : [`mcp_servers.${Object.keys(servers)[0]}`],
     );
   });
 
   it("names the policy that forbids a server", () => {
-    const [issue] = checkMcpPolicy("garden", untrustedServers, {
-      global: `${PERMIT_ANY_REMOTE}\n${FORBID_UNTRUSTED}`,
-    });
-    expect(issue?.message).toMatch(/forbidden by policy global\.1/);
+    const [issue] = checkMcpPolicy(
+      "garden",
+      untrustedServers,
+      `${PERMIT_ANY_REMOTE}\n${FORBID_UNTRUSTED}`,
+    );
+    expect(issue?.message).toMatch(/forbidden by policy policy\.1/);
   });
 
   it("denies every server when the policy does not parse", () => {
-    const issues = checkMcpPolicy("garden", githubServers, { global: "permit(" });
+    const issues = checkMcpPolicy("garden", githubServers, "permit(");
     expect(issues).toEqual([
       { path: "mcp_servers.ghmcp", message: expect.stringMatching(/^operator policy is invalid/) },
     ]);
   });
 
   it("denies when a policy errors during evaluation", () => {
-    const issues = checkMcpPolicy("garden", githubServers, {
-      global: `${PERMIT_ANY_REMOTE}\nforbid(principal, action, resource) when { resource.missing == "x" };`,
-    });
+    const issues = checkMcpPolicy(
+      "garden",
+      githubServers,
+      `${PERMIT_ANY_REMOTE}\nforbid(principal, action, resource) when { resource.missing == "x" };`,
+    );
     expect(issues[0]?.message).toMatch(/policy evaluation failed/);
-  });
-
-  describe("merging global and bot policies", () => {
-    it("lets a bot permit extend a global one", () => {
-      const servers = { ...githubServers, ...npxServers("pkg@1.2.3") };
-      expect(paths(checkMcpPolicy("garden", servers, { global: PERMIT_GITHUB }))).toEqual([
-        "mcp_servers.docs",
-      ]);
-      expect(
-        checkMcpPolicy("garden", servers, { global: PERMIT_GITHUB, bot: PERMIT_PINNED_NPX }),
-      ).toEqual([]);
-    });
-
-    it("lets a bot permit stand without a global policy", () => {
-      expect(checkMcpPolicy("garden", githubServers, { bot: PERMIT_GITHUB })).toEqual([]);
-    });
-
-    it("keeps a global forbid in force over a bot permit", () => {
-      expect(
-        paths(
-          checkMcpPolicy("garden", untrustedServers, {
-            global: FORBID_UNTRUSTED,
-            bot: PERMIT_ANY_REMOTE,
-          }),
-        ),
-      ).toEqual(["mcp_servers.evil"]);
-    });
-
-    it("lets a bot forbid restrict that bot only", () => {
-      const sources = { global: PERMIT_GITHUB, bot: forbidForBot("garden") };
-      expect(paths(checkMcpPolicy("garden", githubServers, sources))).toEqual([
-        "mcp_servers.ghmcp",
-      ]);
-      expect(checkMcpPolicy("other", githubServers, sources)).toEqual([]);
-    });
-
-    it("denies when only the bot policy is malformed", () => {
-      expect(
-        checkMcpPolicy("garden", githubServers, { global: PERMIT_GITHUB, bot: "permit(" })[0]
-          ?.message,
-      ).toMatch(/bot policy/);
-    });
   });
 });
 
@@ -174,5 +141,25 @@ describe("validateMcpPolicy", () => {
     ["a type mismatch", 'permit(principal, action, resource) when { resource.pinned == "yes" };'],
   ])("rejects %s", (_name, policy) => {
     expect(validateMcpPolicy(policy)).not.toEqual([]);
+  });
+});
+
+describe("this repo's .centaur/mcp-policy.cedar", () => {
+  const policy = readFileSync(".centaur/mcp-policy.cedar", "utf8");
+  const parsed = parseCentaurConfig(readFileSync(".centaur.yml", "utf8"));
+  if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+  const { bot, mcp_servers } = parsed.config;
+
+  it("validates against the schema", () => {
+    expect(validateMcpPolicy(policy)).toEqual([]);
+  });
+
+  it("permits the servers in .centaur.yml", () => {
+    expect(Object.keys(mcp_servers)).not.toEqual([]);
+    expect(checkMcpPolicy(bot, mcp_servers, policy)).toEqual([]);
+  });
+
+  it("denies the read-write GitHub endpoint", () => {
+    expect(checkMcpPolicy(bot, githubServers, policy)).toHaveLength(1);
   });
 });

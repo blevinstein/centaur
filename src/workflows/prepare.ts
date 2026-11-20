@@ -12,6 +12,7 @@ import type { AttachmentDownloader, PosterClient, ThreadStore } from "./aws.js";
 import { parseConfigOrThrow, readConfigText } from "./config-file.js";
 import { type Instructions, loadInstructions } from "./instructions.js";
 import { buildMcpConfig } from "./mcp-config.js";
+import { enforceMcpPolicy, type McpPolicyDeps } from "./mcp-policy-check.js";
 import { type CandidateDeps, listCandidates, type TargetDeps } from "./pr-target.js";
 import { buildPrompt, type PullRequestCandidate, replySchema } from "./prompt.js";
 import {
@@ -70,6 +71,8 @@ export interface CommentDeps {
 
 export interface PrepareDeps {
   comment?: CommentDeps | undefined;
+  /** Where to read the operator's MCP policy; required to run any config with `mcp_servers`. */
+  mcpPolicy?: McpPolicyDeps | undefined;
   /** Lets chat and scheduled turns list pull requests the agent may update. */
   targets?: TargetDeps | undefined;
   workspace: string;
@@ -401,6 +404,7 @@ const exists = (path: string) =>
 export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   const configRoot = deps.configRoot ?? deps.workspace;
   const config = parseConfigOrThrow(await readConfigText(configRoot));
+  await enforceMcpPolicy(config, deps.mcpPolicy);
   const mcp = buildMcpConfig(config.mcp_servers, deps.env);
   if (mcp.missingSecrets.length > 0) {
     throw new Error(

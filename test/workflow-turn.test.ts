@@ -12,6 +12,12 @@ import {
   STATE_FILE,
 } from "../src/workflows/prepare.js";
 import { envRef } from "./helpers/config-fixtures.js";
+import {
+  fakePolicyGitHub,
+  PERMIT_ANY_REMOTE,
+  policyPath,
+  WORKSPACE_PERMIT_FILES,
+} from "./helpers/mcp-policy-fixtures.js";
 import { candidatePr, targetSetup } from "./helpers/pr-target-fixtures.js";
 import {
   botMessage,
@@ -252,7 +258,8 @@ describe("prepare", () => {
 
   it("writes mcp.json with secret references and passes --mcp-config", async () => {
     const { deps, root } = await setup([message("1", "hi")], mcpConfigText());
-    const out = await prepare(deps({ env: { LINEAR_API_KEY: "lin_secret" } }));
+    const { deps: mcpPolicy } = fakePolicyGitHub({ policy: PERMIT_ANY_REMOTE });
+    const out = await prepare(deps({ env: { LINEAR_API_KEY: "lin_secret" }, mcpPolicy }));
     const written = await readFile(join(root, MCP_CONFIG_FILE), "utf8");
     expect(JSON.parse(written).mcpServers.linear.headers.Authorization).toBe(
       envRef("LINEAR_API_KEY", "Bearer "),
@@ -263,9 +270,68 @@ describe("prepare", () => {
 
   it("fails before any side effect when an MCP secret is unset, naming it", async () => {
     const { deps, aws, root } = await setup([message("1", "hi")], mcpConfigText());
-    await expect(prepare(deps())).rejects.toThrow(/LINEAR_API_KEY/);
+    const { deps: mcpPolicy } = fakePolicyGitHub({ policy: PERMIT_ANY_REMOTE });
+    await expect(prepare(deps({ mcpPolicy }))).rejects.toThrow(/LINEAR_API_KEY/);
     expect(aws.requests).toEqual([]);
     await expect(readFile(join(root, MCP_CONFIG_FILE))).rejects.toThrow();
+  });
+
+  describe("MCP operator policy", () => {
+    const env = { LINEAR_API_KEY: "lin_secret" };
+
+    it("reads the policy from the default branch, not the workspace or the running ref", async () => {
+      const { deps, aws } = await setup([message("1", "hi")], mcpConfigText());
+      const { deps: mcpPolicy, paths } = fakePolicyGitHub({
+        policy: PERMIT_ANY_REMOTE,
+        defaultBranch: "trunk",
+      });
+
+      await prepare(deps({ env: { ...env, GITHUB_REF: "refs/heads/feature" }, mcpPolicy }));
+
+      expect(paths).toEqual(["/repos/octo/sprout", policyPath("trunk")]);
+      expect(aws.requests.length).toBeGreaterThan(0);
+    });
+
+    it("ignores a permissive policy file in the workspace when the default branch has none", async () => {
+      const { deps, aws, root } = await setup(
+        [message("1", "hi")],
+        mcpConfigText(),
+        WORKSPACE_PERMIT_FILES,
+      );
+      const { deps: mcpPolicy } = fakePolicyGitHub();
+
+      await expect(prepare(deps({ env, mcpPolicy }))).rejects.toThrow(
+        /mcp_servers\.linear: no \.centaur\/mcp-policy\.cedar on the default branch/,
+      );
+      expect(aws.requests).toEqual([]);
+      await expect(readFile(join(root, PROMPT_FILE))).rejects.toThrow();
+    });
+
+    it("fails closed when the policy cannot be fetched", async () => {
+      const { deps, aws } = await setup([message("1", "hi")], mcpConfigText());
+      const { deps: mcpPolicy } = fakePolicyGitHub({ contentsStatus: 503 });
+
+      await expect(prepare(deps({ env, mcpPolicy }))).rejects.toThrow(
+        /mcp_servers\.linear: cannot read the operator policy: GitHub request failed \(503\)/,
+      );
+      expect(aws.requests).toEqual([]);
+    });
+
+    it("fails closed without GitHub access", async () => {
+      const { deps, aws } = await setup([message("1", "hi")], mcpConfigText());
+
+      await expect(prepare(deps({ env }))).rejects.toThrow(/mcp_servers\.linear: cannot read/);
+      expect(aws.requests).toEqual([]);
+    });
+
+    it("never fetches a policy for a config without servers", async () => {
+      const { deps } = await setup([message("1", "hi")]);
+      const { deps: mcpPolicy, paths } = fakePolicyGitHub();
+
+      await prepare(deps({ mcpPolicy }));
+
+      expect(paths).toEqual([]);
+    });
   });
 
   it("writes no mcp.json and no --mcp-config without servers", async () => {

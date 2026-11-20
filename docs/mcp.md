@@ -72,7 +72,8 @@ Everything that can be checked from the file alone is checked by `parseCentaurCo
   `mcp_servers` (a typo would otherwise silently allow nothing);
 - cross-field: every server has at least one `mcp__<name>` entry in `allowed_tools`, since a
   configured but unallowed server only costs start-up time and tool-list tokens;
-- the operator policy below, checked by `register` only (it needs SSM).
+- the operator policy below: `centaur config check` checks the local copy of the file, while `register` and
+  `prepare` check the default branch's copy.
 
 Checked only at turn time, in `prepare`: every `{secret: NAME}` has a non-empty environment variable
 `NAME`. A missing one fails the turn with the name and the caller-workflow line that supplies it,
@@ -169,10 +170,10 @@ Mitigations, in order of recommendation:
 
 1. Secrets only through the caller `env:` (above). A merged config cannot reach a secret the caller
    did not list.
-2. Policy owned by the operator, not the repo: Cedar text in SSM that `register` checks (see
-   [Operator policy](#operator-policy)). Config that violates it fails registration. It is outside
-   any pull request's reach, matching the "no allowlist in the repo" decision for chat access
-   ([config.md](config.md#design-decisions)).
+2. A Cedar policy in the repo at `.centaur/mcp-policy.cedar`, always read from the default branch
+   (see [Operator policy](#operator-policy)). Config that violates it fails registration and every
+   turn. A pull request that edits the policy has no effect until it is merged, so protect the file
+   with required review.
 3. Remote servers only by default: reject `command` servers unless the policy permits specific
    commands. Remote servers cannot run code on the runner.
 4. Pinned packages: when `command` is allowed, require `npx`/`uvx` arguments to carry an exact
@@ -183,27 +184,30 @@ Mitigations, in order of recommendation:
 
 ## Operator policy
 
-`register` authorizes every entry in `mcp_servers` against [Cedar](https://www.cedarpolicy.com/)
-policies stored in SSM, outside any pull request's reach:
+Every `mcp_servers` entry is authorized against a [Cedar](https://www.cedarpolicy.com/) policy file
+in the consumer repo at the fixed path `.centaur/mcp-policy.cedar`. The path is not configurable:
+a config field pointing at the file could be edited in the same pull request that adds the server.
+There is one file per repo, with no global or per-bot layers and no merging.
 
-| Parameter | Scope |
-|---|---|
-| `/centaur/policy/mcp` | every bot |
-| `/centaur/bots/<bot>/mcp-policy` | one bot |
+**Default branch only.** Both enforcement points fetch the file through the GitHub contents API at
+the repository's default branch (`GET /repos/{owner}/{repo}/contents/.centaur/mcp-policy.cedar?ref=<default branch>`,
+with the default branch from `GET /repos/{owner}/{repo}`). They never read the workspace copy,
+because a turn can run on another branch (`workflow_dispatch`) and the agent can edit files in the
+checkout. A pull request that changes the policy therefore has no effect until it is merged.
 
-Manage them with `centaur mcp-policy set --file <path> [--bot <bot>]`, `show [--bot <bot>]` and
-`clear [--bot <bot>]`. `set` validates the file against the schema below, so a misspelled attribute
-or action is refused. `centaur bot remove` deletes the bot's policy with its other parameters.
+**Where it runs.** On the runner, in one shared check, before any poster call:
 
-**Fail closed.** With no policy at all, any `mcp_servers` entry fails registration, naming the
-server (`mcp_servers.ghmcp: not permitted by any policy`). A config without `mcp_servers` never reads a
-policy. An unparseable stored policy, or a policy that errors while evaluating, denies.
+- `register` (the `register` action), so registration fails early;
+- `prepare`, on every turn mode including pull request comment turns, so a policy change takes
+  effect on the next turn without re-registering.
 
-**Merge rule.** The global and bot policies are evaluated together as one Cedar policy set, so a
-server is allowed when some `permit` from either matches and no `forbid` from either does. A bot
-policy can add permits or its own forbids. A global `forbid` is a guardrail no bot policy can lift,
-because Cedar has no priorities. To make a default that bots may override, write it as a `permit` in
-each bot's policy rather than as a global one.
+The Lambda and poster are not involved. The workflows need `contents: read` on the `GITHUB_TOKEN`
+(the register action passes `github.token`, as the turn action already does).
+
+**Fail closed.** If `mcp_servers` is non-empty, the check fails, naming each server
+(`mcp_servers.ghmcp: not permitted by any policy`), when the default branch has no policy file (404),
+the file or repository cannot be fetched (any other error), the policy does not parse, or
+evaluation errors. A config without `mcp_servers` never fetches a policy.
 
 **Model.** Each server is a request: principal `Bot::"<bot>"`, action `Action::"UseServer"`, resource
 `McpServer::"<name>"`. The resource attributes are always all present:
@@ -215,19 +219,41 @@ each bot's policy rather than as a global one.
 | `command`, `args` (set of strings) | `""`, empty | the command and its arguments |
 | `pinned` (bool) | `false` | the first argument not starting with `-` ends in an exact version, such as `pkg@1.4.2` or `pkg==1.4.2` (not `@latest`, a range or a bare name) |
 
+A server is allowed when some `permit` matches and no `forbid` does. Policy templates are not
+supported.
+
+This repo's own policy permits only the read-only endpoints of the remote GitHub MCP server:
+
 ```cedar
 permit(principal, action == Action::"UseServer", resource)
-  when { resource.transport == "remote" && resource.host == "api.githubcopilot.com" };
+  when {
+    resource.transport == "remote" &&
+    resource.host == "api.githubcopilot.com" &&
+    (resource.url == "https://api.githubcopilot.com/mcp/readonly" ||
+     resource.url like "https://api.githubcopilot.com/mcp/x/*/readonly")
+  };
+```
 
+The server enforces the `/readonly` path, so the agent cannot reach a write tool even if
+`allowed_tools` names one; matching the exact URL pins that. A bare `https://api.githubcopilot.com/mcp/`
+is denied. Other examples:
+
+```cedar
 permit(principal == Bot::"garden", action == Action::"UseServer", resource)
   when { resource.transport == "stdio" && resource.command == "npx" && resource.pinned };
 
 forbid(principal, action, resource) when { resource.host like "*.untrusted.example" };
 ```
 
-A policy change applies at each bot's next registration (a push to the default branch); running
-turns are unaffected. Enforcement is at registration only: `prepare` and the poster do not
-re-check. The Lambda role reads the two parameters through `ssm:GetParameter`.
+**Protect the file.** Require review on `.centaur/mcp-policy.cedar` with a `CODEOWNERS` entry or a
+repository ruleset, since anyone who can merge a change to it can permit any server.
+
+**Trade-off.** There is no central operator layer: each repo owner sets their own policy, so the
+policy limits what a pull request can add, not what the repo's owners choose.
+
+Check a config and its policy locally with `centaur config check [path]`. That command reads the
+local `.centaur/mcp-policy.cedar` next to the config, which is convenient for editing but is not what
+enforcement uses.
 
 ## Out of scope
 
@@ -255,8 +281,8 @@ re-check. The Lambda role reads the two parameters through `ssm:GetParameter`.
 5. Verify end to end against one real server (a remote one) in a consumer repo, confirming `${VAR}`
    expansion for `--mcp-config` files and the `mcp__<server>__*` wildcard under the pinned
    `claude-code-action` version.
-6. Policy: the SSM policy parameters, `centaur mcp-policy set|show|clear`, and enforcement in
-   `register` ([Operator policy](#operator-policy)).
+6. Policy: the repo's `.centaur/mcp-policy.cedar`, read from the default branch and enforced in
+   `register` and `prepare` ([Operator policy](#operator-policy)).
 
 ## Decisions
 
@@ -274,8 +300,9 @@ The maintainer accepted every recommendation below.
 5. **Local `command` servers.** Permit them in the schema at all, or ship URL servers only first.
    Recommendation: schema accepts both, but the first release enforces nothing beyond pinning
    guidance, and the operator policy rejects everything, `command` servers included, until a policy permits it.
-6. **Operator policy location.** SSM parameter owned by the admin vs a repo file. Recommendation: SSM,
-   consistent with access control living outside the repo.
+6. **Operator policy location.** SSM parameter owned by the admin vs a repo file. Decided: a repo file
+   at a fixed path, always read from the default branch, trading a central operator layer for no
+   AWS state.
 7. **Config source for turns.** Keep reading the default branch (current behaviour). Recommendation:
    keep, and state it as an invariant in [workflows.md](workflows.md).
 8. **Reserved names.** Reject `github*` server names. Recommendation: yes, since the action lets a

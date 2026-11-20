@@ -1,13 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { readRegistryEntry } from "../src/lambda/registry.js";
 import {
-  FORBID_UNTRUSTED,
-  forbidForBot,
-  GITHUB_SERVER_CONFIG,
-  PERMIT_ANY_REMOTE,
-  PERMIT_GITHUB,
-} from "./helpers/mcp-policy-fixtures.js";
-import {
   configText,
   FUNCTION_URL,
   ORPHAN_PARAMETERS,
@@ -152,80 +145,6 @@ describe("register", () => {
 
       await expect(register(poster)).rejects.toThrow("bad signature");
       expect(params.values["/centaur/bots/sprout/repo"]).toBeUndefined();
-    });
-  });
-
-  describe("MCP server policy", () => {
-    const GLOBAL_POLICY = "/centaur/policy/mcp";
-    const BOT_POLICY = "/centaur/bots/sprout/mcp-policy";
-    const withServers = () => configText(GITHUB_SERVER_CONFIG);
-    const registerWith = (policies: Record<string, string>, config = withServers()) =>
-      posterSetup({ parameters: { ...ORPHAN_PARAMETERS, ...policies } }).then((setup) => ({
-        ...setup,
-        result: register(setup.poster, config),
-      }));
-
-    it("rejects a server when no policy exists, naming the server and binding nothing", async () => {
-      const { result, params, registryState } = await registerWith({});
-
-      await expect(result).rejects.toThrow(
-        /mcp_servers violate the operator policy:\nmcp_servers\.ghmcp: not permitted/,
-      );
-      expect(params.values["/centaur/bots/sprout/repo"]).toBeUndefined();
-      expect(await readRegistryEntry(registryState, "sprout")).toBeNull();
-    });
-
-    it("never reads a policy for a config without servers", async () => {
-      const { poster, params } = await posterSetup({ parameters: ORPHAN_PARAMETERS });
-      const get = vi.spyOn(params, "get");
-
-      await register(poster);
-
-      expect(get.mock.calls.map(([name]) => name)).not.toContain(GLOBAL_POLICY);
-      expect(get.mock.calls.map(([name]) => name)).not.toContain(BOT_POLICY);
-    });
-
-    it("accepts a server a global policy permits", async () => {
-      const { result } = await registerWith({ [GLOBAL_POLICY]: PERMIT_GITHUB });
-      await expect(result).resolves.toMatchObject({ repo: "octo/sprout" });
-    });
-
-    it("accepts a server a bot policy permits", async () => {
-      const { result } = await registerWith({ [BOT_POLICY]: PERMIT_GITHUB });
-      await expect(result).resolves.toMatchObject({ repo: "octo/sprout" });
-    });
-
-    it("rejects a server a global forbid denies even when the bot policy permits it", async () => {
-      const { result } = await registerWith({
-        [GLOBAL_POLICY]:
-          'forbid(principal, action, resource) when { resource.host like "*.githubcopilot.com" };',
-        [BOT_POLICY]: PERMIT_ANY_REMOTE,
-      });
-      await expect(result).rejects.toThrow(/forbidden by policy global\.0/);
-    });
-
-    it("rejects a server only for the bot whose own policy forbids it", async () => {
-      const policies = { [GLOBAL_POLICY]: PERMIT_GITHUB, [BOT_POLICY]: forbidForBot("sprout") };
-      await expect((await registerWith(policies)).result).rejects.toThrow(
-        /forbidden by policy bot\.0/,
-      );
-      const other = await registerWith({
-        [GLOBAL_POLICY]: PERMIT_GITHUB,
-        "/centaur/bots/garden/mcp-policy": forbidForBot("garden"),
-      });
-      await expect(other.result).resolves.toMatchObject({ repo: "octo/sprout" });
-    });
-
-    it("rejects a server when a stored policy is malformed", async () => {
-      const { result } = await registerWith({ [GLOBAL_POLICY]: "permit(" });
-      await expect(result).rejects.toThrow(/operator policy is invalid/);
-    });
-
-    it("accepts a server that an unrelated forbid does not match", async () => {
-      const { result } = await registerWith({
-        [GLOBAL_POLICY]: `${PERMIT_GITHUB}\n${FORBID_UNTRUSTED}`,
-      });
-      await expect(result).resolves.toMatchObject({ repo: "octo/sprout" });
     });
   });
 });

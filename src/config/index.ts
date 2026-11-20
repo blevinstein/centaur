@@ -2,7 +2,6 @@ import { parse } from "yaml";
 import type { ZodError } from "zod";
 import { type CentaurConfig, centaurConfigSchema } from "./schema.js";
 
-export { checkMcpPolicy, type McpPolicySources, validateMcpPolicy } from "./mcp-policy.js";
 export { PROVIDER_SETTINGS, PROVIDERS, type Provider } from "./providers.js";
 export {
   ALIAS_PATTERN,

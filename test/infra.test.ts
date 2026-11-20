@@ -46,13 +46,6 @@ describe("the Lambda role's parameter permissions", () => {
     expect(all.filter((arn) => arn.includes("/users"))).toEqual([]);
   });
 
-  it("can read the MCP policies, but not write them", () => {
-    expect(resourcesFor("ssm:GetParameter")).toEqual(
-      expect.arrayContaining(["/centaur/policy/mcp", "/centaur/bots/*/mcp-policy"]),
-    );
-    expect(resourcesFor("ssm:PutParameter").filter((name) => name.includes("policy"))).toEqual([]);
-  });
-
   it("cannot delete anything but admin claims", () => {
     expect(resourcesFor("ssm:DeleteParameter")).toEqual(["/centaur/admin-claim/*"]);
   });

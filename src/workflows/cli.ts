@@ -13,7 +13,7 @@ import { createPullRequestReader, createPullRequestWriter } from "./pull-request
 import { pushChanges, pushNewBranch } from "./push.js";
 import { pushExisting } from "./push-existing.js";
 import { oidcTokenFetcher, registerRepo } from "./register.js";
-import { createGitHubClient, resolve } from "./resolve.js";
+import { createGitHubClient, createGitHubRequester, resolve } from "./resolve.js";
 
 const env = (name: string) => {
   const value = process.env[name];
@@ -35,9 +35,17 @@ async function clientPayload() {
 
 const program = new Command("centaur-workflow");
 
+const mcpPolicyDeps = () => {
+  const repository = process.env.GITHUB_REPOSITORY;
+  const token = process.env.GITHUB_TOKEN;
+  if (!repository || !token) return undefined;
+  return { repository, github: createGitHubRequester(token, process.env.GITHUB_API_URL) };
+};
+
 program.command("register").action(async () => {
   const result = await registerRepo({
     workspace: workspace(),
+    mcpPolicy: mcpPolicyDeps(),
     poster: poster(),
     fetchToken: oidcTokenFetcher(process.env, env("CENTAUR_OIDC_AUDIENCE")),
     mask: maskValue,
@@ -133,6 +141,7 @@ const newPullRequestDeps = async () => {
 program.command("prepare").action(async () => {
   const outputs = await prepare({
     comment: commentDeps(),
+    mcpPolicy: mcpPolicyDeps(),
     targets: targetDeps(),
     workspace: workspace(),
     configRoot: process.env.CENTAUR_CONFIG_ROOT || undefined,

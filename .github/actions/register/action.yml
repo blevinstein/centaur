@@ -5,4 +5,6 @@ runs:
   steps:
     - name: Register the bot
       shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
       run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" register

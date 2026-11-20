@@ -73,6 +73,7 @@ export async function commentSetup(
     bot?: string;
     found?: boolean;
     details?: Partial<PullRequestDetails>;
+    mcpPolicy?: PrepareDeps["mcpPolicy"];
   } = { comments: [] },
 ) {
   const aws = createFakeAws((request) => {
@@ -110,6 +111,7 @@ export async function commentSetup(
     poster: aws.poster,
     attachments: aws.attachments,
     storeFor: aws.storeFor,
+    mcpPolicy: options.mcpPolicy,
     comment: {
       pullRequest: PULL_REQUEST,
       repository: "octo/sprout",
