@@ -18,7 +18,7 @@ prompts:
     destination: blevinstein
 mcp_servers:
   ghmcp:
-    url: https://api.githubcopilot.com/mcp/
+    url: https://api.githubcopilot.com/mcp/readonly
     headers:
       Authorization: { secret: GITHUB_MCP_TOKEN, prefix: "Bearer " }
       X-MCP-Readonly: "true"
