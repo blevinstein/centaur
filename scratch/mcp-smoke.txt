@@ -1,0 +1,1 @@
+error: GitHub MCP tool get_me is unavailable (not exposed by the ghmcp server in this session)
