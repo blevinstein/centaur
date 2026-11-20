@@ -74,3 +74,9 @@
   `pull_requests` config; `prTargetFlags(config)` in `src/workflows/prepare.ts` feeds both the
   schema and the prompt. `checkCandidate` in `src/workflows/pr-target.ts` is the only place a PR
   target is validated; never trust a PR number from `.centaur-turn/state.json`.
+- A value that reaches `finish` through the turn action needs both an env entry in
+  `.github/actions/turn/action.yml` and a dep in the `finish` command in `src/workflows/cli.ts`.
+  `plan-pr` and `finish` get `CENTAUR_CONFIG_ROOT` from `inputs.config_root`
+  (`test/turn-action.test.ts`).
+- Tests must not synchronize on side-effecting probes such as `acquireLock`; wait on a gate the
+  handler opens, and fake `Date` instead of sleeping past a TTL.
