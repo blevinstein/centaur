@@ -298,6 +298,10 @@ can write.
 - [x] PR targets 8: **[HUMAN ACTION]** real runs on `centaur-hello` (`-f prompt_name=pr-smoke`):
       a second run updates an open PR, a merged or closed PR falls back, a comment `pr_action: new`
       opens a stacked PR whose comments resolve to the same thread.
+- [ ] Verify the `plan-pr` rejection and `push-existing` conflict fallbacks in a real run. A prompt
+      can't make the agent name a PR outside the candidate list (two attempts omitted
+      `existing_pr_number`), so this needs a PR that closes or conflicts between candidate listing
+      and the push; today only unit tests cover it.
 - [ ] Match `centaur/<bot>-` branches exactly in `checkCandidate` (a bot named `sprout` also
       matches `sprout-2`'s branches when no poster record exists).
 - [ ] Rank PR candidates by update time instead of number if busy repos show stale ones.

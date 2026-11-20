@@ -14,5 +14,3 @@ prompts:
     destination: blevinstein
   pr-update:
     destination: blevinstein
-  pr-stale:
-    destination: blevinstein
