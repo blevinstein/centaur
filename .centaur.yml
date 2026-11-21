@@ -1,6 +1,6 @@
 bot: centaur-slack
 platform: slack
-respond_to: mention
+respond_to: all
 context:
   default: transcript
 provider: anthropic
