@@ -134,7 +134,8 @@ Repeat for each consumer repo, after the bot exists (Telegram above, Slack below
      [workflows.md](workflows.md#consumer-workflows) and
      [Comment turns](workflows.md#comment-turns).
 2. In the repo's Settings > Secrets and variables > Actions:
-   - **Variables** (not secrets): `CENTAUR_ROLE_ARN`, `CENTAUR_AWS_REGION`,
+   - **Variables** (not secrets), set for you by `scripts/set-repo-vars.sh --stack <stack>
+     (--repo OWNER/REPO | --org ORG)`: `CENTAUR_ROLE_ARN`, `CENTAUR_AWS_REGION`,
      `CENTAUR_FUNCTION_NAME`, `CENTAUR_OIDC_AUDIENCE`, `CENTAUR_SESSION_BUCKET`; values are in
      [workflows.md](workflows.md#variables-and-secrets).
    - **Secret** for the bot's `provider` (`ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY`), plus

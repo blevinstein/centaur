@@ -146,7 +146,9 @@ answered by **Centaur message**.
 
 ## Variables and secrets
 
-Set as repository or organization **variables**:
+Set as repository or organization **variables**. `scripts/set-repo-vars.sh --stack centaur
+(--repo OWNER/REPO | --org ORG)` reads them from the stack and sets them with `gh` (`--dry-run`
+prints them instead):
 
 | Variable | Value |
 |---|---|

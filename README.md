@@ -45,8 +45,8 @@ You review and merge the pull request; the next turn sees the new note.
    yarn build && npm link   # installs the `centaur` CLI
    ```
 
-2. **Add a `.centaur.yml` to each repo**, with a persona and caller workflows, and set its
-   Actions variables and API key secret. Push it to the default branch to register the bot, then
+2. **Add a `.centaur.yml` to each repo**, with a persona and caller workflows. Set its Actions
+   variables with `scripts/set-repo-vars.sh` (reads them from the stack) and add the API key secret. Push it to the default branch to register the bot, then
    claim admin with `centaur admin claim <bot>`
    ([docs/onboarding.md](docs/onboarding.md#adding-a-repo), [config reference](docs/config.md)):
 
