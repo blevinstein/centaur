@@ -365,6 +365,14 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       equivalent) binds an existing topic, because the Bot API cannot list topics; a missing or
       closed topic is recreated. Today `destination` names a chat alias, derived from the chat's
       title at approval time. Do after the Slack work (section 12), so it covers both platforms.
+- [ ] Per-call MCP policy (proposal): filter MCP tool calls by argument (for example a mutating
+      tool only for selected IDs) with a `CallTool` Cedar action, evaluated per call by a Claude
+      Code `PreToolUse` hook, failing closed. Design, the catalogue of ways a misconfiguration could
+      grant too much, and the hardening steps (schema validation, literal lint, exit-2 hook
+      contract, post-run audit, settings isolation, dry-run command):
+      [docs/mcp-tool-policy.md](docs/mcp-tool-policy.md). A first cut with tests, not yet hardened,
+      is on the branch [`proposal/mcp-tool-policy-first-cut`](https://github.com/blevinstein/centaur/tree/proposal/mcp-tool-policy-first-cut). Needs a live experiment first (**[HUMAN ACTION]** to approve
+      the `experiment/*` run).
 - [ ] Plan for long-running agent turns (>15 mins) which will hit lambda function runtime limits.
       This may happen if we are using MCP tools etc which take a while to respond.
 - [ ] Decision model: a cheap model that decides whether to reply to unaddressed messages in
