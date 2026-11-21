@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { createMemoryState } from "@chat-adapter/state-memory";
 import { vi } from "vitest";
+import { approvedParameter } from "../../src/lambda/access-entries.js";
 import { createReceiver } from "../../src/lambda/receiver.js";
 import {
   fakeAttachments,
@@ -91,6 +92,17 @@ export const channelMention = (ts = "1699999999.000100") => ({
   event_ts: ts,
 });
 
+export const channelMessage = (ts: string, threadTs?: string, text = "and another thing") => ({
+  type: "message",
+  channel: SLACK_CHANNEL_ID,
+  channel_type: "channel",
+  user: SLACK_REQUESTER_ID,
+  text,
+  ts,
+  event_ts: ts,
+  ...(threadTs ? { thread_ts: threadTs } : {}),
+});
+
 export const reactionOn = (ts: string, reaction: string, user = SLACK_ADMIN_ID) => ({
   type: "reaction_added",
   user,
@@ -99,24 +111,27 @@ export const reactionOn = (ts: string, reaction: string, user = SLACK_ADMIN_ID) 
   event_ts: "1700000100.000100",
 });
 
-export async function slackApprovalHarness() {
+export async function slackApprovalHarness(extraParameters: Record<string, string> = {}) {
   const api = await startFakeSlackApi();
   vi.stubEnv("SLACK_API_URL", api.url);
   const params = fakeParameterStore({
     ...PARAMETERS,
     "/centaur/admin/slack": SLACK_ADMIN_ID,
+    ...extraParameters,
   });
+  const dispatcher = fakeDispatcher();
   const logger = fakeLogger();
   const receive = await createReceiver({
     params,
     createState: () => createMemoryState(),
     attachments: fakeAttachments(),
-    dispatcher: fakeDispatcher(),
+    dispatcher,
     logger,
   });
   const adminDmPost = () => api.posts().find((post) => post.body.channel === SLACK_DM_CHANNEL_ID);
   return {
     api,
+    dispatcher,
     params,
     logger,
     adminDmPost,
@@ -127,3 +142,9 @@ export async function slackApprovalHarness() {
     },
   };
 }
+
+export const slackEnrolledHarness = () =>
+  slackApprovalHarness({
+    [approvedParameter(SLACK_BOT.name, "chat", SLACK_CHANNEL_ID)]: "1",
+    [approvedParameter(SLACK_BOT.name, "user", SLACK_REQUESTER_ID)]: "1",
+  });

@@ -112,11 +112,13 @@ export function fakeThread(
     title = GROUP_CHAT_TITLE,
   } = overrides;
   const addReaction = vi.fn(async () => {});
+  const setState = vi.fn(async () => {});
   const thread = {
     id: `telegram:${chatId}:7`,
     channelId: `telegram:${chatId}`,
     isDM,
     state: Promise.resolve(state),
+    setState,
     post: vi.fn(async () => ({})),
     adapter: {
       addReaction,
@@ -126,6 +128,7 @@ export function fakeThread(
   return {
     thread: thread as unknown as Thread<ThreadMetadata>,
     post: thread.post,
+    setState,
     addReaction,
     fetchThread: thread.adapter.fetchThread,
   };

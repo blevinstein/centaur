@@ -6,7 +6,7 @@ import type { AccessRequester } from "./access-requests.js";
 import { type AdminClaimer, CLAIM_MESSAGE } from "./admin-claims.js";
 import type { AttachmentStore } from "./attachments.js";
 import type { RepositoryDispatcher } from "./github.js";
-import { isAddressed, ownsMessage, type ThreadMetadata } from "./ownership.js";
+import { isAddressed, ownsMessage, rememberAddressed, type ThreadMetadata } from "./ownership.js";
 import type { Bot } from "./registry.js";
 
 export const DISPATCH_EVENT_TYPE = "centaur-message";
@@ -78,6 +78,8 @@ export function createMessageHandler({
       }
       return;
     }
+
+    await rememberAddressed(thread, message, bot.platform);
 
     try {
       await attachments.save(bot.name, message);

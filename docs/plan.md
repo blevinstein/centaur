@@ -202,9 +202,13 @@ receive **all** group messages, so each bot must decide what's addressed to it:
    setting `createdByBot: true` in the thread's state when it creates the topic.
 2. A mention of `@<bot>` anywhere (e.g. in the General topic) belongs to that bot. The bot answers
    by creating a new topic for the conversation, or replies in place for quick questions.
-3. Everything else is ignored.
+3. On Slack, a mention that passes the access checks also marks its thread (`addressedByUser` in
+   the thread's state), so later replies in that thread without a mention belong to the bot.
+   Telegram never sets it, because a General-topic or non-topic message's thread ID is the whole
+   chat and owning it would answer everything.
+4. Everything else is ignored, including untagged top-level Slack messages.
 
-A bot configured with `respond_to: all` replaces rules 1-3 with: every message from an approved
+A bot configured with `respond_to: all` replaces rules 1-4 with: every message from an approved
 sender in any approved chat of the bot belongs to it, and the agent decides per turn whether to reply or
 stay silent. Messages authored by bots (the Chat SDK's `author.isBot` and `author.isMe`) never
 belong to any bot in this mode, so two bots in one chat can't answer each other. The checks keep

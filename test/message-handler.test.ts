@@ -112,6 +112,17 @@ describe("message handler", () => {
     expect(dispatcher.dispatch).toHaveBeenCalledOnce();
   });
 
+  it("never marks a mentioned Telegram thread as followed, since its ID can be the whole chat", async () => {
+    const { handle, dispatcher } = setup();
+    const { thread, setState } = fakeThread();
+
+    await handle(thread, fakeMessage({ isMention: true }));
+    await handle(fakeThread().thread, fakeMessage());
+
+    expect(setState).not.toHaveBeenCalled();
+    expect(dispatcher.dispatch).toHaveBeenCalledOnce();
+  });
+
   it.each(["-100500", "-100900"])(
     "accepts a mention from chat %s when several chats are allowed",
     async (chatId) => {

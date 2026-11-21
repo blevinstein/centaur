@@ -55,7 +55,7 @@ prompts:
 |---|---|---|---|
 | `bot` | yes | | Bot alias; secrets live under `/centaur/bots/<bot>/` in SSM. |
 | `platform` | yes | | `telegram` or `slack`. |
-| `respond_to` | no | `mention` | Which messages the bot answers: `mention` (mentions, DMs and topics it created) or `all` (every message from an approved sender in any approved chat of the bot). See [plan.md](plan.md#routing-in-a-shared-telegram-group). |
+| `respond_to` | no | `mention` | Which messages the bot answers: `mention` (mentions, DMs, topics it created, and on Slack the rest of a thread it was mentioned in) or `all` (every message from an approved sender in any approved chat of the bot). See [plan.md](plan.md#routing-in-a-shared-telegram-group). |
 | `context.default` | no | `transcript` | Policy for conversational threads: `fresh`, `transcript` or `resume`. |
 | `context.scheduled` | no | `fresh` | Policy for threads started by a scheduled prompt. |
 | `handle` | no | | The bot's platform username without `@`. With `respond_to: all` the prompt tells the agent people mention it as `@<handle>`. The workflow cannot learn it cheaply from the bot's identity, so it is configured. |
