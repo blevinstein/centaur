@@ -100,3 +100,10 @@ export function fakePolicyGitHub(
     deps: { repository: POLICY_REPOSITORY, github, poster },
   };
 }
+
+export const FORBID_DELETE_UNLESS_ALLOWED_ID = `forbid(principal, action == Action::"CallTool", resource)
+  when { resource.server == "linear" && resource.name == "delete_issue" }
+  unless { context.args has id && ["ENG-1", "ENG-2"].contains(context.args.id) };`;
+
+export const FORBID_DELETE_UNGUARDED = `forbid(principal, action == Action::"CallTool", resource)
+  when { resource.name == "delete_issue" && !(["ENG-1"].contains(context.args.id)) };`;

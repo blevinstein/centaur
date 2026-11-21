@@ -23,6 +23,7 @@ import {
   truncateDiff,
 } from "./pull-request-comments.js";
 import { clearReactions, type ReactionSource } from "./reactions.js";
+import { toolGateSettings } from "./tool-gate.js";
 import {
   type AttachmentPath,
   type ChatMessage,
@@ -30,7 +31,7 @@ import {
   planTurn,
   threadPolicy,
 } from "./transcript.js";
-import { writeTurnState } from "./turn-state.js";
+import { hookSettingsPath, writeToolPolicy, writeTurnState } from "./turn-state.js";
 
 export const TURN_DIR = ".centaur-turn";
 export const PROMPT_FILE = `${TURN_DIR}/prompt.md`;
@@ -78,6 +79,8 @@ export interface PrepareDeps {
   workspace: string;
   /** Where the turn state goes; must be outside the workspace. */
   stateDir: string;
+  /** The CLI script the tool-gate hook runs; defaults to the running one. */
+  cliPath?: string | undefined;
   /** Directory holding the Centaur config, the instructions and the persona. Defaults to `workspace`. */
   configRoot?: string | undefined;
   home: string;
@@ -380,8 +383,10 @@ export function buildClaudeArgs(input: {
   mode: TurnState["mode"];
   allowExisting: boolean;
   mcpConfig?: string | undefined;
+  hookSettings?: string | undefined;
 }) {
-  const { config, persona, resumeSessionId, canStaySilent, mode, allowExisting, mcpConfig } = input;
+  const { config, persona, resumeSessionId, canStaySilent, mode, allowExisting } = input;
+  const { mcpConfig, hookSettings } = input;
   const allowNewPr = config.pull_requests.comment_new;
   const readRule = config.allowed_tools.includes("Read") ? [] : [`Read(./${TURN_DIR}/**)`];
   const tools = [...config.allowed_tools, ...readRule].join(",");
@@ -393,6 +398,7 @@ export function buildClaudeArgs(input: {
     ...(config.max_budget_usd ? [`--max-budget-usd ${config.max_budget_usd}`] : []),
     `--json-schema '${JSON.stringify(replySchema({ canStaySilent, mode, allowNewPr, allowExisting }))}'`,
     ...(mcpConfig ? [`--mcp-config ${mcpConfig}`] : []),
+    ...(hookSettings ? [`--settings ${hookSettings}`] : []),
     ...(persona ? [`--append-system-prompt-file ${persona}`] : []),
     ...(resumeSessionId ? [`--resume ${resumeSessionId}`] : []),
   ].join(" ");
@@ -407,7 +413,7 @@ const exists = (path: string) =>
 export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   const configRoot = deps.configRoot ?? deps.workspace;
   const config = parseConfigOrThrow(await readConfigText(configRoot));
-  await enforceMcpPolicy(config, deps.mcpPolicy);
+  const policyLayers = await enforceMcpPolicy(config, deps.mcpPolicy);
   const mcp = buildMcpConfig(config.mcp_servers, deps.env);
   if (mcp.missingSecrets.length > 0) {
     throw new Error(
@@ -449,6 +455,14 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
       mode: 0o600,
     });
   }
+  if (policyLayers) {
+    await writeToolPolicy(deps.stateDir, { bot: config.bot, layers: policyLayers });
+    await writeFile(
+      hookSettingsPath(deps.stateDir),
+      JSON.stringify(toolGateSettings(deps.cliPath ?? process.argv[1] ?? "", deps.stateDir)),
+      { mode: 0o600 },
+    );
+  }
 
   const personaPath = join(configRoot, config.persona);
   const persona = (await exists(personaPath))
@@ -472,6 +486,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
       mode: turn.mode,
       allowExisting: turn.allowExisting,
       mcpConfig: hasMcpServers ? MCP_CONFIG_FILE : undefined,
+      hookSettings: policyLayers ? hookSettingsPath(deps.stateDir) : undefined,
     }),
   };
 }

@@ -265,6 +265,36 @@ permit(principal == Bot::"garden", action == Action::"UseServer", resource)
 forbid(principal, action, resource) when { resource.host like "*.untrusted.example" };
 ```
 
+### Tool-call policy
+
+`UseServer` is decided once, in `prepare`. To restrict individual tool calls by their arguments,
+write `CallTool` policies. `prepare` writes the merged layers (read from the same sources) to the turn
+state directory and passes Claude Code a `PreToolUse` hook (`--settings`) that runs
+`centaur-workflow tool-gate` before every `mcp__*` call. The hook evaluates the call and, if refused,
+denies it before it runs; otherwise `allowed_tools` still decides. Non-MCP tools are not checked.
+
+Each call is a request: principal `Bot::"<bot>"`, action `Action::"CallTool"`, resource
+`McpTool::"<server>/<tool>"` with attributes `server` and `name`, and `context.args` holding the
+call's arguments. Every call is permitted unless a `forbid` matches, so `CallTool` policies restrict
+and never need a matching `permit`. Only policies that name `CallTool` apply; server-level policies do
+not affect tool calls.
+
+```cedar
+// delete_issue only for these issues
+forbid(principal, action == Action::"CallTool", resource)
+  when { resource.server == "linear" && resource.name == "delete_issue" }
+  unless { context.args has id && ["ENG-1", "ENG-2"].contains(context.args.id) };
+```
+
+- Guard each argument with `has`. A policy that errors, for example on a missing argument, refuses the
+  call, as do a missing or unreadable policy file and any hook failure.
+- `null` arguments are dropped and non-integer numbers become strings, because Cedar contexts cannot
+  hold either.
+- `centaur config check` parses `CallTool` policies but cannot type-check them against the schema, since
+  arguments are open-ended.
+- The policy and hook settings live in the turn state directory, outside the workspace, the same trust
+  boundary as the turn state.
+
 **Protect the file.** Require review on `.centaur/mcp-policy.cedar` with a `CODEOWNERS` entry or a
 repository ruleset, since anyone who can merge a change to it can permit any server.
 

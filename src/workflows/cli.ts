@@ -14,6 +14,7 @@ import { pushChanges, pushNewBranch } from "./push.js";
 import { pushExisting } from "./push-existing.js";
 import { oidcTokenFetcher, registerRepo } from "./register.js";
 import { createGitHubClient, createGitHubRequester, resolve } from "./resolve.js";
+import { gateToolCall } from "./tool-gate.js";
 import { turnStateDir } from "./turn-state.js";
 
 const env = (name: string) => {
@@ -153,6 +154,7 @@ program.command("prepare").action(async () => {
     targets: targetDeps(),
     workspace: workspace(),
     stateDir: turnStateDir(),
+    cliPath: process.argv[1],
     configRoot: process.env.CENTAUR_CONFIG_ROOT || undefined,
     home: homedir(),
     runId: env("GITHUB_RUN_ID"),
@@ -172,6 +174,16 @@ program.command("prepare").action(async () => {
     api_key_secret: outputs.api_key_secret,
   });
 });
+
+program
+  .command("tool-gate")
+  .requiredOption("--state-dir <dir>")
+  .action(async ({ stateDir }: { stateDir: string }) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+    const refusal = await gateToolCall(stateDir, Buffer.concat(chunks).toString("utf8"));
+    if (refusal) console.log(JSON.stringify(refusal));
+  });
 
 program.command("plan-pr").action(async () => {
   const config = parseConfigOrThrow(

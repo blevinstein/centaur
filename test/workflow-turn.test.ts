@@ -12,9 +12,15 @@ import {
   prepare,
   TURN_DIR,
 } from "../src/workflows/prepare.js";
-import { readTurnState, turnStateDir } from "../src/workflows/turn-state.js";
+import {
+  hookSettingsPath,
+  readToolPolicy,
+  readTurnState,
+  turnStateDir,
+} from "../src/workflows/turn-state.js";
 import { envRef } from "./helpers/config-fixtures.js";
 import {
+  FORBID_DELETE_UNLESS_ALLOWED_ID,
   fakePolicyGitHub,
   PERMIT_ANY_REMOTE,
   policyPath,
@@ -280,6 +286,31 @@ describe("prepare", () => {
     );
     expect(written).not.toContain("lin_secret");
     expect(out.claude_args).toContain(`--mcp-config ${MCP_CONFIG_FILE}`);
+  });
+
+  it("installs the tool-gate hook with the merged policy when mcp_servers is set", async () => {
+    const { deps, stateDir } = await setup([message("1", "hi")], mcpConfigText());
+    const { deps: mcpPolicy } = fakePolicyGitHub({
+      policy: PERMIT_ANY_REMOTE,
+      globalPolicy: FORBID_DELETE_UNLESS_ALLOWED_ID,
+    });
+    const out = await prepare(
+      deps({ env: { LINEAR_API_KEY: "lin_secret" }, mcpPolicy, cliPath: "/app/cli.js" }),
+    );
+    expect(out.claude_args).toContain(`--settings ${hookSettingsPath(stateDir)}`);
+    const settings = JSON.parse(await readFile(hookSettingsPath(stateDir), "utf8"));
+    expect(settings.hooks.PreToolUse[0].hooks[0].command).toBe(
+      `node /app/cli.js tool-gate --state-dir ${stateDir}`,
+    );
+    expect(await readToolPolicy(stateDir)).toEqual({
+      bot: "sprout",
+      layers: { global: FORBID_DELETE_UNLESS_ALLOWED_ID, repo: PERMIT_ANY_REMOTE },
+    });
+  });
+
+  it("installs no hook without mcp_servers", async () => {
+    const { deps } = await setup([message("1", "hi")]);
+    expect((await prepare(deps())).claude_args).not.toContain("--settings");
   });
 
   it("fails before any side effect when an MCP secret is unset, naming it", async () => {

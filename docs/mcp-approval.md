@@ -213,11 +213,11 @@ approves.
 
 ## Tool-level approval
 
-An `McpTool` resource would let policy say "reads are allowed, `delete_issue` needs approval";
-enforcement is the same drop-from-`allowed_tools` step. Costs: a second resource type, wildcards like
-`mcp__linear__*` cannot be enumerated without starting the server, and the fingerprint needs per-tool
-keys. Recommendation: server level only. Servers with dangerous tools list them explicitly in
-`allowed_tools`, which is in the fingerprint, so adding one re-asks.
+Tool calls are checked by the separate `CallTool` action, which `prepare`'s PreToolUse hook
+evaluates per call (see [Tool-call policy](mcp.md#tool-call-policy)). Approval stays at server level:
+`McpTool` resources exist only per call, and wildcards like `mcp__linear__*` cannot be enumerated
+without starting the server. Servers with dangerous tools list them explicitly in `allowed_tools`,
+which is in the fingerprint, so adding one re-asks.
 
 ## Failure and security
 
