@@ -25,7 +25,7 @@ vi.mock("../src/lambda/github.js", () => ({ createGitHubDispatcher: () => ({}) }
 vi.mock("../src/lambda/telegram.js", () => ({ createTelegramApi: () => ({}) }));
 vi.mock("../src/lambda/oidc.js", () => ({ createGitHubOidcVerifier: () => ({}) }));
 vi.mock("../src/lambda/chat.js", () => ({ createChat: () => ({}) }));
-vi.mock("../src/dynamodb-state/index.js", () => ({ createDynamoDbState: () => ({}) }));
+vi.mock("@blevinstein/chat-state-dynamodb", () => ({ createDynamoDBState: () => ({}) }));
 
 describe("lambda handler routing", () => {
   beforeEach(() => {

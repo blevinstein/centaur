@@ -1,6 +1,6 @@
+import { createDynamoDBState } from "@blevinstein/chat-state-dynamodb";
 import type { Message } from "chat";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createDynamoDbState } from "../src/dynamodb-state/index.js";
 import { createFreshTable, scanItems } from "./helpers/dynamodb-local.js";
 import {
   createGate,
@@ -15,7 +15,9 @@ const HISTORY_TTL_MS = 60_000;
 const DEDUPE_TTL_MS = 10 * 60_000;
 const THREAD_STATE_TTL_MS = 30 * 24 * 60 * 60_000;
 const QUEUE_ENTRY_TTL_MS = 5_000;
+const QUEUE_ROW_MIN_TTL_MS = 60_000;
 const CLOCK_SLACK_MS = 5_000;
+const LIST_HEADER_SK = "#";
 
 const ids = (messages: Message[]) => messages.map((message) => message.id);
 const pks = (items: Record<string, unknown>[]) => items.map((item) => String(item.pk)).sort();
@@ -29,7 +31,7 @@ function expectExpiryWithin(item: Record<string, unknown> | undefined, ttlMs: nu
 
 async function freshState() {
   const table = await createFreshTable();
-  return { table, state: createDynamoDbState(table) };
+  return { table, state: createDynamoDBState(table) };
 }
 
 describe("Chat on the DynamoDB state adapter: default drop strategy", () => {
@@ -71,11 +73,22 @@ describe("Chat on the DynamoDB state adapter: default drop strategy", () => {
 
     const items = await scanItems(table);
     const byPk = (pk: string) => items.filter((item) => item.pk === pk);
-    expect(byPk(`list:msg-history:${FAKE_THREAD_ID}`)).toHaveLength(4);
-    expectExpiryWithin(byPk(`list:msg-history:${FAKE_THREAD_ID}`)[0], HISTORY_TTL_MS);
-    expectExpiryWithin(byPk(`kv:dedupe:${FAKE_PLATFORM}:m5`)[0], DEDUPE_TTL_MS);
-    expectExpiryWithin(byPk(`kv:thread-state:${FAKE_THREAD_ID}`)[0], THREAD_STATE_TTL_MS);
-    expect(pks(items).filter((pk) => pk.startsWith("lock:"))).toEqual([]);
+    const historyPk = `chat#list#msg-history:${FAKE_THREAD_ID}`;
+    expect(byPk(historyPk)).toHaveLength(4);
+    expectExpiryWithin(
+      byPk(historyPk).find((item) => item.sk === LIST_HEADER_SK),
+      HISTORY_TTL_MS,
+    );
+    expectExpiryWithin(byPk(`chat#kv#dedupe:${FAKE_PLATFORM}:m5`)[0], DEDUPE_TTL_MS);
+    expectExpiryWithin(byPk(`chat#kv#thread-state:${FAKE_THREAD_ID}`)[0], THREAD_STATE_TTL_MS);
+    expect(pks(items).filter((pk) => pk.includes("#lock#"))).toEqual([]);
+  });
+});
+
+describe("DynamoDB state adapter on the Centaur table", () => {
+  it("connects, because the table has the default pk/sk key schema", async () => {
+    const { state } = await freshState();
+    await expect(state.connect()).resolves.toBeUndefined();
   });
 });
 
@@ -114,9 +127,11 @@ describe("Chat on the DynamoDB state adapter: queue strategy", () => {
     await receive(fakeIncomingMessage("m3"));
 
     expect(await state.queueDepth(FAKE_THREAD_ID)).toBe(2);
-    const queued = (await scanItems(table)).filter((item) => item.pk === `queue:${FAKE_THREAD_ID}`);
+    const queued = (await scanItems(table)).filter(
+      (item) => item.pk === `chat#queue#${FAKE_THREAD_ID}`,
+    );
     expect(queued).toHaveLength(2);
-    expectExpiryWithin(queued[0], QUEUE_ENTRY_TTL_MS);
+    expectExpiryWithin(queued[0], QUEUE_ROW_MIN_TTL_MS);
 
     gate.open();
     await first;
@@ -174,7 +189,7 @@ describe("Chat on the DynamoDB state adapter: concurrent strategy with key prefi
     const table = await createFreshTable();
     const bots = await Promise.all(
       ["bot:a:", "bot:b:"].map(async (keyPrefix) => {
-        const state = createDynamoDbState({ ...table, keyPrefix });
+        const state = createDynamoDBState({ ...table, keyPrefix });
         const harness = await startFakeChat({ state, concurrency: "concurrent" });
         const handled = vi.fn<(id: string) => void>();
         harness.chat.onNewMention(async (thread, message) => {
@@ -199,7 +214,7 @@ describe("Chat on the DynamoDB state adapter: concurrent strategy with key prefi
 
     const items = await scanItems(table);
     expect(items.every((item) => /^bot:[ab]:/.test(String(item.pk)))).toBe(true);
-    expect(pks(items).filter((pk) => pk.includes(":lock:"))).toEqual([]);
+    expect(pks(items).filter((pk) => pk.includes("#lock#"))).toEqual([]);
     expect(await botA.state.getList(`msg-history:${FAKE_THREAD_ID}`)).toHaveLength(1);
     expect(await botB.state.getList(`msg-history:${FAKE_THREAD_ID}`)).toHaveLength(2);
   });

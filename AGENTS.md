@@ -53,6 +53,10 @@
   ID), which the concurrency group and the PR branch use instead of raw thread IDs. A new public
   name that would embed a thread ID must use `threadKey`, and a payload change must also update
   `centaur-message.yml`, the template in `docs/workflows.md`, and `docs/plan.md`.
+- The state adapter is the published `@blevinstein/chat-state-dynamodb` package (a fork of the
+  community one; see its README). Its `TABLE_DEFINITION` and `TTL_ATTRIBUTE` define the test table,
+  and `test/infra.test.ts` checks them against `infra/centaur.yml`.
+  `.yarnrc.yml` exempts it from the Yarn age gate (see `TODO.md`).
 - Poster operations that act for a repository take it from the verified OIDC claim, never the
   payload; their strict schemas reject extra keys. Use `stateFor("")` for cross-bot records.
 - A new field in the agent's structured output goes in three places: `replySchema`

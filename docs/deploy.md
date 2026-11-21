@@ -55,6 +55,12 @@ The script:
 
 Later runs skip step 2. The code, session and state resources are retained if the stack is deleted.
 
+State rows use the `@blevinstein/chat-state-dynamodb` key layout (`<keyPrefix>#<kind>#<id>`). Rows written by an
+earlier layout (`<keyPrefix><kind>:<id>`) are never read and age out through TTL, except the
+subscription and `registry:<bot>` rows, which had none. After the first deploy on the new layout,
+rerun the register step (the `register` workflow job) for each bot to rewrite its `respond_to` entry; thread state, history and
+pull request links of existing conversations start empty.
+
 ## Cost allocation tag
 
 The script passes `--tags Business=$BUSINESS_TAG` (default `Centaur`), and CloudFormation applies
@@ -71,7 +77,8 @@ which the poster reads at cold start to build webhook URLs; there is no `FUNCTIO
 
 ## IAM
 
-The function role gets the state table policy, log writes, `ssm:GetParametersByPath` on
+The function role gets the state table policy (`GetItem`, `PutItem`, `UpdateItem`, `DeleteItem`,
+`Query` and `DescribeTable` on the table, which `@blevinstein/chat-state-dynamodb` calls), log writes, `ssm:GetParametersByPath` on
 `/centaur/bots` and `/centaur/chats`, `ssm:GetParameter` on `/centaur/github/token`, `/centaur/function-url`,
 `/centaur/chats/*`, `/centaur/admin/*` and `/centaur/admin-claim/*`,
 `ssm:PutParameter` only on `/centaur/bots/*/repo`, `/centaur/bots/*/approved-chats/*`,

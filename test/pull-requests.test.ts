@@ -1,5 +1,5 @@
+import { createDynamoDBState } from "@blevinstein/chat-state-dynamodb";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createDynamoDbState } from "../src/dynamodb-state/index.js";
 import { PULL_REQUEST_TTL_MS, pullRequestKey } from "../src/lambda/pull-requests.js";
 import { threadKey } from "../src/thread-key.js";
 import { createFreshTable, scanItems } from "./helpers/dynamodb-local.js";
@@ -20,7 +20,7 @@ async function setup(repository = "octo/garden") {
   const table = await createFreshTable();
   return {
     table,
-    ...(await posterSetup({ registryState: createDynamoDbState(table), repository })),
+    ...(await posterSetup({ registryState: createDynamoDBState(table), repository })),
   };
 }
 

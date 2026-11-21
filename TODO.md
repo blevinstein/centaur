@@ -43,11 +43,11 @@ Unlabeled items are free for an agent to complete.
 
 - [x] Choose the language and tooling for the Lambda and CLI (TypeScript, to match Chat SDK) and
       set up the package with lint, typecheck, and tests.
-- [x] Write a DynamoDB `StateAdapter` for the Chat SDK (19 methods, see `docs/research.md`) with
-      tests, starting from `state-memory`'s test suite.
+- [x] Provide a DynamoDB `StateAdapter` for the Chat SDK (19 methods, see `docs/research.md`),
+      now the published `@blevinstein/chat-state-dynamodb` package.
 - [x] Run `Chat` end to end against the DynamoDB adapter on DynamoDB Local, checking how the
       core uses the `appendToList` TTL, `maxLength`, and expired queue entries.
-- [x] Add the state table (mirroring `stateTableInput`: pay-per-request, TTL on `ttl`) and its
+- [x] Add the state table (mirroring the adapter's `TABLE_DEFINITION`: pay-per-request, TTL on `ttl`) and its
       IAM access to `infra/centaur.yml`; make `chat` a runtime dependency once a Lambda consumes
       the package.
 - [x] CloudFormation template: receiver/poster Lambda with a function URL, state backend, S3
@@ -184,6 +184,11 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
       SVG concepts and a README header; the maintainer picks one. Don't reuse GitHub's Octocat
       artwork directly: its usage guidelines restrict modification, so make an original
       centaur-cat hybrid.
+- [ ] Remove `npmPreapprovedPackages` (`@blevinstein/chat-state-dynamodb`) from `.yarnrc.yml`, no
+      earlier than 2026-11-22 (24 hours after the 2026-11-21T02:59Z publish of 0.3.0). The age gate
+      (`npmMinimalAgeGate`) protects against freshly published malicious versions, and the entry
+      exempts every future version of the package. `yarn.lock` pins the resolved version, so the
+      exemption is not needed to install it. Afterwards `yarn install --immutable` must still pass.
 
 ## 10. Decisions
 
@@ -356,4 +361,6 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       messages correctly (**[HUMAN ACTION]**: the maintainer creates the second bot in BotFather).
 - [ ] Agent-scheduled follow-ups via EventBridge Scheduler.
 - [ ] Per-thread turn or token caps for `resume` sessions.
-- [ ] Contribute the DynamoDB state adapter upstream, if we write one.
+- [x] Contribute the DynamoDB state adapter upstream. Chat SDK declined it and points to community
+      packages; Centaur uses the published `@blevinstein/chat-state-dynamodb` instead (see
+      `docs/research.md`).

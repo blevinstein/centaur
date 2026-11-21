@@ -137,6 +137,7 @@ Resources:
               - dynamodb:UpdateItem
               - dynamodb:DeleteItem
               - dynamodb:Query
+              - dynamodb:DescribeTable
             Resource: !GetAtt StateTable.Arn
 
   FunctionLogGroup:

@@ -1,6 +1,7 @@
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { createDynamoDBState } from "@blevinstein/chat-state-dynamodb";
 import type { APIGatewayProxyEventV2, Context } from "aws-lambda";
 import { ConsoleLogger } from "chat";
-import { createDynamoDbState } from "../dynamodb-state/index.js";
 import { createAttachmentStore, createS3ObjectStore } from "./attachments.js";
 import { createCachedParameterStore } from "./cached-parameters.js";
 import { createChat } from "./chat.js";
@@ -36,6 +37,11 @@ function memoizeAsync<T>(build: () => Promise<T>) {
 
 const logger = new ConsoleLogger("info");
 
+const stateFactory = (tableName: string) => {
+  const client = new DynamoDBClient({});
+  return (keyPrefix: string) => createDynamoDBState({ tableName, client, keyPrefix });
+};
+
 const buildAttachments = () =>
   createAttachmentStore(createS3ObjectStore(requiredEnv("SESSION_BUCKET_NAME")));
 
@@ -46,7 +52,7 @@ async function buildReceiver() {
   const tableName = requiredEnv("STATE_TABLE_NAME");
   return createReceiver({
     params: createCachedParameterStore(params),
-    stateFor: (keyPrefix) => createDynamoDbState({ tableName, keyPrefix }),
+    stateFor: stateFactory(tableName),
     attachments: buildAttachments(),
     dispatcher: createGitHubDispatcher(token),
     logger,
@@ -60,7 +66,7 @@ async function buildPoster() {
   if (!functionUrl) throw new Error(`missing SSM parameter ${FUNCTION_URL_PARAMETER}`);
   return createPoster({
     params,
-    stateFor: (keyPrefix) => createDynamoDbState({ tableName, keyPrefix }),
+    stateFor: stateFactory(tableName),
     chatFor: (bot, botState) => createChat({ bot, botState, logger }),
     attachments: buildAttachments(),
     telegram: createTelegramApi(),

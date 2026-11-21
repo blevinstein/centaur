@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { TABLE_DEFINITION, TTL_ATTRIBUTE } from "@blevinstein/chat-state-dynamodb";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
@@ -85,5 +86,29 @@ describe("attachment storage", () => {
     expect(template.Resources.ReceiverFunction.Properties.Environment.Variables).toHaveProperty(
       "SESSION_BUCKET_NAME",
     );
+  });
+});
+
+describe("the state table", () => {
+  const { StateTable, StateTableAccessPolicy } = template.Resources;
+
+  it("has the schema and TTL attribute the state adapter expects", () => {
+    const { AttributeDefinitions, KeySchema, BillingMode } = StateTable.Properties;
+    expect({ AttributeDefinitions, KeySchema, BillingMode }).toEqual(TABLE_DEFINITION);
+    expect(StateTable.Properties.TimeToLiveSpecification).toEqual({
+      AttributeName: TTL_ATTRIBUTE,
+      Enabled: true,
+    });
+  });
+
+  it("grants every action the state adapter calls", () => {
+    expect(StateTableAccessPolicy.Properties.PolicyDocument.Statement[0].Action.sort()).toEqual([
+      "dynamodb:DeleteItem",
+      "dynamodb:DescribeTable",
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:Query",
+      "dynamodb:UpdateItem",
+    ]);
   });
 });

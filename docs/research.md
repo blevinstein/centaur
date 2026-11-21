@@ -178,26 +178,31 @@ own tests, and `state-memory`'s are the best behavioral template. Everything map
 awkward methods are `appendToList`, `enqueue`, `dequeue` and `queueDepth` (atomic trim and
 counters). Decision in [plan.md](plan.md#decisions-and-open-questions).
 
-The adapter in `src/dynamodb-state/` uses one pay-per-request table (`pk`/`sk`, TTL attribute
-`ttl` in epoch seconds, plus `expiresAt` in ms filtered at read time). Lock, dedupe, subscription,
-key-value, and `dequeue` operations are single conditional writes. `appendToList` and `enqueue`
-write the entry and then trim, so a reader can briefly see more than `maxLength` entries, but the
-newest entries are never lost. A 44-test suite ported from `state-memory` passes against both
-`@chat-adapter/state-memory` and DynamoDB Local. `infra/centaur.yml` defines the table (retained on
-stack deletion, TTL on `ttl`, generated name) and a `StateTableAccessPolicy` managed policy limited
-to `GetItem`, `PutItem`, `UpdateItem`, `DeleteItem` and `Query` on the table ARN, which is every
-call the adapter makes; the Lambda role attaches it. The same checks (per-bot key prefixes,
-TTLs, history and thread state) passed against the deployed table.
+Centaur uses the published `@blevinstein/chat-state-dynamodb` package (the adapter we first wrote here was
+declined upstream and replaced by it). It uses one pay-per-request table (`pk`/`sk` strings, TTL
+attribute `ttl` in epoch seconds, plus `expiresAt` in ms filtered at read time), with partition
+keys `<keyPrefix>#<kind>#<id>` for `sub`, `lock`, `kv`, `list` and `queue`. Lock, dedupe,
+subscription, key-value, and `dequeue` operations are single conditional writes. `appendToList` and
+`enqueue` write the entry and then trim, so a reader can briefly see more than `maxLength` entries,
+but the newest entries are never lost. A list's `ttl`/`expiresAt` live on its header row (`sk` `#`);
+entry rows carry none, so the rows of a list that expired and is never appended to again are not
+reclaimed by DynamoDB TTL. Queue rows expire at least 60 s after enqueue regardless of the entry's
+own `expiresAt`, which the core still checks. The package has its own conformance suite against
+DynamoDB Local. `infra/centaur.yml` defines the table (retained on stack deletion, TTL on `ttl`,
+generated name) and a `StateTableAccessPolicy` managed policy limited to `GetItem`, `PutItem`,
+`UpdateItem`, `DeleteItem`, `Query` and `DescribeTable` (the table check in `connect()`) on the
+table ARN; `test/infra.test.ts` pins both to the package's `TABLE_DEFINITION`. The Lambda role
+attaches the policy.
 
 `test/chat-dynamodb-state.test.ts` drives a real `Chat` (fake platform adapter) against the
-adapter on DynamoDB Local and found no adapter bugs. How the core uses the interface:
+adapter on DynamoDB Local. How the core uses the interface:
 
 - `appendToList` is called only for thread history (`msg-history:<threadId>` and, when it differs,
   `msg-history:<channelId>`) with `maxLength` 100 and `ttlMs` 7 days by default (configurable
   through `history.thread`). It runs before locking, so it is safe under `concurrent`. Each append
   refreshes the list-wide expiry; trimming keeps the newest entries.
 - Dedupe is `setIfNotExists("dedupe:<adapter>:<messageId>", true, 10 min)`; thread state is
-  `set("thread-state:<threadId>", ..., 30 days)`. Both land as `kv:` items with `expiresAt`/`ttl`.
+  `set("thread-state:<threadId>", ..., 30 days)`. Both land as `kv` rows with `expiresAt`/`ttl`.
   A scope-aware platform adapter (`getConcurrencyScope`) wraps thread and dedupe keys in
   `concurrency:[adapter,scope,key]`, which is still a valid partition key.
 - `drop` and `queue` take `acquireLock(threadId, 30 s)`, heartbeat with `extendLock`, and release
@@ -206,8 +211,8 @@ adapter on DynamoDB Local and found no adapter bugs. How the core uses the inter
 - `queue` calls `queueDepth`, then `enqueue(threadId, {message, enqueuedAt, expiresAt}, maxQueueSize)`
   with `expiresAt` 90 s ahead by default; overflow drops the oldest. Draining calls `dequeue` until
   `null`, discards entries whose `expiresAt` has passed (the core checks, the adapter does not), and
-  dispatches the newest with the earlier ones as `skipped`. `queueDepth` therefore counts expired
-  entries until they are drained or DynamoDB TTL removes them, the same as `state-memory`.
+  dispatches the newest with the earlier ones as `skipped`. `queueDepth` counts entries whose row has not expired, so entries past their own `expiresAt`
+  still count until they are drained or the row expires.
 - Two bots sharing one table through different `keyPrefix` values stay isolated for dedupe,
   subscriptions and history, and every item's partition key carries the prefix.
 

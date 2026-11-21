@@ -33,6 +33,7 @@
     "@aws-sdk/client-s3": "3.1171.0",
     "@aws-sdk/client-ssm": "3.1171.0",
     "@aws-sdk/lib-dynamodb": "3.1171.0",
+    "@blevinstein/chat-state-dynamodb": "0.3.0",
     "@cedar-policy/cedar-wasm": "4.14.0",
     "@chat-adapter/slack": "4.45.0",
     "@chat-adapter/telegram": "4.45.0",

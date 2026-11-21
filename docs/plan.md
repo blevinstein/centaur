@@ -40,7 +40,8 @@ in the diagram because it's invoked over IAM, not a public URL.
 - Node.js on Lambda with a public **function URL**. No API Gateway or ALB needed.
 - One Chat SDK `Chat` instance per registered bot, built from SSM secrets at cold start. Adapter
   names are fixed and Telegram message IDs are shared across bots in a group, so each bot's `Chat`
-  uses its own state `keyPrefix` (`bot:<bot>:`) to keep dedupe keys apart. `concurrency` is
+  uses its own state `keyPrefix` (`bot:<bot>:`, so partition keys look like
+  `bot:<bot>:#kv#<key>`) to keep dedupe keys apart. `concurrency` is
   `concurrent`, because the default `drop` strategy loses messages that arrive close together.
   The webhook path selects the bot: `/telegram/<bot>`, `/slack/<bot>`.
 - The registry entry `{respond_to}` for each bot is stored in state under `registry:<bot>` (written
@@ -388,8 +389,9 @@ files.
 Open items are tracked in [TODO.md](../TODO.md#10-decisions) and its backlog.
 
 1. **State backend (decided).** A DynamoDB `StateAdapter` (19 methods, pay-per-request, stays in
-   AWS), written here and possibly contributed upstream. Chosen for cost over hosted Postgres
-   (Neon with `@chat-adapter/state-pg`), which needs no custom code and is the fallback. Hosted
+   AWS), provided by the published `@blevinstein/chat-state-dynamodb` package (an adapter we wrote was
+   declined upstream). Chosen for cost over hosted Postgres (Neon with `@chat-adapter/state-pg`),
+   the fallback. Hosted
    Redis (Upstash) is the other fallback. Leaving the Chat SDK on its in-memory adapter is
    **not viable**: it would lose dedupe and history across Lambda instances.
 2. **Where turns execute for public repos (decided).** Turns run in each consumer repo's own
