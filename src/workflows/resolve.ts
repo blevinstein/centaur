@@ -1,9 +1,17 @@
 import { z } from "zod";
+import { THREAD_KEY_LENGTH } from "../thread-key.js";
 import type { PosterClient } from "./aws.js";
 
 /** Hidden in every comment the agent posts, so `resolve` never answers its own output. */
 export const REPLY_MARKER = "<!-- centaur:reply -->";
 export const BRANCH_PREFIX = "centaur/";
+const THREAD_BRANCH_SUFFIX = new RegExp(`^[0-9a-f]{${THREAD_KEY_LENGTH}}(-\\d+-\\d+)?$`);
+
+/** A thread branch: `centaur/<bot>-<thread key>`, optionally followed by `-<run id>-<attempt>`. */
+export const isThreadBranch = (bot: string, ref: string) => {
+  const prefix = `${BRANCH_PREFIX}${bot}-`;
+  return ref.startsWith(prefix) && THREAD_BRANCH_SUFFIX.test(ref.slice(prefix.length));
+};
 const WRITE_PERMISSIONS = new Set(["write", "maintain", "admin"]);
 
 const sender = z.object({ type: z.string(), login: z.string().min(1) });

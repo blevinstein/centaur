@@ -248,7 +248,7 @@ Two more optional fields choose the pull request a turn targets, each present on
 content.
 
 `prepare` lists the pull requests a chat or scheduled turn may update when `existing` is `bot`:
-open pull requests of this repository, not forks, from `centaur/<bot>-` branches authored by
+open pull requests of this repository, not forks, from `centaur/<bot>-<thread key>` branches authored by
 `github-actions[bot]`, newest 10 by number. When the poster has a `resolve-pull-request` record it
 must name the same bot; a missing record is allowed (older pull requests predate linking), and a
 poster error excludes the pull request. The prompt gets an "Open pull requests you may update"
@@ -286,8 +286,8 @@ thread; `resolve-pull-request` already refreshed its link while the plan was val
 
 **Validity.** `checkCandidate` (`src/workflows/pr-target.ts`) is the only place a target is
 validated, for both the prompt's list and `plan-pr`. A pull request is valid when it is open, its
-base and head repositories are both this repository (not a fork), its head branch starts with
-`centaur/<bot>-`, it was opened by `github-actions[bot]`, and, when the poster has a
+base and head repositories are both this repository (not a fork), its head branch is
+`centaur/<bot>-<thread key>` (optionally followed by `-<run id>-<attempt>`), it was opened by `github-actions[bot]`, and, when the poster has a
 `resolve-pull-request` record for it, the record names the same bot. A missing record passes; a
 poster failure rejects.
 

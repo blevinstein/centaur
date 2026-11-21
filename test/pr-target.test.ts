@@ -8,7 +8,7 @@ import {
   planTarget,
   requestedPullRequest,
 } from "../src/workflows/pr-target.js";
-import { candidatePr, targetSetup } from "./helpers/pr-target-fixtures.js";
+import { candidatePr, THREAD_KEY, targetSetup } from "./helpers/pr-target-fixtures.js";
 import { executionText } from "./helpers/workflow-fixtures.js";
 
 describe("checkCandidate", () => {
@@ -21,6 +21,17 @@ describe("checkCandidate", () => {
       { operation: "resolve-pull-request", token: "jwt", pullRequest: 5 },
     ]);
   });
+
+  it.each([`centaur/sprout-${THREAD_KEY}`, `centaur/sprout-${THREAD_KEY}-123456-2`])(
+    "accepts the thread branch %s",
+    async (headRef) => {
+      const { candidateDeps } = targetSetup();
+
+      await expect(
+        checkCandidate(candidateDeps, candidatePr(5, { headRef })),
+      ).resolves.toBeUndefined();
+    },
+  );
 
   it("accepts a record naming the same bot", async () => {
     const { candidateDeps } = targetSetup({ links: { 5: { found: true, bot: "sprout" } } });
@@ -39,6 +50,17 @@ describe("checkCandidate", () => {
     ],
     ["on a human branch", { headRef: "feature/x" }, "not_candidate"],
     ["on another bot's branch", { headRef: "centaur/other-abc" }, "not_candidate"],
+    [
+      "on a bot whose name extends this one's",
+      { headRef: `centaur/sprout-2-${THREAD_KEY}` },
+      "not_candidate",
+    ],
+    ["on a branch with a malformed thread key", { headRef: "centaur/sprout-abc" }, "not_candidate"],
+    [
+      "on a branch with trailing text after the key",
+      { headRef: `centaur/sprout-${THREAD_KEY}-x` },
+      "not_candidate",
+    ],
     ["authored by a human", { author: "sam" }, "not_candidate"],
     ["authored by nobody", { author: undefined }, "not_candidate"],
   ] as const)(

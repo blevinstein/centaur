@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { PosterClient } from "./aws.js";
 import { extractResult } from "./finish.js";
 import { paginate } from "./pull-request-comments.js";
-import { BRANCH_PREFIX, createGitHubRequester, type PullRequestInfo } from "./resolve.js";
+import { createGitHubRequester, isThreadBranch, type PullRequestInfo } from "./resolve.js";
 
 /** The author of pull requests opened with the workflow's `GITHUB_TOKEN`. */
 export const WORKFLOW_BOT_LOGIN = "github-actions[bot]";
@@ -85,7 +85,7 @@ const once = <T>(fn: () => Promise<T>) => {
 
 /**
  * The single validity predicate for a pull request the agent may update: open, same repository
- * and not a fork, a `centaur/<bot>-` branch opened by the workflow bot, and, when the poster has
+ * and not a fork, a `centaur/<bot>-<thread key>` branch opened by the workflow bot, and, when the poster has
  * a record for it, linked to this bot. A missing record is allowed (older pull requests predate
  * linking); a failed poster call fails closed. Returns the rejection reason, or undefined.
  */
@@ -97,7 +97,7 @@ export async function checkCandidate(
   if (
     pullRequest.headRepository !== pullRequest.baseRepository ||
     pullRequest.baseRepository !== deps.repository ||
-    !pullRequest.headRef.startsWith(`${BRANCH_PREFIX}${deps.bot}-`) ||
+    !isThreadBranch(deps.bot, pullRequest.headRef) ||
     pullRequest.author !== WORKFLOW_BOT_LOGIN
   ) {
     return "not_candidate";

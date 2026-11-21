@@ -9,6 +9,7 @@ import {
 import { createFakeAws } from "./workflow-fixtures.js";
 
 export const REPOSITORY = "octo/sprout";
+export const THREAD_KEY = "0123456789ab";
 
 export const candidatePr = (
   number: number,
