@@ -21,7 +21,7 @@ const START_HOUSEHOLD = {
 
 describe("poster post", () => {
   it("posts text into the thread through the bot's own chat and state prefix", async () => {
-    const { poster, chatMock, thread, stateFor } = await posterSetup();
+    const { poster, chatMock, thread, createState } = await posterSetup();
 
     const result = await poster({
       operation: "post",
@@ -33,7 +33,7 @@ describe("poster post", () => {
     expect(result).toEqual({ messageId: "sent-1" });
     expect(chatMock.thread).toHaveBeenCalledWith(GARDEN_THREAD);
     expect(thread.post).toHaveBeenCalledWith("hi");
-    expect(stateFor).toHaveBeenCalledWith("bot:garden:");
+    expect(createState).toHaveBeenCalledWith("bot:garden:");
   });
 
   it.each([

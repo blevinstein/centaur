@@ -11,7 +11,7 @@ import {
 const receiver = () =>
   createReceiver({
     params: fakeParameterStore(),
-    stateFor: () => createMemoryState(),
+    createState: () => createMemoryState(),
     attachments: fakeAttachments(),
     dispatcher: fakeDispatcher(),
     logger: fakeLogger(),

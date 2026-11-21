@@ -10,6 +10,7 @@ import { chatParameter, type ParameterStore } from "./parameters.js";
 import { createPullRequests } from "./pull-requests.js";
 import { createRegister } from "./register.js";
 import { type Bot, botStatePrefix, loadBot } from "./registry.js";
+import { connectState } from "./state.js";
 import type { TelegramApi } from "./telegram.js";
 
 const TOPIC_NAME_MAX = 128;
@@ -69,7 +70,7 @@ export type PosterChat = Pick<
 
 export interface PosterDeps {
   params: ParameterStore;
-  stateFor: (keyPrefix: string) => StateAdapter;
+  createState: (keyPrefix: string) => StateAdapter;
   chatFor: (bot: Bot, botState: StateAdapter) => PosterChat;
   attachments: AttachmentStore;
   telegram: TelegramApi;
@@ -104,11 +105,24 @@ const THREAD_OPENERS: Record<Platform, ThreadOpener> = {
 
 const firstLine = (value: string) => value.trim().split("\n")[0]?.slice(0, TOPIC_NAME_MAX) ?? "";
 
-export function createPoster(deps: PosterDeps) {
-  const { params, stateFor, chatFor, attachments, telegram, logger } = deps;
+export async function createPoster(deps: PosterDeps) {
+  const { params, createState, chatFor, attachments, telegram, logger } = deps;
+  const states = new Map<string, Promise<StateAdapter>>();
+  const stateFor = (keyPrefix: string) => {
+    let state = states.get(keyPrefix);
+    if (!state) {
+      state = connectState(createState(keyPrefix)).catch((error) => {
+        states.delete(keyPrefix);
+        throw error;
+      });
+      states.set(keyPrefix, state);
+    }
+    return state;
+  };
+  const registryState = await stateFor("");
   const register = createRegister({
     params,
-    registryState: stateFor(""),
+    registryState,
     oidc: deps.oidc,
     telegram,
     functionUrl: deps.functionUrl,
@@ -116,14 +130,14 @@ export function createPoster(deps: PosterDeps) {
 
   const pullRequests = createPullRequests({
     params,
-    state: stateFor(""),
+    state: registryState,
     oidc: deps.oidc,
   });
 
   const openChat = async (botName: string) => {
     const bot = await loadBot(params, botName);
     if (!bot) throw new Error(`unknown or unbound bot "${botName}"`);
-    const chat = chatFor(bot, stateFor(botStatePrefix(bot.name)));
+    const chat = chatFor(bot, await stateFor(botStatePrefix(bot.name)));
     await chat.initialize();
     return { bot, chat };
   };

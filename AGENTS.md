@@ -58,7 +58,7 @@
   and `test/infra.test.ts` checks them against `infra/centaur.yml`.
   `.yarnrc.yml` exempts it from the Yarn age gate (see `TODO.md`).
 - Poster operations that act for a repository take it from the verified OIDC claim, never the
-  payload; their strict schemas reject extra keys. Use `stateFor("")` for cross-bot records.
+  payload; their strict schemas reject extra keys. Use `createState("")` for cross-bot records.
 - A new field in the agent's structured output goes in three places: `replySchema`
   (`src/workflows/prompt.ts`), `resultMessage` and `extractResult` (`src/workflows/finish.ts`), and
   `docs/workflows.md`. The PR step in `.github/actions/turn/action.yml` reads the `pr-details` outputs.
@@ -102,3 +102,9 @@
   handler opens, and fake `Date` instead of sleeping past a TTL.
 - Read the config only through `findConfigFile`/`readConfigText` (`src/workflows/config-file.ts`);
   never hard-code a config path. `.centaur/config.yml` and `.centaur.yml` are both supported.
+- State adapters reject calls before `connect()`. `ReceiverDeps` and `PosterDeps` take
+  `createState(keyPrefix)`, and the code connects each adapter with `connectState`
+  (`src/lambda/state.ts`): the receiver once at startup, the poster through a per-prefix cache of
+  connected adapters (a failed connect is dropped so the next request retries). `Chat` calls
+  `connect()` on the same instance again, which is a no-op. Tests that need the adapter contract
+  (calls reject before `connect()`) use `test/helpers/strict-state.ts`.

@@ -370,6 +370,8 @@ Ordered by risk; each experiment answered a question that could change the desig
    conversation.
 2. **Chat SDK on Lambda (validated).** The receiver runs on the deployed stack with a Telegram bot
    and the DynamoDB state adapter; dedupe, history and thread state persist across invocations.
+   The Lambda connects each state adapter it creates (`connectState`; the poster caches one per key prefix), because
+   Chat SDK state adapters reject every call before `connect()`.
 3. **End-to-end Telegram (validated).** Message, dispatch, turn and reply in a test supergroup with
    topics took about 47 s from dispatch to posted reply. Bot-created topics, replies in them
    without a mention, `respond_to: all` and the 👀 reaction work. Routing with two bots in one

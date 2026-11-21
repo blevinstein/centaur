@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   post: vi.fn(),
   createReceiver: vi.fn(),
   createPoster: vi.fn(),
+  createState: vi.fn(),
 }));
 
 vi.mock("../src/lambda/parameters.js", async (importOriginal) => ({
@@ -25,7 +26,9 @@ vi.mock("../src/lambda/github.js", () => ({ createGitHubDispatcher: () => ({}) }
 vi.mock("../src/lambda/telegram.js", () => ({ createTelegramApi: () => ({}) }));
 vi.mock("../src/lambda/oidc.js", () => ({ createGitHubOidcVerifier: () => ({}) }));
 vi.mock("../src/lambda/chat.js", () => ({ createChat: () => ({}) }));
-vi.mock("@blevinstein/chat-state-dynamodb", () => ({ createDynamoDBState: () => ({}) }));
+vi.mock("@blevinstein/chat-state-dynamodb", () => ({
+  createDynamoDBState: (options: unknown) => mocks.createState(options),
+}));
 
 describe("lambda handler routing", () => {
   beforeEach(() => {
@@ -44,6 +47,10 @@ describe("lambda handler routing", () => {
     mocks.createReceiver.mockResolvedValue(mocks.receive);
     mocks.post.mockResolvedValue({ ok: true });
     mocks.createPoster.mockReturnValue(mocks.post);
+    mocks.createState.mockImplementation(() => ({
+      connect: vi.fn(async () => {}),
+      get: vi.fn(async () => null),
+    }));
   });
 
   afterEach(() => vi.unstubAllEnvs());
@@ -106,5 +113,25 @@ describe("lambda handler routing", () => {
     const handler = await importFreshHandler();
     await expect(handler(functionUrlEvent())).rejects.toThrow("STATE_TABLE_NAME is not set");
     await expect(handler({ operation: "post" })).rejects.toThrow("STATE_TABLE_NAME is not set");
+  });
+
+  it.each([
+    ["receiver", () => mocks.createReceiver, functionUrlEvent({ body: "{}" })],
+    ["poster", () => mocks.createPoster, { operation: "read" }],
+  ])("hands the %s a DynamoDB adapter factory", async (_name, factory, event) => {
+    const handler = await importFreshHandler();
+    await handler(event as Parameters<typeof handler>[0]);
+    const { createState } = (factory().mock.calls as unknown[][]).flat()[0] as {
+      createState: (prefix: string) => unknown;
+    };
+
+    createState("bot:garden:");
+
+    expect(mocks.createState).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableName: HANDLER_ENV.STATE_TABLE_NAME,
+        keyPrefix: "bot:garden:",
+      }),
+    );
   });
 });

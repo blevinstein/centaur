@@ -194,6 +194,12 @@ generated name) and a `StateTableAccessPolicy` managed policy limited to `GetIte
 table ARN; `test/infra.test.ts` pins both to the package's `TABLE_DEFINITION`. The Lambda role
 attaches the policy.
 
+Like the Chat SDK's built-in adapters, every method except `connect()` and `disconnect()` expects
+`connect()` to have completed. Centaur's direct uses (registry, access requests, admin claims,
+pull-request links, register) get their adapters from `createState`, connected with `connectState` (`src/lambda/state.ts`): once
+per Lambda container for the receiver, and once per key prefix (cached) for the poster. `Chat` is handed
+the same instance and calls `connect()` again, which returns immediately.
+
 `test/chat-dynamodb-state.test.ts` drives a real `Chat` (fake platform adapter) against the
 adapter on DynamoDB Local. How the core uses the interface:
 

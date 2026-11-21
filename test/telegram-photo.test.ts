@@ -38,7 +38,7 @@ async function photoUpdate(extra: Record<string, unknown> = {}) {
   await writeRegistryEntry(state, "garden", {});
   const handler = await createReceiver({
     params,
-    stateFor: () => state,
+    createState: () => state,
     attachments,
     dispatcher,
     logger: fakeLogger(),

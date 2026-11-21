@@ -117,6 +117,7 @@ export async function posterSetup(
     transcript?: unknown[];
     attachments?: Record<string, string[]>;
     registryState?: StateAdapter;
+    createState?: (prefix: string) => StateAdapter;
     repository?: string;
     globalMcpPolicy?: string;
   } = {},
@@ -136,12 +137,15 @@ export async function posterSetup(
   const oidc = fakeOidc(options.repository);
   const posting = fakePosterChat(options.transcript);
   const logger = { warn: vi.fn() };
-  const stateFor = vi.fn((prefix: string) => (prefix === "" ? registryState : createMemoryState()));
+  const createState = vi.fn(
+    options.createState ??
+      ((prefix: string) => (prefix === "" ? registryState : createMemoryState())),
+  );
   const chatFor = vi.fn(() => posting.chat);
   const attachments = fakeAttachments(options.attachments);
-  const poster = createPoster({
+  const poster = await createPoster({
     params,
-    stateFor,
+    createState,
     chatFor,
     attachments,
     telegram,
@@ -158,7 +162,7 @@ export async function posterSetup(
     telegram,
     oidc,
     chatFor,
-    stateFor,
+    createState,
     attachments,
     ...posting,
   };

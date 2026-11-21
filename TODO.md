@@ -364,3 +364,6 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
 - [x] Contribute the DynamoDB state adapter upstream. Chat SDK declined it and points to community
       packages; Centaur uses the published `@blevinstein/chat-state-dynamodb` instead (see
       `docs/research.md`).
+- [ ] Bump `@blevinstein/chat-state-dynamodb` to 0.4.0 (adapter rejects calls before `connect()`) once
+      the maintainer publishes it; `connectState` already connects every adapter the Lambda creates
+      (**[HUMAN ACTION]**: publish 0.4.0).

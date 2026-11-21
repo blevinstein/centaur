@@ -37,7 +37,7 @@ function memoizeAsync<T>(build: () => Promise<T>) {
 
 const logger = new ConsoleLogger("info");
 
-const stateFactory = (tableName: string) => {
+const stateCreator = (tableName: string) => {
   const client = new DynamoDBClient({});
   return (keyPrefix: string) => createDynamoDBState({ tableName, client, keyPrefix });
 };
@@ -52,7 +52,7 @@ async function buildReceiver() {
   const tableName = requiredEnv("STATE_TABLE_NAME");
   return createReceiver({
     params: createCachedParameterStore(params),
-    stateFor: stateFactory(tableName),
+    createState: stateCreator(tableName),
     attachments: buildAttachments(),
     dispatcher: createGitHubDispatcher(token),
     logger,
@@ -66,7 +66,7 @@ async function buildPoster() {
   if (!functionUrl) throw new Error(`missing SSM parameter ${FUNCTION_URL_PARAMETER}`);
   return createPoster({
     params,
-    stateFor: stateFactory(tableName),
+    createState: stateCreator(tableName),
     chatFor: (bot, botState) => createChat({ bot, botState, logger }),
     attachments: buildAttachments(),
     telegram: createTelegramApi(),

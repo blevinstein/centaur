@@ -5,10 +5,11 @@ import type { RepositoryDispatcher } from "./github.js";
 import type { WebHandler } from "./http.js";
 import type { ParameterStore } from "./parameters.js";
 import { type Bot, botStatePrefix, loadBots } from "./registry.js";
+import { connectState } from "./state.js";
 
 export interface ReceiverDeps {
   params: ParameterStore;
-  stateFor: (keyPrefix: string) => StateAdapter;
+  createState: (keyPrefix: string) => StateAdapter;
   attachments: AttachmentStore;
   dispatcher: RepositoryDispatcher;
   logger: Logger;
@@ -20,25 +21,27 @@ export const routeKey = (bot: Pick<Bot, "platform" | "name">) => `/${bot.platfor
 
 export async function createReceiver({
   params,
-  stateFor,
+  createState,
   attachments,
   dispatcher,
   logger,
 }: ReceiverDeps): Promise<WebHandler> {
-  const registryState = stateFor("");
+  const registryState = await connectState(createState(""));
   const routes = new Map(
-    (await loadBots(params)).map((bot) => {
-      const chat = createBotChat({
-        bot,
-        params,
-        registryState,
-        botState: stateFor(botStatePrefix(bot.name)),
-        attachments,
-        dispatcher,
-        logger,
-      });
-      return [routeKey(bot), { bot, chat }] as const;
-    }),
+    await Promise.all(
+      (await loadBots(params)).map(async (bot) => {
+        const chat = createBotChat({
+          bot,
+          params,
+          registryState,
+          botState: await connectState(createState(botStatePrefix(bot.name))),
+          attachments,
+          dispatcher,
+          logger,
+        });
+        return [routeKey(bot), { bot, chat }] as const;
+      }),
+    ),
   );
 
   return async (request) => {

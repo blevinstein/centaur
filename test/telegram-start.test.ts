@@ -21,6 +21,7 @@ import {
   PARAMETERS,
   STRANGER_USER_ID,
 } from "./helpers/receiver-fixtures.js";
+import { strictStates } from "./helpers/strict-state.js";
 
 const SENT_RESULT = { message_id: 1, date: 0, chat: { id: 1, type: "private" } };
 
@@ -43,7 +44,7 @@ function stubTelegram() {
 async function startUpdate(
   userId: string,
   text: string,
-  { claim }: { claim?: Date | undefined } = {},
+  { claim, strict }: { claim?: Date | undefined; strict?: ReturnType<typeof strictStates> } = {},
 ) {
   const params = fakeParameterStore({
     ...PARAMETERS,
@@ -52,12 +53,12 @@ async function startUpdate(
     ...(claim ? { [CLAIM_PARAMETER]: encodeClaim("garden", CLAIM_CODE, claim) } : {}),
   });
   const dispatcher = fakeDispatcher();
-  const state = createMemoryState();
+  const state = strict?.inner("") ?? createMemoryState();
   await state.connect();
   await writeRegistryEntry(state, "garden", {});
   const handler = await createReceiver({
     params,
-    stateFor: () => state,
+    createState: strict?.createState ?? (() => state),
     attachments: fakeAttachments(),
     dispatcher,
     logger: fakeLogger(),
@@ -140,5 +141,36 @@ describe("/start in a Telegram DM", () => {
 
     expect(sent.map((message) => message.text)).toEqual([INVALID_CODE_TEXT]);
     expect(params.values[CLAIM_PARAMETER]).toBeDefined();
+  });
+
+  it("connects the registry and bot adapters before first use", async () => {
+    stubTelegram();
+    const strict = strictStates();
+
+    const { dispatcher } = await startUpdate(ALLOWED_USER_ID, "/start", { strict });
+
+    expect(dispatcher.dispatch).toHaveBeenCalledOnce();
+    expect(strict.prefixes()).toEqual(expect.arrayContaining(["", "bot:garden:"]));
+    expect(strict.connects("")).toBe(1);
+    expect(strict.connects("bot:garden:")).toBe(1);
+  });
+
+  it("lets a stranger's access request use the strict bot adapter", async () => {
+    const sent = stubTelegram();
+
+    await startUpdate(STRANGER_USER_ID, "/start", { strict: strictStates() });
+
+    expect(sent.map((message) => message.text)).toContain(REQUESTED_TEXT);
+  });
+
+  it("claims the admin through the strict bot adapter", async () => {
+    stubTelegram();
+
+    const { params } = await startUpdate(STRANGER_USER_ID, `/start ${CLAIM_CODE}`, {
+      claim: inFuture(),
+      strict: strictStates(),
+    });
+
+    expect(params.values[ADMIN_PARAMETER]).toBe(STRANGER_USER_ID);
   });
 });
