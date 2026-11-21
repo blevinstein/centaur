@@ -275,6 +275,8 @@ Check a config and its policy locally with `centaur config check [path]`. That c
 local `.centaur/mcp-policy.cedar` next to the config, which is convenient for editing but is not what
 enforcement uses. Add `--global-policy infra/mcp-policy.cedar` to check against the global layer too.
 
+A third outcome, allowed after the admin approves, is designed in [mcp-approval.md](mcp-approval.md).
+
 ## Out of scope
 
 - Per-turn or per-prompt server sets (all prompts and chat turns share `mcp_servers`).

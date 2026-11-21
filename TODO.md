@@ -231,6 +231,8 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
       needs a way to express the third outcome in Cedar (for example a separate `RequireApproval`
       action) and a state record for decisions. Keep the harness small: explore first, decide scope
       before building.
+      Design and recommendations: [docs/mcp-approval.md](docs/mcp-approval.md); **[HUMAN APPROVAL]**
+      accept or amend its Decisions before building.
 
 ## 12. Slack support
 
