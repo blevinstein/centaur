@@ -240,6 +240,11 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
       Design and recommendations: [docs/mcp-approval.md](docs/mcp-approval.md); **[HUMAN APPROVAL]**
       accept or amend its Decisions before building.
 
+- [ ] Chat context tools: let the agent read other threads in its chat through a built-in MCP server
+      backed by new poster operations. Design and recommendations:
+      [docs/chat-context.md](docs/chat-context.md); **[HUMAN APPROVAL]** accept or amend its
+      Decisions before building.
+
 ## 12. Slack support
 
 - [x] App manifest template with the required scopes and event URL
