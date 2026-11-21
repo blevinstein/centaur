@@ -22,8 +22,10 @@ The loop it completes: a chat turn or scheduled prompt opens `centaur/<bot>-<key
 - The agent runs under the thread's current context policy, with the pull request comments as the
   pending input. Its reply goes to the pull request, follow-up commits are pushed to the pull
   request branch, and a short note goes to the chat thread.
-- Only commenters with write access to the repository, and an `author_association` allowed by `pull_requests.comment_authors`, can trigger a turn. Comments from bots, and
-  comments carrying a hidden marker, never do.
+- Only commenters with write access to the repository, and an `author_association` allowed by
+  `pull_requests.comment_authors`, can trigger a turn. Comments from bots, and comments carrying a
+  hidden marker, never do. If the permission lookup fails, the comment is ignored; a failure other
+  than 403 or 404 also logs a workflow warning naming only the status.
 
 ## Events
 

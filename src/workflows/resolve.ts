@@ -58,6 +58,14 @@ export type ResolveOutputs =
       eventName: string;
     };
 
+/** 403 and 404 mean the commenter has no access; anything else may be an outage worth surfacing. */
+function warnUnlessDenied(error: unknown): undefined {
+  if (error instanceof GitHubRequestError && (error.status === 403 || error.status === 404)) return;
+  const detail =
+    error instanceof GitHubRequestError ? error.status : (error as Error).constructor.name;
+  console.warn(`::warning::could not check commenter permission (${detail})`);
+}
+
 const skip = (reason: string): ResolveOutputs => ({ skip: true, reason });
 
 /** Returns the pull request number and comment body when the event is a new human-visible comment. */
@@ -109,7 +117,7 @@ export async function resolve(deps: ResolveDeps): Promise<ResolveOutputs> {
 
   const permission = await deps.github
     .permission(deps.repository, event.sender.login)
-    .catch(() => undefined);
+    .catch(warnUnlessDenied);
   if (!permission || !WRITE_PERMISSIONS.has(permission)) {
     return skip("commenter lacks write access");
   }

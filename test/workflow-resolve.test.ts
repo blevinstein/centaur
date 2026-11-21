@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { createGitHubClient, REPLY_MARKER, resolve } from "../src/workflows/resolve.js";
+import { describe, expect, it, vi } from "vitest";
+import {
+  createGitHubClient,
+  GitHubRequestError,
+  REPLY_MARKER,
+  resolve,
+} from "../src/workflows/resolve.js";
 import { issueComment, resolveSetup, review } from "./helpers/resolve-fixtures.js";
 
 const RESOLVED = {
@@ -93,17 +98,34 @@ describe("resolve", () => {
     expect(aws.requests).toEqual([]);
   });
 
-  it.each(["read", "triage", new Error("GitHub request failed (500)")])(
-    "fails closed when the commenter permission is %s",
-    async (permission) => {
-      const { aws, deps } = resolveSetup({ permission });
+  it.each([
+    ["read", "read", 0],
+    ["triage", "triage", 0],
+    ["a 403", new GitHubRequestError(403), 0],
+    ["a 404", new GitHubRequestError(404), 0],
+    ["a 500", new GitHubRequestError(500), 1],
+    ["a network error", new TypeError("fetch failed"), 1],
+  ])("fails closed when the commenter permission is %s", async (_name, permission, warnings) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { aws, deps } = resolveSetup({ permission });
 
-      await expect(resolve(deps("issue_comment", issueComment()))).resolves.toMatchObject({
-        skip: true,
-      });
-      expect(aws.requests).toEqual([]);
-    },
-  );
+    await expect(resolve(deps("issue_comment", issueComment()))).resolves.toMatchObject({
+      skip: true,
+    });
+    expect(aws.requests).toEqual([]);
+    expect(warn).toHaveBeenCalledTimes(warnings);
+    warn.mockRestore();
+  });
+
+  it("names only the status in the permission warning", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { deps } = resolveSetup({ permission: new GitHubRequestError(502) });
+
+    await resolve(deps("issue_comment", issueComment({ body: "secret text" })));
+
+    expect(warn).toHaveBeenCalledWith("::warning::could not check commenter permission (502)");
+    warn.mockRestore();
+  });
 
   it.each(["maintain", "admin"])("accepts %s permission", async (permission) => {
     const { deps } = resolveSetup({ permission });
