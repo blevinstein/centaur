@@ -169,9 +169,12 @@ Each bot, and so each repo, gets its own Slack app, mirroring Telegram.
    with the bot name and `{{FUNCTION_URL}}` with the receiver's Function URL (no trailing slash),
    then at [api.slack.com/apps](https://api.slack.com/apps) choose **Create New App** > **From a
    manifest**, pick the workspace and paste it. The manifest sets the scopes, the event
-   subscription URL `<function URL>/slack/<bot>`, and socket mode off. The receiver can only
-   answer Slack's URL verification after step 3, so retry the URL under **Event Subscriptions**
-   if Slack shows it as unverified.
+   subscription URL `<function URL>/slack/<bot>`, the Messages tab so users can DM the bot, and
+   socket mode off. The receiver can only answer Slack's URL verification after step 3, so retry
+   the URL under **Event Subscriptions** if Slack shows it as unverified. An app created without
+   the Messages tab shows "Sending messages to this app has been turned off" in its DM; enable it
+   under **App Home** > **Show Tabs** > **Messages Tab** (**Allow users to send Slash commands and
+   messages from the messages tab**), or re-apply the manifest.
 2. Under **Basic Information** > **App Credentials**, copy the **Signing Secret**. Under **OAuth &
    Permissions**, choose **Install to Workspace** and copy the **Bot User OAuth Token**
    (`xoxb-...`).
@@ -188,7 +191,8 @@ The manifest requests only what the receiver uses: message and mention events pl
 `*:history` and `*:read` scopes, `chat:write`, `reactions:write` for the 👀 progress reaction,
 `files:read` for attachments, `users:read` for display names, and, for access requests,
 `reaction_added` with `reactions:read` (the admin's 👍/👎 arrive as `+1` and `-1`) and `im:write`
-(opens the DM to the admin). Interactivity and slash commands are not used, so none are
+(opens the DM to the admin). `app_home` enables the writable Messages tab, which the admin claim
+and access requests need, and disables the Home tab. Interactivity and slash commands are not used, so none are
 registered.
 
 Slack decisions are reactions only; there is no `/approve` text fallback on Slack. Slack intercepts
