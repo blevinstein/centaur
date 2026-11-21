@@ -9,13 +9,13 @@ allowed_tools: "Read,Glob,Grep,Write,Edit,mcp__ghmcp__*"
 persona: .centaur/persona.md
 prompts:
   hello:
-    destination: blevinstein
+    destination: centaur-test
   pr-smoke:
-    destination: blevinstein
+    destination: centaur-test
   pr-update:
-    destination: blevinstein
+    destination: centaur-test
   mcp-smoke:
-    destination: blevinstein
+    destination: centaur-test
 mcp_servers:
   ghmcp:
     url: https://api.githubcopilot.com/mcp/readonly

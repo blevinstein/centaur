@@ -9,7 +9,7 @@ describe("this repo's .centaur.yml", () => {
     expect(result.config.respond_to).toBe("all");
     const files = [result.config.persona, result.config.prompts.hello?.file ?? ""];
     expect(files[1]).toBe(".centaur/prompts/hello.md");
-    expect(result.config.prompts.hello?.destination).toBe("blevinstein");
+    expect(result.config.prompts.hello?.destination).toBe("centaur-test");
     for (const file of files) expect(readFileSync(file, "utf8")).not.toBe("");
   });
 });
