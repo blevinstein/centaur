@@ -349,6 +349,10 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       webhook routes (`/<platform>/<bot>`), access and alias records, the dispatch payload and
       the per-bot DynamoDB state prefix all assume one platform per bot today. Needs a migration
       for the existing bots. Do together with, or right after, the topic destinations item.
+      The config schema changes with it: a repo declares its platform connections, and a prompt's
+      destinations can target places on several platforms (for example the same weekly plan in a
+      Telegram topic and a Slack channel), with per-platform settings such as `respond_to` and
+      `handle`. `docs/config.md`, `docs/plan.md`, the workflows' bot handling and `register` change too.
 - [ ] Topic destinations. A prompt's `destination` should be able to name a single topic (or Slack
       thread) inside a chat, not only a chat, so recurring prompts can keep one persistent thread
       instead of opening a new topic per run. Sketch: per-bot named destinations holding a chat ID
