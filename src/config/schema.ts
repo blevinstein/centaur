@@ -4,6 +4,17 @@ import { PROVIDERS } from "./providers.js";
 export const PLATFORMS = ["telegram", "slack"] as const;
 export const CONTEXT_POLICIES = ["fresh", "transcript", "resume"] as const;
 export const PR_EXISTING_SCOPES = ["off", "bot"] as const;
+export const AUTHOR_ASSOCIATIONS = [
+  "OWNER",
+  "MEMBER",
+  "COLLABORATOR",
+  "CONTRIBUTOR",
+  "FIRST_TIME_CONTRIBUTOR",
+  "FIRST_TIMER",
+  "MANNEQUIN",
+  "NONE",
+] as const;
+const DEFAULT_COMMENT_AUTHORS = ["OWNER", "MEMBER", "COLLABORATOR"] as const;
 export const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"] as const;
 export const RESPOND_TO = ["mention", "all"] as const;
 
@@ -120,8 +131,16 @@ export const centaurConfigSchema = z
       .strictObject({
         comment_new: z.boolean().default(true),
         existing: z.enum(PR_EXISTING_SCOPES).default("bot"),
+        comment_authors: z
+          .array(z.enum(AUTHOR_ASSOCIATIONS))
+          .min(1)
+          .default([...DEFAULT_COMMENT_AUTHORS]),
       })
-      .default({ comment_new: true, existing: "bot" }),
+      .default({
+        comment_new: true,
+        existing: "bot",
+        comment_authors: [...DEFAULT_COMMENT_AUTHORS],
+      }),
     persona: repoPath.default(".centaur/persona.md"),
     instructions: instructionsSchema.default({}),
     prompts: z.record(alias, promptSchema).default({}),

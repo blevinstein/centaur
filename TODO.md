@@ -286,7 +286,7 @@ agent proposes a change, a human reviews it, and the agent revises it.
       actions from the default branch (or check the PR branch out into a subdirectory).
 - [ ] `resolve` treats any permission API error as "no write access"; warn on errors other than
       403 and 404 so outages are visible.
-- [ ] Consider filtering comment authors by `author_association` in comment-mode `prepare`, since it
+- [x] Consider filtering comment authors by `author_association` in comment-mode `prepare`, since it
       answers every human comment since the last marked one.
 
 ## 14. Agent-chosen PR targets

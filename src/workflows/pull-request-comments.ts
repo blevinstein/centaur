@@ -6,6 +6,7 @@ export const MAX_DIFF_CHARS = 100_000;
 
 const user = z.object({ login: z.string(), type: z.string() });
 const timestamp = z.string().min(1);
+const association = z.string().nullish();
 
 const pullRequestResponse = z.object({
   title: z.string(),
@@ -21,6 +22,7 @@ const issueCommentResponse = z.object({
   body: z.string().nullish(),
   created_at: timestamp,
   user: user.nullable(),
+  author_association: association,
 });
 const reviewResponse = z.object({
   id: z.number(),
@@ -28,12 +30,14 @@ const reviewResponse = z.object({
   state: z.string(),
   submitted_at: timestamp.nullish(),
   user: user.nullable(),
+  author_association: association,
 });
 const reviewCommentResponse = z.object({
   id: z.number(),
   body: z.string(),
   created_at: timestamp,
   user: user.nullable(),
+  author_association: association,
   path: z.string(),
   line: z.number().nullish(),
   original_line: z.number().nullish(),
@@ -54,6 +58,8 @@ export interface PullRequestComment {
   id: number;
   author: string;
   isBot: boolean;
+  /** GitHub's `author_association`; empty when the payload has none. */
+  association: string;
   body: string;
   at: string;
   reviewState?: string;
@@ -137,9 +143,13 @@ export function createPullRequestReader(
   fetchImpl?: typeof fetch,
 ): PullRequestReader {
   const requester = createGitHubRequester(token, apiUrl, fetchImpl);
-  const author = (u: z.infer<typeof user> | null) => ({
-    author: u?.login ?? "unknown",
-    isBot: u === null || u.type === "Bot",
+  const author = (c: {
+    user: z.infer<typeof user> | null;
+    author_association?: string | null | undefined;
+  }) => ({
+    author: c.user?.login ?? "unknown",
+    isBot: c.user === null || c.user.type === "Bot",
+    association: c.author_association ?? "",
   });
   return {
     async details(repository, number) {
@@ -165,7 +175,7 @@ export function createPullRequestReader(
           (c): PullRequestComment => ({
             kind: "conversation",
             id: c.id,
-            ...author(c.user),
+            ...author(c),
             body: c.body ?? "",
             at: c.created_at,
           }),
@@ -176,7 +186,7 @@ export function createPullRequestReader(
                 {
                   kind: "review",
                   id: r.id,
-                  ...author(r.user),
+                  ...author(r),
                   body: r.body ?? "",
                   at: r.submitted_at,
                   reviewState: r.state,
@@ -188,7 +198,7 @@ export function createPullRequestReader(
           (c): PullRequestComment => ({
             kind: "inline",
             id: c.id,
-            ...author(c.user),
+            ...author(c),
             body: c.body,
             at: c.created_at,
             path: c.path,
@@ -208,15 +218,31 @@ export function createPullRequestReader(
 const isEmptyReview = (c: PullRequestComment) =>
   c.kind === "review" && c.body.trim() === "" && c.reviewState === "COMMENTED";
 
+/** Comments the prompt may show: bots and authors whose association is allowed. */
+const isCredible = (c: PullRequestComment, allowed: readonly string[]) =>
+  c.isBot || allowed.includes(c.association);
+
 /**
- * Human comments newer than the agent's latest marked comment, or newer than the pull request when
- * the agent has not replied yet. Marked comments are never input, whoever posted them.
+ * Comments from human authors with an allowed association newer than the agent's latest marked
+ * comment, or newer than the pull request when the agent has not replied yet. Marked comments are
+ * never input, whoever posted them, and only credible authors can place the cutoff.
  */
-export function pendingComments(comments: PullRequestComment[], createdAt: string) {
+export function pendingComments(
+  comments: PullRequestComment[],
+  createdAt: string,
+  allowed: readonly string[],
+) {
   const marked = (c: PullRequestComment) => c.body.includes(REPLY_MARKER);
-  const cutoff = [createdAt, ...comments.filter(marked).map((c) => c.at)].sort().at(-1) as string;
+  const cutoff = [
+    createdAt,
+    ...comments.filter((c) => marked(c) && isCredible(c, allowed)).map((c) => c.at),
+  ]
+    .sort()
+    .at(-1) as string;
   return comments
-    .filter((c) => !c.isBot && !marked(c) && c.at > cutoff && !isEmptyReview(c))
+    .filter(
+      (c) => !c.isBot && isCredible(c, allowed) && !marked(c) && c.at > cutoff && !isEmptyReview(c),
+    )
     .sort((a, b) => a.at.localeCompare(b.at));
 }
 
@@ -246,9 +272,14 @@ function renderComment(c: PullRequestComment, isNew: boolean) {
 /**
  * Renders the pending comments for the prompt: conversation comments and reviews in order, then
  * each inline thread with its file, line, diff hunk and the earlier comments in the thread. Every
- * body is fenced as quoted data.
+ * body is fenced as quoted data. Comments from humans without an allowed association are omitted,
+ * including from the thread context.
  */
-export function renderComments(all: PullRequestComment[], pending: PullRequestComment[]) {
+export function renderComments(
+  all: PullRequestComment[],
+  pending: PullRequestComment[],
+  allowed: readonly string[],
+) {
   const pendingIds = new Set(pending.map((c) => `${c.kind}:${c.id}`));
   const isNew = (c: PullRequestComment) => pendingIds.has(`${c.kind}:${c.id}`);
   const general = pending.filter((c) => c.kind !== "inline");
@@ -257,7 +288,7 @@ export function renderComments(all: PullRequestComment[], pending: PullRequestCo
   ];
   const threads = roots.map((root) => {
     const members = all
-      .filter((c) => c.kind === "inline" && c.threadRoot === root)
+      .filter((c) => c.kind === "inline" && c.threadRoot === root && isCredible(c, allowed))
       .sort((a, b) => a.at.localeCompare(b.at));
     const first = members[0] as PullRequestComment;
     return [

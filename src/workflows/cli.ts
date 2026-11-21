@@ -63,6 +63,9 @@ program.command("resolve").action(async () => {
     event: await readEvent(),
     repository: env("GITHUB_REPOSITORY"),
     github: createGitHubClient(env("GITHUB_TOKEN"), process.env.GITHUB_API_URL),
+    commentAuthors: async () =>
+      parseConfigOrThrow(await readConfigText(process.env.CENTAUR_CONFIG_ROOT || workspace()))
+        .pull_requests.comment_authors,
     poster: poster(),
     fetchToken: oidcTokenFetcher(process.env, env("CENTAUR_OIDC_AUDIENCE")),
     mask: maskValue,

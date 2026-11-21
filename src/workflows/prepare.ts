@@ -299,7 +299,8 @@ async function commentTurn(
       threadId,
     }),
   ]);
-  const pending = pendingComments(all, details.createdAt);
+  const authors = config.pull_requests.comment_authors;
+  const pending = pendingComments(all, details.createdAt, authors);
   if (pending.length === 0) return undefined;
 
   const policy = threadPolicy(messages, config.context.default);
@@ -334,7 +335,7 @@ async function commentTurn(
         title: details.title,
         body: details.body,
         diff,
-        comments: renderComments(all, pending),
+        comments: renderComments(all, pending, authors),
       },
     }),
   };

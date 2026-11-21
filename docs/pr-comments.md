@@ -22,7 +22,7 @@ The loop it completes: a chat turn or scheduled prompt opens `centaur/<bot>-<key
 - The agent runs under the thread's current context policy, with the pull request comments as the
   pending input. Its reply goes to the pull request, follow-up commits are pushed to the pull
   request branch, and a short note goes to the chat thread.
-- Only commenters with write access to the repository can trigger a turn. Comments from bots, and
+- Only commenters with write access to the repository, and an `author_association` allowed by `pull_requests.comment_authors`, can trigger a turn. Comments from bots, and
   comments carrying a hidden marker, never do.
 
 ## Events
@@ -329,6 +329,33 @@ only. A later hardening, if wanted, is an `approved-github-users` list in SSM ch
 
 The check is done by the script in the centaur checkout, and fails closed: an API error skips the
 turn.
+
+### Whose comments are heard
+
+`pull_requests.comment_authors` in the config ([config.md](config.md#pull-request-targets)) lists the
+`author_association` values that count. The default is `OWNER`, `MEMBER`, `COLLABORATOR`; a repo
+that wants only owners sets `[OWNER]`, and one that welcomes outside contributors adds
+`CONTRIBUTOR`. The association is present on the `issue_comment` and `pull_request_review` event
+payloads and on the issue-comment, review and review-comment REST payloads. A missing value matches
+nothing.
+
+The list applies in two places, both reading the config from the default branch checkout, so a pull
+request cannot loosen it:
+
+- **Trigger.** `resolve` skips an event whose comment association is not listed, before any API
+  call. The write-permission check then still applies, so the list can only narrow who triggers a
+  turn; it never grants access that `write` does not.
+- **Prompt.** `prepare` reads every comment since the last marked one, so the same list decides
+  which of those are input. Comments from other humans are **omitted**, not fenced: they never
+  count as pending (a turn with only such comments skips), and they are left out of an inline
+  thread's earlier context. Only a bot or a listed author can place the reply-marker cutoff or be
+  labelled `assistant`, so an unlisted commenter cannot forge either. Bot comments still appear as
+  thread context but are never input.
+
+Why omit rather than fence: fencing keeps the text in the prompt, where a model could still act on
+it, and the agent runs with write access and secrets. The loss is small, since a commenter outside
+the list can ask a listed one to quote the request. The association is coarse (see the table
+above), which is why it is a configurable narrowing on top of the `write` check, not a replacement.
 
 ## Loop prevention
 

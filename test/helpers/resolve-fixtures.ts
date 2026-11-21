@@ -8,7 +8,7 @@ export const issueComment = (overrides: Record<string, unknown> = {}) => ({
   action: "created",
   sender: { type: "User", login: "sam" },
   issue: { number: 12, pull_request: { url: "x" } },
-  comment: { body: "please rename this" },
+  comment: { body: "please rename this", author_association: "COLLABORATOR" },
   ...overrides,
 });
 
@@ -16,7 +16,7 @@ export const review = (overrides: Record<string, unknown> = {}) => ({
   action: "submitted",
   sender: { type: "User", login: "sam" },
   pull_request: { number: 12 },
-  review: { body: "needs work" },
+  review: { body: "needs work", author_association: "COLLABORATOR" },
   ...overrides,
 });
 
@@ -32,9 +32,14 @@ export function resolveSetup(
     pullRequest?: Partial<PullRequestInfo>;
     permission?: string | Error;
     linked?: boolean;
+    commentAuthors?: string[];
   } = {},
 ) {
-  const { permission = "write", linked = true } = options;
+  const {
+    permission = "write",
+    linked = true,
+    commentAuthors = ["OWNER", "MEMBER", "COLLABORATOR"],
+  } = options;
   const github: GitHubClient = {
     pullRequest: vi.fn(async () => ({ ...openPullRequest, ...options.pullRequest })),
     permission: vi.fn(async () => {
@@ -51,6 +56,7 @@ export function resolveSetup(
     event,
     repository: REPOSITORY,
     github,
+    commentAuthors: async () => commentAuthors,
     poster: aws.poster,
     fetchToken: async () => "jwt",
     mask,

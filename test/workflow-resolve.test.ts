@@ -49,6 +49,36 @@ describe("resolve", () => {
   });
 
   it.each([
+    ["an issue comment", "issue_comment", issueComment, "comment"],
+    ["a review", "pull_request_review", review, "review"],
+  ])(
+    "skips %s from an association the config does not allow",
+    async (_n, eventName, build, key) => {
+      const { github, aws, deps } = resolveSetup({ commentAuthors: ["OWNER"] });
+      const event = build({ [key]: { body: "x", author_association: "COLLABORATOR" } });
+
+      await expect(resolve(deps(eventName, event))).resolves.toMatchObject({ skip: true });
+      expect(github.permission).not.toHaveBeenCalled();
+      expect(aws.requests).toEqual([]);
+    },
+  );
+
+  it("skips an event with no author association", async () => {
+    const { deps } = resolveSetup();
+
+    await expect(
+      resolve(deps("issue_comment", issueComment({ comment: { body: "x" } }))),
+    ).resolves.toMatchObject({ skip: true });
+  });
+
+  it("resolves a commenter whose association the config allows", async () => {
+    const { deps } = resolveSetup({ commentAuthors: ["CONTRIBUTOR"] });
+    const event = issueComment({ comment: { body: "x", author_association: "CONTRIBUTOR" } });
+
+    await expect(resolve(deps("issue_comment", event))).resolves.toMatchObject({ skip: false });
+  });
+
+  it.each([
     ["closed", { state: "closed" }],
     ["from a fork", { headRepository: "fork/sprout" }],
     ["from a deleted fork", { headRepository: undefined }],

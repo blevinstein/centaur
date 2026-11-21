@@ -38,6 +38,7 @@ export const prComment = (
   id,
   author: "sam",
   isBot: false,
+  association: "COLLABORATOR",
   body,
   at: `2026-11-17T10:00:0${id}Z`,
   ...overrides,
@@ -47,6 +48,7 @@ export const agentComment = (id: number, overrides: Partial<PullRequestComment> 
   prComment(id, `Done.\n${REPLY_MARKER}`, {
     author: "github-actions[bot]",
     isBot: true,
+    association: "NONE",
     ...overrides,
   });
 
@@ -191,3 +193,22 @@ export async function commentFinishSetup(
   });
   return { aws, root, home, github, push, pushNew, deps, writeExecution };
 }
+
+export const restComment = (
+  id: number,
+  association: string | undefined,
+  extra: Record<string, unknown> = {},
+) => ({
+  id,
+  body: `comment ${id}`,
+  created_at: `2026-11-17T10:00:0${id}Z`,
+  user: { login: `user${id}`, type: "User" },
+  ...(association === undefined ? {} : { author_association: association }),
+  ...extra,
+});
+
+export const fakeGitHubFetch = (routes: Record<string, unknown[]>): typeof fetch =>
+  vi.fn(async (url: string | URL | Request) => {
+    const path = new URL(String(url)).pathname;
+    return Response.json(path in routes ? routes[path] : []);
+  }) as unknown as typeof fetch;

@@ -68,7 +68,7 @@ prompts:
 | `mcp_servers` | no | `{}` | Additional MCP servers by name (see below). |
 | `persona` | no | `.centaur/persona.md` | Repo-relative path to the persona file. |
 | `instructions` | no | `{}` | Repo-relative paths to files replacing the bundled behavior guidance in the agent prompt: `chat` (replying in a thread), `comment` (revising a pull request after review comments) and `silence` (when to stay quiet under `respond_to: all`). Defaults are `src/workflows/instructions/*.md`. A configured file that is missing or empty fails the turn. The output-format, `ignore` and untrusted-input wording is appended by the workflow and cannot be overridden. |
-| `pull_requests` | no | `{}` | Which pull request the agent may target, a strict block. `comment_new` (default `true`) lets a pull request comment turn set `pr_action: new` to open a separate pull request instead of updating the original. `existing` (`bot`, the default, or `off`) lets chat and scheduled turns set `existing_pr_number` to land changes on an open pull request of the same bot, from any of its threads. A disabled switch removes the field from the agent's output schema and prompt. See [Pull request targets](#pull-request-targets). |
+| `pull_requests` | no | `{}` | Which pull request the agent may target and whose comments it answers, a strict block. `comment_authors` (default `[OWNER, MEMBER, COLLABORATOR]`) lists the GitHub `author_association` values whose comments can trigger a turn and appear in its prompt. `comment_new` (default `true`) lets a pull request comment turn set `pr_action: new` to open a separate pull request instead of updating the original. `existing` (`bot`, the default, or `off`) lets chat and scheduled turns set `existing_pr_number` to land changes on an open pull request of the same bot, from any of its threads. A disabled switch removes the field from the agent's output schema and prompt. See [Pull request targets](#pull-request-targets). |
 | `prompts` | no | `{}` | Scheduled prompts by name (see below). |
 
 Each prompt takes `file` (default `.centaur/prompts/<name>.md`), `context` (default
@@ -155,14 +155,21 @@ an optional `context` policy. The parser resolves the file and context, so consu
 
 ## Pull request targets
 
-`pull_requests` is a strict block (unknown keys fail the parse) with two switches. Each switch
-adds one optional field to the agent's structured output and a matching passage to its prompt;
-turned off, the field and the passage are absent.
+`pull_requests` is a strict block (unknown keys fail the parse) with two switches and a
+comment author list. Each switch adds one optional field to the agent's structured output and a
+matching passage to its prompt; turned off, the field and the passage are absent.
 
 | Key | Default | Turn | Field | Effect |
 | --- | --- | --- | --- | --- |
 | `comment_new` | `true` | pull request comment | `pr_action: update\|new` | `new` opens a separate pull request for the changes instead of pushing to the commented one. |
 | `existing` | `bot` | chat, scheduled | `existing_pr_number` | Lands the changes on an open pull request of the same bot instead of the thread's own. `off` disables it. |
+
+`comment_authors` is a non-empty list of `OWNER`, `MEMBER`, `COLLABORATOR`, `CONTRIBUTOR`,
+`FIRST_TIME_CONTRIBUTOR`, `FIRST_TIMER`, `MANNEQUIN` and `NONE`. Pull request comment turns
+ignore comments from any other association, both as triggers and as prompt input (for example
+`[OWNER]` locks a repo down to its owners). It narrows who is heard; the commenter still needs
+repository write access to trigger a turn. The config is read from the default branch, so a pull
+request cannot loosen it. See [pr-comments.md](pr-comments.md#whose-comments-are-heard).
 
 An invalid `existing_pr_number` is not an error: the changes go to the thread's normal pull
 request. The validation rules, fallbacks and security model are in

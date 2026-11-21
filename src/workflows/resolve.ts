@@ -13,14 +13,14 @@ const issueCommentEvent = z.object({
   action: z.string(),
   sender,
   issue: z.object({ number: pullRequestNumber, pull_request: z.unknown().optional() }),
-  comment: z.object({ body: z.string().nullish() }),
+  comment: z.object({ body: z.string().nullish(), author_association: z.string().nullish() }),
 });
 
 const reviewEvent = z.object({
   action: z.string(),
   sender,
   pull_request: z.object({ number: pullRequestNumber }),
-  review: z.object({ body: z.string().nullish() }),
+  review: z.object({ body: z.string().nullish(), author_association: z.string().nullish() }),
 });
 
 export interface PullRequestInfo {
@@ -40,6 +40,8 @@ export interface ResolveDeps {
   event: unknown;
   repository: string;
   github: GitHubClient;
+  /** The allowed `author_association` values, read lazily from the default branch config. */
+  commentAuthors: () => Promise<readonly string[]>;
   poster: PosterClient;
   fetchToken: () => Promise<string>;
   mask: (value: string) => void;
@@ -64,20 +66,30 @@ function parseEvent(eventName: string, event: unknown) {
     const parsed = issueCommentEvent.parse(event);
     if (parsed.action !== "created") return skip("not a new comment");
     if (!parsed.issue.pull_request) return skip("not a pull request");
-    return { ...parsed, number: parsed.issue.number, body: parsed.comment.body ?? "" };
+    return {
+      ...parsed,
+      number: parsed.issue.number,
+      body: parsed.comment.body ?? "",
+      association: parsed.comment.author_association ?? "",
+    };
   }
   if (eventName === "pull_request_review") {
     const parsed = reviewEvent.parse(event);
     if (parsed.action !== "submitted") return skip("not a submitted review");
-    return { ...parsed, number: parsed.pull_request.number, body: parsed.review.body ?? "" };
+    return {
+      ...parsed,
+      number: parsed.pull_request.number,
+      body: parsed.review.body ?? "",
+      association: parsed.review.author_association ?? "",
+    };
   }
   return skip(`unsupported event ${eventName}`);
 }
 
 /**
  * Decides whether a pull request comment event should start a turn and, if so, which bot and
- * thread it belongs to. Every cheap rejection comes before the permission check, and that comes
- * before the poster lookup. Reasons name no comment content.
+ * thread it belongs to. Every cheap rejection comes before the association and permission checks,
+ * and those come before the poster lookup. Reasons name no comment content.
  */
 export async function resolve(deps: ResolveDeps): Promise<ResolveOutputs> {
   const event = parseEvent(deps.eventName, deps.event);
@@ -90,6 +102,10 @@ export async function resolve(deps: ResolveDeps): Promise<ResolveOutputs> {
   if (pullRequest.headRepository !== pullRequest.baseRepository)
     return skip("pull request is from a fork");
   if (!pullRequest.headRef.startsWith(BRANCH_PREFIX)) return skip("not a centaur branch");
+
+  if (!(await deps.commentAuthors()).includes(event.association)) {
+    return skip("commenter's association is not allowed");
+  }
 
   const permission = await deps.github
     .permission(deps.repository, event.sender.login)

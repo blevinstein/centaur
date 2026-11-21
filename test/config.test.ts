@@ -25,7 +25,11 @@ describe("parseCentaurConfig", () => {
         allowed_tools: ["Read", "Edit"],
         persona: ".centaur/persona.md",
         instructions: {},
-        pull_requests: { comment_new: true, existing: "bot" },
+        pull_requests: {
+          comment_new: true,
+          existing: "bot",
+          comment_authors: ["OWNER", "MEMBER", "COLLABORATOR"],
+        },
         mcp_servers: {},
         prompts: {},
       },
@@ -49,7 +53,11 @@ describe("parseCentaurConfig", () => {
         allowed_tools: ["Read", "Edit", "Write", "Glob", "Grep"],
         persona: ".centaur/persona.md",
         instructions: {},
-        pull_requests: { comment_new: true, existing: "bot" },
+        pull_requests: {
+          comment_new: true,
+          existing: "bot",
+          comment_authors: ["OWNER", "MEMBER", "COLLABORATOR"],
+        },
         mcp_servers: {},
         prompts: {
           "weekly-tasks": {
@@ -76,7 +84,16 @@ describe("parseCentaurConfig", () => {
       ok: true,
       config: { pull_requests: { comment_new: false, existing: "bot" } },
     });
+    expect(
+      parseCentaurConfig(withExtra("pull_requests: {comment_authors: [OWNER, CONTRIBUTOR]}")),
+    ).toMatchObject({
+      ok: true,
+      config: { pull_requests: { comment_authors: ["OWNER", "CONTRIBUTOR"] } },
+    });
     for (const extra of [
+      "pull_requests: {comment_authors: []}",
+      "pull_requests: {comment_authors: [ADMIN]}",
+      "pull_requests: {comment_authors: OWNER}",
       "pull_requests: {existing: thread}",
       "pull_requests: {comment_new: yes please}",
       "pull_requests: {other: 1}",

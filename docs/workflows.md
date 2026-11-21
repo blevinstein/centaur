@@ -356,7 +356,8 @@ reads `pull_requests.comment_new` from the trusted config root, not the pull req
 from a chat turn as follows:
 
 - `prepare` (comment mode) resolves the thread through the poster (masking the raw thread ID),
-  answers every human comment newer than the agent's latest marked comment, and records
+  answers every comment from an author whose `author_association` is in `pull_requests.comment_authors` (see
+  [pr-comments.md](pr-comments.md#whose-comments-are-heard)) newer than the agent's latest marked comment, and records
   `mode: comment`, `pullRequest` and, when the comments are all in one inline thread, `replyTo` in
   the turn state. It writes no marker and clears no reactions; the output `branch` is the pull
   request head.
