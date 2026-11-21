@@ -340,6 +340,15 @@ poster record exists it names the same bot); never from the turn state.
 
 Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer saying so.
 
+- [ ] Bots across platforms. A bot is one record in SSM with a single `platform`, one set of
+      secrets and one repo, so the same bot cannot be present on Telegram and Slack: today each
+      platform needs its own bot name (`garden`, `garden-slack`) and `centaur bot add` refuses a
+      name that exists. Change the data model so one bot has several platform connections (each
+      with its own secrets, webhook path and approved chats), with one repo binding, one config,
+      one persona and a destination per platform. The config's `bot`/`platform` pair, the
+      webhook routes (`/<platform>/<bot>`), access and alias records, the dispatch payload and
+      the per-bot DynamoDB state prefix all assume one platform per bot today. Needs a migration
+      for the existing bots. Do together with, or right after, the topic destinations item.
 - [ ] Topic destinations. A prompt's `destination` should be able to name a single topic (or Slack
       thread) inside a chat, not only a chat, so recurring prompts can keep one persistent thread
       instead of opening a new topic per run. Sketch: per-bot named destinations holding a chat ID
