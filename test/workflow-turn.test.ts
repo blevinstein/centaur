@@ -1,5 +1,5 @@
-import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { readdir, readFile, writeFile } from "node:fs/promises";
+import { join, relative } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { threadKey } from "../src/thread-key.js";
 import { CONFIG_FILES } from "../src/workflows/config-file.js";
@@ -10,8 +10,9 @@ import {
   PROMPT_FILE,
   type PrepareDeps,
   prepare,
-  STATE_FILE,
+  TURN_DIR,
 } from "../src/workflows/prepare.js";
+import { readTurnState, turnStateDir } from "../src/workflows/turn-state.js";
 import { envRef } from "./helpers/config-fixtures.js";
 import {
   fakePolicyGitHub,
@@ -43,7 +44,7 @@ async function setup(
     if (request.operation === "start-thread") return { threadId: "telegram:-100:99" };
     return { messageId: "m" };
   });
-  const { root, home } = await createWorkspace({
+  const { root, home, stateDir } = await createWorkspace({
     [configFile]: config,
     ".centaur/persona.md": "Be kind.",
     ".centaur/prompts/weekly.md": "Post this week's tasks.",
@@ -51,6 +52,7 @@ async function setup(
   });
   const deps = (overrides: Partial<PrepareDeps> = {}): PrepareDeps => ({
     workspace: root,
+    stateDir,
     home,
     runId: "42",
     env: {},
@@ -63,11 +65,11 @@ async function setup(
   const executionFile = join(root, "execution.json");
   const writeExecution = (entry: object) =>
     writeFile(executionFile, JSON.stringify([{ type: "system" }, { type: "result", ...entry }]));
-  return { aws, root, home, deps, executionFile, writeExecution };
+  return { aws, root, home, stateDir, deps, executionFile, writeExecution };
 }
 
 const prompt = (root: string) => readFile(join(root, PROMPT_FILE), "utf8");
-const state = async (root: string) => JSON.parse(await readFile(join(root, STATE_FILE), "utf8"));
+const state = (stateDir: string) => readTurnState(stateDir);
 
 describe("prepare", () => {
   it("replaces the chat guidance from the configured file but keeps the output contract", async () => {
@@ -96,7 +98,7 @@ describe("prepare", () => {
   });
 
   it("assembles a transcript turn with persona, schema and tools", async () => {
-    const { deps, root } = await setup([
+    const { deps, root, stateDir } = await setup([
       message("1", "old"),
       botMessage("2", "r"),
       message("3", "new"),
@@ -117,12 +119,22 @@ describe("prepare", () => {
     const text = await prompt(root);
     expect(text).toContain("Earlier messages in this thread");
     expect(text).toContain("Sam: new");
-    expect(await state(root)).toMatchObject({
+    expect(await state(stateDir)).toMatchObject({
       mode: "reply",
       policy: "transcript",
       marker: "3",
       source: { bot: "sprout", threadId: THREAD, messageIds: ["3"] },
     });
+  });
+
+  it("keeps the turn state out of the agent's workspace", async () => {
+    const { deps, root, stateDir } = await setup([message("1", "hi")]);
+
+    await prepare(deps());
+
+    expect(relative(root, stateDir).startsWith("..")).toBe(true);
+    expect(await readdir(join(root, TURN_DIR))).toEqual(["prompt.md"]);
+    expect(await state(stateDir)).toMatchObject({ bot: "sprout", threadId: THREAD });
   });
 
   it("downloads images from the whole shown thread from their stored keys", async () => {
@@ -370,7 +382,7 @@ describe("prepare", () => {
   });
 
   it("resumes a stored session instead of rendering history", async () => {
-    const { deps, aws, root, home } = await setup([
+    const { deps, aws, root, home, stateDir } = await setup([
       message("1", "old"),
       botMessage("2", "r"),
       message("3", "/resume continue"),
@@ -381,7 +393,7 @@ describe("prepare", () => {
 
     expect(out.claude_args).toContain("--resume abc123");
     expect(await prompt(root)).not.toContain("Earlier messages");
-    const dir = (await state(root)).sessionDirectory as string;
+    const dir = (await state(stateDir)).sessionDirectory as string;
     expect(dir.startsWith(home)).toBe(true);
     expect(await readFile(join(dir, "abc123.jsonl"), "utf8")).toBe("session");
   });
@@ -405,11 +417,11 @@ describe("prepare", () => {
   });
 
   it("answers /new in the old thread and runs the seed in a new one", async () => {
-    const { deps, aws, root } = await setup([message("1", "/new tomatoes")]);
+    const { deps, aws, root, stateDir } = await setup([message("1", "/new tomatoes")]);
     const out = await prepare(deps());
     expect(out).toMatchObject({ skip: false, thread_id: "" });
     expect(aws.requests.at(-1)).toMatchObject({ operation: "post", text: "Started a new thread." });
-    expect(await state(root)).toMatchObject({
+    expect(await state(stateDir)).toMatchObject({
       mode: "start-thread",
       start: { fromThreadId: THREAD },
     });
@@ -417,13 +429,13 @@ describe("prepare", () => {
   });
 
   it("finishes a /new seed turn by starting the thread in the originating chat", async () => {
-    const { deps, aws, root, executionFile, writeExecution } = await setup([
+    const { deps, aws, executionFile, writeExecution, stateDir } = await setup([
       message("1", "/new tomatoes"),
     ]);
     await prepare(deps());
     await writeExecution({ structured_output: { reply: "Tomatoes it is" } });
 
-    await finish({ workspace: root, executionFile, poster: aws.poster, storeFor: aws.storeFor });
+    await finish({ stateDir, executionFile, poster: aws.poster, storeFor: aws.storeFor });
 
     expect(aws.requests.find((r) => r.operation === "start-thread")).toEqual({
       operation: "start-thread",
@@ -446,14 +458,14 @@ describe("prepare", () => {
   });
 
   it("builds a scheduled turn from the named prompt", async () => {
-    const { deps, root } = await setup(
+    const { deps, root, stateDir } = await setup(
       [],
       configText("prompts: {weekly: {context: resume, destination: household}}"),
     );
     const out = await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
     expect(out.branch).toBe("centaur/sprout-weekly-42");
     expect(await prompt(root)).toContain("Post this week's tasks.");
-    expect(await state(root)).toMatchObject({
+    expect(await state(stateDir)).toMatchObject({
       mode: "start-thread",
       policy: "resume",
       start: { destination: "household" },
@@ -461,14 +473,14 @@ describe("prepare", () => {
   });
 
   it("uses the prompt's own destination", async () => {
-    const { deps, root } = await setup(
+    const { deps, stateDir } = await setup(
       [],
       configText("prompts: {weekly: {destination: workshop}}"),
     );
 
     await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
 
-    expect(await state(root)).toMatchObject({ start: { destination: "workshop" } });
+    expect(await state(stateDir)).toMatchObject({ start: { destination: "workshop" } });
   });
 
   it.each([
@@ -492,16 +504,16 @@ describe("prepare", () => {
 
 describe("finish", () => {
   it("posts the reply with the PR link, advances the marker and saves the session", async () => {
-    const { deps, aws, root, executionFile, writeExecution } = await setup(
+    const { deps, aws, executionFile, writeExecution, stateDir } = await setup(
       [message("1", "hi")],
       configText("context: {default: resume}"),
     );
     await prepare(deps());
-    await writeFile(join((await state(root)).sessionDirectory, "s1.jsonl"), "data");
+    await writeFile(join((await state(stateDir)).sessionDirectory, "s1.jsonl"), "data");
     await writeExecution({ session_id: "s1", structured_output: { reply: "Done." } });
 
     await finish({
-      workspace: root,
+      stateDir,
       executionFile,
       pullRequestUrl: "https://example.test/pr/1",
       poster: aws.poster,
@@ -525,7 +537,7 @@ describe("finish", () => {
   });
 
   it("clears the reactions of every pending message, not the bot's own", async () => {
-    const { deps, aws, root, executionFile, writeExecution } = await setup([
+    const { deps, aws, executionFile, writeExecution, stateDir } = await setup([
       message("1", "old"),
       botMessage("2", "r"),
       message("3", "a"),
@@ -534,14 +546,14 @@ describe("finish", () => {
     await prepare(deps());
     await writeExecution({ structured_output: { reply: "ok" } });
 
-    await finish({ workspace: root, executionFile, poster: aws.poster, storeFor: aws.storeFor });
+    await finish({ stateDir, executionFile, poster: aws.poster, storeFor: aws.storeFor });
 
     expect(aws.requests.at(-1)).toMatchObject({ operation: "unreact", messageIds: ["3", "4"] });
   });
 
   it("still succeeds when clearing reactions fails, logging nothing from the chat", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const { deps, aws, root, executionFile, writeExecution } = await setup([
+    const { deps, aws, executionFile, writeExecution, stateDir } = await setup([
       message("1", "secret plans"),
     ]);
     const failing = createFakeAws((request) => {
@@ -552,7 +564,7 @@ describe("finish", () => {
     await writeExecution({ structured_output: { reply: "secret reply" } });
 
     await finish({
-      workspace: root,
+      stateDir,
       executionFile,
       poster: failing.poster,
       storeFor: aws.storeFor,
@@ -568,20 +580,20 @@ describe("finish", () => {
   });
 
   it("starts a thread for scheduled turns and keys the session by the new thread", async () => {
-    const { deps, aws, root, executionFile, writeExecution } = await setup(
+    const { deps, aws, executionFile, writeExecution, stateDir } = await setup(
       [],
       configText("prompts: {weekly: {context: resume, destination: household}}"),
     );
     const out = await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
     expect(out.claude_args).not.toContain("--resume");
-    const { sessionDirectory } = await state(root);
+    const { sessionDirectory } = await state(stateDir);
     await writeFile(join(sessionDirectory, "s2.jsonl"), "data");
     await writeExecution({
       session_id: "s2",
       structured_output: { reply: "Tasks", new_thread_title: "Week 47" },
     });
 
-    await finish({ workspace: root, executionFile, poster: aws.poster, storeFor: aws.storeFor });
+    await finish({ stateDir, executionFile, poster: aws.poster, storeFor: aws.storeFor });
 
     expect(aws.requests.map((r) => r.operation)).toEqual(["start-thread"]);
     expect(aws.requests.at(-1)).toMatchObject({
@@ -594,12 +606,14 @@ describe("finish", () => {
   });
 
   it("links the pull request to the thread it replied in", async () => {
-    const { deps, aws, root, executionFile, writeExecution } = await setup([message("1", "hi")]);
+    const { deps, aws, executionFile, writeExecution, stateDir } = await setup([
+      message("1", "hi"),
+    ]);
     await prepare(deps());
     await writeExecution({ structured_output: { reply: "Done." } });
 
     await finish({
-      workspace: root,
+      stateDir,
       executionFile,
       pullRequestUrl: "https://example.test/pr/5",
       pullRequestLink: pullRequestLink(5),
@@ -617,7 +631,7 @@ describe("finish", () => {
   });
 
   it("links a scheduled prompt's pull request to the thread it started", async () => {
-    const { deps, aws, root, executionFile, writeExecution } = await setup(
+    const { deps, aws, executionFile, writeExecution, stateDir } = await setup(
       [],
       configText("prompts: {weekly: {destination: household}}"),
     );
@@ -625,7 +639,7 @@ describe("finish", () => {
     await writeExecution({ structured_output: { reply: "Tasks" } });
 
     await finish({
-      workspace: root,
+      stateDir,
       executionFile,
       pullRequestLink: pullRequestLink(8),
       poster: aws.poster,
@@ -641,11 +655,13 @@ describe("finish", () => {
   });
 
   it("makes no link call without a pull request", async () => {
-    const { deps, aws, root, executionFile, writeExecution } = await setup([message("1", "hi")]);
+    const { deps, aws, executionFile, writeExecution, stateDir } = await setup([
+      message("1", "hi"),
+    ]);
     await prepare(deps());
     await writeExecution({ structured_output: { reply: "Done." } });
 
-    await finish({ workspace: root, executionFile, poster: aws.poster, storeFor: aws.storeFor });
+    await finish({ stateDir, executionFile, poster: aws.poster, storeFor: aws.storeFor });
 
     expect(aws.requests.map((r) => r.operation)).not.toContain("link-pull-request");
   });
@@ -663,7 +679,9 @@ describe("finish", () => {
     ],
   ])("still succeeds, warning with only the error type, when %s", async (_name, link, failure) => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const { deps, aws, root, executionFile, writeExecution } = await setup([message("1", "hi")]);
+    const { deps, aws, stateDir, executionFile, writeExecution } = await setup([
+      message("1", "hi"),
+    ]);
     const failing = createFakeAws((request) => {
       if (request.operation === "link-pull-request" && failure) throw new Error(failure);
       return {};
@@ -672,7 +690,7 @@ describe("finish", () => {
     await writeExecution({ structured_output: { reply: "Done." } });
 
     await finish({
-      workspace: root,
+      stateDir,
       executionFile,
       pullRequestLink: { ...pullRequestLink(), ...link },
       poster: failing.poster,
@@ -691,7 +709,7 @@ describe("finish", () => {
   });
 
   it("posts only the pull request link when the agent ignores the messages but changed files", async () => {
-    const { deps, aws, root, executionFile, writeExecution } = await setup(
+    const { deps, aws, executionFile, writeExecution, stateDir } = await setup(
       [message("1", "please fix")],
       configText("respond_to: all"),
     );
@@ -699,7 +717,7 @@ describe("finish", () => {
     await writeExecution({ structured_output: { ignore: true } });
 
     await finish({
-      workspace: root,
+      stateDir,
       executionFile,
       pullRequestUrl: "https://example.test/pr/2",
       poster: aws.poster,
@@ -715,16 +733,16 @@ describe("finish", () => {
   });
 
   it("posts nothing when the agent ignores the messages, but advances the marker and saves the session", async () => {
-    const { deps, aws, root, executionFile, writeExecution } = await setup(
+    const { deps, aws, executionFile, writeExecution, stateDir } = await setup(
       [message("1", "lunch?")],
       configText("respond_to: all\ncontext: {default: resume}"),
     );
     await prepare(deps());
-    await writeFile(join((await state(root)).sessionDirectory, "s3.jsonl"), "data");
+    await writeFile(join((await state(stateDir)).sessionDirectory, "s3.jsonl"), "data");
     await writeExecution({ session_id: "s3", structured_output: { ignore: true } });
 
     await finish({
-      workspace: root,
+      stateDir,
       executionFile,
       poster: aws.poster,
       storeFor: aws.storeFor,
@@ -740,32 +758,36 @@ describe("finish", () => {
     ["neither a reply nor ignore", { new_thread_title: "t" }],
     ["ignore false without a reply", { ignore: false }],
   ])("fails when the output has %s", async (_name, output) => {
-    const { deps, aws, root, executionFile, writeExecution } = await setup([message("1", "hi")]);
+    const { deps, aws, stateDir, executionFile, writeExecution } = await setup([
+      message("1", "hi"),
+    ]);
     await prepare(deps());
     await writeExecution({ structured_output: output });
     await expect(
-      finish({ workspace: root, executionFile, poster: aws.poster, storeFor: aws.storeFor }),
+      finish({ stateDir, executionFile, poster: aws.poster, storeFor: aws.storeFor }),
     ).rejects.toThrow(/no structured reply/);
   });
 
   it("refuses to stay silent when there is no thread to stay silent in", async () => {
-    const { deps, aws, root, executionFile, writeExecution } = await setup(
+    const { deps, aws, executionFile, writeExecution, stateDir } = await setup(
       [],
       configText("prompts: {weekly: {destination: household}}"),
     );
     await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
     await writeExecution({ structured_output: { ignore: true } });
     await expect(
-      finish({ workspace: root, executionFile, poster: aws.poster, storeFor: aws.storeFor }),
+      finish({ stateDir, executionFile, poster: aws.poster, storeFor: aws.storeFor }),
     ).rejects.toThrow(/stay silent/);
   });
 
   it("fails without a structured reply", async () => {
-    const { deps, aws, root, executionFile, writeExecution } = await setup([message("1", "hi")]);
+    const { deps, aws, executionFile, writeExecution, stateDir } = await setup([
+      message("1", "hi"),
+    ]);
     await prepare(deps());
     await writeExecution({ structured_output: {} });
     await expect(
-      finish({ workspace: root, executionFile, poster: aws.poster, storeFor: aws.storeFor }),
+      finish({ stateDir, executionFile, poster: aws.poster, storeFor: aws.storeFor }),
     ).rejects.toThrow(/no structured reply/);
     expect(aws.requests.map((r) => r.operation)).toEqual(["read"]);
   });
@@ -773,10 +795,10 @@ describe("finish", () => {
 
 describe("notifyFailure", () => {
   it("posts a generic notice without touching the marker", async () => {
-    const { deps, aws, root } = await setup([message("1", "hi")]);
+    const { deps, aws, stateDir } = await setup([message("1", "hi")]);
     await prepare(deps());
     await notifyFailure({
-      workspace: root,
+      stateDir,
       poster: aws.poster,
       runUrl: "https://example.test/run/1",
     });
@@ -789,13 +811,13 @@ describe("notifyFailure", () => {
   });
 
   it("does nothing when the turn never wrote its state", async () => {
-    const { aws, root } = await setup([message("1", "hi")]);
-    await notifyFailure({ workspace: root, poster: aws.poster, runUrl: "https://example.test/r" });
+    const { aws, stateDir } = await setup([message("1", "hi")]);
+    await notifyFailure({ stateDir, poster: aws.poster, runUrl: "https://example.test/r" });
     expect(aws.requests).toEqual([]);
   });
 
   it("clears reactions even when the notice cannot be posted", async () => {
-    const { deps, aws, root } = await setup([message("1", "hi")]);
+    const { deps, aws, stateDir } = await setup([message("1", "hi")]);
     await prepare(deps());
     const broken = createFakeAws((request) => {
       if (request.operation === "post") throw new Error("down");
@@ -803,7 +825,7 @@ describe("notifyFailure", () => {
     });
 
     await expect(
-      notifyFailure({ workspace: root, poster: broken.poster, runUrl: "https://example.test/r" }),
+      notifyFailure({ stateDir, poster: broken.poster, runUrl: "https://example.test/r" }),
     ).rejects.toThrow(/post failed/);
 
     expect(broken.requests.map((r) => r.operation)).toEqual(["post", "unreact"]);
@@ -891,7 +913,7 @@ describe("finish with an existing pull request target", () => {
     await turn.writeExecution({ structured_output: structured });
     const github = { comment: vi.fn(async () => {}) };
     await finish({
-      workspace: turn.root,
+      stateDir: turn.stateDir,
       executionFile: turn.executionFile,
       poster: turn.aws.poster,
       storeFor: turn.aws.storeFor,
@@ -968,5 +990,11 @@ describe("finish with an existing pull request target", () => {
     );
 
     expect(text).toBe("Done.");
+  });
+});
+
+describe("turnStateDir", () => {
+  it("sits under the runner temp directory, which the checkout does not contain", () => {
+    expect(turnStateDir({ RUNNER_TEMP: "/runner/_temp" })).toBe("/runner/_temp/centaur-turn");
   });
 });

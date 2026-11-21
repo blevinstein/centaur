@@ -30,10 +30,10 @@ import {
   planTurn,
   threadPolicy,
 } from "./transcript.js";
+import { writeTurnState } from "./turn-state.js";
 
 export const TURN_DIR = ".centaur-turn";
 export const PROMPT_FILE = `${TURN_DIR}/prompt.md`;
-export const STATE_FILE = `${TURN_DIR}/state.json`;
 export const MCP_CONFIG_FILE = `${TURN_DIR}/mcp.json`;
 export const ATTACHMENT_DIR = `${TURN_DIR}/attachments`;
 export const MAX_PROMPT_IMAGES = 10;
@@ -76,6 +76,8 @@ export interface PrepareDeps {
   /** Lets chat and scheduled turns list pull requests the agent may update. */
   targets?: TargetDeps | undefined;
   workspace: string;
+  /** Where the turn state goes; must be outside the workspace. */
+  stateDir: string;
   /** Directory holding the Centaur config, the instructions and the persona. Defaults to `workspace`. */
   configRoot?: string | undefined;
   home: string;
@@ -441,7 +443,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   };
   await mkdir(join(deps.workspace, TURN_DIR), { recursive: true });
   await writeFile(join(deps.workspace, PROMPT_FILE), turn.prompt);
-  await writeFile(join(deps.workspace, STATE_FILE), JSON.stringify(state));
+  await writeTurnState(deps.stateDir, state);
   if (hasMcpServers) {
     await writeFile(join(deps.workspace, MCP_CONFIG_FILE), JSON.stringify(mcp.config), {
       mode: 0o600,

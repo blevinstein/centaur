@@ -1,14 +1,9 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { vi } from "vitest";
 import { threadKey } from "../../src/thread-key.js";
 import type { FinishDeps } from "../../src/workflows/finish.js";
-import {
-  type PrepareDeps,
-  STATE_FILE,
-  TURN_DIR,
-  type TurnState,
-} from "../../src/workflows/prepare.js";
+import type { PrepareDeps, TurnState } from "../../src/workflows/prepare.js";
 import type {
   PullRequestComment,
   PullRequestDetails,
@@ -16,6 +11,7 @@ import type {
   PullRequestWriter,
 } from "../../src/workflows/pull-request-comments.js";
 import { REPLY_MARKER } from "../../src/workflows/resolve.js";
+import { writeTurnState } from "../../src/workflows/turn-state.js";
 import {
   configText,
   createFakeAws,
@@ -100,13 +96,14 @@ export async function commentSetup(
     diff: vi.fn(async () => DIFF),
   };
   const mask = vi.fn();
-  const { root, home } = await createWorkspace({
+  const { root, home, stateDir } = await createWorkspace({
     [options.configFile ?? ".centaur.yml"]: options.config ?? configText(),
     ".centaur/persona.md": "Be kind.",
     ...options.files,
   });
   const deps = (): PrepareDeps => ({
     workspace: root,
+    stateDir,
     home,
     runId: "42",
     env: {},
@@ -123,7 +120,7 @@ export async function commentSetup(
       mask,
     },
   });
-  return { aws, github, mask, root, home, deps };
+  return { aws, github, mask, root, home, stateDir, deps };
 }
 
 export const NEW_PULL_REQUEST = 20;
@@ -144,7 +141,7 @@ export async function commentFinishSetup(
     if (request.operation === "post" && options.fail === "chat") throw new Error("chat is down");
     return {};
   });
-  const { root, home } = await createWorkspace({});
+  const { root, home, stateDir } = await createWorkspace({});
   const state: TurnState = {
     mode: "comment",
     bot: "sprout",
@@ -154,8 +151,7 @@ export async function commentFinishSetup(
     sessionDirectory: join(home, "session"),
     ...options.state,
   };
-  await mkdir(join(root, TURN_DIR), { recursive: true });
-  await writeFile(join(root, STATE_FILE), JSON.stringify(state));
+  await writeTurnState(stateDir, state);
   const executionFile = join(root, "execution.json");
   const writeExecution = (entry: object) =>
     writeFile(executionFile, JSON.stringify([{ type: "system" }, { type: "result", ...entry }]));
@@ -176,7 +172,7 @@ export async function commentFinishSetup(
     return options.pushed ?? 0;
   });
   const deps = (): FinishDeps => ({
-    workspace: root,
+    stateDir,
     executionFile,
     poster: aws.poster,
     storeFor: aws.storeFor,
@@ -191,7 +187,7 @@ export async function commentFinishSetup(
         : {}),
     },
   });
-  return { aws, root, home, github, push, pushNew, deps, writeExecution };
+  return { aws, root, home, stateDir, github, push, pushNew, deps, writeExecution };
 }
 
 export const restComment = (

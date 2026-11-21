@@ -300,8 +300,7 @@ scheduled turns, with candidates from any thread of the same bot (the PR need no
 current thread); an invalid number falls back to the normal thread PR; defaults `comment_new: true`
 and `existing` enabled. Candidates and the final choice are re-derived from GitHub in trusted code
 (open, same repo, not a fork, `centaur/<bot>-` branch, authored by the workflow bot, and when a
-poster record exists it names the same bot); never from `.centaur-turn/state.json`, which the agent
-can write.
+poster record exists it names the same bot); never from the turn state.
 
 - [x] PR targets 1: config block `pull_requests` (`comment_new`, `existing: off|bot`) in
       `src/config/schema.ts`, `replySchema` parameters (fields appear only when enabled),
@@ -326,8 +325,10 @@ can write.
 - [ ] Rank PR candidates by update time instead of number if busy repos show stale ones.
 - [x] Investigate the intermittent failure in `test/chat-dynamodb-state.test.ts` ("drops the oldest
       queued message beyond maxQueueSize").
-- [ ] Move the security-relevant parts of the turn state out of the workspace, since the agent can
-      edit `.centaur-turn/state.json`.
+- [x] Move the security-relevant parts of the turn state out of the workspace, since the agent can
+      edit `.centaur-turn/state.json`. The whole file moved to `$RUNNER_TEMP/centaur-turn/` (every
+      field steers a trusted step); a `Bash` tool in `allowed_tools` can still reach it, see
+      docs/workflows.md "Turn state".
 
 ## Backlog
 

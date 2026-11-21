@@ -1,14 +1,14 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { z } from "zod";
 import { threadKey } from "../thread-key.js";
 import type { PosterClient, ThreadStore } from "./aws.js";
 import { cleanBody, cleanTitle } from "./clean-text.js";
-import { STATE_FILE, type TurnState } from "./prepare.js";
+import type { TurnState } from "./prepare.js";
 import { pullRequestDetails } from "./pull-request.js";
 import type { PullRequestWriter } from "./pull-request-comments.js";
 import { clearReactions } from "./reactions.js";
 import { BRANCH_PREFIX, REPLY_MARKER } from "./resolve.js";
+import { readTurnState } from "./turn-state.js";
 
 const DEFAULT_COMMIT_MESSAGE = "Address review comments";
 const DEFAULT_NEW_TITLE = "Centaur agent changes";
@@ -85,16 +85,13 @@ export interface FinishDeps {
   /** Why the agent's chosen pull request was not updated; the usual pull request was opened. */
   fallbackReason?: string | undefined;
   comment?: CommentFinishDeps | undefined;
-  workspace: string;
+  stateDir: string;
   executionFile: string;
   pullRequestUrl?: string | undefined;
   pullRequestLink?: PullRequestLink | undefined;
   poster: PosterClient;
   storeFor: (bot: string, threadId: string) => ThreadStore;
 }
-
-const readState = async (workspace: string) =>
-  JSON.parse(await readFile(join(workspace, STATE_FILE), "utf8")) as TurnState;
 
 async function deliver(
   poster: PosterClient,
@@ -306,7 +303,7 @@ function ignoreMisplacedTargets(state: TurnState, result: ReturnType<typeof extr
 }
 
 export async function finish(deps: FinishDeps) {
-  const state = await readState(deps.workspace);
+  const state = await readTurnState(deps.stateDir);
   const result = ignoreMisplacedTargets(
     state,
     extractResult(await readFile(deps.executionFile, "utf8")),
@@ -338,12 +335,12 @@ export async function finish(deps: FinishDeps) {
 }
 
 export async function notifyFailure(
-  deps: Pick<FinishDeps, "workspace" | "poster"> & {
+  deps: Pick<FinishDeps, "stateDir" | "poster"> & {
     runUrl: string;
     comment?: Pick<CommentFinishDeps, "repository" | "github"> | undefined;
   },
 ) {
-  const state = await readState(deps.workspace).catch((error: NodeJS.ErrnoException) => {
+  const state = await readTurnState(deps.stateDir).catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") return undefined;
     throw error;
   });

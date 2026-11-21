@@ -1,8 +1,6 @@
-import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { extractResult } from "../src/workflows/finish.js";
-import { STATE_FILE } from "../src/workflows/prepare.js";
 import { buildPrompt, replySchema } from "../src/workflows/prompt.js";
 import {
   cleanTitle,
@@ -58,11 +56,11 @@ describe("pullRequestDetails", () => {
 
 describe("describePullRequest", () => {
   it("reads the agent's fields from the execution file", async () => {
-    const { root, executionFile } = await writePullRequestTurn({
+    const { stateDir, executionFile } = await writePullRequestTurn({
       structured_output: { reply: "Done.", pr_title: "Fix it", pr_body: "Because." },
     });
 
-    const details = await describePullRequest({ workspace: root, executionFile, runUrl: RUN_URL });
+    const details = await describePullRequest({ stateDir, executionFile, runUrl: RUN_URL });
 
     expect(details.title).toBe("Fix it");
     expect(details.body).toContain("Because.");
@@ -72,20 +70,19 @@ describe("describePullRequest", () => {
     ["has no structured output", { structured_output: undefined }],
     ["omits the fields", { structured_output: { reply: "Done." } }],
   ])("falls back when the agent %s", async (_name, result) => {
-    const { root, executionFile } = await writePullRequestTurn(result);
+    const { stateDir, executionFile } = await writePullRequestTurn(result);
 
-    const details = await describePullRequest({ workspace: root, executionFile, runUrl: RUN_URL });
+    const details = await describePullRequest({ stateDir, executionFile, runUrl: RUN_URL });
 
     expect(details.title).toBe("Centaur agent changes");
     expect(details.body).toContain(RUN_URL);
   });
 
   it("falls back when the execution file is missing", async () => {
-    const { root } = await writePullRequestTurn({});
-    await writeFile(join(root, STATE_FILE), JSON.stringify(turnState()));
+    const { root, stateDir } = await writePullRequestTurn({});
 
     const details = await describePullRequest({
-      workspace: root,
+      stateDir,
       executionFile: join(root, "missing.json"),
       runUrl: RUN_URL,
     });

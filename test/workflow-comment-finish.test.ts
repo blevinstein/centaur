@@ -284,9 +284,9 @@ describe("finish in comment mode with pr_action new", () => {
 describe("notifyFailure in comment mode", () => {
   it("tells the thread and the pull request, with the marker", async () => {
     const { aws, github, deps } = await commentFinishSetup({ state: { replyTo: 5 } });
-    const { workspace, poster, comment } = deps();
+    const { stateDir, poster, comment } = deps();
 
-    await notifyFailure({ workspace, poster, comment, runUrl: "https://run" });
+    await notifyFailure({ stateDir, poster, comment, runUrl: "https://run" });
 
     expect(posts(aws)[0]).toMatchObject({ threadId: THREAD });
     expect(github.comment).toHaveBeenCalledWith(

@@ -1,8 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { PROMPT_FILE, prepare, STATE_FILE } from "../src/workflows/prepare.js";
+import { PROMPT_FILE, prepare } from "../src/workflows/prepare.js";
 import { fence } from "../src/workflows/pull-request-comments.js";
+import { readTurnState } from "../src/workflows/turn-state.js";
 import { fakePolicyGitHub, PERMIT_ANY_REMOTE } from "./helpers/mcp-policy-fixtures.js";
 import {
   agentComment,
@@ -27,7 +28,7 @@ const read = (root: string, file: string) => readFile(join(root, file), "utf8");
 
 describe("prepare in comment mode", () => {
   it("builds the prompt from the pull request and its comments", async () => {
-    const { deps, root, aws, mask } = await commentSetup({
+    const { deps, root, stateDir, aws, mask } = await commentSetup({
       comments: [prComment(1, "please rename the plan")],
       messages: [message("1", "make a plan"), botMessage("2", "ok")],
     });
@@ -47,7 +48,7 @@ describe("prepare in comment mode", () => {
     expect(text).toContain("please rename the plan");
     expect(text).toContain("Earlier messages in this thread");
     expect(text).toContain("Sam: make a plan");
-    expect(JSON.parse(await read(root, STATE_FILE))).toMatchObject({
+    expect(await readTurnState(stateDir)).toMatchObject({
       mode: "comment",
       threadId: THREAD,
       pullRequest: PULL_REQUEST,
@@ -192,7 +193,7 @@ describe("prepare in comment mode", () => {
   });
 
   it("includes the review state and inline context with the thread, and targets the reply", async () => {
-    const { deps, root } = await commentSetup({
+    const { deps, root, stateDir } = await commentSetup({
       comments: [
         inlineComment(1, "why tomatoes?", { at: "2026-11-17T09:30:00Z" }),
         agentComment(2, { kind: "inline", threadRoot: 1, at: "2026-11-17T09:40:00Z" }),
@@ -212,17 +213,17 @@ describe("prepare in comment mode", () => {
     expect(text).toContain("review (changes_requested)");
     expect(text).not.toContain("review (commented)");
     expect(text).not.toContain("centaur:reply");
-    expect(JSON.parse(await read(root, STATE_FILE)).replyTo).toBeUndefined();
+    expect((await readTurnState(stateDir)).replyTo).toBeUndefined();
   });
 
   it("targets the inline thread when it is the only one answered", async () => {
-    const { deps, root } = await commentSetup({
+    const { deps, stateDir } = await commentSetup({
       comments: [inlineComment(1, "rename"), inlineComment(2, "and again", { threadRoot: 1 })],
     });
 
     await prepare(deps());
 
-    expect(JSON.parse(await read(root, STATE_FILE)).replyTo).toBe(1);
+    expect((await readTurnState(stateDir)).replyTo).toBe(1);
   });
 
   it("quotes comment text as fenced data that cannot close its fence", async () => {

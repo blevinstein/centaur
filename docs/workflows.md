@@ -224,8 +224,9 @@ Commands: `register`, `resolve`, `prepare`, `pr-details`, `finish`, `notify-fail
 5. On failure, `notify-failure` posts a generic notice with the run URL, then removes the 👀
    reactions; the marker is not advanced, so the messages are retried on the next turn.
 
-`prepare` records the thread and the IDs of the pending messages (IDs only, no content) in
-`.centaur-turn/state.json` for `finish` and `notify-failure`. Turns that end in `prepare`
+`prepare` records the turn state (bot, thread, mode, pull request and reply target, marker, session
+directory, the pending message IDs; IDs only, no content) in `<RUNNER_TEMP>/centaur-turn/state.json`
+for `pr-details`, `finish` and `notify-failure` (see [Turn state](#turn-state)). Turns that end in `prepare`
 (acknowledged policy commands, a bare `/new`) clear the reactions there. Removing reactions is
 best-effort: a failure is logged as a warning and never fails the job or holds back the reply. If
 `prepare` itself fails before writing the state, the reactions stay.
@@ -237,6 +238,25 @@ reach `create-pull-request` as step outputs passed to action inputs, never inter
 followed by a footer linking the workflow run and naming the bot and the scheduled prompt (never the
 thread ID). When a field is missing or empty the title is `Centaur agent changes` (with `: <prompt
 name>` for scheduled prompts) and the body is the footer alone.
+
+### Turn state
+
+Every field of the turn state steers a trusted step, so none of it lives in the workspace, where
+the agent could rewrite it: `mode`, `bot`, `threadId`, `pullRequest`, `replyTo`, `start` and
+`source` pick where `finish` posts and which messages lose their reaction; `marker`, `policy` and
+`sessionDirectory` decide what is saved for the next turn; `promptName` and `bot` appear in the
+pull request footer. `prepare` writes the file to `<RUNNER_TEMP>/centaur-turn/state.json`
+(`turnStateDir` in `src/workflows/turn-state.ts`, falling back to the OS temp directory outside
+Actions) with owner-only permissions, and `pr-details`, `finish` and `notify-failure` read it back
+from there. They run on the same runner in the same job, so no step output or environment variable
+has to carry the path. What the agent needs stays in `.centaur-turn/` in the workspace: `prompt.md`,
+`attachments/` and `mcp.json` (secrets only as `${NAME}` references).
+
+The agent's `Read`, `Edit` and `Write` tools are confined to the workspace by Claude Code, so they
+cannot reach the runner temp directory. A `Bash` tool in `allowed_tools` runs as the same user as the
+workflow and can read or write any file there, including this one. Keep `Bash` out of
+`allowed_tools` (or allow only narrow patterns) for bots whose repository is not fully trusted;
+moving the file does not protect against an unrestricted shell.
 
 ### Choosing the pull request
 
@@ -258,7 +278,7 @@ and the "number must be listed" sentence are all omitted. `prepare` needs `GITHU
 `GITHUB_TOKEN` for this and lists nothing without them. Comment turns list nothing.
 
 `centaur-workflow plan-pr` re-derives the same candidate set from GitHub, never from
-`.centaur-turn/state.json`, and checks the agent's `existing_pr_number`, read from the execution
+the turn state, and checks the agent's `existing_pr_number`, read from the execution
 file (`EXECUTION_FILE`) like `pr-details` and `finish` do, against it. With `existing: off` or
 without `GITHUB_TOKEN` it plans `thread` without calling GitHub. It reads the config from
 `CENTAUR_CONFIG_ROOT` when set. It writes the outputs
@@ -311,8 +331,8 @@ not edited and it is not linked to the current thread.
 branch when its head commit is an ancestor of the working tree, else the default branch
 ([Comment turns](#comment-turns)).
 
-**Security.** The agent can write `.centaur-turn/state.json`, so nothing in it decides a target:
-`plan-pr` re-derives the candidate set from GitHub and the poster, and `existing_pr_number` is read
+**Security.** `plan-pr` never reads the turn state, and it is kept out of the workspace anyway
+([Turn state](#turn-state)): `plan-pr` re-derives the candidate set from GitHub and the poster, and `existing_pr_number` is read
 from the action's execution file and checked against that set. Poster operations and the
 repository come from the verified OIDC claim and the workflow's environment, never from agent
 output. A pull request number is only an index into the validated set. Pull request titles in the

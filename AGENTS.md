@@ -79,7 +79,8 @@
 - The structured-output fields `pr_action` and `existing_pr_number` are gated by the
   `pull_requests` config; `prTargetFlags(config)` in `src/workflows/prepare.ts` feeds both the
   schema and the prompt. `checkCandidate` in `src/workflows/pr-target.ts` is the only place a PR
-  target is validated; never trust a PR number from `.centaur-turn/state.json`.
+  target is validated; never trust a PR number from the turn state. The turn state lives outside the workspace
+  (`src/workflows/turn-state.ts`, `$RUNNER_TEMP/centaur-turn/`); pass `stateDir`, never a workspace path, to `finish`, `notifyFailure` and `describePullRequest`.
 - A value that reaches `finish` through the turn action needs both an env entry in
   `.github/actions/turn/action.yml` and a dep in the `finish` command in `src/workflows/cli.ts`.
   `plan-pr` and `finish` get `CENTAUR_CONFIG_ROOT` from `inputs.config_root`

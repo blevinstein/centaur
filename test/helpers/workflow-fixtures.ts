@@ -103,11 +103,12 @@ export const pullRequestLink = (number = 5) => ({
 export async function createWorkspace(files: Record<string, string>) {
   const root = await mkdtemp(join(tmpdir(), "centaur-workspace-"));
   const home = await mkdtemp(join(tmpdir(), "centaur-home-"));
+  const stateDir = await mkdtemp(join(tmpdir(), "centaur-state-"));
   for (const [path, content] of Object.entries(files)) {
     await mkdir(dirname(join(root, path)), { recursive: true });
     await writeFile(join(root, path), content);
   }
-  return { root, home };
+  return { root, home, stateDir };
 }
 
 export const schemaOptions = (overrides: Partial<ReplySchemaOptions> = {}): ReplySchemaOptions => ({

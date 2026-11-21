@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { cleanBody, cleanTitle } from "./clean-text.js";
 import { extractResult } from "./finish.js";
-import { STATE_FILE, type TurnState } from "./prepare.js";
+import type { TurnState } from "./prepare.js";
+import { readTurnState } from "./turn-state.js";
 
 export { cleanBody, cleanTitle, MAX_BODY_LENGTH, MAX_TITLE_LENGTH } from "./clean-text.js";
 
@@ -14,7 +14,7 @@ export interface PullRequestDetails {
 }
 
 export interface PullRequestDeps {
-  workspace: string;
+  stateDir: string;
   executionFile: string;
   runUrl: string;
 }
@@ -42,7 +42,7 @@ export function pullRequestDetails(
 }
 
 export async function describePullRequest(deps: PullRequestDeps) {
-  const state = JSON.parse(await readFile(join(deps.workspace, STATE_FILE), "utf8")) as TurnState;
+  const state = await readTurnState(deps.stateDir);
   const agent = await readFile(deps.executionFile, "utf8").then(
     (text) => {
       try {

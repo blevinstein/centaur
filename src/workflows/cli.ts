@@ -14,6 +14,7 @@ import { pushChanges, pushNewBranch } from "./push.js";
 import { pushExisting } from "./push-existing.js";
 import { oidcTokenFetcher, registerRepo } from "./register.js";
 import { createGitHubClient, createGitHubRequester, resolve } from "./resolve.js";
+import { turnStateDir } from "./turn-state.js";
 
 const env = (name: string) => {
   const value = process.env[name];
@@ -151,6 +152,7 @@ program.command("prepare").action(async () => {
     mcpPolicy: mcpPolicyDeps(),
     targets: targetDeps(),
     workspace: workspace(),
+    stateDir: turnStateDir(),
     configRoot: process.env.CENTAUR_CONFIG_ROOT || undefined,
     home: homedir(),
     runId: env("GITHUB_RUN_ID"),
@@ -213,7 +215,7 @@ program.command("push-existing").action(async () => {
 
 program.command("pr-details").action(async () => {
   const details = await describePullRequest({
-    workspace: workspace(),
+    stateDir: turnStateDir(),
     executionFile: env("EXECUTION_FILE"),
     runUrl: env("RUN_URL"),
   });
@@ -238,7 +240,7 @@ program.command("finish").action(async () => {
   const pullRequestNumber = Number(process.env.PULL_REQUEST_NUMBER);
   const comment = commentFinishDeps();
   return finish({
-    workspace: workspace(),
+    stateDir: turnStateDir(),
     executionFile: env("EXECUTION_FILE"),
     comment: comment && { ...comment, newPullRequest: await newPullRequestDeps() },
     updatedPullRequest: updatedPullRequestDeps(),
@@ -259,7 +261,7 @@ program.command("finish").action(async () => {
 
 program.command("notify-failure").action(() =>
   notifyFailure({
-    workspace: workspace(),
+    stateDir: turnStateDir(),
     poster: poster(),
     runUrl: env("RUN_URL"),
     comment: commentFinishDeps(),
