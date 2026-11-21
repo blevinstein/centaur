@@ -340,6 +340,10 @@ poster record exists it names the same bot); never from the turn state.
 
 Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer saying so.
 
+- [ ] The receiver reads every bot, with its token and secrets, once per Lambda container
+      (`createReceiver`), so a new bot or a changed token is ignored until the container restarts.
+      Reload bots when a request names an unknown bot or a platform call fails with an auth error,
+      or cache them with a short TTL like the parameter store wrapper.
 - [ ] Bots across platforms. A bot is one record in SSM with a single `platform`, one set of
       secrets and one repo, so the same bot cannot be present on Telegram and Slack: today each
       platform needs its own bot name (`garden`, `garden-slack`) and `centaur bot add` refuses a
