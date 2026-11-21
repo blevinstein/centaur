@@ -1,6 +1,6 @@
-bot: centaur-test
-platform: telegram
-respond_to: all
+bot: centaur-slack
+platform: slack
+respond_to: mention
 context:
   default: transcript
 provider: anthropic
@@ -9,13 +9,13 @@ allowed_tools: "Read,Glob,Grep,Write,Edit,mcp__ghmcp__*"
 persona: .centaur/persona.md
 prompts:
   hello:
-    destination: centaur-test
+    destination: centaur-test-slack
   pr-smoke:
-    destination: centaur-test
+    destination: centaur-test-slack
   pr-update:
-    destination: centaur-test
+    destination: centaur-test-slack
   mcp-smoke:
-    destination: centaur-test
+    destination: centaur-test-slack
 mcp_servers:
   ghmcp:
     url: https://api.githubcopilot.com/mcp/readonly
