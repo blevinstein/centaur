@@ -185,7 +185,8 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
       artwork directly: its usage guidelines restrict modification, so make an original
       centaur-cat hybrid.
 - [ ] Remove `npmPreapprovedPackages` (`@blevinstein/chat-state-dynamodb`) from `.yarnrc.yml`, no
-      earlier than 2026-11-22 (24 hours after the 2026-11-21T02:59Z publish of 0.3.0). The age gate
+      earlier than 2026-11-22T06:10Z (24 hours after the 2026-11-21T06:09Z publish of 0.4.0, the
+      version `yarn.lock` pins; 0.3.0's gate clears sooner). The age gate
       (`npmMinimalAgeGate`) protects against freshly published malicious versions, and the entry
       exempts every future version of the package. `yarn.lock` pins the resolved version, so the
       exemption is not needed to install it. Afterwards `yarn install --immutable` must still pass.
@@ -364,6 +365,5 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
 - [x] Contribute the DynamoDB state adapter upstream. Chat SDK declined it and points to community
       packages; Centaur uses the published `@blevinstein/chat-state-dynamodb` instead (see
       `docs/research.md`).
-- [ ] Bump `@blevinstein/chat-state-dynamodb` to 0.4.0 (adapter rejects calls before `connect()`) once
-      the maintainer publishes it; `connectState` already connects every adapter the Lambda creates
-      (**[HUMAN ACTION]**: publish 0.4.0).
+- [x] Bump `@blevinstein/chat-state-dynamodb` to 0.4.0 (adapter rejects calls before `connect()`);
+      `connectState` already connects every adapter the Lambda creates.

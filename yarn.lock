@@ -466,14 +466,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@blevinstein/chat-state-dynamodb@npm:0.3.0":
-  version: 0.3.0
-  resolution: "@blevinstein/chat-state-dynamodb@npm:0.3.0"
+"@blevinstein/chat-state-dynamodb@npm:0.4.0":
+  version: 0.4.0
+  resolution: "@blevinstein/chat-state-dynamodb@npm:0.4.0"
   peerDependencies:
     "@aws-sdk/client-dynamodb": ">=3.600.0"
     "@aws-sdk/lib-dynamodb": ">=3.600.0"
     chat: ">=4.0.0"
-  checksum: 10c0/bf320f37bc3960cc890e113bc51946bfedcc69e9fd8b2e8228a78e98ddaa9b77f8317246ac4e33cc547ac2b36c826067369435279ba01bd8bb286f3dcaf2b918
+  checksum: 10c0/b00ad0e5a94d14b5a6f1a19ff7ea418bc9b626546eea6b393fe31bee1f822d0efc87951c61cd456f38852394308a082bc2403ff1f5dbff1b8917eabe0b547680
   languageName: node
   linkType: hard
 
@@ -1405,7 +1405,7 @@ __metadata:
     "@aws-sdk/client-ssm": "npm:3.1171.0"
     "@aws-sdk/lib-dynamodb": "npm:3.1171.0"
     "@biomejs/biome": "npm:2.6.8"
-    "@blevinstein/chat-state-dynamodb": "npm:0.3.0"
+    "@blevinstein/chat-state-dynamodb": "npm:0.4.0"
     "@cedar-policy/cedar-wasm": "npm:4.14.0"
     "@chat-adapter/slack": "npm:4.45.0"
     "@chat-adapter/state-memory": "npm:4.45.0"
