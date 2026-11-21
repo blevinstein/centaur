@@ -69,6 +69,15 @@
   ID. `COMMENT_PULL_REQUEST` enables comment-mode `prepare`; `src/workflows/pull-request-comments.ts`
   owns PR reading and comment rendering. Every comment the agent posts to a PR carries
   `REPLY_MARKER`, and `finish` pushes with plain `git`.
+- `pull_requests.comment_authors` (default OWNER/MEMBER/COLLABORATOR) gates comment turns twice:
+  `resolve` checks the event's `author_association` through the lazy `commentAuthors` dep (config
+  read from the default-branch checkout), and `prepare` filters pending comments and inline thread
+  context by `PullRequestComment.association`. Unlisted humans are omitted, not fenced; a new
+  comment source must set `association`. A new config key also needs `docs/config.md`, the defaults
+  in `test/config.test.ts` and any fixture that builds the config by hand.
+- Test a thread branch (`centaur/<bot>-<thread key>[-<run id>-<attempt>]`) only with
+  `isThreadBranch` (`src/workflows/resolve.ts`), never `startsWith`: a bot name can prefix
+  another's (`sprout`, `sprout-2`).
 - `mcp_servers` are checked against the Cedar policy `.centaur/mcp-policy.cedar` as it exists on the
   repository's default branch, fetched through the GitHub API (`src/workflows/mcp-policy-check.ts`),
   never the workspace copy, because a turn can run on any branch, merged with the global
