@@ -340,6 +340,14 @@ poster record exists it names the same bot); never from the turn state.
 
 Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer saying so.
 
+- [ ] Topic destinations. A prompt's `destination` should be able to name a single topic (or Slack
+      thread) inside a chat, not only a chat, so recurring prompts can keep one persistent thread
+      instead of opening a new topic per run. Sketch: per-bot named destinations holding a chat ID
+      and an optional topic ID; the poster posts into the topic, or creates it on first use when the
+      bot has exactly one approved chat; an admin-only `/destination <name>` command (and a CLI
+      equivalent) binds an existing topic, because the Bot API cannot list topics; a missing or
+      closed topic is recreated. Today `destination` names a chat alias, derived from the chat's
+      title at approval time. Do after the Slack work (section 12), so it covers both platforms.
 - [ ] Plan for long-running agent turns (>15 mins) which will hit lambda function runtime limits.
       This may happen if we are using MCP tools etc which take a while to respond.
 - [ ] Decision model: a cheap model that decides whether to reply to unaddressed messages in
