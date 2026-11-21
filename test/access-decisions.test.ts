@@ -85,6 +85,20 @@ describe("access decisions by reaction", () => {
     expect(h.postToThread).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["outside a direct message", { isDM: false }, "outside a direct message"],
+    ["on a message with no linked request", { messageId: "other" }, "no linked request"],
+  ])("logs a reaction ignored %s", async (_name, overrides, reason) => {
+    const h = await pendingRequest("user");
+
+    await h.decisions.fromReaction(h.reaction("👍", overrides));
+
+    expect(h.logger.info).toHaveBeenCalledWith(
+      expect.stringContaining(reason),
+      expect.objectContaining({ bot: "garden", userId: ADMIN_ID }),
+    );
+  });
+
   it("warns by ID when a non-admin reacts to a request message", async () => {
     const h = await pendingRequest("user");
 

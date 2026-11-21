@@ -55,7 +55,11 @@ export async function createReceiver({
     const response = await webhook(request, {
       waitUntil: (task) => tasks.push(task),
     });
-    await Promise.allSettled(tasks);
+    for (let drained = 0; drained < tasks.length; ) {
+      const pending = tasks.slice(drained);
+      drained = tasks.length;
+      await Promise.allSettled(pending);
+    }
     return response;
   };
 }

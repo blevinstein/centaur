@@ -115,15 +115,22 @@ export function createAccessDecisions({
       },
     ) {
       const verdict = event.added ? channel.verdictForReaction(event.rawEmoji) : undefined;
-      if (!verdict || !event.thread.isDM) return;
+      if (!verdict) return;
+      const userId = event.user.userId;
+      if (!event.thread.isDM) {
+        logger.info("ignoring access reaction outside a direct message", { ...where, userId });
+        return;
+      }
       const requestId = await store.requestIdForMessage(event.messageId);
-      if (!requestId) return;
-      if (!(await isAdmin(event.user.userId))) {
-        logger.warn("ignoring access decision from a non-admin", {
+      if (!requestId) {
+        logger.info("ignoring access reaction on a message with no linked request", {
           ...where,
-          requestId,
-          userId: event.user.userId,
+          userId,
         });
+        return;
+      }
+      if (!(await isAdmin(userId))) {
+        logger.warn("ignoring access decision from a non-admin", { ...where, requestId, userId });
         return;
       }
       await resolve(requestId, verdict);
