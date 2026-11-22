@@ -3,6 +3,14 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
+import {
+  type ListThreadsRequest,
+  type ListThreadsResult,
+  listThreadsResultSchema,
+  type ReadChannelRequest,
+  type ReadChannelResult,
+  readChannelResultSchema,
+} from "../lambda/chat-context.js";
 import type { PosterRequest } from "../lambda/poster.js";
 
 export type Exec = (file: string, args: string[]) => Promise<string>;
@@ -19,6 +27,8 @@ export class PosterError extends Error {}
 
 export interface PosterClient {
   call<T = unknown>(request: PosterRequest): Promise<T>;
+  listThreads(request: Omit<ListThreadsRequest, "operation">): Promise<ListThreadsResult>;
+  readChannel(request: Omit<ReadChannelRequest, "operation">): Promise<ReadChannelResult>;
 }
 
 /**
@@ -27,7 +37,7 @@ export interface PosterClient {
  * carries config problems the author needs, so its message is included.
  */
 export function createPosterClient(functionName: string, exec: Exec = execCommand): PosterClient {
-  return {
+  const client: PosterClient = {
     async call<T>(request: PosterRequest) {
       const dir = await mkdtemp(join(tmpdir(), "centaur-invoke-"));
       try {
@@ -65,7 +75,18 @@ export function createPosterClient(functionName: string, exec: Exec = execComman
         await rm(dir, { recursive: true, force: true });
       }
     },
+    async listThreads(request) {
+      return listThreadsResultSchema.parse(
+        await client.call({ operation: "list-threads", ...request }),
+      );
+    },
+    async readChannel(request) {
+      return readChannelResultSchema.parse(
+        await client.call({ operation: "read-channel", ...request }),
+      );
+    },
   };
+  return client;
 }
 
 export interface AttachmentDownloader {

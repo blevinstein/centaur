@@ -42,6 +42,9 @@ describe("prepare in comment mode", () => {
     expect(aws.requests).toContainEqual(
       expect.objectContaining({ operation: "resolve-pull-request", withThreadId: true }),
     );
+    expect(aws.requests).toContainEqual(
+      expect.objectContaining({ operation: "read", token: "jwt", threadId: THREAD }),
+    );
     const text = await read(root, PROMPT_FILE);
     expect(text).toContain("Weekly tasks");
     expect(text).toContain(DIFF);

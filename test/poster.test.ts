@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { BOT_CREATED_STATE, ownsMessage } from "../src/lambda/ownership.js";
 import {
   blockedChat,
+  GARDEN_REPOSITORY,
   HOUSEHOLD_CHAT_ID,
   posterSetup,
   SLACK_CHANNEL_ID,
@@ -12,6 +13,12 @@ import {
 import { fakeMessage, fakeThread } from "./helpers/receiver-fixtures.js";
 
 const GARDEN_THREAD = `telegram:${HOUSEHOLD_CHAT_ID}:${TOPIC_ID}`;
+const READ_GARDEN = {
+  operation: "read",
+  token: "jwt",
+  bot: "garden",
+  threadId: GARDEN_THREAD,
+} as const;
 const START_HOUSEHOLD = {
   operation: "start-thread",
   bot: "garden",
@@ -52,7 +59,7 @@ describe("poster post", () => {
   it.each([
     ["an unknown operation", { operation: "nope" }],
     ["empty text", { operation: "post", bot: "garden", threadId: "t", text: "" }],
-    ["extra fields", { operation: "read", bot: "garden", threadId: "t", extra: 1 }],
+    ["extra fields", { operation: "read", token: "jwt", bot: "garden", threadId: "t", extra: 1 }],
     ["a non-object", "post"],
   ])("rejects a malformed request: %s", async (_name, request) => {
     const { poster } = await posterSetup();
@@ -208,7 +215,7 @@ describe("poster start-thread", () => {
       await poster(fromThread("-100777"));
       Object.assign(thread, { channelId: `telegram:${HOUSEHOLD_CHAT_ID}` });
 
-      await expect(poster(fromThread(HOUSEHOLD_CHAT_ID))).rejects.toThrow(/not approved/);
+      await expect(poster(fromThread(HOUSEHOLD_CHAT_ID))).rejects.toThrow(/is blocked/);
       expect(telegram.createForumTopic).toHaveBeenCalledExactlyOnceWith(
         "tg-token",
         "-100777",
@@ -250,11 +257,12 @@ describe("poster read", () => {
       },
     ];
     const { poster, attachments } = await posterSetup({
+      repository: GARDEN_REPOSITORY,
       transcript,
       attachments: { m1: ["attachments/garden/t/m1~0.jpg"] },
     });
 
-    const result = await poster({ operation: "read", bot: "garden", threadId: GARDEN_THREAD });
+    const result = await poster(READ_GARDEN);
 
     expect(attachments.forThread).toHaveBeenCalledExactlyOnceWith("garden", GARDEN_THREAD);
     expect(result).toEqual({
@@ -291,12 +299,13 @@ describe("poster read of images that were never stored", () => {
     metadata: { dateSent: new Date("2026-01-02T03:04:05Z") },
   };
   const read = (poster: Awaited<ReturnType<typeof posterSetup>>["poster"]) =>
-    poster({ operation: "read", bot: "garden", threadId: GARDEN_THREAD }) as Promise<{
+    poster(READ_GARDEN) as Promise<{
       messages: { attachments: string[] }[];
     }>;
 
   it("stores them with a rebuilt downloader and reports their keys", async () => {
     const { poster, attachments, rehydrateAttachment } = await posterSetup({
+      repository: GARDEN_REPOSITORY,
       transcript: [unstored],
     });
     attachments.save.mockResolvedValueOnce(["attachments/garden/t/m1~0.jpg"]);
@@ -311,6 +320,7 @@ describe("poster read of images that were never stored", () => {
 
   it("does not store images again once they have keys", async () => {
     const { poster, attachments } = await posterSetup({
+      repository: GARDEN_REPOSITORY,
       transcript: [unstored],
       attachments: { m1: ["attachments/garden/t/m1~0.jpg"] },
     });
@@ -322,7 +332,10 @@ describe("poster read of images that were never stored", () => {
   });
 
   it("still returns the thread when storing an image fails", async () => {
-    const { poster, attachments, logger } = await posterSetup({ transcript: [unstored] });
+    const { poster, attachments, logger } = await posterSetup({
+      repository: GARDEN_REPOSITORY,
+      transcript: [unstored],
+    });
     attachments.save.mockRejectedValueOnce(new Error("telegram down"));
 
     const result = await read(poster);

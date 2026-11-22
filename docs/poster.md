@@ -13,8 +13,10 @@ to a repo (secrets plus `bots/<bot>/repo`) for every operation except `register`
 |---|---|---|
 | `post` | `bot`, `threadId`, `text` | `{ messageId }` |
 | `start-thread` | `bot`, `text`, optional `title`, exactly one of `destination` (chat alias) or `fromThreadId` | `{ threadId }` |
-| `read` | `bot`, `threadId` | `{ messages: [{ id, userId, userName, fromBot, text, attachments, sentAt }] }`, oldest first; `attachments` are the S3 keys of the message's stored images (see [Attachments](#attachments)) |
+| `read` | `token` (GitHub OIDC JWT), `bot`, `threadId` | `{ messages: [{ id, userId, userName, fromBot, text, attachments, sentAt }] }`, oldest first; `attachments` are the S3 keys of the message's stored images (see [Attachments](#attachments)) |
 | `unreact` | `bot`, `threadId`, `messageIds` (1 to 50) | `{ results: [{ messageId, removed }] }` |
+| `list-threads` | `token` (GitHub OIDC JWT), `bot`, `chatId`, `threadId` (the dispatched thread), optional `limit` (default 20, max 50), optional `includeBots` | `{ threads: [{ threadId, title, lastActivity, messageCount, participants, snippet }] }`, most recent first |
+| `read-channel` | `token` (GitHub OIDC JWT), `bot`, `chatId`, `threadId` (the dispatched thread), optional `limit` (default 50, max 200), optional `before` (ISO 8601 instant), optional `includeBots` | `{ messages: [{ id, threadId, userId, userName, fromBot, text, attachments, sentAt }] }`, newest first; `attachments` is always empty |
 | `get-mcp-policy` | none | `{ policy }`: the text of the global MCP policy bundled with the Lambda (`mcp-policy.cedar` next to the handler), or `null` when none is deployed |
 | `register` | `token` (GitHub OIDC JWT), `config` (the config file's text) | `{ bot, repo }` |
 | `link-pull-request` | `token` (GitHub OIDC JWT), `bot`, `threadId`, `pullRequest` (number) | `{ linked: true }` |
@@ -55,6 +57,36 @@ messages are still processed, so the call only throws for an invalid request or 
   clears it with an empty list, ignoring the emoji. That drops any other reaction the bot set on
   the message, but never other users' reactions; the bot only ever sets 👀. Removal is idempotent.
 - Reactions on Telegram business-account threads are unsupported and report `removed: false`.
+
+## `list-threads` and `read-channel`
+
+Read-only views of the chat the turn was dispatched in, for the agent's chat tools (see
+[chat-context.md](chat-context.md)). They take the repository from the verified OIDC claim and
+require `bots/<bot>/repo` to equal it, like the pull request operations. The poster, never the
+caller, enforces:
+
+- `chatId` is approved for the bot and not blocked (the check `start-thread` uses). DMs have no
+  approval, so they are refused.
+- `chatId` is the chat of `threadId`, the thread the turn was dispatched for. The poster derives the
+  chat from that thread ID, so a caller can read only the chat it was dispatched in. Any other
+  approved chat is refused.
+- Messages from senders who are not enrolled for the bot are dropped. The bot's own messages stay.
+  Other bots' messages are dropped unless the request sets `includeBots`.
+- Caps: `limit` above the maximum is rejected; message text is clipped to 4000 characters, titles to
+  100, snippets to 200, and a thread lists at most 10 participants.
+
+Failures log the operation, bot, chat ID, requested limit and error type, never message content.
+
+- **Telegram:** the Bot API has no history call, so both operations read the messages the receiver
+  stored for the chat (including messages from senders who are not enrolled, which are filtered
+  out here), at most the newest 2000. `list-threads` groups them by topic: `title` is the first
+  line of the oldest message seen, `snippet` the newest, `messageCount` and `participants` count
+  visible messages only. `before` skips messages sent at or after it.
+- **Slack:** `list-threads` maps the adapter's `listThreads` (thread parents with replies; the title
+  and snippet are the parent's text, `messageCount` is replies plus one, `participants` only the
+  parent's author). `read-channel` maps `fetchChannelMessages` (top-level messages only); `before`
+  becomes the `conversations.history` `latest` cursor. Filtering happens after the fetch, so a page
+  can hold fewer than `limit` messages.
 
 ## `register`
 
@@ -102,11 +134,15 @@ thread, which restarts the TTL.
 
 ## Security model
 
+`read` also takes a `token` and requires the bot to be bound to the caller's repository, so a repo
+cannot read another repo's bot's threads. `post`, `unreact` and `start-thread` do not check it yet.
+
 Poster operations other than the ones that take a `token` trust any caller the GitHub OIDC role
 allows to invoke the function. In a self-hosted deployment the operator owns the AWS account, the
 role's trust policy is limited to `repo:<owner>/*`, and the operator controls every repo under that
 owner, so any repo under the owner can act as any bot by design. The operations that act for a
-repository (`register`, `link-pull-request`, `resolve-pull-request`) take it from the verified OIDC
+repository (`register`, `link-pull-request`, `resolve-pull-request`, `read`, `list-threads`,
+`read-channel`) take it from the verified OIDC
 claim instead.
 
 This is accepted for self-hosted use. A hosted multi-tenant deployment would need a per-repo token

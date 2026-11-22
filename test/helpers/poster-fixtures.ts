@@ -8,6 +8,7 @@ import { createPoster, type PosterChat } from "../../src/lambda/poster.js";
 import type { TelegramApi } from "../../src/lambda/telegram.js";
 import { fakeAttachments, fakeParameterStore, PARAMETERS } from "./receiver-fixtures.js";
 
+export const GARDEN_REPOSITORY = "octo/garden";
 export const OIDC_OWNER = "octo";
 export const OIDC_AUDIENCE = "centaur";
 export const FUNCTION_URL = "https://abc123.lambda-url.us-east-1.on.aws/";

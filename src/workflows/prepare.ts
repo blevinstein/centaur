@@ -86,6 +86,8 @@ export interface PrepareDeps {
   promptName?: string | undefined;
   clientPayload: unknown;
   poster: PosterClient;
+  /** OIDC token that proves the repository to the poster; masked by the caller. */
+  fetchToken: () => Promise<string>;
   attachments: AttachmentDownloader;
   storeFor: (bot: string, threadId: string) => ThreadStore;
 }
@@ -125,6 +127,16 @@ async function loadAttachments(deps: PrepareDeps, shown: ChatMessage[]): Promise
   );
   const loaded = new Set(keys);
   return (key) => (loaded.has(key) ? localAttachment(key) : undefined);
+}
+
+async function readThread(deps: PrepareDeps, bot: string, threadId: string, token: string) {
+  const { messages } = await deps.poster.call<{ messages: ChatMessage[] }>({
+    operation: "read",
+    token,
+    bot,
+    threadId,
+  });
+  return messages;
 }
 
 const safeRef = (value: string) => value.replaceAll(/[^A-Za-z0-9._-]/g, "-");
@@ -174,11 +186,7 @@ async function chatTurn(
   }
   const threadId = payload.thread_id;
   const store = deps.storeFor(config.bot, threadId);
-  const { messages } = await deps.poster.call<{ messages: ChatMessage[] }>({
-    operation: "read",
-    bot: config.bot,
-    threadId,
-  });
+  const messages = await readThread(deps, config.bot, threadId, await deps.fetchToken());
   const marker = messages.at(-1)?.id;
   const lastProcessed = await store.readMarker();
   const source: ReactionSource = {
@@ -292,14 +300,10 @@ async function commentTurn(
     );
   }
   const threadId = resolved.threadId;
-  const [details, all, { messages }] = await Promise.all([
+  const [details, all, messages] = await Promise.all([
     comment.github.details(comment.repository, comment.pullRequest),
     comment.github.comments(comment.repository, comment.pullRequest),
-    deps.poster.call<{ messages: ChatMessage[] }>({
-      operation: "read",
-      bot: config.bot,
-      threadId,
-    }),
+    readThread(deps, config.bot, threadId, token),
   ]);
   const authors = config.pull_requests.comment_authors;
   const pending = pendingComments(all, details.createdAt, authors);

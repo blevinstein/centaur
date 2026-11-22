@@ -109,6 +109,7 @@ export async function commentSetup(
     env: {},
     clientPayload: undefined,
     poster: aws.poster,
+    fetchToken: async () => "jwt",
     attachments: aws.attachments,
     storeFor: aws.storeFor,
     mcpPolicy: options.mcpPolicy,

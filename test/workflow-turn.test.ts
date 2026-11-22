@@ -42,6 +42,8 @@ async function setup(
   const aws = createFakeAws((request) => {
     if (request.operation === "read") return { messages };
     if (request.operation === "start-thread") return { threadId: "telegram:-100:99" };
+    if (request.operation === "list-threads") return { threads: [] };
+    if (request.operation === "read-channel") return { messages: [] };
     return { messageId: "m" };
   });
   const { root, home, stateDir } = await createWorkspace({
@@ -58,6 +60,7 @@ async function setup(
     env: {},
     clientPayload: { bot: "sprout", thread_id: THREAD, message_id: "1" },
     poster: aws.poster,
+    fetchToken: async () => "jwt",
     attachments: aws.attachments,
     storeFor: aws.storeFor,
     ...overrides,
@@ -72,6 +75,34 @@ const prompt = (root: string) => readFile(join(root, PROMPT_FILE), "utf8");
 const state = (stateDir: string) => readTurnState(stateDir);
 
 describe("prepare", () => {
+  it("proves the repository to the poster when it reads the thread", async () => {
+    const { deps, aws } = await setup([message("1", "hi")]);
+
+    await prepare(deps());
+
+    expect(aws.requests[0]).toEqual({
+      operation: "read",
+      token: "jwt",
+      bot: "sprout",
+      threadId: THREAD,
+    });
+  });
+
+  it("lists channel threads and reads the channel through typed poster methods", async () => {
+    const { aws } = await setup([]);
+    const request = { token: "jwt", bot: "sprout", chatId: "-100", threadId: THREAD };
+
+    await expect(aws.poster.listThreads(request)).resolves.toEqual({ threads: [] });
+    await expect(aws.poster.readChannel({ ...request, limit: 3 })).resolves.toEqual({
+      messages: [],
+    });
+
+    expect(aws.requests).toEqual([
+      { operation: "list-threads", ...request },
+      { operation: "read-channel", ...request, limit: 3 },
+    ]);
+  });
+
   it("replaces the chat guidance from the configured file but keeps the output contract", async () => {
     const { deps, root } = await setup(
       [message("1", "hi")],

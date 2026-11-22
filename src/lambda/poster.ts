@@ -3,15 +3,21 @@ import { z } from "zod";
 import { alias, type Platform } from "../config/index.js";
 import { createAccessResolver } from "./access.js";
 import type { AttachmentStore } from "./attachments.js";
+import {
+  createChatContext,
+  listThreadsRequestSchema,
+  readChannelRequestSchema,
+} from "./chat-context.js";
 import type { McpPolicyReader } from "./mcp-policy.js";
 import type { OidcVerifier } from "./oidc.js";
 import { BOT_CREATED_STATE, type ThreadMetadata } from "./ownership.js";
 import { chatParameter, type ParameterStore } from "./parameters.js";
 import { createPullRequests } from "./pull-requests.js";
 import { createRegister } from "./register.js";
-import { type Bot, botStatePrefix, loadBot } from "./registry.js";
+import { type Bot, botStatePrefix, loadBot, requireBound } from "./registry.js";
 import { connectState } from "./state.js";
 import type { TelegramApi } from "./telegram.js";
+import { firstLine } from "./text.js";
 
 const TOPIC_NAME_MAX = 128;
 export const UNREACT_MAX_MESSAGES = 50;
@@ -37,7 +43,7 @@ export const posterRequestSchema = z.discriminatedUnion("operation", [
         message: "start-thread needs exactly one of destination and fromThreadId",
       },
     ),
-  z.strictObject({ operation: z.literal("read"), bot: alias, threadId }),
+  z.strictObject({ operation: z.literal("read"), token: z.string().min(1), bot: alias, threadId }),
   z.strictObject({
     operation: z.literal("unreact"),
     bot: alias,
@@ -59,6 +65,8 @@ export const posterRequestSchema = z.discriminatedUnion("operation", [
     pullRequest,
     withThreadId: z.boolean().optional(),
   }),
+  listThreadsRequestSchema,
+  readChannelRequestSchema,
 ]);
 
 export type PosterRequest = z.input<typeof posterRequestSchema>;
@@ -103,8 +111,6 @@ const THREAD_OPENERS: Record<Platform, ThreadOpener> = {
   }),
 };
 
-const firstLine = (value: string) => value.trim().split("\n")[0]?.slice(0, TOPIC_NAME_MAX) ?? "";
-
 export async function createPoster(deps: PosterDeps) {
   const { params, createState, chatFor, attachments, telegram, logger } = deps;
   const states = new Map<string, Promise<StateAdapter>>();
@@ -142,13 +148,32 @@ export async function createPoster(deps: PosterDeps) {
     return { bot, chat };
   };
 
+  const requireApprovedChat = async (bot: Bot, chatId: string, name = chatId) => {
+    const access = await createAccessResolver(bot, params)();
+    if (access.blockedChatIds.has(chatId)) {
+      throw new Error(`chat ${name} is blocked for bot "${bot.name}"`);
+    }
+    if (!access.chatIds.has(chatId)) {
+      throw new Error(
+        `chat ${name} is not approved for bot "${bot.name}"; the maintainer must approve it with \`centaur access approve ${bot.name} chat ${chatId}\``,
+      );
+    }
+    return access;
+  };
+
+  const chatContext = createChatContext({
+    params,
+    oidc: deps.oidc,
+    openChat,
+    requireApprovedChat,
+    logger,
+  });
+
   const startChatId = async (
     bot: Bot,
     chat: PosterChat,
     target: { destination?: string | undefined; fromThreadId?: string | undefined },
   ) => {
-    const { chatIds, blockedChatIds } = await createAccessResolver(bot, params)();
-    const approve = (chatId: string) => `centaur access approve ${bot.name} chat ${chatId}`;
     if (target.destination !== undefined) {
       const chatId = await params.get(chatParameter(target.destination));
       if (!chatId) {
@@ -156,23 +181,12 @@ export async function createPoster(deps: PosterDeps) {
           `unknown chat alias "${target.destination}"; approve the chat under that name with \`centaur access approve ${bot.name} chat <id> --alias ${target.destination}\``,
         );
       }
-      if (blockedChatIds.has(chatId)) {
-        throw new Error(`chat "${target.destination}" is blocked for bot "${bot.name}"`);
-      }
-      if (!chatIds.has(chatId)) {
-        throw new Error(
-          `chat "${target.destination}" is not approved for bot "${bot.name}"; the maintainer must approve it with \`${approve(chatId)}\``,
-        );
-      }
+      await requireApprovedChat(bot, chatId, `"${target.destination}"`);
       return chatId;
     }
     const origin = chat.thread(target.fromThreadId as string);
     const chatId = origin.channelId.slice(bot.platform.length + 1);
-    if (!origin.isDM && !chatIds.has(chatId)) {
-      throw new Error(
-        `chat ${chatId} is not approved for bot "${bot.name}"; the maintainer must approve it with \`${approve(chatId)}\``,
-      );
-    }
+    if (!origin.isDM) await requireApprovedChat(bot, chatId);
     return chatId;
   };
 
@@ -187,6 +201,10 @@ export async function createPoster(deps: PosterDeps) {
         return pullRequests.link(request);
       case "resolve-pull-request":
         return pullRequests.resolve(request);
+      case "list-threads":
+        return chatContext.listThreads(request);
+      case "read-channel":
+        return chatContext.readChannel(request);
       case "post": {
         const { chat } = await openChat(request.bot);
         const sent = await chat.thread(request.threadId).post(request.text);
@@ -200,7 +218,7 @@ export async function createPoster(deps: PosterDeps) {
           {
             chatId: await startChatId(bot, chat, request),
             text: request.text,
-            title: request.title ?? firstLine(request.text),
+            title: request.title ?? firstLine(request.text, TOPIC_NAME_MAX),
           },
           telegram,
         );
@@ -210,6 +228,7 @@ export async function createPoster(deps: PosterDeps) {
         return { threadId: opened.threadId };
       }
       case "read": {
+        await requireBound(params, deps.oidc, request.token, request.bot);
         const { chat } = await openChat(request.bot);
         const thread = chat.thread(request.threadId);
         const attachmentsOf = await attachments.forThread(request.bot, request.threadId);

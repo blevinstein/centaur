@@ -1,5 +1,6 @@
 import type { StateAdapter } from "chat";
 import { PLATFORMS, type Platform, type RespondTo } from "../config/index.js";
+import type { OidcVerifier } from "./oidc.js";
 import { botParameter, PARAMETER_ROOT, type ParameterStore } from "./parameters.js";
 
 export interface Bot {
@@ -26,6 +27,23 @@ const BOT_PARAMETER = new RegExp(`^${PARAMETER_ROOT}/bots/([^/]+)/([^/]+)$`);
 export const registryKey = (bot: string) => `registry:${bot}`;
 export const botStatePrefix = (bot: string) => `bot:${bot}:`;
 export const repoParameter = (bot: string) => botParameter(bot, "repo");
+
+export const isBoundTo = async (params: ParameterStore, bot: string, repository: string) =>
+  (await params.get(repoParameter(bot))) === repository;
+
+/** Verifies the OIDC token and requires the bot to be bound to its repository. */
+export async function requireBound(
+  params: ParameterStore,
+  oidc: OidcVerifier,
+  token: string,
+  bot: string,
+) {
+  const { repository } = await oidc.verify(token);
+  if (!(await isBoundTo(params, bot, repository))) {
+    throw new Error(`bot "${bot}" is not bound to ${repository}`);
+  }
+  return repository;
+}
 
 function secretsOf(name: string, found: Record<string, string>): BotSecrets | undefined {
   const platform = PLATFORMS.find((candidate) => candidate === found.platform);

@@ -1,8 +1,9 @@
 # Chat context tools (design)
 
-> **Status: proposal.** Only the `chat_context` config key (step 1) exists in the code. The poster
-> operations, MCP server and prompt block below are all proposed, and every decision is open until
-> the maintainer approves it.
+> **Status: partly implemented.** The `chat_context` config key (step 1), the poster operations
+> `list-threads` and `read-channel`, the repo-binding check on `read` and the platform support
+> (steps 2 and 3) exist; see [poster.md](poster.md#list-threads-and-read-channel). The MCP server
+> and prompt block below are still proposed.
 
 Lets the agent see conversations other than the one it was asked to answer: sibling threads in the
 same chat or channel, and recent top-level messages. Terms
@@ -17,9 +18,10 @@ Nothing outside the current thread.
   (`thread.allMessages`) and renders it into the prompt according to the
   [context policy](plan.md#context-management). `resume` sessions carry only what earlier turns of
   that thread saw.
-- No poster operation lists threads, reads a channel, or reads another thread on the agent's
-  behalf. `read` takes any `threadId` of the bot, but only `prepare` calls it, with the dispatched
-  thread.
+- The agent has no tool that lists threads, reads a channel or reads another thread; the poster
+  operations that could back them exist, but nothing calls them yet. `read` takes any `threadId` of
+  the bot (for a caller bound to the bot's repository), and only `prepare` calls it, with the
+  dispatched thread.
 - The prompt does not say which chat or channel the thread belongs to, who else is in it, or that
   other threads exist.
 - The agent has no network tool to the chat platform, and the bot token never reaches the runner.
@@ -69,8 +71,9 @@ verified OIDC token, and the bot must be bound to it.
 | `list-threads` | `token` (OIDC JWT), `bot`, `chatId`, optional `limit` (default 20, max 50) | `{ threads: [{ threadId, title, lastActivity, messageCount, participants, snippet }] }`, most recent first |
 | `read-channel` | `token`, `bot`, `chatId`, optional `limit` (default 50, max 200), optional `before` | `{ messages: [...] }` in the `read` shape plus `threadId`, newest first; top-level messages on Slack, all messages on Telegram |
 
-Existing `read` gains the same `token` check when called for a thread other than the turn's; see
-[Decisions](#decisions) for whether to tighten it for everyone.
+Existing `read` takes the same `token` and checks the repo for every call (Decision 5); `prepare`
+sends it. The requests also carry `threadId`, the dispatched thread, from which the poster derives
+the only chat the turn may read, and an optional `includeBots` flag for Slack bot messages.
 
 Rules enforced in the poster, never the caller:
 
@@ -172,9 +175,9 @@ Each step lands with tests and docs.
 
 1. Config: `chat_context` schema, defaults and `docs/config.md`. **Done**: the block parses and is
    documented; nothing reads it yet.
-2. Poster: `list-threads` and `read-channel` with the OIDC and chat-scope checks, the sender filter
+2. **Done.** Poster: `list-threads` and `read-channel` with the OIDC and chat-scope checks, the sender filter
    and caps, behind the fake adapters in `test/helpers/`. `docs/poster.md`.
-3. Telegram: group stored history into threads for `list-threads`; Slack: map `listThreads` and
+3. **Done** (Slack limits still to verify). Telegram: group stored history into threads for `list-threads`; Slack: map `listThreads` and
    `fetchChannelMessages`. Verify Slack limits on a real app (**[HUMAN ACTION]**).
 4. MCP server and tools with handles, using the MCP SDK; unit-tested against a fake poster client.
 5. `prepare`: write the server into `mcp.json`, extend the tool allowlist, add the prompt block.

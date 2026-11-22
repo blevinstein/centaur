@@ -160,6 +160,11 @@ program.command("prepare").action(async () => {
     promptName: process.env.PROMPT_NAME || undefined,
     clientPayload: await clientPayload(),
     poster: poster(),
+    fetchToken: async () => {
+      const token = await oidcFetcher()();
+      maskValue(token);
+      return token;
+    },
     attachments: attachments(),
     storeFor,
   });

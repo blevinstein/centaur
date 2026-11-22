@@ -92,6 +92,8 @@ export function fakePolicyGitHub(
       if (options.posterFails) throw new Error("poster get-mcp-policy failed (Error)");
       return { policy: options.globalPolicy ?? null } as never;
     }),
+    listThreads: vi.fn(),
+    readChannel: vi.fn(),
   };
   return {
     github,
