@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { fence } from "../src/workflows/clean-text.js";
 import { PROMPT_FILE, prepare } from "../src/workflows/prepare.js";
-import { fence } from "../src/workflows/pull-request-comments.js";
 import { readTurnState } from "../src/workflows/turn-state.js";
 import { fakePolicyGitHub, PERMIT_ANY_REMOTE } from "./helpers/mcp-policy-fixtures.js";
 import {

@@ -2,8 +2,9 @@
 
 > **Status: partly implemented.** The `chat_context` config key (step 1), the poster operations
 > `list-threads` and `read-channel`, the repo-binding check on `read` and the platform support
-> (steps 2 and 3) exist; see [poster.md](poster.md#list-threads-and-read-channel). The MCP server
-> and prompt block below are still proposed.
+> (steps 2 and 3) and the MCP server (step 4, not yet started by a turn) exist; see
+> [poster.md](poster.md#list-threads-and-read-channel). The `prepare` wiring and prompt block
+> below are still proposed.
 
 Lets the agent see conversations other than the one it was asked to answer: sibling threads in the
 same chat or channel, and recent top-level messages. Terms
@@ -179,7 +180,7 @@ Each step lands with tests and docs.
    and caps, behind the fake adapters in `test/helpers/`. `docs/poster.md`.
 3. **Done** (Slack limits still to verify). Telegram: group stored history into threads for `list-threads`; Slack: map `listThreads` and
    `fetchChannelMessages`. Verify Slack limits on a real app (**[HUMAN ACTION]**).
-4. MCP server and tools with handles, using the MCP SDK; unit-tested against a fake poster client.
+4. **Implemented:** `src/mcp/chat-server.ts` (`createChatServer`, `serveChatServer`) with the handle and cursor mapping, fenced output and caps, using the MCP SDK and a `ChatPosterClient` interface (`src/mcp/chat-poster-client.ts`); unit-tested against a fake client over an in-memory transport. Not yet wired to the real poster client or started by a turn (it builds to `dist/mcp/chat-server.js`).
 5. `prepare`: write the server into `mcp.json`, extend the tool allowlist, add the prompt block.
 6. Tool gate: confirm a `CallTool` `forbid` on the server is honored.
 7. Real run on `centaur-hello` in each platform: the agent in one thread summarizes another

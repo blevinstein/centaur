@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { fence } from "./clean-text.js";
 import { createGitHubRequester, type GitHubRequester, REPLY_MARKER } from "./resolve.js";
 
 const PAGE_SIZE = 100;
@@ -251,13 +252,6 @@ export function singleInlineThread(pending: PullRequestComment[]) {
   const roots = new Set(pending.map((c) => (c.kind === "inline" ? c.threadRoot : undefined)));
   const [root] = roots;
   return roots.size === 1 && root !== undefined ? root : undefined;
-}
-
-/** Wraps untrusted text in a code fence longer than any backtick run inside it. */
-export function fence(text: string, info = "") {
-  const longest = Math.max(0, ...[...text.matchAll(/`+/g)].map((m) => m[0].length));
-  const ticks = "`".repeat(Math.max(3, longest + 1));
-  return `${ticks}${info}\n${text}\n${ticks}`;
 }
 
 const location = (c: PullRequestComment) => `${c.path}${c.line ? `:${c.line}` : ""}`;

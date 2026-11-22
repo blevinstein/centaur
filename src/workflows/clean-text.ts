@@ -18,3 +18,10 @@ export const cleanBody = (text: string | undefined) =>
     text?.replaceAll("\r\n", "\n").replaceAll(CONTROL_CHARACTERS, "").trim() ?? "",
     MAX_BODY_LENGTH,
   );
+
+/** Wraps untrusted text in a code fence longer than any backtick run inside it. */
+export function fence(text: string, info = "") {
+  const longest = Math.max(0, ...[...text.matchAll(/`+/g)].map((m) => m[0].length));
+  const ticks = "`".repeat(Math.max(3, longest + 1));
+  return `${ticks}${info}\n${text}\n${ticks}`;
+}

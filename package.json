@@ -37,6 +37,7 @@
     "@cedar-policy/cedar-wasm": "4.14.0",
     "@chat-adapter/slack": "4.45.0",
     "@chat-adapter/telegram": "4.45.0",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "chat": "4.45.0",
     "commander": "15.1.0",
     "jose": "6.2.13",

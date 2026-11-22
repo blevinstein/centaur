@@ -1,6 +1,6 @@
+import { fence } from "./clean-text.js";
 import { DEFAULT_INSTRUCTIONS, type Instructions } from "./instructions.js";
 import type { TurnState } from "./prepare.js";
-import { fence } from "./pull-request-comments.js";
 import { type AttachmentPath, type ChatMessage, renderMessages } from "./transcript.js";
 
 const NO_ATTACHMENTS: AttachmentPath = () => undefined;
