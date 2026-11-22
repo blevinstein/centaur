@@ -15,6 +15,10 @@ export const AUTHOR_ASSOCIATIONS = [
   "NONE",
 ] as const;
 const DEFAULT_COMMENT_AUTHORS = ["OWNER", "MEMBER", "COLLABORATOR"] as const;
+export const CHAT_CONTEXT_SCOPES = ["thread", "chat"] as const;
+export const CHAT_CONTEXT_MAX_THREADS = 50;
+export const CHAT_CONTEXT_MAX_MESSAGES = 200;
+const DEFAULT_CHAT_CONTEXT = { scope: "thread", max_threads: 20, max_messages: 50 } as const;
 export const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"] as const;
 export const RESPOND_TO = ["mention", "all"] as const;
 
@@ -141,6 +145,23 @@ export const centaurConfigSchema = z
         existing: "bot",
         comment_authors: [...DEFAULT_COMMENT_AUTHORS],
       }),
+    chat_context: z
+      .strictObject({
+        scope: z.enum(CHAT_CONTEXT_SCOPES).default(DEFAULT_CHAT_CONTEXT.scope),
+        max_threads: z
+          .number()
+          .int()
+          .min(1)
+          .max(CHAT_CONTEXT_MAX_THREADS)
+          .default(DEFAULT_CHAT_CONTEXT.max_threads),
+        max_messages: z
+          .number()
+          .int()
+          .min(1)
+          .max(CHAT_CONTEXT_MAX_MESSAGES)
+          .default(DEFAULT_CHAT_CONTEXT.max_messages),
+      })
+      .default(DEFAULT_CHAT_CONTEXT),
     persona: repoPath.default(".centaur/persona.md"),
     instructions: instructionsSchema.default({}),
     prompts: z.record(alias, promptSchema).default({}),
@@ -187,6 +208,8 @@ export const centaurConfigSchema = z
 
 export type CentaurConfig = z.output<typeof centaurConfigSchema>;
 export type PullRequestsConfig = CentaurConfig["pull_requests"];
+export type ChatContextConfig = CentaurConfig["chat_context"];
+export type ChatContextScope = (typeof CHAT_CONTEXT_SCOPES)[number];
 export type Platform = (typeof PLATFORMS)[number];
 export type RespondTo = (typeof RESPOND_TO)[number];
 export type ContextPolicy = (typeof CONTEXT_POLICIES)[number];

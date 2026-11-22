@@ -1,8 +1,8 @@
 # Chat context tools (design)
 
-> **Status: proposal.** Nothing described under "Design" onward exists in the code. The poster
-> operations, MCP server, config key and prompt block below are all proposed, and every decision is
-> open until the maintainer approves it.
+> **Status: proposal.** Only the `chat_context` config key (step 1) exists in the code. The poster
+> operations, MCP server and prompt block below are all proposed, and every decision is open until
+> the maintainer approves it.
 
 Lets the agent see conversations other than the one it was asked to answer: sibling threads in the
 same chat or channel, and recent top-level messages. Terms
@@ -170,7 +170,8 @@ are unreachable and the omission note says so.
 
 Each step lands with tests and docs.
 
-1. Config: `chat_context` schema, defaults and `docs/config.md`.
+1. Config: `chat_context` schema, defaults and `docs/config.md`. **Done**: the block parses and is
+   documented; nothing reads it yet.
 2. Poster: `list-threads` and `read-channel` with the OIDC and chat-scope checks, the sender filter
    and caps, behind the fake adapters in `test/helpers/`. `docs/poster.md`.
 3. Telegram: group stored history into threads for `list-threads`; Slack: map `listThreads` and

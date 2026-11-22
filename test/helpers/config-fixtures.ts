@@ -1,4 +1,7 @@
 import { formatIssues, type McpServer, parseCentaurConfig } from "../../src/config/index.js";
+
+export const DEFAULT_CHAT_CONTEXT = { scope: "thread", max_threads: 20, max_messages: 50 };
+
 export const minimalConfig = `
 bot: garden
 platform: telegram
@@ -90,6 +93,23 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
     "prompts.weekly.destination",
     /lowercase alias/,
   ],
+  ...[
+    ["an unknown scope", "scope: all", "chat_context.scope"],
+    ["zero max_threads", "max_threads: 0", "chat_context.max_threads"],
+    ["excessive max_threads", "max_threads: 51", "chat_context.max_threads"],
+    ["fractional max_threads", "max_threads: 2.5", "chat_context.max_threads"],
+    ["zero max_messages", "max_messages: 0", "chat_context.max_messages"],
+    ["excessive max_messages", "max_messages: 201", "chat_context.max_messages"],
+    ["an unknown key", "other: 1", "chat_context"],
+  ].map(
+    ([name, field, path]) =>
+      [`chat_context with ${name}`, withExtra(`chat_context: {${field}}`), path, /./] as [
+        string,
+        string,
+        string,
+        RegExp,
+      ],
+  ),
   ["empty document", "", "(root)", /expected object/i],
   ["malformed YAML", "bot: [unclosed", "(root)", /invalid YAML/],
   [

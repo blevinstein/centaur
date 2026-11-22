@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formatIssues, parseCentaurConfig } from "../src/config/index.js";
 import {
+  DEFAULT_CHAT_CONTEXT,
   fullConfig,
   invalidConfigs,
   localServerYaml,
@@ -30,9 +31,23 @@ describe("parseCentaurConfig", () => {
           existing: "bot",
           comment_authors: ["OWNER", "MEMBER", "COLLABORATOR"],
         },
+        chat_context: DEFAULT_CHAT_CONTEXT,
         mcp_servers: {},
         prompts: {},
       },
+    });
+  });
+
+  it("parses the chat_context block over its defaults", () => {
+    expect(parseCentaurConfig(withExtra("chat_context: {scope: chat}"))).toMatchObject({
+      ok: true,
+      config: { chat_context: { ...DEFAULT_CHAT_CONTEXT, scope: "chat" } },
+    });
+    expect(
+      parseCentaurConfig(withExtra("chat_context: {max_threads: 50, max_messages: 1}")),
+    ).toMatchObject({
+      ok: true,
+      config: { chat_context: { scope: "thread", max_threads: 50, max_messages: 1 } },
     });
   });
 
@@ -58,6 +73,7 @@ describe("parseCentaurConfig", () => {
           existing: "bot",
           comment_authors: ["OWNER", "MEMBER", "COLLABORATOR"],
         },
+        chat_context: DEFAULT_CHAT_CONTEXT,
         mcp_servers: {},
         prompts: {
           "weekly-tasks": {
