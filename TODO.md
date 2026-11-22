@@ -341,14 +341,8 @@ poster record exists it names the same bot); never from the turn state.
       field steers a trusted step); a `Bash` tool in `allowed_tools` can still reach it, see
       docs/workflows.md "Turn state".
 
-## Backlog
+## Quality Improvements
 
-Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer saying so.
-
-- [ ] The receiver reads every bot, with its token and secrets, once per Lambda container
-      (`createReceiver`), so a new bot or a changed token is ignored until the container restarts.
-      Reload bots when a request names an unknown bot or a platform call fails with an auth error,
-      or cache them with a short TTL like the parameter store wrapper.
 - [ ] Bots across platforms. A bot is one record in SSM with a single `platform`, one set of
       secrets and one repo, so the same bot cannot be present on Telegram and Slack: today each
       platform needs its own bot name (`garden`, `garden-slack`) and `centaur bot add` refuses a
@@ -370,6 +364,42 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       equivalent) binds an existing topic, because the Bot API cannot list topics; a missing or
       closed topic is recreated. Today `destination` names a chat alias, derived from the chat's
       title at approval time. Do after the Slack work (section 12), so it covers both platforms.
+
+## Needs triage
+
+Some of these are items that can be implemented in a single task; others require planning and
+discussion before implementation. If a task has many subtasks, break it out into its own section
+for detailed tracking.
+
+- [ ] Move not-yet-implemented docs into a proposals/ subdir to separate from already-implemented.
+- [ ] Create a TODONE.md file, and move sections of fully-completed TODO items into TODONE.
+- [ ] Setup .centaur config for ~/dev/finance repo - monarch integration, consider using ledger for
+      selected transactions (or link to gsheets), weekly transaction review and liquidity check
+      (knows which credit card balances are paid from which bank accounts), quarterly investment/
+      insurance/plan review
+- [ ] Setup .centaur config for ~/dev/resume repo - e.g. exploring new business opportunities,
+      responding to recruiter emails, looking for consulting opportunities, etc
+- [ ] Centaur-provided prompt instructions explaining harness quirks etc
+- [ ] Merge harness instructions with agents.md and situational prompt
+- [ ] Add support for skills and rules
+- [ ] Consider adding email support, think about SMTP complexity
+- [ ] Execution modes (current mode with PR approval, alternative mode with agent pushing directly,
+      prompts should explain mode clearly to the agent)
+- [ ] Setup .centaur config for ~/dev/turo-accounting repo - try to use playwright to integrate
+      with Turo admin portal?
+- [ ] Explore a hosted option, BYOKs, using central AWS infra instead of self-hosted, understand
+      cost (lambda + dynamo), security model, what would the Function URLs look like
+- [ ] Better guides - basic response-only bot, adding scheduled actions
+- [ ] Support for centaur in a sub-folder? What would need to change? Explore and plan
+
+## Backlog
+
+Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer saying so.
+
+- [ ] The receiver reads every bot, with its token and secrets, once per Lambda container
+      (`createReceiver`), so a new bot or a changed token is ignored until the container restarts.
+      Reload bots when a request names an unknown bot or a platform call fails with an auth error,
+      or cache them with a short TTL like the parameter store wrapper.
 - [ ] Per-call MCP policy (proposal): filter MCP tool calls by argument (for example a mutating
       tool only for selected IDs) with a `CallTool` Cedar action, evaluated per call by a Claude
       Code `PreToolUse` hook, failing closed. Design, the catalogue of ways a misconfiguration could
