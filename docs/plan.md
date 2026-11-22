@@ -3,7 +3,9 @@
 Design of the system as built. The config and file snippets here are examples; the reference
 pages ([config](config.md), [cli](cli.md), [poster](poster.md), [workflows](workflows.md)) are
 authoritative for fields, flags and operations.
-Responding to pull request comments is designed in [pr-comments.md](pr-comments.md).
+Responding to pull request comments is designed in [pr-comments.md](pr-comments.md). Several
+platforms per bot and persistent topic destinations are proposed in
+[platforms-and-destinations.md](platforms-and-destinations.md).
 
 ## Architecture
 

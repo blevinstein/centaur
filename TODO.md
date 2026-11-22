@@ -200,33 +200,59 @@ through the chat context tools. See [docs/plan.md](docs/plan.md#context-manageme
 - [ ] Bounded transcript 5: depends on the chat context tools item (section 11) for retrieving
       omitted messages; until it ships the omission note says they are unavailable.
 
+## 16. Platforms and destinations
+
+Design (proposal): [docs/platforms-and-destinations.md](docs/platforms-and-destinations.md). Slice
+order, files and dependencies are in its implementation plan; Lambda slices accept old and new
+input, and runner slices merge only after the Lambda they call is deployed.
+
+- [ ] **[HUMAN APPROVAL]** Accept or amend the Decisions in the design doc before building.
+- [ ] Platforms 1: config schema (`platforms` map, legacy normalization, prompt `destination` as a
+      name or per-platform map, prompt `platforms`); readers take per-platform settings.
+- [ ] Platforms 2: connection model and loader (nested and legacy SSM layouts, connection view).
+- [ ] Platforms 3: CLI connections (`bot add` onto an existing bot, `--platform` on `access` and
+      `admin claim`, `bot list`, `bot remove --platform`). After 2.
+- [ ] Platforms 4: CLI `bot migrate` (`--dry-run`, `--revert`, `--cleanup`) and `bot adopt`. After 3.
+- [ ] Platforms 5: per-platform registry entry and `register` over declared platforms. After 1, 2.
+- [ ] Platforms 6: receiver builds one `Chat` per connection; per-platform `respond_to`. After 2, 5.
+- [ ] Platforms 7: poster derives the connection from the thread ID; `start-thread` takes
+      `platform`. After 2 (and 5, same `registry.ts`).
+- [ ] Platforms 8: platform-scoped chat aliases and the destination resolution order. After 2, 7.
+- [ ] Platforms 9: `thread-meta` record stores a thread's context policy; `start-thread` accepts
+      `context`, `read` returns `policy`, ownership reads it. After 7.
+- [ ] Platforms 10: runner uses the stored policy and passes the prompt's `context` to
+      `start-thread` (fixes thread policy storage for every prompt). After 9 is deployed.
+- [ ] Platforms 11: destination records, create on first use, topic recreation,
+      `resolve-destination`, IAM for `destinations/*`. After 7, 8, 9.
+- [ ] Platforms 12: Slack persistent thread destinations. After 11.
+- [ ] Platforms 13: admin-only `/destination <name>` (Telegram) and `!destination <name>` (Slack).
+      After 11 and 6.
+- [ ] Platforms 14: `centaur destination set|list|remove`. After 11.
+- [ ] Platforms 15: multi-target scheduled turns (turn state targets, fan-out in `finish`). After 1,
+      7, 10.
+- [ ] Platforms 16: persistent-thread scheduled turns (history, marker, session, `resolve` job and
+      concurrency template). After 11, 15 and bounded transcript 3 (section 15).
+- [ ] Platforms 17: docs sweep (`onboarding.md`, `plan.md`, `config.md`, `cli.md`, `poster.md`,
+      README); mark the design doc as built.
+- [ ] **[HUMAN APPROVAL]** Deploy the Lambda (`yarn deploy-prod`) after slices 2, 5, 6 and 7 and
+      confirm existing bots still answer and post; deploy again after 8, 9 and 11 before the runner
+      slices (10, 15, 16) merge to `main`.
+- [ ] **[HUMAN ACTION]** Migrate per bot as in the design doc's Migration section: optional
+      `centaur bot migrate`, `centaur bot add <bot> --platform slack`, a Slack app event URL change,
+      `centaur admin claim <bot> --platform slack`, and a test message on each live bot. If
+      `garden-slack` exists, fold it in with `centaur bot adopt` and merge or close its open
+      `centaur/garden-slack-*` pull requests first.
+- [ ] **[HUMAN APPROVAL]** After a soak, unbind and remove the old Slack-only bot and its config.
+- [ ] **[HUMAN ACTION]** Live checks on the test bot: two platforms on one bot, a persistent topic
+      and Slack thread, and the error text for a deleted and a closed Telegram topic (confirm the
+      recreate and reopen rules).
+
 ## Quality Improvements
 
-- [ ] Bots across platforms. A bot is one record in SSM with a single `platform`, one set of
-      secrets and one repo, so the same bot cannot be present on Telegram and Slack: today each
-      platform needs its own bot name (`garden`, `garden-slack`) and `centaur bot add` refuses a
-      name that exists. Change the data model so one bot has several platform connections (each
-      with its own secrets, webhook path and approved chats), with one repo binding, one config,
-      one persona and a destination per platform. The config's `bot`/`platform` pair, the
-      webhook routes (`/<platform>/<bot>`), access and alias records, the dispatch payload and
-      the per-bot DynamoDB state prefix all assume one platform per bot today. Needs a migration
-      for the existing bots. Do together with, or right after, the topic destinations item.
-      The config schema changes with it: a repo declares its platform connections, and a prompt's
-      destinations can target places on several platforms (for example the same weekly plan in a
-      Telegram topic and a Slack channel), with per-platform settings such as `respond_to` and
-      `handle`. `docs/config.md`, `docs/plan.md`, the workflows' bot handling and `register` change too.
-- [ ] Topic destinations. A prompt's `destination` should be able to name a single topic (or Slack
-      thread) inside a chat, not only a chat, so recurring prompts can keep one persistent thread
-      instead of opening a new topic per run. Sketch: per-bot named destinations holding a chat ID
-      and an optional topic ID; the poster posts into the topic, or creates it on first use when the
-      bot has exactly one approved chat; an admin-only `/destination <name>` command (and a CLI
-      equivalent) binds an existing topic, because the Bot API cannot list topics; a missing or
-      closed topic is recreated. Today `destination` names a chat alias, derived from the chat's
-      title at approval time. Do after the Slack work (section 12), so it covers both platforms.
-      A persistent destination also fixes thread policy storage: a scheduled prompt's context
-      policy (`transcript` or `resume`) applies only to its first turn, and replies in the thread
-      fall back to `context.default` because the policy is not stored. The destination, or the
-      thread it creates, stores the context policy so replies keep the prompt's policy.
+- [ ] Bots across platforms and topic destinations: one bot with several platform connections, and
+      named destinations that point at a topic or thread. Design, alternatives and the Decisions:
+      [docs/platforms-and-destinations.md](docs/platforms-and-destinations.md); implementation is
+      tracked in section 16.
 
 ## Needs triage
 
