@@ -72,19 +72,6 @@ A section moves to [TODONE.md](TODONE.md) once every item in it is checked; whol
       exempts every future version of the package. `yarn.lock` pins the resolved version, so the
       exemption is not needed to install it. Afterwards `yarn install --immutable` must still pass.
 
-## 10. Decisions
-
-- [ ] **[HUMAN APPROVAL]** Transcript size bound. The poster returns up to 100 stored messages and a
-      long thread or one huge message goes into the prompt unmodified. Choose a bound (per-message
-      cap, total budget, summarising) and where it lives. Consider polytokenizer utils for this
-      (github.com:blevinstein/polytokenizer).
-- [ ] **[HUMAN APPROVAL]** Poster caller check and concurrency cap. Poster operations other than
-      `register` trust any role the GitHub OIDC role allows, so any repo under the owner could act
-      as any bot. Decide when to require a per-repo token (before onboarding any repo that isn't
-      yours) and add a reserved-concurrency cap on the function.
-- [ ] **[HUMAN APPROVAL]** Thread policy storage. A scheduled prompt's context policy isn't
-      remembered for the thread. Decide whether the poster should store it.
-
 ## 11. MCP support
 
 - [ ] Poster MCP tool for mid-turn questions and progress messages (builds on the MCP server
@@ -185,6 +172,34 @@ poster record exists it names the same bot); never from the turn state.
       field steers a trusted step); a `Bash` tool in `allowed_tools` can still reach it, see
       docs/workflows.md "Turn state".
 
+## 15. Bounded transcript
+
+Design (decided): the earlier transcript fills at most `context.transcript_max_percent` (default
+25) of the model's context window, newest first, using polytokenizer; older messages are reached
+through the chat context tools. See [docs/plan.md](docs/plan.md#context-management),
+[docs/workflows.md](docs/workflows.md#transcript-budget-planned) and
+[docs/config.md](docs/config.md#context).
+
+- [ ] Bounded transcript 1: add `polytokenizer` as a dependency (published to npm; 1.0.23 is
+      months old, so the age gate does not block it, and `.yarnrc.yml` has no exemption to
+      maintain). It pulls in the OpenAI, Google and Anthropic clients, so keep it runner-only: out
+      of the Lambda bundle, like `src/config/mcp-policy.ts`. `yarn install --immutable` must pass.
+- [ ] Bounded transcript 2: schema keys `context.transcript_max_percent` (integer 1 to 100, default
+      25) and `context.window_tokens` (optional positive integer) in `src/config/schema.ts`, with
+      `docs/config.md` updated from "planned", the defaults in `test/config.test.ts` and any
+      fixture that builds the config by hand.
+- [ ] Bounded transcript 3: budget the transcript in `prepare` (window from `window_tokens`, else
+      `CONTEXT_LIMITS` for `anthropic/<model>`, else 200,000; newest-first fill; pending messages
+      always shown; a single message cut to half the budget with a marker; an omission note in
+      `prompt.ts`). Compute pending messages and the marker from the full transcript first. Make
+      sure token-count failures never write message text to the job log (polytokenizer's fallback
+      logs a text preview). Update the "planned" markers in `docs/` when it lands.
+- [ ] Bounded transcript 4: tests with a fake counter in `test/helpers/`: fill order, budget
+      boundary, oversized message, omission note with and without the chat tools, window fallback,
+      and that pending messages and the marker are unchanged.
+- [ ] Bounded transcript 5: depends on the chat context tools item (section 11) for retrieving
+      omitted messages; until it ships the omission note says they are unavailable.
+
 ## Quality Improvements
 
 - [ ] Bots across platforms. A bot is one record in SSM with a single `platform`, one set of
@@ -208,6 +223,10 @@ poster record exists it names the same bot); never from the turn state.
       equivalent) binds an existing topic, because the Bot API cannot list topics; a missing or
       closed topic is recreated. Today `destination` names a chat alias, derived from the chat's
       title at approval time. Do after the Slack work (section 12), so it covers both platforms.
+      A persistent destination also fixes thread policy storage: a scheduled prompt's context
+      policy (`transcript` or `resume`) applies only to its first turn, and replies in the thread
+      fall back to `context.default` because the policy is not stored. The destination, or the
+      thread it creates, stores the context policy so replies keep the prompt's policy.
 
 ## Needs triage
 
@@ -232,7 +251,10 @@ for detailed tracking.
 - [ ] Setup .centaur config for ~/dev/turo-accounting repo - try to use playwright to integrate
       with Turo admin portal?
 - [ ] Explore a hosted option, BYOKs, using central AWS infra instead of self-hosted, understand
-      cost (lambda + dynamo), security model, what would the Function URLs look like
+      cost (lambda + dynamo), security model, what would the Function URLs look like. Revisit the
+      poster caller check when exploring this: self-hosted accepts that any repo under the owner can
+      act as any bot ([docs/poster.md](docs/poster.md#security-model)); a hosted option needs a
+      per-repo token and a reserved-concurrency cap on the function.
 - [ ] Better guides - basic response-only bot, adding scheduled actions
 - [ ] Support for centaur in a sub-folder? What would need to change? Explore and plan
 

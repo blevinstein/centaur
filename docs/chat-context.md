@@ -131,6 +131,11 @@ output is untrusted data written by other people. Tool results are also fenced t
 messages are, so a message in another thread that says "ignore your instructions" has the same
 standing as one in this thread. Per `AGENTS.md`, anything the code parses stays in `prompt.ts`.
 
+The tools are also how the agent reaches messages the
+[transcript budget](workflows.md#transcript-budget-planned) leaves out of a long thread:
+`read_thread` on `thread-0` with a `before` cursor. Without them (`scope: thread`) omitted messages
+are unreachable and the omission note says so.
+
 ## Privacy and trust
 
 - **Other threads have other audiences.** In a Slack channel everyone present can read every
@@ -147,7 +152,8 @@ standing as one in this thread. Per `AGENTS.md`, anything the code parses stays 
   writes it to the job log, step outputs or summary, and the turn already keeps message content out
   of artifacts.
 - **Caller authorization.** The new operations verify the OIDC repo. They do not close the existing
-  gap that `post` and `read` trust any role the OIDC role allows (see [TODO.md](../TODO.md), section 10).
+  gap that `post` and `read` trust any role the OIDC role allows (accepted for self-hosted
+  deployments; see [poster.md](poster.md#security-model)).
   Cross-thread reads make closing it more important, since a repo under the same owner could read any
   bot's chat. Do not ship `scope: chat` without at least the repo-binding check.
 

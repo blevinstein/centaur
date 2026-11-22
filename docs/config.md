@@ -58,6 +58,8 @@ prompts:
 | `respond_to` | no | `mention` | Which messages the bot answers: `mention` (mentions, DMs, topics it created, and on Slack the rest of a thread it was mentioned in) or `all` (every message from an approved sender in any approved chat of the bot). See [plan.md](plan.md#routing-in-a-shared-telegram-group). |
 | `context.default` | no | `transcript` | Policy for conversational threads: `fresh`, `transcript` or `resume`. |
 | `context.scheduled` | no | `fresh` | Policy for threads started by a scheduled prompt. |
+| `context.transcript_max_percent` | no | `25` | Planned, not implemented. Share of the model's context window the earlier transcript may fill, an integer from 1 to 100. See [Context](#context). |
+| `context.window_tokens` | no | | Planned, not implemented. The model's context window in tokens, overriding the lookup. |
 | `handle` | no | | The bot's platform username without `@`. With `respond_to: all` the prompt tells the agent people mention it as `@<handle>`. The workflow cannot learn it cheaply from the bot's identity, so it is configured. |
 | `provider` | yes | | API provider: `anthropic` or `openrouter`. Each maps to a base URL and API key secret name in `src/config/providers.ts` (`anthropic` uses the default endpoint); add a provider by adding an entry there. |
 | `model` | yes | | Model passed to the agent (`--model`). Always set explicitly; the CLI default is never relied on. |
@@ -124,6 +126,26 @@ saves the session. The prompt tells the agent the messages were not necessarily 
 and that it should reply to mentions. Messages from bots, including the bot itself, are never
 dispatched. Every non-ignored turn still costs a model run, so use it in small private chats.
 Scheduled prompts always post.
+
+## Context
+
+> **Status: planned, not implemented.** The keys below are not in the schema yet; today the whole
+> stored transcript is sent.
+
+```yaml
+context:
+  default: transcript
+  transcript_max_percent: 25   # earlier messages fill at most 25% of the window
+  window_tokens: 200000        # optional; otherwise looked up from the model
+```
+
+`transcript_max_percent` bounds the earlier messages of a `transcript` turn (and of a `resume` turn
+that falls back to the transcript), newest first. 25 leaves most of the window for the persona, the
+instructions, the repo, tool results and the agent's own work. Pending messages are always shown,
+and one oversized message is truncated. Messages beyond the bound are omitted with a note, and the
+agent reads them through the [chat context tools](chat-context.md). The window comes from
+`window_tokens`, else polytokenizer's context limits for the model, else 200,000 tokens. See
+[workflows.md](workflows.md#transcript-budget-planned) for the mechanics.
 
 ## Tuning cost
 

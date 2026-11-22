@@ -433,6 +433,38 @@ The thread's policy is `context.default` unless a human message in the thread us
 `/transcript`; the latest such command wins. Scheduled prompts run with the prompt's `context` for
 their own turn, which only determines whether that turn's session is saved.
 
+### Transcript budget (planned)
+
+> **Status: planned, not implemented.** Today `read` returns up to 100 stored messages and `prepare`
+> places all of them in the prompt unmodified.
+
+`prepare` will fit the earlier messages of a `transcript` turn (and of a `resume` turn that has to
+fall back to the transcript) into `context.transcript_max_percent` of the model's context window
+([config.md](config.md#context)), so a long thread or one huge message cannot crowd out the persona,
+the repo and the agent's own work.
+
+- **Window.** `context.window_tokens` if set; otherwise polytokenizer's `CONTEXT_LIMITS` entry for
+  `anthropic/<model>` (or the model as given, when it already has a `provider/model` form, as
+  OpenRouter ids do); otherwise 200,000 tokens. A bare alias such as `sonnet` has no entry and
+  takes the fallback, so set `window_tokens` when the fallback is wrong for the model.
+- **Fill.** Messages are taken newest first until the budget is spent, then shown oldest first. The
+  pending messages are always shown and are not charged to the budget.
+- **Oversized message.** Any single message, pending or not, is cut to at most half the budget
+  (`splitTextMaxTokens`, first chunk) and ends with a marker saying how much was cut. It is
+  truncated, never dropped.
+- **Counting.** `trimMessages` and `splitTextMaxTokens` count tokens through the provider's token
+  counting endpoint and fall back to a length estimate when it is unavailable (for example the
+  `openrouter` provider, which has no Anthropic key for it). The fallback must not write message
+  text to the job log ([Keeping content out of GitHub](#keeping-content-out-of-github)).
+- **Omission note.** When messages are left out, the prompt starts the transcript with a line
+  saying that the N oldest messages of this thread are not shown. With the
+  [chat context tools](chat-context.md) enabled it adds how to fetch them (`read_thread` on
+  `thread-0` with a `before` cursor); without them it says they are not available this turn and the
+  agent should ask the user for anything it needs. The note is fixed text in `prompt.ts`.
+- **The marker is unaffected.** Pending messages and the last-processed marker are computed from
+  the full stored transcript before any trimming; the poster's `read` keeps returning up to 100
+  messages, since the poster does not know the model.
+
 ### Commands
 
 Parsed from the start of a message (`/cmd` or `/cmd@bot`, case-insensitive); any text after the
@@ -468,5 +500,5 @@ message is pending.
 
 ## Not implemented
 
-Transcript size budgeting: `read` returns the whole stored transcript (up to 100 messages) and it
-is placed in the prompt unmodified.
+[Transcript size budgeting](#transcript-budget-planned): `read` returns the whole stored
+transcript (up to 100 messages) and it is placed in the prompt unmodified.

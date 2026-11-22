@@ -100,6 +100,19 @@ GitHub-visible place. The thread key is what outputs and concurrency groups use.
 After a comment turn, `finish` calls `link-pull-request` again for the same pull request and
 thread, which restarts the TTL.
 
+## Security model
+
+Poster operations other than the ones that take a `token` trust any caller the GitHub OIDC role
+allows to invoke the function. In a self-hosted deployment the operator owns the AWS account, the
+role's trust policy is limited to `repo:<owner>/*`, and the operator controls every repo under that
+owner, so any repo under the owner can act as any bot by design. The operations that act for a
+repository (`register`, `link-pull-request`, `resolve-pull-request`) take it from the verified OIDC
+claim instead.
+
+This is accepted for self-hosted use. A hosted multi-tenant deployment would need a per-repo token
+checked against the bot's bound repo on every operation, and a reserved-concurrency cap on the
+function so one tenant cannot exhaust it. The hosted option is tracked in [TODO.md](../TODO.md).
+
 ## Lambda configuration
 
 Environment variables (set by `infra/centaur.yml`; see [deploy.md](deploy.md)):

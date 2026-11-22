@@ -188,6 +188,15 @@ Each thread has a context policy.
   current thread's policy). Telegram slash commands aren't an SDK feature, so these are parsed
   from message text. The thread's policy is not stored: each turn takes the latest `/resume` or
   `/transcript` in the thread, else the default (see [workflows.md](workflows.md#context-policies)).
+- **Transcript budget (planned, not implemented).** The transcript fills at most
+  `context.transcript_max_percent` (default 25) of the model's context window, newest messages
+  first. The rest of the window is for the persona, the instructions, the repo, tool results and
+  the agent's own work. Counting and fitting use
+  [polytokenizer](https://www.npmjs.com/package/polytokenizer) rather than a hand-rolled
+  tokenizer. Messages older than the cutoff are not in the prompt, and a note says how many were
+  omitted. The agent reaches them, and other threads of the chat, through the
+  [chat context tools](chat-context.md). Details are in
+  [workflows.md](workflows.md#transcript-budget-planned) and [config.md](config.md#context).
 - Long `resume` sessions rely on Claude Code's automatic compaction. Add a per-thread turn or
   token cap later if costs warrant it.
 - **Durable memory is the repo.** Anything that should outlive a thread (preferences, inventory,

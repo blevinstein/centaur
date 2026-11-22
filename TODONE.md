@@ -127,6 +127,19 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
       and body.
 - [x] **[HUMAN APPROVAL]** Choose a license: MIT (`LICENSE`).
 
+## 10. Decisions
+
+- [x] **[HUMAN APPROVAL]** Transcript size bound. Decided: the earlier transcript fills at most 25%
+      of the model's context window (`context.transcript_max_percent`, optional
+      `context.window_tokens` override, polytokenizer lookup, 200,000 fallback), newest first, with
+      oversized messages truncated and an omission note pointing at the chat context tools. Poster
+      `read` is unchanged. Documented in `docs/plan.md`, `docs/workflows.md` and `docs/config.md`;
+      implementation is section 15.
+- [x] **[HUMAN APPROVAL]** Poster caller check and concurrency cap. Accepted for self-hosted use,
+      where the maintainer controls the AWS account and every repo under the owner; to be revisited
+      with the hosted option (per-repo token, reserved-concurrency cap). Documented in
+      `docs/poster.md` ("Security model").
+
 ## 13. Respond to PR comments
 
 Responding to review comments on the PRs the agent opens completes the PR-sending pattern: the
