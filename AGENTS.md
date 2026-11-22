@@ -15,6 +15,8 @@
   or **[HUMAN APPROVAL]** (an agent prepares it, the maintainer approves before it lands: decisions,
   merges, changes that deploy to CloudFormation). When work stalls on one, add it to `TODO.md` with
   the label and what it unblocks; don't do or skip it silently.
+- [TODONE.md](TODONE.md) holds completed sections: move a section there, whole, once every item in it is
+  checked; never move individual items.
 
 ## Development
 
@@ -56,7 +58,6 @@
 - The state adapter is the published `@blevinstein/chat-state-dynamodb` package (a fork of the
   community one; see its README). Its `TABLE_DEFINITION` and `TTL_ATTRIBUTE` define the test table,
   and `test/infra.test.ts` checks them against `infra/centaur.yml`.
-  `.yarnrc.yml` exempts it from the Yarn age gate (see `TODO.md`).
 - Poster operations that act for a repository take it from the verified OIDC claim, never the
   payload; their strict schemas reject extra keys. Use `createState("")` for cross-bot records.
 - A new field in the agent's structured output goes in three places: `replySchema`
