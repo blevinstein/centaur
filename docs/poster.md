@@ -79,9 +79,14 @@ Failures log the operation, bot, chat ID, requested limit and error type, never 
 
 - **Telegram:** the Bot API has no history call, so both operations read the messages the receiver
   stored for the chat (including messages from senders who are not enrolled, which are filtered
-  out here), at most the newest 2000. `list-threads` groups them by topic: `title` is the first
-  line of the oldest message seen, `snippet` the newest, `messageCount` and `participants` count
-  visible messages only. `before` skips messages sent at or after it.
+  out here). The SDK keeps one list per thread and one per chat (`msg-history:<id>`), each capped at
+  the newest 100 messages (`ThreadHistoryCache` default; not overridden here) with a 7-day TTL
+  refreshed on every append, so a list expires after 7 days without a message. The reader scans at
+  most 2000, but the chat list never holds more than 100, so that cap has no effect until the window
+  is set explicitly. `list-threads` groups the chat list's messages by topic, so it sees only topics
+  with a message among the chat's newest 100, and `read-channel` cannot page beyond them. `title`
+  is the first line of the oldest message seen, `snippet` the newest, `messageCount` and
+  `participants` count visible messages only. `before` skips messages sent at or after it.
 - **Slack:** `list-threads` maps the adapter's `listThreads` (thread parents with replies; the title
   and snippet are the parent's text, `messageCount` is replies plus one, `participants` only the
   parent's author). `read-channel` maps `fetchChannelMessages` (top-level messages only); `before`

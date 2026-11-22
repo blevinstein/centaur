@@ -113,6 +113,15 @@ A section moves to [TODONE.md](TODONE.md) once every item in it is checked; whol
       backed by new poster operations. Design and recommendations:
       [docs/chat-context.md](docs/chat-context.md); **[HUMAN APPROVAL]** accept or amend its
       Decisions before building.
+- [ ] Chat search: the Chat SDK has no history search, so any search is ours. Proposal (a bounded
+      poster-side filter first, no new infrastructure):
+      [docs/chat-search.md](docs/chat-search.md); **[HUMAN APPROVAL]** accept or amend its
+      Decisions before building.
+- [ ] Decide and set the stored-history window (`history.thread` `maxMessages` and `ttlMs`)
+      explicitly in `src/lambda/chat.ts`. Telegram keeps only the newest 100 messages per chat and
+      per thread (SDK default, 7-day TTL); the poster's `STORED_HISTORY_SCAN_MAX` (2000) is moot
+      until this is set. Measure the adapter's cost per append first (it reads the whole list to
+      trim). See [docs/chat-search.md](docs/chat-search.md).
 
 ## 12. Slack support
 

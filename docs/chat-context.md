@@ -36,7 +36,7 @@ in the other thread".
 |---|---|---|
 | Source of history | Live Web API (`conversations.history`, `conversations.replies`), which works for any channel the bot is a member of. The manifest already requests `channels:history`, `groups:history`, `im:history` and `mpim:history`. | The Bot API has no history call. The adapter serves `fetchMessages`/`fetchChannelMessages` from messages the receiver has stored. |
 | List threads in a channel | Adapter `listThreads(channelId)`, built on `conversations.history` (thread parents with reply counts). | None; derive it by grouping the stored messages of a chat by thread (topic). |
-| Coverage | Everything in the channel, including messages sent before the bot joined. | Only messages the receiver saw after the bot was added, for the retention the state adapter keeps. |
+| Coverage | Everything in the channel, including messages sent before the bot joined. | Only messages the receiver saw after the bot was added, and of those only the chat's newest 100 (SDK default per list, 7-day TTL refreshed on append; see [poster.md](poster.md#list-threads-and-read-channel)). |
 
 Both adapters implement `fetchChannelMessages`; `Chat` stores each incoming message under its
 thread and its channel (`persistThreadHistory`, Telegram only). That storage happens before access
@@ -106,7 +106,8 @@ GitHub-visible (see `threadKey`); handles keep the raw ID out of the agent's con
 session file. The current thread is always `thread-0` and is excluded from `list_threads`.
 
 Searching by text is out of scope: Slack's search API needs a user token, and Telegram has nothing.
-The agent filters what the tools return.
+The agent filters what the tools return. A bounded poster-side filter is proposed in
+[chat-search.md](chat-search.md).
 
 The server is a trusted built-in, so it skips the `UseServer` operator policy, but its calls pass
 through the same `PreToolUse` gate as any MCP tool ([mcp.md](mcp.md#tool-call-policy)), so an
@@ -167,7 +168,8 @@ are unreachable and the omission note says so.
   own approval design; see [mcp-approval.md](mcp-approval.md)).
 - Seeing other threads' turn state, in-flight runs or PRs.
 - Other chats the bot is in, DMs, and history from before the bot joined on Telegram.
-- Search, embeddings or summarization of history.
+- Search, embeddings or summarization of history (search is proposed in
+  [chat-search.md](chat-search.md)).
 - Adding all of this to `fresh`/`resume` prompts automatically.
 
 ## Implementation plan
