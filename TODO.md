@@ -325,7 +325,7 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       `persistent`. After 11, 15 and bounded transcript 3 (section 15). Done.
 - [x] Platforms 17: docs sweep (`onboarding.md`, `plan.md`, `config.md`, `cli.md`, `poster.md`,
       README); remove the word "alias" everywhere; mark the design doc as built. Done.
-- [ ] **[HUMAN APPROVAL]** Deploy the Lambda (`yarn deploy-prod`) after each of slices 9, 11, 12 and
+- [x] **[HUMAN APPROVAL]** Deploy the Lambda (`yarn deploy-prod`) after each of slices 9, 11, 12 and
       13 and confirm existing bots still answer and post, before the runner slices that call them
       (10, 15, 16) merge to `main`.
 - [ ] **[HUMAN ACTION]** Per bot, after the cutover as in the design doc: `centaur bot add <bot>
@@ -363,7 +363,7 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
 
 ## Quality Improvements
 
-- [ ] Bots across platforms and topic destinations: one bot with several platform connections, and
+- [x] Bots across platforms and topic destinations: one bot with several platform connections, and
       named destinations that point at a topic or thread. Design, alternatives and the Decisions:
       [docs/platforms-and-destinations.md](docs/platforms-and-destinations.md); implementation is
       tracked in section 16.
