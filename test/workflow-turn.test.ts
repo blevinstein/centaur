@@ -409,6 +409,45 @@ describe("prepare", () => {
     expect(await prompt(root)).toContain("Earlier messages");
   });
 
+  describe("the thread's stored policy", () => {
+    const policyOf = async (messages: ReturnType<typeof message>[], stored?: string) => {
+      const { deps, stateDir } = await setup(
+        messages,
+        configText("context: {default: fresh}"),
+        {},
+        ".centaur.yml",
+        undefined,
+        stored,
+      );
+      await prepare(deps());
+      return (await state(stateDir)).policy;
+    };
+
+    it("uses the stored policy over context.default", async () => {
+      expect(await policyOf([message("1", "hi")], "transcript")).toBe("transcript");
+    });
+
+    it("lets the latest in-thread command beat the stored policy", async () => {
+      expect(await policyOf([message("1", "/resume hi")], "transcript")).toBe("resume");
+    });
+
+    it("uses context.default when no policy is stored", async () => {
+      expect(await policyOf([message("1", "hi")])).toBe("fresh");
+    });
+
+    it("rejects a stored policy the schema does not know", async () => {
+      const { deps } = await setup(
+        [message("1", "hi")],
+        configText(),
+        {},
+        ".centaur.yml",
+        undefined,
+        "bogus",
+      );
+      await expect(prepare(deps())).rejects.toThrow();
+    });
+  });
+
   it("acknowledges a bare policy command and marks it processed", async () => {
     const { deps, aws } = await setup([message("1", "/transcript")]);
     expect(await prepare(deps())).toMatchObject({ skip: true });
@@ -601,6 +640,7 @@ describe("finish", () => {
     expect(aws.requests.at(-1)).toMatchObject({
       operation: "start-thread",
       destination: "household",
+      context: "resume",
       text: "Tasks",
       title: "Week 47",
     });
@@ -681,6 +721,7 @@ describe("finish", () => {
           text: "Tasks",
           destination: "household",
           platform: "telegram",
+          context: "fresh",
           title: "Week",
         },
         {
@@ -689,6 +730,7 @@ describe("finish", () => {
           text: "Tasks",
           destination: "garden",
           platform: "slack",
+          context: "fresh",
           title: "Week",
         },
       ]);

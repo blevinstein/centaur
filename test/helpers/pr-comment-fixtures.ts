@@ -66,6 +66,7 @@ export async function commentSetup(
   options: {
     comments: PullRequestComment[];
     messages?: ReturnType<typeof import("./workflow-fixtures.js").message>[];
+    storedPolicy?: string;
     config?: string;
     configFile?: string;
     files?: Record<string, string>;
@@ -81,7 +82,11 @@ export async function commentSetup(
         ? { found: false }
         : { found: true, bot: options.bot ?? "sprout", threadKey: "k", threadId: THREAD };
     }
-    if (request.operation === "read") return { messages: options.messages ?? [] };
+    if (request.operation === "read")
+      return {
+        messages: options.messages ?? [],
+        ...(options.storedPolicy ? { policy: options.storedPolicy } : {}),
+      };
     return {};
   });
   const github: PullRequestReader = {

@@ -125,6 +125,7 @@ async function deliver(
         bot: state.bot,
         text,
         ...target,
+        ...("destination" in target ? { context: state.policy } : {}),
         ...(title ? { title } : {}),
       });
       delivery.threadIds.push(started.threadId);

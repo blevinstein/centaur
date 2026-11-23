@@ -3,6 +3,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
+import { z } from "zod";
+import { CONTEXT_POLICIES } from "../config/index.js";
 import {
   type ListThreadsRequest,
   type ListThreadsResult,
@@ -90,16 +92,22 @@ export function createPosterClient(functionName: string, exec: Exec = execComman
   return client;
 }
 
+/** The poster's `read` result; `policy` is absent for a thread with no stored context policy. */
+const readResultSchema = z.object({
+  messages: z.custom<ChatMessage[]>(),
+  policy: z.enum(CONTEXT_POLICIES).optional(),
+});
+
+type ReadRequest = { token: string; bot: string; threadId: string; visibleOnly?: boolean };
+
+/** A thread's stored transcript (oldest first) and its stored context policy, when it has one. */
+export async function readThread(poster: Pick<PosterClient, "call">, request: ReadRequest) {
+  return readResultSchema.parse(await poster.call({ operation: "read", ...request }));
+}
+
 /** The stored transcript of a thread, oldest first. */
-export async function readThreadMessages(
-  poster: Pick<PosterClient, "call">,
-  request: { token: string; bot: string; threadId: string; visibleOnly?: boolean },
-) {
-  const { messages } = await poster.call<{ messages: ChatMessage[] }>({
-    operation: "read",
-    ...request,
-  });
-  return messages;
+export async function readThreadMessages(poster: Pick<PosterClient, "call">, request: ReadRequest) {
+  return (await readThread(poster, request)).messages;
 }
 
 export interface AttachmentDownloader {

@@ -22,9 +22,11 @@ export async function setup(
   files: Record<string, string> = {},
   configFile = ".centaur.yml",
   startThread: (request: PosterRequest) => unknown = () => ({ threadId: PRIMARY_THREAD }),
+  storedPolicy?: string,
 ) {
   const aws = createFakeAws((request) => {
-    if (request.operation === "read") return { messages };
+    if (request.operation === "read")
+      return { messages, ...(storedPolicy ? { policy: storedPolicy } : {}) };
     if (request.operation === "start-thread") return startThread(request);
     if (request.operation === "list-threads")
       return { threads: [], scanned: scannedRange(null, true) };

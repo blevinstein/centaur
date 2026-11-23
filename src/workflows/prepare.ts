@@ -15,7 +15,7 @@ import { threadKey } from "../thread-key.js";
 import {
   type AttachmentDownloader,
   type PosterClient,
-  readThreadMessages,
+  readThread,
   type ThreadStore,
 } from "./aws.js";
 import { parseConfigOrThrow, readConfigText } from "./config-file.js";
@@ -186,7 +186,7 @@ async function chatTurn(
   }
   const threadId = payload.thread_id;
   const store = deps.storeFor(config.bot, threadId);
-  const messages = await readThreadMessages(deps.poster, {
+  const { messages, policy: storedPolicy } = await readThread(deps.poster, {
     token: await deps.fetchToken(),
     bot: config.bot,
     threadId,
@@ -201,7 +201,7 @@ async function chatTurn(
   const plan = planTurn({
     messages,
     marker: lastProcessed,
-    defaultPolicy: config.context.default,
+    defaultPolicy: storedPolicy ?? config.context.default,
   });
   const post = (text: string) =>
     deps.poster.call({ operation: "post", bot: config.bot, threadId, text });
@@ -306,16 +306,16 @@ async function commentTurn(
     );
   }
   const threadId = resolved.threadId;
-  const [details, all, messages] = await Promise.all([
+  const [details, all, { messages, policy: storedPolicy }] = await Promise.all([
     comment.github.details(comment.repository, comment.pullRequest),
     comment.github.comments(comment.repository, comment.pullRequest),
-    readThreadMessages(deps.poster, { token, bot: config.bot, threadId }),
+    readThread(deps.poster, { token, bot: config.bot, threadId }),
   ]);
   const authors = config.pull_requests.comment_authors;
   const pending = pendingComments(all, details.createdAt, authors);
   if (pending.length === 0) return undefined;
 
-  const policy = threadPolicy(messages, config.context.default);
+  const policy = threadPolicy(messages, storedPolicy ?? config.context.default);
   const resumeSessionId =
     policy === "resume"
       ? await deps.storeFor(config.bot, threadId).restoreSession(directory)

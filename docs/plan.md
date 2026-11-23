@@ -199,10 +199,10 @@ Each thread has a context policy.
 - In-chat overrides: `/new` (start a new thread), `/resume` and `/transcript` (switch the
   current thread's policy). Telegram slash commands aren't an SDK feature, so these are parsed
   from message text. Each turn takes the latest `/resume` or `/transcript` in the thread, else the
-  default (see [workflows.md](workflows.md#context-policies)).
+  thread's stored policy, else the default (see [workflows.md](workflows.md#context-policies)).
 - `start-thread` stores the prompt's `context` in the thread's `thread-meta` state record
   (`thread-meta:<threadId>` under the bot's prefix; 90-day expiry refreshed on every read), and
-  `read` returns it as `policy`. Runners do not consume it yet.
+  `read` returns it as `policy`, which `prepare` uses when no command overrides it.
 - **Transcript budget (planned, not implemented).** The transcript fills at most
   `context.transcript_max_percent` (default 25) of the model's context window, newest messages
   first. The rest of the window is for the persona, the instructions, the repo, tool results and

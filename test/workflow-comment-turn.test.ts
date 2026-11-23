@@ -286,6 +286,24 @@ describe("prepare in comment mode", () => {
     expect(text).toContain("Earlier messages");
   });
 
+  it("uses the stored policy for a comment turn, with a command still winning", async () => {
+    const stored = await commentSetup({
+      comments: [prComment(1, "tweak")],
+      messages: [message("1", "make a plan"), botMessage("2", "ok")],
+      storedPolicy: "resume",
+    });
+    await prepare(stored.deps());
+    expect((await readTurnState(stored.stateDir)).policy).toBe("resume");
+
+    const overridden = await commentSetup({
+      comments: [prComment(1, "tweak")],
+      messages: [message("1", "/transcript"), botMessage("2", "ok")],
+      storedPolicy: "resume",
+    });
+    await prepare(overridden.deps());
+    expect((await readTurnState(overridden.stateDir)).policy).toBe("transcript");
+  });
+
   it("shows no chat history under a fresh policy", async () => {
     const { deps, root } = await commentSetup({
       comments: [prComment(1, "rename")],

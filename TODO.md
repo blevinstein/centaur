@@ -302,8 +302,9 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       parameters and aliases) and delete the export file.
 - [ ] Platforms 9: `thread-meta` record stores a thread's context policy; `start-thread` accepts
       `context`, `read` returns `policy`, ownership reads it. After 18.
-- [ ] Platforms 10: runner uses the stored policy and passes the prompt's `context` to
+- [x] Platforms 10: runner uses the stored policy and passes the prompt's `context` to
       `start-thread` (fixes thread policy storage for every prompt). After 9 is deployed.
+      Done.
 - [ ] Platforms 11: replace aliases with destinations (design Decision 18, maintainer ruling
       2026-11-23): widen the `chats/<platform>/<name>` value to a record (chat, optional topic,
       stored policy), rename `chat-aliases.ts`, `resolveChatAlias`, `proposeChatAlias`,

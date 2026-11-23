@@ -446,9 +446,11 @@ the receiver and carried in the dispatch payload as `thread_key`. The PR branch 
 | `transcript` | Earlier messages in the thread, then the pending ones | none |
 | `resume` | Pending messages only when a session exists; otherwise as `transcript` | `sessions/<bot>/<thread>/<session_id>.jsonl` in S3, restored to `~/.claude/projects/<escaped cwd>/` and saved back after the turn |
 
-The thread's policy is `context.default` unless a human message in the thread used `/resume` or
-`/transcript`; the latest such command wins. Scheduled prompts run with the prompt's `context` for
-their own turn, which only determines whether that turn's session is saved.
+The thread's policy is the latest `/resume` or `/transcript` a human used in the thread, else the
+policy stored on the thread (`read` returns it as `policy`), else `context.default`. `start-thread`
+stores a scheduled prompt's `context` on each thread it starts, so replies there keep the prompt's
+policy; threads started before it was stored, and `/new` threads, use `context.default`. A thread
+shared by two prompts uses the latest run's policy.
 
 ### Transcript budget (planned)
 
