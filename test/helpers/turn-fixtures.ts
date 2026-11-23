@@ -57,7 +57,7 @@ export async function setup(
   return { aws, root, home, stateDir, deps, executionFile, writeExecution };
 }
 
-export const CHAT_CONFIG = "chat_context: { scope: chat, max_threads: 7, max_messages: 30 }";
+export const CHAT_CONFIG = "chat_tools: { scope: chat, max_threads: 7, max_messages: 30 }";
 
 export const chatConfigText = (extra = "") => configText(`${CHAT_CONFIG}\n${extra}`);
 

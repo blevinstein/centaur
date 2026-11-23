@@ -92,7 +92,7 @@ describe("prepare with chat context tools", () => {
   it("uses the configured instruction file for the prompt block", async () => {
     const { deps, root } = await setup(
       [message("1", "hi")],
-      chatConfigText("instructions: { chat_context: .centaur/chat-tools.md }"),
+      chatConfigText("instructions: { chat_tools: .centaur/chat-tools.md }"),
       { ".centaur/chat-tools.md": "Custom chat tools guidance." },
     );
 

@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import type { ChatContextConfig, McpServer, SecretRef } from "../config/index.js";
+import type { ChatToolsConfig, McpServer, SecretRef } from "../config/index.js";
 import { CHAT_SERVER_ENV } from "../mcp/server-config.js";
 
 export interface McpConfig {
@@ -80,9 +80,9 @@ const CHAT_SERVER_FORWARDED_ENV = [
 export function buildChatServerConfig(input: {
   env: Record<string, string | undefined>;
   stateDir: string;
-  chatContext: ChatContextConfig;
+  chatTools: ChatToolsConfig;
 }) {
-  const { env, stateDir, chatContext } = input;
+  const { env, stateDir, chatTools } = input;
   return {
     type: "stdio",
     command: "node",
@@ -92,8 +92,8 @@ export function buildChatServerConfig(input: {
         CHAT_SERVER_FORWARDED_ENV.filter((name) => env[name]).map((name) => [name, `\${${name}}`]),
       ),
       [CHAT_SERVER_ENV.stateDir]: stateDir,
-      [CHAT_SERVER_ENV.maxThreads]: String(chatContext.max_threads),
-      [CHAT_SERVER_ENV.maxMessages]: String(chatContext.max_messages),
+      [CHAT_SERVER_ENV.maxThreads]: String(chatTools.max_threads),
+      [CHAT_SERVER_ENV.maxMessages]: String(chatTools.max_messages),
     },
   };
 }

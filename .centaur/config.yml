@@ -6,6 +6,8 @@ platforms:
     respond_to: all
 context:
   default: transcript
+chat_tools:
+  scope: chat
 provider: anthropic
 model: sonnet
 allowed_tools: "Read,Glob,Grep,Write,Edit,mcp__ghmcp__*"

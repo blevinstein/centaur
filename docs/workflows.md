@@ -186,7 +186,7 @@ Commands: `register`, `resolve`, `prepare`, `pr-details`, `finish`, `notify-fail
    When `mcp_servers` is set, it writes `.centaur-turn/mcp.json` (secrets as `${NAME}` references,
    never values) and adds `--mcp-config` to `claude_args`; a referenced secret missing from the
    step's environment fails `prepare` before anything is posted, naming it ([mcp.md](mcp.md)).
-   With `chat_context.scope: chat` and a dispatched thread (chat replies and pull request comment
+   With `chat_tools.scope: chat` and a dispatched thread (chat replies and pull request comment
    turns) it also writes the built-in `centaur-chat` server into `mcp.json`, started as `node
    <dist>/mcp/chat-server-main.js` from the build running `prepare` (the Centaur action's checkout, not
    the workspace), with `${NAME}` references for the poster, OIDC and AWS settings, the turn state
@@ -197,7 +197,7 @@ Commands: `register`, `resolve`, `prepare`, `pr-details`, `finish`, `notify-fail
    branch, fetched through the GitHub API (never the checkout), and fails the turn before any other
    poster call when a server is not permitted, no policy exists, a policy is invalid, or one cannot
    be fetched ([Operator policy](mcp.md#operator-policy)).
-   The prompt's instructions are the guidance from `instructions/{chat,chat_context,comment,silence}.md` (`chat_context` only with the chat context tools on) (or
+   The prompt's instructions are the guidance from `instructions/{chat,chat_tools,comment,silence}.md` (`chat_tools` only with the chat context tools on) (or
    the repo's `instructions` overrides in the config, read from the checkout like the persona)
    followed by fixed text in `prompt.ts`: the untrusted-input warning and the structured-output
    fields the workflow parses (`reply`, `ignore`, `pr_title`, ...), which a repo cannot override.

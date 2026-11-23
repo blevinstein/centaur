@@ -184,7 +184,7 @@ Ordered slices; each lands with tests and docs.
 | # | Slice | Depends on | Files | Status |
 |---|---|---|---|---|
 | 1 | Poster: `scanned: { oldest, exhausted }` in `read-channel` and `list-threads` results | none | `src/lambda/chat-context.ts`, `docs/poster.md`, `test/chat-context.test.ts`, `test/helpers/chat-context-fixtures.ts` | done |
-| 2 | Config key under `chat_context`: the Slack-native search opt-in | none | `src/config/`, `docs/config.md`, `test/config.test.ts` | open |
+| 2 | Config key under `chat_tools`: the Slack-native search opt-in | none | `src/config/`, `docs/config.md`, `test/config.test.ts` | open |
 | 3 | MCP server: render `scanned` in `read_channel` and `list_threads` output, and tell the agent in the prompt block that results come from a bounded window | 1 | `src/mcp/chat-server.ts`, `src/mcp/chat-poster-client.ts`, `src/workflows/` prompt block, `docs/chat-context.md` | open |
 | 4 | Slack-native search: receiver captures the `action_token`, poster operation `search-chat`, MCP `search_chat` tool | 2, 3 | see below | open |
 | 5 | Telegram stored-history window (`history.thread`) | none | `src/lambda/chat.ts`, `infra/`, docs | separate worker |

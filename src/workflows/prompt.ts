@@ -82,7 +82,7 @@ export function buildPrompt({
   attachmentPath = NO_ATTACHMENTS,
   instructions = DEFAULT_INSTRUCTIONS,
 }: PromptParts) {
-  const chatToolsGuidance = chatTools ? [instructions.chat_context] : [];
+  const chatToolsGuidance = chatTools ? [instructions.chat_tools] : [];
   const sections: [title: string, body: string | undefined][] = [
     [
       "Instructions",

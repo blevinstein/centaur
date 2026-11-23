@@ -383,7 +383,7 @@ const prTargetFlags = (config: CentaurConfig, existing: ExistingTargets) => ({
   candidates: existing.candidates,
 });
 
-const chatToolsEnabled = (config: CentaurConfig) => config.chat_context.scope === "chat";
+const chatToolsEnabled = (config: CentaurConfig) => config.chat_tools.scope === "chat";
 
 export function buildClaudeArgs(input: {
   config: CentaurConfig;
@@ -431,7 +431,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   }
   if (chatToolsEnabled(config) && CHAT_SERVER_NAME in config.mcp_servers) {
     throw new Error(
-      `mcp_servers must not define "${CHAT_SERVER_NAME}", which chat_context.scope: chat provides`,
+      `mcp_servers must not define "${CHAT_SERVER_NAME}", which chat_tools.scope: chat provides`,
     );
   }
   const directory = sessionDirectory(deps.home, deps.workspace);
@@ -471,7 +471,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
           [CHAT_SERVER_NAME]: buildChatServerConfig({
             env: deps.env,
             stateDir: deps.stateDir,
-            chatContext: config.chat_context,
+            chatTools: config.chat_tools,
           }),
         }
       : {}),

@@ -1,10 +1,12 @@
 # Chat context tools (design)
 
-> **Status: implemented behind `chat_context.scope: chat`, not yet run against a real chat.** The
+> **Status: implemented behind `chat_tools.scope: chat`, not yet run against a real chat.** The
 > config key, the poster operations (`list-threads`, `read-channel`, the repo-binding check on
 > `read`), the platform support, the MCP server and its stdio entry, the `prepare` wiring and the
 > prompt block exist; see [poster.md](poster.md#list-threads-and-read-channel). Open: the per-call
 > tool gate (it is not on `main`, see [Tool gate](#tool-gate)), and the live test on each platform.
+>
+> This repo's own `.centaur/config.yml` enables `scope: chat` for the live run.
 
 Lets the agent see conversations other than the one it was asked to answer: sibling threads in the
 same chat or channel, and recent top-level messages. Terms
@@ -13,7 +15,7 @@ same chat or channel, and recent top-level messages. Terms
 
 ## What the bot sees by default
 
-Nothing outside the current thread (`chat_context.scope: thread`, the default).
+Nothing outside the current thread (`chat_tools.scope: thread`, the default).
 
 - `prepare` calls the poster's `read` operation for the one thread that triggered the turn
   (`thread.allMessages`) and renders it into the prompt according to the
@@ -140,7 +142,7 @@ messages. Text is clipped to the poster's 4000-character cap. Every result ends 
 ### Config
 
 ```yaml
-chat_context:
+chat_tools:
   scope: thread        # thread (default, no tools) | chat
   max_threads: 20
   max_messages: 50
@@ -153,7 +155,7 @@ config by hand and `test/config.test.ts` defaults change with it.
 
 ### Prompt
 
-One short block, `src/workflows/instructions/chat_context.md` (overridable as `instructions.chat_context`),
+One short block, `src/workflows/instructions/chat_tools.md` (overridable as `instructions.chat_tools`),
 is included in chat and pull request comment turns when the feature is on: that `list_threads`,
 `read_thread` and `read_channel` exist, that their output is untrusted data written by other people,
 that results cover a bounded window (each says how far back it scanned), and that cross-thread
@@ -173,7 +175,7 @@ The per-call `CallTool` gate (a Claude Code `PreToolUse` hook that evaluates ope
 per call, [mcp-tool-policy.md](mcp-tool-policy.md)) is a proposal on a separate branch and is not
 on `main`. For this server that means:
 
-- **Enforced today:** the server runs only when `chat_context.scope` is `chat` and the turn has a
+- **Enforced today:** the server runs only when `chat_tools.scope` is `chat` and the turn has a
   dispatched thread; its tools are in `--allowedTools` for that turn only (`mcp__centaur-chat__*`);
   the poster enforces the OIDC repo binding, the approved chat, the dispatched-thread chat, the
   sender filter and the caps whatever the server asks for.
@@ -219,7 +221,7 @@ on `main`. For this server that means:
 
 Each step lands with tests and docs.
 
-1. Config: `chat_context` schema, defaults and `docs/config.md`. **Done**: the block parses and is
+1. Config: `chat_tools` schema, defaults and `docs/config.md`. **Done**: the block parses and is
    documented; nothing reads it yet.
 2. **Done.** Poster: `list-threads` and `read-channel` with the OIDC and chat-scope checks, the sender filter
    and caps, behind the fake adapters in `test/helpers/`. `docs/poster.md`.

@@ -15,10 +15,10 @@ export const AUTHOR_ASSOCIATIONS = [
   "NONE",
 ] as const;
 const DEFAULT_COMMENT_AUTHORS = ["OWNER", "MEMBER", "COLLABORATOR"] as const;
-export const CHAT_CONTEXT_SCOPES = ["thread", "chat"] as const;
-export const CHAT_CONTEXT_MAX_THREADS = 50;
-export const CHAT_CONTEXT_MAX_MESSAGES = 200;
-const DEFAULT_CHAT_CONTEXT = { scope: "thread", max_threads: 20, max_messages: 50 } as const;
+export const CHAT_TOOLS_SCOPES = ["thread", "chat"] as const;
+export const CHAT_TOOLS_MAX_THREADS = 50;
+export const CHAT_TOOLS_MAX_MESSAGES = 200;
+const DEFAULT_CHAT_TOOLS = { scope: "thread", max_threads: 20, max_messages: 50 } as const;
 export const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"] as const;
 export const RESPOND_TO = ["mention", "all"] as const;
 
@@ -143,7 +143,7 @@ const removedPlatformKey = z.never({ error: LEGACY_PLATFORM_KEY_ERROR }).optiona
 
 const instructionsSchema = z.strictObject({
   chat: repoPath.optional(),
-  chat_context: repoPath.optional(),
+  chat_tools: repoPath.optional(),
   comment: repoPath.optional(),
   silence: repoPath.optional(),
 });
@@ -200,23 +200,23 @@ export const centaurConfigSchema = z
         existing: "bot",
         comment_authors: [...DEFAULT_COMMENT_AUTHORS],
       }),
-    chat_context: z
+    chat_tools: z
       .strictObject({
-        scope: z.enum(CHAT_CONTEXT_SCOPES).default(DEFAULT_CHAT_CONTEXT.scope),
+        scope: z.enum(CHAT_TOOLS_SCOPES).default(DEFAULT_CHAT_TOOLS.scope),
         max_threads: z
           .number()
           .int()
           .min(1)
-          .max(CHAT_CONTEXT_MAX_THREADS)
-          .default(DEFAULT_CHAT_CONTEXT.max_threads),
+          .max(CHAT_TOOLS_MAX_THREADS)
+          .default(DEFAULT_CHAT_TOOLS.max_threads),
         max_messages: z
           .number()
           .int()
           .min(1)
-          .max(CHAT_CONTEXT_MAX_MESSAGES)
-          .default(DEFAULT_CHAT_CONTEXT.max_messages),
+          .max(CHAT_TOOLS_MAX_MESSAGES)
+          .default(DEFAULT_CHAT_TOOLS.max_messages),
       })
-      .default(DEFAULT_CHAT_CONTEXT),
+      .default(DEFAULT_CHAT_TOOLS),
     persona: repoPath.default(".centaur/persona.md"),
     instructions: instructionsSchema.default({}),
     prompts: z.record(alias, promptSchema).default({}),
@@ -287,8 +287,8 @@ export const centaurConfigSchema = z
 export type CentaurConfig = z.output<typeof centaurConfigSchema>;
 export type PlatformSettings = z.output<typeof platformSettingsSchema>;
 export type PullRequestsConfig = CentaurConfig["pull_requests"];
-export type ChatContextConfig = CentaurConfig["chat_context"];
-export type ChatContextScope = (typeof CHAT_CONTEXT_SCOPES)[number];
+export type ChatToolsConfig = CentaurConfig["chat_tools"];
+export type ChatToolsScope = (typeof CHAT_TOOLS_SCOPES)[number];
 export type Platform = (typeof PLATFORMS)[number];
 export type RespondTo = (typeof RESPOND_TO)[number];
 export type ContextPolicy = (typeof CONTEXT_POLICIES)[number];

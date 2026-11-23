@@ -20,6 +20,10 @@ describe("this repo's Centaur config", () => {
     }
   });
 
+  it("enables the chat context tools for the live run", async () => {
+    expect((await loadSelfConfig()).chat_tools.scope).toBe("chat");
+  });
+
   it("targets exactly one Slack destination per prompt", async () => {
     const { prompts } = await loadSelfConfig();
     expect(Object.keys(prompts).sort()).toEqual(["hello", "mcp-smoke", "pr-smoke", "pr-update"]);

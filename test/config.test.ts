@@ -7,7 +7,7 @@ import {
   threadPlatform,
 } from "../src/config/index.js";
 import {
-  DEFAULT_CHAT_CONTEXT,
+  DEFAULT_CHAT_TOOLS,
   fullConfig,
   invalidConfigs,
   localServerYaml,
@@ -37,23 +37,23 @@ describe("parseCentaurConfig", () => {
           existing: "bot",
           comment_authors: ["OWNER", "MEMBER", "COLLABORATOR"],
         },
-        chat_context: DEFAULT_CHAT_CONTEXT,
+        chat_tools: DEFAULT_CHAT_TOOLS,
         mcp_servers: {},
         prompts: {},
       },
     });
   });
 
-  it("parses the chat_context block over its defaults", () => {
-    expect(parseCentaurConfig(withExtra("chat_context: {scope: chat}"))).toMatchObject({
+  it("parses the chat_tools block over its defaults", () => {
+    expect(parseCentaurConfig(withExtra("chat_tools: {scope: chat}"))).toMatchObject({
       ok: true,
-      config: { chat_context: { ...DEFAULT_CHAT_CONTEXT, scope: "chat" } },
+      config: { chat_tools: { ...DEFAULT_CHAT_TOOLS, scope: "chat" } },
     });
     expect(
-      parseCentaurConfig(withExtra("chat_context: {max_threads: 50, max_messages: 1}")),
+      parseCentaurConfig(withExtra("chat_tools: {max_threads: 50, max_messages: 1}")),
     ).toMatchObject({
       ok: true,
-      config: { chat_context: { scope: "thread", max_threads: 50, max_messages: 1 } },
+      config: { chat_tools: { scope: "thread", max_threads: 50, max_messages: 1 } },
     });
   });
 
@@ -80,7 +80,7 @@ describe("parseCentaurConfig", () => {
           existing: "bot",
           comment_authors: ["OWNER", "MEMBER", "COLLABORATOR"],
         },
-        chat_context: DEFAULT_CHAT_CONTEXT,
+        chat_tools: DEFAULT_CHAT_TOOLS,
         mcp_servers: {},
         prompts: {
           "weekly-tasks": {

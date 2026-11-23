@@ -1,6 +1,6 @@
 import { formatIssues, type McpServer, parseCentaurConfig } from "../../src/config/index.js";
 
-export const DEFAULT_CHAT_CONTEXT = { scope: "thread", max_threads: 20, max_messages: 50 };
+export const DEFAULT_CHAT_TOOLS = { scope: "thread", max_threads: 20, max_messages: 50 };
 
 const BASE_FIELDS: Record<string, string | undefined> = {
   bot: "a",
@@ -172,16 +172,16 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
     /lowercase alias/,
   ],
   ...[
-    ["an unknown scope", "scope: all", "chat_context.scope"],
-    ["zero max_threads", "max_threads: 0", "chat_context.max_threads"],
-    ["excessive max_threads", "max_threads: 51", "chat_context.max_threads"],
-    ["fractional max_threads", "max_threads: 2.5", "chat_context.max_threads"],
-    ["zero max_messages", "max_messages: 0", "chat_context.max_messages"],
-    ["excessive max_messages", "max_messages: 201", "chat_context.max_messages"],
-    ["an unknown key", "other: 1", "chat_context"],
+    ["an unknown scope", "scope: all", "chat_tools.scope"],
+    ["zero max_threads", "max_threads: 0", "chat_tools.max_threads"],
+    ["excessive max_threads", "max_threads: 51", "chat_tools.max_threads"],
+    ["fractional max_threads", "max_threads: 2.5", "chat_tools.max_threads"],
+    ["zero max_messages", "max_messages: 0", "chat_tools.max_messages"],
+    ["excessive max_messages", "max_messages: 201", "chat_tools.max_messages"],
+    ["an unknown key", "other: 1", "chat_tools"],
   ].map(
     ([name, field, path]) =>
-      [`chat_context with ${name}`, withExtra(`chat_context: {${field}}`), path, /./] as [
+      [`chat_tools with ${name}`, withExtra(`chat_tools: {${field}}`), path, /./] as [
         string,
         string,
         string,

@@ -120,7 +120,7 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
         bounds the server today. Once the Per-call MCP policy item below lands, add a test that a
         `forbid` on `centaur-chat` is honored.
   - [ ] **[HUMAN ACTION]** Chat context 7: real run on `centaur-hello` (or `centaur-test`) in each
-        platform with `chat_context: { scope: chat }` on the default branch. Telegram forum group,
+        platform with `chat_tools: { scope: chat }` on the default branch (set in `.centaur/config.yml`). Telegram forum group,
         then Slack channel; in each:
         1. In thread A say: "We decided the garden party is Saturday at 6pm and we need tomatoes
            and basil."
@@ -142,7 +142,7 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
       because of the infrastructure cost. Slices, in order:
   - [x] Chat search 1: `scanned: { oldest, exhausted }` range in `read-channel` and
         `list-threads` results.
-  - [ ] Chat search 2: `chat_context` config key for the Slack search opt-in.
+  - [ ] Chat search 2: `chat_tools` config key for the Slack search opt-in.
   - [x] Chat search 3: MCP server renders the scanned range and the bounded-window note.
   - [ ] Chat search 4: Slack-native search (receiver captures the `action_token` into the state
         table with a TTL, poster `search-chat`, MCP `search_chat`, manifest scopes). Settle the
