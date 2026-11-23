@@ -8,9 +8,8 @@ const CLAIM = "/centaur/admin-claim/telegram";
 
 async function harness(telegram?: Parameters<typeof createCliHarness>[1]) {
   const cli = createCliHarness({}, telegram);
-  await cli.store.put("/centaur/bots/garden/platform", "telegram", { secure: false });
-  await cli.store.put("/centaur/bots/garden/token", TOKEN, { secure: true });
-  await cli.store.put("/centaur/bots/notes/platform", "slack", { secure: false });
+  await cli.connect("garden", "telegram", TOKEN);
+  await cli.connect("notes", "slack");
   return cli;
 }
 
@@ -134,5 +133,41 @@ describe("admin claim", () => {
       /No pending claim/,
     );
     expect(cli.store.entries.has(CLAIM)).toBe(true);
+  });
+});
+
+describe("admin claim with several connections", () => {
+  async function twoConnectionHarness() {
+    const cli = await harness();
+    await cli.connect("garden", "slack");
+    return cli;
+  }
+
+  it("requires --platform", async () => {
+    const cli = await twoConnectionHarness();
+    await expect(cli.run("admin", "claim", "garden")).rejects.toThrow(
+      /several connections \(telegram, slack\); pass --platform/,
+    );
+    expect(cli.store.entries.has(CLAIM)).toBe(false);
+  });
+
+  it("claims through the named connection's platform", async () => {
+    const cli = await twoConnectionHarness();
+
+    await cli.run("admin", "claim", "garden", "--platform", "slack");
+
+    expect(decodeClaim(cli.store.entries.get("/centaur/admin-claim/slack")?.value)?.bot).toBe(
+      "garden",
+    );
+    expect(cli.store.entries.has(CLAIM)).toBe(false);
+  });
+
+  it("cancels the claim on the named platform", async () => {
+    const cli = await twoConnectionHarness();
+    await cli.run("admin", "claim", "garden", "--platform", "telegram");
+
+    await cli.run("admin", "claim", "garden", "--platform", "telegram", "--cancel");
+
+    expect(cli.store.entries.has(CLAIM)).toBe(false);
   });
 });

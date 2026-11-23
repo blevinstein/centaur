@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { createCliHarness } from "./helpers/cli.js";
 
-const BOT_PLATFORM = "/centaur/bots/garden/platform";
+const TOKEN_PARAMETER = "/centaur/bots/garden/platforms/telegram/token";
 const approvedChat = (id: string) => `/centaur/bots/garden/platforms/telegram/approved-chats/${id}`;
 
 async function harnessWithBot() {
   const cli = createCliHarness();
-  await cli.store.put(BOT_PLATFORM, "telegram", { secure: false });
+  await cli.connect("garden", "telegram");
   return cli;
 }
 
@@ -66,7 +66,7 @@ describe("access", () => {
     expect(cli.output.at(-1)).toMatch(/^blocked {2}user {2}42/);
 
     await cli.run("access", "unblock", "garden", "user", "42");
-    expect(cli.store.names()).toEqual([BOT_PLATFORM]);
+    expect(cli.store.names()).toEqual([TOKEN_PARAMETER]);
   });
 
   it("refuses to block the platform admin", async () => {
@@ -223,5 +223,67 @@ describe("chat aliases on approval", () => {
     await cli.run("access", "revoke", "garden", "chat", "-100500");
 
     expect(await cli.store.get(ALIAS)).toBe("-100500");
+  });
+});
+
+describe("access with several connections", () => {
+  const approvedUser = (platform: string, id: string) =>
+    `/centaur/bots/garden/platforms/${platform}/approved-users/${id}`;
+
+  async function harnessWithTwoConnections() {
+    const cli = await harnessWithBot();
+    await cli.connect("garden", "slack");
+    return cli;
+  }
+
+  it("acts on the connection named by --platform and leaves the other alone", async () => {
+    const cli = await harnessWithTwoConnections();
+
+    await cli.run("access", "approve", "garden", "user", "U1", "--platform", "slack");
+    expect(await cli.store.get(approvedUser("slack", "U1"))).toBeDefined();
+    expect(await cli.store.get(approvedUser("telegram", "U1"))).toBeUndefined();
+
+    await cli.run("access", "list", "garden", "--platform", "telegram");
+    expect(cli.output.at(-1)).toBe('Nothing approved or blocked for "garden".');
+    await cli.run("access", "list", "garden", "--platform", "slack");
+    expect(cli.output.at(-1)).toMatch(/^approved {2}user {2}U1/);
+
+    await cli.run("access", "block", "garden", "user", "U1", "--platform", "slack");
+    await cli.run("access", "unblock", "garden", "user", "U1", "--platform", "slack");
+    await cli.run("access", "approve", "garden", "user", "U1", "--platform", "slack");
+    await cli.run("access", "revoke", "garden", "user", "U1", "--platform", "slack");
+    expect(cli.store.names().filter((name) => name.includes("U1"))).toEqual([]);
+  });
+
+  it.each([
+    ["approve", ["user", "1"]],
+    ["revoke", ["user", "1"]],
+    ["block", ["user", "1"]],
+    ["unblock", ["user", "1"]],
+    ["list", []],
+  ])("%s requires --platform", async (command, rest) => {
+    const cli = await harnessWithTwoConnections();
+    const before = cli.store.names();
+    await expect(cli.run("access", command, "garden", ...rest)).rejects.toThrow(
+      /several connections \(telegram, slack\); pass --platform/,
+    );
+    expect(cli.store.names()).toEqual(before);
+  });
+
+  it("refuses a platform the bot is not on", async () => {
+    const cli = await harnessWithBot();
+    await expect(
+      cli.run("access", "approve", "garden", "user", "1", "--platform", "slack"),
+    ).rejects.toThrow(/no slack connection/);
+  });
+
+  it("blocks the admin of the connection's platform only", async () => {
+    const cli = await harnessWithTwoConnections();
+    await cli.run("admin", "set", "--slack", "U5");
+
+    await cli.run("access", "block", "garden", "user", "U5", "--platform", "telegram");
+    await expect(
+      cli.run("access", "block", "garden", "user", "U5", "--platform", "slack"),
+    ).rejects.toThrow(/they are the admin for slack/);
   });
 });

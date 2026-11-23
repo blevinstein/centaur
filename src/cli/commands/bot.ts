@@ -1,22 +1,27 @@
 import { randomBytes } from "node:crypto";
 import type { Command } from "commander";
-import type { CliContext } from "../context.js";
 import {
-  BOTS_PREFIX,
-  botParameter,
-  botPrefix,
+  botPath,
+  connectionParameter,
+  connectionPath,
+  repoParameter,
+} from "../../lambda/connection-paths.js";
+import type { CliContext } from "../context.js";
+import { type PlatformOptions, withPlatformOption } from "../platform-option.js";
+import {
   CliError,
   GITHUB_TOKEN_PARAMETER,
-  PLATFORMS,
+  listBotConnections,
+  PLATFORM_SECRETS,
   parseName,
   parsePlatform,
-  requireBotPlatform,
+  selectConnection,
 } from "../registry.js";
 
 const WEBHOOK_SECRET_BYTES = 32;
 
 async function boundRepo(context: CliContext, bot: string): Promise<string | undefined> {
-  return context.store.get(botParameter(bot, "repo"));
+  return context.store.get(repoParameter(bot));
 }
 
 export function registerBotCommands(program: Command, context: CliContext): void {
@@ -25,75 +30,89 @@ export function registerBotCommands(program: Command, context: CliContext): void
   bot
     .command("add <bot>")
     .requiredOption("--platform <platform>", "telegram or slack")
-    .description("Store a bot's secrets in SSM (read from env, stdin, or a hidden prompt)")
+    .description(
+      "Store a bot's secrets for one platform in SSM (read from env, stdin, or a hidden prompt)",
+    )
     .action(async (name: string, options: { platform: string }) => {
       parseName("bot", name);
       const platform = parsePlatform(options.platform);
-      if (await context.store.get(botParameter(name, "platform"))) {
-        throw new CliError(`Bot "${name}" already exists; remove it first.`);
+      const existing = (await listBotConnections(context.store, name)).get(name);
+      if (existing?.has(platform)) {
+        throw new CliError(`Bot "${name}" already has a ${platform} connection; remove it first.`);
       }
-      const { prompted, generated } = PLATFORMS[platform];
+      const { prompted, generated } = PLATFORM_SECRETS[platform];
       const secrets = await context.readSecrets(prompted);
       for (const key of generated) {
         secrets[key] = randomBytes(WEBHOOK_SECRET_BYTES).toString("base64url");
       }
       for (const [key, value] of Object.entries(secrets)) {
-        await context.store.put(botParameter(name, key), value, { secure: true });
+        await context.store.put(connectionParameter(name, platform, key), value, { secure: true });
       }
-      await context.store.put(botParameter(name, "platform"), platform, { secure: false });
-      context.log(`Added ${platform} bot "${name}".`);
+      context.log(`Added ${platform} connection to bot "${name}".`);
     });
 
   bot
     .command("list")
-    .description("List bots with their platform, bound repo, and whether secrets are set")
+    .description("List bots with their connections, bound repo, and whether secrets are set")
     .action(async () => {
-      const prefix = BOTS_PREFIX;
-      const keysByBot = new Map<string, Set<string>>();
-      for (const parameter of await context.store.listNames(prefix)) {
-        const [name, ...key] = parameter.slice(prefix.length).split("/");
-        if (name && key.length > 0) {
-          keysByBot.set(name, (keysByBot.get(name) ?? new Set()).add(key.join("/")));
-        }
-      }
-      if (keysByBot.size === 0) {
+      const bots = await listBotConnections(context.store);
+      if (bots.size === 0) {
         context.log("No bots registered.");
         return;
       }
       const lines = await Promise.all(
-        [...keysByBot.keys()].sort().map(async (name) => {
-          const platform = await context.store.get(botParameter(name, "platform"));
+        [...bots.keys()].sort().map(async (name) => {
           const repo = await boundRepo(context, name);
-          const token = keysByBot.get(name)?.has("token") ? "set" : "unset";
-          return `${name}  ${platform ?? "-"}  repo=${repo ?? "-"}  token=${token}`;
+          const connections = [...(bots.get(name) ?? [])]
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([platform, keys]) => `${platform}:token=${keys.has("token") ? "set" : "unset"}`);
+          return [
+            name,
+            `repo=${repo ?? "-"}`,
+            ...(connections.length > 0 ? connections : ["-"]),
+          ].join("  ");
         }),
       );
       const githubToken = (await context.store.get(GITHUB_TOKEN_PARAMETER)) ? "set" : "unset";
       context.log([...lines, `github-token=${githubToken}`].join("\n"));
     });
 
-  bot
-    .command("remove <bot>")
-    .description("Delete a bot's secrets from SSM")
-    .action(async (name: string) => {
-      const names = await context.store.listNames(botPrefix(name));
-      if (names.length === 0) throw new CliError(`Unknown bot "${name}".`);
-      const repo = await boundRepo(context, name);
-      if (repo) {
-        throw new CliError(`Bot "${name}" is bound to ${repo}; run "centaur bot unbind" first.`);
+  withPlatformOption(bot.command("remove <bot>"))
+    .description(
+      "Delete one connection's secrets, or the whole bot when it has no other connection",
+    )
+    .action(async (name: string, options: PlatformOptions) => {
+      const connections = (await listBotConnections(context.store, name)).get(name);
+      if (!connections) throw new CliError(`Unknown bot "${name}".`);
+      const platform =
+        connections.size === 0
+          ? undefined
+          : selectConnection(name, connections.keys(), options.platform);
+      if (platform === undefined || connections.size === 1) {
+        const repo = await boundRepo(context, name);
+        if (repo) {
+          throw new CliError(`Bot "${name}" is bound to ${repo}; run "centaur bot unbind" first.`);
+        }
+        await context.store.delete(await context.store.listNames(`${botPath(name)}/`));
+        context.log(`Removed bot "${name}".`);
+        return;
       }
-      await context.store.delete(names);
-      context.log(`Removed bot "${name}".`);
+      await context.store.delete(
+        await context.store.listNames(`${connectionPath(name, platform)}/`),
+      );
+      context.log(`Removed the ${platform} connection from bot "${name}".`);
     });
 
   bot
     .command("unbind <bot>")
     .description("Release a bot from the repo that registered it")
     .action(async (name: string) => {
-      await requireBotPlatform(context.store, name);
+      if (!(await listBotConnections(context.store, name)).has(name)) {
+        throw new CliError(`Unknown bot "${name}".`);
+      }
       const repo = await boundRepo(context, name);
       if (!repo) throw new CliError(`Bot "${name}" is not bound to a repo.`);
-      await context.store.delete([botParameter(name, "repo")]);
+      await context.store.delete([repoParameter(name)]);
       context.log(`Unbound bot "${name}" from ${repo}.`);
     });
 }

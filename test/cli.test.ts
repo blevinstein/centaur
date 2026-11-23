@@ -1,21 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { createCliHarness } from "./helpers/cli.js";
 
+const TELEGRAM = "/centaur/bots/garden/platforms/telegram";
+const SLACK = "/centaur/bots/garden/platforms/slack";
+
 describe("bot add", () => {
   it("stores a telegram token and a generated webhook secret as secure parameters", async () => {
     const cli = createCliHarness({ token: "123:abc" });
     await cli.run("bot", "add", "garden", "--platform", "telegram");
 
-    expect(cli.store.names()).toEqual([
-      "/centaur/bots/garden/platform",
-      "/centaur/bots/garden/token",
-      "/centaur/bots/garden/webhook-secret",
-    ]);
-    expect(cli.store.entries.get("/centaur/bots/garden/token")).toEqual({
+    expect(cli.store.names()).toEqual([`${TELEGRAM}/token`, `${TELEGRAM}/webhook-secret`]);
+    expect(cli.store.entries.get(`${TELEGRAM}/token`)).toEqual({
       value: "123:abc",
       secure: true,
     });
-    const secret = cli.store.entries.get("/centaur/bots/garden/webhook-secret");
+    const secret = cli.store.entries.get(`${TELEGRAM}/webhook-secret`);
     expect(secret?.secure).toBe(true);
     expect(secret?.value).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(cli.output.join("\n")).not.toContain("123:abc");
@@ -26,19 +25,34 @@ describe("bot add", () => {
     const cli = createCliHarness({ token: "t" });
     await cli.run("bot", "add", "a", "--platform", "telegram");
     await cli.run("bot", "add", "b", "--platform", "telegram");
-    expect(cli.store.entries.get("/centaur/bots/a/webhook-secret")?.value).not.toBe(
-      cli.store.entries.get("/centaur/bots/b/webhook-secret")?.value,
-    );
+    expect(
+      cli.store.entries.get("/centaur/bots/a/platforms/telegram/webhook-secret")?.value,
+    ).not.toBe(cli.store.entries.get("/centaur/bots/b/platforms/telegram/webhook-secret")?.value);
   });
 
   it("stores the signing secret for slack and generates nothing", async () => {
     const cli = createCliHarness({ token: "xoxb-1", "signing-secret": "sig" });
     await cli.run("bot", "add", "notes", "--platform", "slack");
     expect(cli.store.names()).toEqual([
-      "/centaur/bots/notes/platform",
-      "/centaur/bots/notes/signing-secret",
-      "/centaur/bots/notes/token",
+      "/centaur/bots/notes/platforms/slack/signing-secret",
+      "/centaur/bots/notes/platforms/slack/token",
     ]);
+  });
+
+  it("adds a second platform to an existing bot without touching the first", async () => {
+    const cli = createCliHarness({ token: "t", "signing-secret": "sig" });
+    await cli.run("bot", "add", "garden", "--platform", "telegram");
+    const before = new Map(cli.store.entries);
+
+    await cli.run("bot", "add", "garden", "--platform", "slack");
+
+    expect(cli.store.names()).toEqual([
+      `${SLACK}/signing-secret`,
+      `${SLACK}/token`,
+      `${TELEGRAM}/token`,
+      `${TELEGRAM}/webhook-secret`,
+    ]);
+    for (const [name, entry] of before) expect(cli.store.entries.get(name)).toEqual(entry);
   });
 
   it.each([
@@ -50,21 +64,23 @@ describe("bot add", () => {
     expect(cli.store.names()).toEqual([]);
   });
 
-  it("refuses to overwrite an existing bot", async () => {
+  it("refuses a second connection on the same platform, changing nothing", async () => {
     const cli = createCliHarness({ token: "t" });
     await cli.run("bot", "add", "garden", "--platform", "telegram");
+    const before = cli.store.names();
     await expect(cli.run("bot", "add", "garden", "--platform", "telegram")).rejects.toThrow(
-      /already exists/,
+      /already has a telegram connection/,
     );
+    expect(cli.store.names()).toEqual(before);
   });
 });
 
 describe("bot remove and unbind", () => {
   async function addBoundBot() {
-    const cli = createCliHarness({ token: "t" });
+    const cli = createCliHarness({ token: "t", "signing-secret": "sig" });
     await cli.run("bot", "add", "garden", "--platform", "telegram");
     await cli.run("bot", "add", "other", "--platform", "telegram");
-    await cli.store.put("/centaur/bots/garden/repo", "me/garden", { secure: false });
+    await cli.bind("garden", "me/garden");
     return cli;
   }
 
@@ -74,11 +90,11 @@ describe("bot remove and unbind", () => {
 
     await cli.run("bot", "unbind", "garden");
     expect(await cli.store.get("/centaur/bots/garden/repo")).toBeUndefined();
-    expect(await cli.store.get("/centaur/bots/garden/token")).toBe("t");
+    expect(await cli.store.get(`${TELEGRAM}/token`)).toBe("t");
 
     await cli.run("bot", "remove", "garden");
     expect(cli.store.names().filter((name) => name.includes("/garden/"))).toEqual([]);
-    expect(cli.store.names()).toContain("/centaur/bots/other/token");
+    expect(cli.store.names()).toContain("/centaur/bots/other/platforms/telegram/token");
   });
 
   it("does not match bots whose names share a prefix", async () => {
@@ -86,7 +102,7 @@ describe("bot remove and unbind", () => {
     await cli.run("bot", "add", "garden", "--platform", "telegram");
     await cli.run("bot", "add", "garden-2", "--platform", "telegram");
     await cli.run("bot", "remove", "garden");
-    expect(cli.store.names()).toContain("/centaur/bots/garden-2/token");
+    expect(cli.store.names()).toContain("/centaur/bots/garden-2/platforms/telegram/token");
   });
 
   it.each([
@@ -97,9 +113,13 @@ describe("bot remove and unbind", () => {
     await expect(cli.run("bot", command, "ghost")).rejects.toThrow(message);
   });
 
-  it("removes orphan parameters left without a platform", async () => {
+  it("removes orphan parameters left without a connection", async () => {
     const cli = await addBoundBot();
-    await cli.store.delete(["/centaur/bots/other/platform"]);
+    await cli.store.put("/centaur/bots/other/platforms/telegram/approved-chats/1", "{}", {
+      secure: false,
+    });
+    await cli.store.delete(["/centaur/bots/other/platforms/telegram/token"]);
+    await cli.store.delete(["/centaur/bots/other/platforms/telegram/webhook-secret"]);
     await cli.run("bot", "remove", "other");
     expect(cli.store.names().filter((name) => name.includes("/other/"))).toEqual([]);
   });
@@ -107,6 +127,61 @@ describe("bot remove and unbind", () => {
   it("unbind fails for an unbound bot", async () => {
     const cli = await addBoundBot();
     await expect(cli.run("bot", "unbind", "other")).rejects.toThrow(/not bound/);
+  });
+
+  describe("with several connections", () => {
+    async function addTwoConnections() {
+      const cli = await addBoundBot();
+      await cli.run("bot", "add", "garden", "--platform", "slack");
+      await cli.store.put(`${SLACK}/approved-chats/C1`, "{}", { secure: false });
+      await cli.store.put(`${TELEGRAM}/approved-chats/-1`, "{}", { secure: false });
+      return cli;
+    }
+
+    it("removes only the named connection, even while the bot is bound", async () => {
+      const cli = await addTwoConnections();
+
+      await cli.run("bot", "remove", "garden", "--platform", "slack");
+
+      expect(cli.store.names().filter((name) => name.startsWith(SLACK))).toEqual([]);
+      expect(cli.store.names()).toEqual(
+        expect.arrayContaining([
+          `${TELEGRAM}/token`,
+          `${TELEGRAM}/approved-chats/-1`,
+          "/centaur/bots/garden/repo",
+        ]),
+      );
+      expect(cli.output.at(-1)).toBe('Removed the slack connection from bot "garden".');
+    });
+
+    it("requires --platform", async () => {
+      const cli = await addTwoConnections();
+      const before = cli.store.names();
+      await expect(cli.run("bot", "remove", "garden")).rejects.toThrow(
+        /several connections \(.*telegram.*slack.*\); pass --platform/,
+      );
+      expect(cli.store.names()).toEqual(before);
+    });
+
+    it("refuses a platform the bot is not on", async () => {
+      const cli = await addBoundBot();
+      await expect(cli.run("bot", "remove", "garden", "--platform", "slack")).rejects.toThrow(
+        /no slack connection/,
+      );
+    });
+
+    it("removes the whole bot with its last connection, unless it is bound", async () => {
+      const cli = await addTwoConnections();
+      await cli.run("bot", "remove", "garden", "--platform", "slack");
+
+      await expect(cli.run("bot", "remove", "garden", "--platform", "telegram")).rejects.toThrow(
+        /bound to me\/garden/,
+      );
+      await cli.run("bot", "unbind", "garden");
+      await cli.run("bot", "remove", "garden", "--platform", "telegram");
+
+      expect(cli.store.names().filter((name) => name.includes("/garden/"))).toEqual([]);
+    });
   });
 });
 
@@ -117,19 +192,24 @@ describe("bot list", () => {
     expect(cli.output.at(-1)).toBe("No bots registered.");
   });
 
-  it("lists bots sorted by name with binding and token status, never values", async () => {
-    const cli = createCliHarness({ token: "secret-token", "github-token": "ghp_x" });
+  it("lists bots sorted by name with connections, binding and token status, never values", async () => {
+    const cli = createCliHarness({
+      token: "secret-token",
+      "signing-secret": "s",
+      "github-token": "ghp_x",
+    });
     await cli.run("bot", "add", "notes", "--platform", "slack");
     await cli.run("bot", "add", "garden", "--platform", "telegram");
+    await cli.run("bot", "add", "garden", "--platform", "slack");
     await cli.run("bot", "add", "garden-2", "--platform", "telegram");
-    await cli.store.put("/centaur/bots/garden/repo", "me/garden", { secure: false });
-    await cli.store.delete(["/centaur/bots/garden-2/token"]);
+    await cli.bind("garden", "me/garden");
+    await cli.store.delete(["/centaur/bots/garden-2/platforms/telegram/token"]);
     await cli.run("bot", "list");
     expect(cli.output.at(-1)).toBe(
       [
-        "garden  telegram  repo=me/garden  token=set",
-        "garden-2  telegram  repo=-  token=unset",
-        "notes  slack  repo=-  token=set",
+        "garden  repo=me/garden  slack:token=set  telegram:token=set",
+        "garden-2  repo=-  telegram:token=unset",
+        "notes  repo=-  slack:token=set",
         "github-token=unset",
       ].join("\n"),
     );
@@ -138,6 +218,13 @@ describe("bot list", () => {
     await cli.run("bot", "list");
     expect(cli.output.at(-1)).toMatch(/github-token=set$/);
     expect(cli.output.join("\n")).not.toContain("secret-token");
+  });
+
+  it("shows a bot that has no connection", async () => {
+    const cli = createCliHarness();
+    await cli.bind("garden", "me/garden");
+    await cli.run("bot", "list");
+    expect(cli.output.at(-1)).toBe("garden  repo=me/garden  -\ngithub-token=unset");
   });
 });
 

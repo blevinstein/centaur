@@ -16,12 +16,13 @@ import {
 } from "../../lambda/connection-paths.js";
 import { knownChatAliases } from "../chat-aliases.js";
 import type { CliContext } from "../context.js";
+import { type PlatformOptions, withPlatformOption } from "../platform-option.js";
 import {
   CliError,
   chatParameter,
   type Platform,
   parseName,
-  requireBotPlatform,
+  requireConnection,
 } from "../registry.js";
 
 function parseKind(value: string): AccessKind {
@@ -37,7 +38,7 @@ export function registerAccessCommands(program: Command, context: CliContext): v
     .description("Manage the chats and users a bot has approved or blocked");
 
   const subjectCommand = (name: string, description: string) =>
-    access.command(`${name} <bot> <kind> <id>`).description(description);
+    withPlatformOption(access.command(`${name} <bot> <kind> <id>`)).description(description);
 
   interface Subject {
     bot: string;
@@ -54,9 +55,9 @@ export function registerAccessCommands(program: Command, context: CliContext): v
       bot: string,
       kind: string,
       id: string,
-      options: { name?: string; alias?: string } = {},
+      { platform: requested, ...options }: PlatformOptions & { name?: string; alias?: string } = {},
     ) => {
-      const platform = await requireBotPlatform(context.store, bot);
+      const platform = await requireConnection(context.store, bot, requested);
       context.log(await action({ bot, platform, kind: parseKind(kind), id, ...options }));
     };
 
@@ -130,11 +131,10 @@ export function registerAccessCommands(program: Command, context: CliContext): v
     }),
   );
 
-  access
-    .command("list <bot>")
+  withPlatformOption(access.command("list <bot>"))
     .description("List approved and blocked chats and users")
-    .action(async (bot: string) => {
-      const platform = await requireBotPlatform(context.store, bot);
+    .action(async (bot: string, options: PlatformOptions) => {
+      const platform = await requireConnection(context.store, bot, options.platform);
       const sections = ACCESS_KINDS.flatMap((kind) => [
         { label: "approved", kind, prefix: approvedPrefix(bot, platform, kind) },
         { label: "blocked", kind, prefix: blockedPrefix(bot, platform, kind) },

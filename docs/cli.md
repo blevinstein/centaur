@@ -29,43 +29,59 @@ touched.
 
 ## Commands
 
+### Connections
+
+A bot has one connection per platform, stored under
+`/centaur/bots/<bot>/platforms/<platform>/` (see [SSM parameter layout](plan.md#ssm-parameter-layout)),
+and one repo binding. Commands that act on a connection take `--platform <telegram|slack>`. It may
+be omitted when the bot has exactly one connection; with several, the command fails with
+`Bot "<x>" has several connections (...); pass --platform.` and changes nothing.
+
 ### `centaur bot add <bot> --platform <telegram|slack>`
 
-Stores a new bot's secrets. Secrets are never flags; see [Supplying secrets](#supplying-secrets).
+Stores a bot's secrets for one platform. The bot is created if it does not exist; otherwise the
+platform is added as a further connection and the existing ones are not touched. Secrets are never
+flags; see [Supplying secrets](#supplying-secrets).
 
 | Platform | Prompted / read | Generated |
 |---|---|---|
 | `telegram` | `token` | `webhook-secret` (32 random bytes, base64url) |
 | `slack` | `token`, `signing-secret` | none |
 
-Each secret is written as a `SecureString` under `/centaur/bots/<bot>/`, and `platform` is written
-last as a plain `String`. The command prints only `Added <platform> bot "<bot>".`, never a secret.
+Each secret is written as a `SecureString` under `/centaur/bots/<bot>/platforms/<platform>/`. The
+command prints only `Added <platform> connection to bot "<bot>".`, never a secret.
 
 ```sh
 centaur bot add garden --platform telegram
+centaur bot add garden --platform slack      # a second connection on the same bot
 ```
 
-Refuses if `bots/<bot>/platform` already exists; there is no overwrite or rotate, so run `bot
-remove` first. If the command fails partway (for example a missing secret), no `platform`
-parameter is written and the bot can simply be added again.
+Refuses if the bot already has a connection on that platform; there is no overwrite or rotate, so
+run `bot remove --platform` first. If the command fails partway (for example a missing secret),
+nothing is written before the secrets are read, and the command can simply be run again.
 
 ### `centaur bot list`
 
-Prints one line per bot, sorted by name: `name  platform  repo=<owner/repo|->  token=<set|unset>`,
-followed by `github-token=<set|unset>` for the global [GitHub token](#centaur-github-token-set).
-`platform` and `repo` show `-` when missing or unbound. Only presence is reported, never values.
-Prints `No bots registered.` when no `bots/` parameters exist.
+Prints one line per bot, sorted by name:
+`name  repo=<owner/repo|->  <platform>:token=<set|unset> ...`, with one `<platform>:token` column
+per connection (or `-` when the bot has none), followed by `github-token=<set|unset>` for the
+global [GitHub token](#centaur-github-token-set). `repo` shows `-` when unbound. Only presence is
+reported, never values. Prints `No bots registered.` when no `bots/` parameters exist.
 
-### `centaur bot remove <bot>`
+### `centaur bot remove <bot> [--platform <platform>]`
 
-Deletes every parameter under `/centaur/bots/<bot>/`, including leftovers when `platform` is
-missing. Other bots whose names share a prefix (e.g. `garden-2`) are untouched. Refuses if no
-parameters exist for the bot or it is still bound to a repo.
+Deletes one connection: every parameter under `/centaur/bots/<bot>/platforms/<platform>/`, including
+its approved and blocked entries. The other connections and the repo binding are untouched, so a
+bound bot can lose a connection. When it is the bot's last connection (or the bot has none), the
+whole bot goes instead: every parameter under `/centaur/bots/<bot>/`, including leftovers. Other
+bots whose names share a prefix (e.g. `garden-2`) are untouched. Removing the whole bot refuses if
+no parameters exist for the bot or it is still bound to a repo.
 
 ### `centaur bot unbind <bot>`
 
 Deletes `bots/<bot>/repo`, the binding written when a repo registers the bot. The secrets stay, so
-the bot can be bound to a different repo, or removed. Refuses if the bot is unknown or not bound.
+the bot can be bound to a different repo, or removed. The binding is per bot, so the command takes
+no `--platform`. Refuses if the bot is unknown or not bound.
 
 ```sh
 centaur bot unbind garden && centaur bot remove garden
@@ -83,10 +99,11 @@ Records the admin's user ID per platform as `/centaur/admin/<platform>`; the adm
 [access requests](plan.md#access-requests). The admin is global, not per bot, and a bot only
 notifies the admin on its own platform. At least one flag is required.
 
-### `centaur admin claim <bot> [--ttl-minutes <n>] [--cancel]`
+### `centaur admin claim <bot> [--platform <platform>] [--ttl-minutes <n>] [--cancel]`
 
-Lets you become the admin without looking up your own user ID. It requires the bot to exist,
-generates a random one-time code, and stores only its SHA-256 hash, an expiry (`--ttl-minutes`,
+Lets you become the admin without looking up your own user ID. It requires the bot to exist and
+acts through one of its connections (see [Connections](#connections)); the claim is for that
+connection's platform. It generates a random one-time code, and stores only its SHA-256 hash, an expiry (`--ttl-minutes`,
 default 15, at most 1440) and the bot's name as `/centaur/admin-claim/<platform>`, replacing any
 pending claim for that platform. Then:
 
@@ -103,6 +120,7 @@ refuses if there is none. See [plan.md](plan.md#bootstrapping-the-first-admin).
 
 ```sh
 centaur admin claim garden
+centaur admin claim garden --platform slack    # a bot with several connections
 ```
 
 ### `centaur admin show`
@@ -114,11 +132,15 @@ Prints the admin ID for each platform, or `not set`.
 Deletes the admin ID for the given platforms. Bots on a platform with no admin go back to ignoring
 unknown chats and refusing unknown users. Refuses if one of the platforms has no admin.
 
-### `centaur access approve <bot> <chat|user> <id> [--name <name>] [--alias <alias>]`
+Every `access` command takes `--platform <platform>` to pick the bot's connection (see
+[Connections](#connections)); approvals and blocks belong to one connection, so approving a chat on
+Telegram says nothing about Slack.
 
-Approves a chat or user for one bot without waiting for a request, writing
-`/centaur/bots/<bot>/approved-chats/<id>` or `approved-users/<id>`. `--name` records a display
-name for `access list`. Telegram group IDs are negative; they are accepted as-is.
+### `centaur access approve <bot> <chat|user> <id> [--platform <platform>] [--name <name>] [--alias <alias>]`
+
+Approves a chat or user for one connection of a bot without waiting for a request, writing
+`/centaur/bots/<bot>/platforms/<platform>/approved-chats/<id>` or `approved-users/<id>`. `--name`
+records a display name for `access list`. Telegram group IDs are negative; they are accepted as-is.
 
 Approving a chat also records a global chat alias, `/centaur/chats/<alias>`, and stores it on the
 approved entry. `--alias` names it (chats only); otherwise it is a slug of `--name` (lowercase
@@ -127,20 +149,20 @@ suffix (`household-2`), an alias that already names the chat is reused, and an e
 that names a different chat is refused. Existing aliases are never overwritten. Approving an approved chat again with a new `--alias` adds that alias and updates the entry,
 keeping its name; earlier aliases stay. Revoking leaves the aliases in place.
 
-### `centaur access revoke <bot> <chat|user> <id>`
+### `centaur access revoke <bot> <chat|user> <id> [--platform <platform>]`
 
 Deletes the approval. Refuses if there is none.
 
-### `centaur access block <bot> <chat|user> <id>` / `centaur access unblock <bot> <chat|user> <id>`
+### `centaur access block <bot> <chat|user> <id> [--platform <platform>]` / `centaur access unblock <bot> <chat|user> <id> [--platform <platform>]`
 
-`block` writes `/centaur/bots/<bot>/blocked/<kind>/<id>` and deletes the subject's approval, and
+`block` writes `/centaur/bots/<bot>/platforms/<platform>/blocked/<kind>/<id>` and deletes the subject's approval, and
 refuses to block the platform's admin user ID; a blocked subject is ignored, and gets no reply or request. `unblock`
 deletes the block and refuses if there is none; the subject is then unapproved and can request
 access again.
 
-### `centaur access list <bot>`
+### `centaur access list <bot> [--platform <platform>]`
 
-Prints each approved and blocked entry as `state  kind  id  name  time`, followed by
+Prints, for one connection, each approved and blocked entry as `state  kind  id  name  time`, followed by
 `alias=<alias>` for an approved chat that has one, or `Nothing approved or blocked for "<bot>".`.
 
 Changes take effect within about 30 seconds (the receiver's cache).
@@ -208,12 +230,15 @@ Errors are printed to stderr and the exit code is 1.
 |---|---|
 | `Invalid <kind> name "<x>"` | Bot name or alias outside the pattern above. |
 | `Unknown platform "<x>"` | `--platform` is not `telegram` or `slack`. |
-| `Bot "<x>" already exists; remove it first.` | `bot add` on an existing bot. |
-| `Unknown bot "<x>".` | `bot remove` on a bot with no parameters, or `bot unbind` on a bot with no `platform` parameter. |
+| `Bot "<x>" already has a <platform> connection; remove it first.` | `bot add` on a platform the bot is already on. |
+| `Unknown bot "<x>".` | A bot command or `access`/`admin claim` on a bot with no parameters. |
+| `Bot "<x>" has several connections (<platforms>); pass --platform.` | `bot remove`, `access` or `admin claim` without `--platform` on a bot with more than one connection. |
+| `Bot "<x>" has no <platform> connection.` | `--platform` names a platform the bot is not on. |
+| `Bot "<x>" has no connections.` | `access` or `admin claim` on a bot with only a repo binding or leftovers. |
 | `Cannot read <path>: no such file` | `config check` on a path that does not exist. |
 | `<path> is invalid:` followed by issues | `config check` on a file that fails validation. |
 | `No GitHub token is stored.` | `github-token remove` with nothing stored. |
-| `Bot "<x>" is bound to <repo>; run "centaur bot unbind" first.` | `bot remove` while bound. |
+| `Bot "<x>" is bound to <repo>; run "centaur bot unbind" first.` | `bot remove` of a bot's last connection while bound. |
 | `Bot "<x>" is not bound to a repo.` | `bot unbind` on an unbound bot. |
 | `Alias "<x>" already names chat <id>.` | `access approve --alias` with a name that points at another chat. |
 | `--alias applies to chats only.` | `access approve <bot> user <id> --alias ...`. |
@@ -240,5 +265,6 @@ centaur bot add garden --platform telegram      # paste the BotFather token at t
 Then push the repo's config; its `register` job binds the bot (`bots/garden/repo`) and sets
 the webhook. Run `centaur admin claim garden` and open the link to become the admin; chats and users then arrive as access requests. If you already know an ID, `centaur access approve garden
 chat <id> --name "Garden Club"` or `centaur access approve garden user <id>` approves it directly.
-To retire the bot later, run `centaur bot unbind garden` and `centaur bot remove
-garden`.
+To add Slack later, run `centaur bot add garden --platform slack` (token, then signing secret).
+To retire the bot, run `centaur bot unbind garden` and `centaur bot remove garden` (once per
+connection when it has several, with `--platform`).

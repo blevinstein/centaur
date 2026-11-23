@@ -8,13 +8,14 @@ import {
   generateClaimCode,
   MAX_CLAIM_TTL_MINUTES,
 } from "../../lambda/admin-claim-record.js";
+import { tokenParameter } from "../../lambda/connection-paths.js";
 import type { CliContext } from "../context.js";
+import { type PlatformOptions, withPlatformOption } from "../platform-option.js";
 import {
-  botParameter,
   CliError,
   PLATFORM_NAMES,
   type Platform,
-  requireBotPlatform,
+  requireConnection,
   selectedPlatformIds,
 } from "../registry.js";
 
@@ -72,7 +73,7 @@ export function registerAdminCommands(program: Command, context: CliContext): vo
 
   const claimInstructions = async (platform: Platform, bot: string, code: string) => {
     if (platform === "slack") return `Send the bot a direct message: claim ${code}`;
-    const token = await context.store.get(botParameter(bot, "token"));
+    const token = await context.store.get(tokenParameter(bot, platform));
     if (!token) throw new CliError(`Bot "${bot}" has no token.`);
     try {
       const { username } = await context.telegram.getMe(token);
@@ -84,8 +85,7 @@ export function registerAdminCommands(program: Command, context: CliContext): vo
     }
   };
 
-  admin
-    .command("claim <bot>")
+  withPlatformOption(admin.command("claim <bot>"))
     .description(
       "Let the first person to send a one-time code to the bot become its platform's admin",
     )
@@ -96,23 +96,25 @@ export function registerAdminCommands(program: Command, context: CliContext): vo
       DEFAULT_CLAIM_TTL_MINUTES,
     )
     .option("--cancel", "delete the pending claim instead of creating one")
-    .action(async (bot: string, options: { ttlMinutes: number; cancel?: boolean }) => {
-      const platform = await requireBotPlatform(context.store, bot);
-      const parameter = adminClaimParameter(platform);
-      if (options.cancel) {
-        if (decodeClaim(await context.store.get(parameter))?.bot !== bot) {
-          throw new CliError(`No pending claim for bot "${bot}".`);
+    .action(
+      async (bot: string, options: PlatformOptions & { ttlMinutes: number; cancel?: boolean }) => {
+        const platform = await requireConnection(context.store, bot, options.platform);
+        const parameter = adminClaimParameter(platform);
+        if (options.cancel) {
+          if (decodeClaim(await context.store.get(parameter))?.bot !== bot) {
+            throw new CliError(`No pending claim for bot "${bot}".`);
+          }
+          await context.store.delete([parameter]);
+          context.log(`Cancelled the pending claim for bot "${bot}".`);
+          return;
         }
-        await context.store.delete([parameter]);
-        context.log(`Cancelled the pending claim for bot "${bot}".`);
-        return;
-      }
-      const code = generateClaimCode();
-      const instructions = await claimInstructions(platform, bot, code);
-      const expiresAt = new Date(Date.now() + options.ttlMinutes * 60_000);
-      await context.store.put(parameter, encodeClaim(bot, code, expiresAt), { secure: false });
-      context.log(
-        `${instructions}\nThe code works once, in a direct message to the bot, for ${options.ttlMinutes} minutes. Running this again replaces it.`,
-      );
-    });
+        const code = generateClaimCode();
+        const instructions = await claimInstructions(platform, bot, code);
+        const expiresAt = new Date(Date.now() + options.ttlMinutes * 60_000);
+        await context.store.put(parameter, encodeClaim(bot, code, expiresAt), { secure: false });
+        context.log(
+          `${instructions}\nThe code works once, in a direct message to the bot, for ${options.ttlMinutes} minutes. Running this again replaces it.`,
+        );
+      },
+    );
 }
