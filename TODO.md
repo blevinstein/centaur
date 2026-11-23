@@ -300,7 +300,7 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       bot, and a scheduled prompt per consumer (not dispatched, since they post to real chats).
 - [ ] **[HUMAN APPROVAL]** After a week's soak, `centaur bot migrate --prune` (deletes the flat
       parameters and aliases) and delete the export file.
-- [ ] Platforms 9: `thread-meta` record stores a thread's context policy; `start-thread` accepts
+- [x] Platforms 9: `thread-meta` record stores a thread's context policy; `start-thread` accepts
       `context`, `read` returns `policy`, ownership reads it. After 18.
 - [x] Platforms 10: runner uses the stored policy and passes the prompt's `context` to
       `start-thread` (fixes thread policy storage for every prompt). After 9 is deployed.
@@ -321,7 +321,7 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       receiver code for a rare need.
 - [x] Platforms 14: `centaur destination set|list|remove`; removes `centaur chat list` (breaking).
       After 11. Done. `chat list` and `access approve --alias` are removed.
-- [ ] Platforms 15: multi-target scheduled turns (turn state targets, fan-out in `finish`). After 10.
+- [x] Platforms 15: multi-target scheduled turns (turn state targets, fan-out in `finish`). After 10.
 - [ ] Platforms 16: `thread: persistent` scheduled turns (the runner passes the prompt's `thread`;
       history, marker, session, `resolve` job and concurrency template); the schema stops rejecting
       `persistent`. After 11, 15 and bounded transcript 3 (section 15).
