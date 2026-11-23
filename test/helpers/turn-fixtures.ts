@@ -1,15 +1,15 @@
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { PosterRequest } from "../../src/lambda/poster.js";
 import { finish } from "../../src/workflows/finish.js";
 import type { PrepareDeps } from "../../src/workflows/prepare.js";
-import { prepare } from "../../src/workflows/prepare.js";
+import { PROMPT_FILE, prepare } from "../../src/workflows/prepare.js";
 import { scannedRange } from "./chat-context-fixtures.js";
 import {
   configText,
   createFakeAws,
   createWorkspace,
-  type message,
+  message,
   pullRequestLink,
   THREAD,
 } from "./workflow-fixtures.js";
@@ -101,3 +101,29 @@ export async function runFanOut(failing: string[] = []) {
   });
   return { ...run, finishing };
 }
+
+/** The text of the message at `index` in `sizedMessages`: one distinct letter, `size` times. */
+export const letters = (index: number, size: number) =>
+  String.fromCharCode(97 + index).repeat(size);
+
+/** Thread messages (at most 8 earlier ones) whose texts are `letters(index, size)`. */
+export const sizedMessages = (sizes: number[]) =>
+  sizes.map((size, index) => message(String(index + 1), letters(index, size)));
+
+export const budgetConfig = (maxChars: number, chatTools = false) =>
+  (chatTools ? chatConfigText : configText)(`context: { transcript_max_chars: ${maxChars} }`);
+
+/**
+ * A thread of earlier messages that were already processed (the marker sits on the last of them)
+ * followed by one pending message.
+ */
+export async function budgetSetup(sizes: number[], config: string, pending = "question") {
+  const run = await setup(
+    [...sizedMessages(sizes), message(String(sizes.length + 1), pending)],
+    config,
+  );
+  await run.aws.storeFor("sprout", THREAD).writeMarker(String(sizes.length));
+  return run;
+}
+
+export const readPrompt = (root: string) => readFile(join(root, PROMPT_FILE), "utf8");

@@ -106,7 +106,7 @@ One agent turn:
 4. Invoke the poster with `structured_output.reply`, unless the agent ignored the messages (the
    marker still advances and the session is still saved; an opened pull request is still linked).
    Then remove the 👀 reactions from the processed messages, also after a failure notice.
-5. If files changed, open a PR (`peter-evans/create-pull-request`, as in polytokenizer) titled and
+5. If files changed, open a PR (`peter-evans/create-pull-request`) titled and
    described from the agent's `pr_title` and `pr_body`, and include the link in the chat reply.
    Agents never push to the default branch.
 6. Save the session file to S3 when the policy is `resume`.
@@ -203,15 +203,13 @@ Each thread has a context policy.
 - `start-thread` stores the prompt's `context` in the thread's `thread-meta` state record
   (`thread-meta:<threadId>` under the bot's prefix; 90-day expiry refreshed on every read), and
   `read` returns it as `policy`, which `prepare` uses when no command overrides it.
-- **Transcript budget (planned, not implemented).** The transcript fills at most
-  `context.transcript_max_percent` (default 25) of the model's context window, newest messages
-  first. The rest of the window is for the persona, the instructions, the repo, tool results and
-  the agent's own work. Counting and fitting use
-  [polytokenizer](https://www.npmjs.com/package/polytokenizer) rather than a hand-rolled
-  tokenizer. Messages older than the cutoff are not in the prompt, and a note says how many were
-  omitted. The agent reaches them, and other threads of the chat, through the
-  [chat context tools](chat-context.md). Details are in
-  [workflows.md](workflows.md#transcript-budget-planned) and [config.md](config.md#context).
+- **Transcript budget.** The earlier transcript fills at most `context.transcript_max_chars`
+  characters (default 100,000, about 25k tokens of English text), newest messages first. The
+  rest of the window is for the persona, the instructions, the repo, tool results and the agent's
+  own work. A character count needs no tokenizer and sends nothing to a vendor. Messages older
+  than the cutoff are not in the prompt, and a note says how many were omitted. The agent reaches
+  them, and other threads of the chat, through the [chat context tools](chat-context.md). Details
+  are in [workflows.md](workflows.md#transcript-budget) and [config.md](config.md#context).
 - Long `resume` sessions rely on Claude Code's automatic compaction. Add a per-thread turn or
   token cap later if costs warrant it.
 - **Durable memory is the repo.** Anything that should outlive a thread (preferences, inventory,
@@ -256,8 +254,7 @@ DMs with a bot are always that bot's; DMs use reply chains, not topics (see
   request](#access-requests) instead (see [onboarding.md](onboarding.md)).
 - **No message content in GitHub.** Dispatch payloads carry IDs only. Transcripts are fetched from
   the poster at run time and never echoed. `show_full_output` stays off.
-- **Least-privilege tools.** Each repo's `allowed_tools` is an explicit allowlist, as in
-  polytokenizer's workflow.
+- **Least-privilege tools.** Each repo's `allowed_tools` is an explicit allowlist.
 - **Changes only via PR.** Agent output is reviewed before it becomes durable. This replaces
   a "push to main" convention for automated runs.
 - **Prompt injection.** Fetched web pages (plant care guides, weather sites) are untrusted input. The allowlist

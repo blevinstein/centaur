@@ -39,6 +39,7 @@ import {
   planTurn,
   threadPolicy,
 } from "./transcript.js";
+import { boundTranscript } from "./transcript-budget.js";
 import { writeTurnState } from "./turn-state.js";
 
 export const TURN_DIR = ".centaur-turn";
@@ -138,6 +139,12 @@ async function loadAttachments(deps: PrepareDeps, shown: ChatMessage[]): Promise
   const loaded = new Set(keys);
   return (key) => (loaded.has(key) ? localAttachment(key) : undefined);
 }
+
+/** The earlier messages the prompt shows, bounded by `context.transcript_max_chars`. */
+const earlierTranscript = (config: CentaurConfig, show: boolean, earlier: ChatMessage[]) =>
+  show
+    ? boundTranscript(earlier, config.context.transcript_max_chars)
+    : { messages: [], omitted: 0 };
 
 const safeRef = (value: string) => value.replaceAll(/[^A-Za-z0-9._-]/g, "-");
 
@@ -254,7 +261,11 @@ async function chatTurn(
       const pendingIds = new Set(plan.pending.map((m) => m.id));
       const showHistory =
         plan.policy === "transcript" || (plan.policy === "resume" && !resumeSessionId);
-      const history = showHistory ? messages.filter((m) => !pendingIds.has(m.id)) : [];
+      const { messages: history, omitted } = earlierTranscript(
+        config,
+        showHistory,
+        messages.filter((m) => !pendingIds.has(m.id)),
+      );
       const attachmentPath = await loadAttachments(deps, [...history, ...plan.pending]);
       const targets = prTargetFlags(config, await existingTargets(deps, config));
       return {
@@ -273,6 +284,7 @@ async function chatTurn(
           instructions,
           handle: settings.handle,
           history,
+          omitted,
           messages: plan.pending,
           attachmentPath,
         }),
@@ -322,7 +334,7 @@ async function commentTurn(
       : undefined;
   const hasSession = resumeSessionId !== undefined;
   const showHistory = policy === "transcript" || (policy === "resume" && !hasSession);
-  const history = showHistory ? messages : [];
+  const { messages: history, omitted } = earlierTranscript(config, showHistory, messages);
   const attachmentPath = await loadAttachments(deps, history);
   const diff = hasSession
     ? undefined
@@ -340,6 +352,7 @@ async function commentTurn(
     ...(resumeSessionId ? { resumeSessionId } : {}),
     prompt: buildPrompt({
       history,
+      omitted,
       attachmentPath,
       instructions,
       chatTools: chatToolsEnabled(config),

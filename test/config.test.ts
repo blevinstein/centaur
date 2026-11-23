@@ -26,7 +26,7 @@ describe("parseCentaurConfig", () => {
         bot: "garden",
         platforms: { telegram: { respond_to: "mention" } },
         max_turns: 30,
-        context: { default: "transcript", scheduled: "fresh" },
+        context: { default: "transcript", scheduled: "fresh", transcript_max_chars: 100000 },
         provider: "anthropic",
         model: "sonnet",
         allowed_tools: ["Read", "Edit"],
@@ -69,7 +69,7 @@ describe("parseCentaurConfig", () => {
         effort: "low",
         max_turns: 12,
         max_budget_usd: 0.5,
-        context: { default: "resume", scheduled: "fresh" },
+        context: { default: "resume", scheduled: "fresh", transcript_max_chars: 100000 },
         provider: "anthropic",
         model: "sonnet",
         allowed_tools: ["Read", "Edit", "Write", "Glob", "Grep"],
@@ -103,6 +103,13 @@ describe("parseCentaurConfig", () => {
           },
         },
       },
+    });
+  });
+
+  it("accepts a transcript_max_chars override", () => {
+    expect(parseCentaurConfig(withExtra("context: {transcript_max_chars: 5000}"))).toMatchObject({
+      ok: true,
+      config: { context: { default: "transcript", transcript_max_chars: 5000 } },
     });
   });
 

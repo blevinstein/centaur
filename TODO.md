@@ -229,31 +229,29 @@ poster record exists it names the same bot); never from the turn state.
 
 ## 15. Bounded transcript
 
-Design (decided): the earlier transcript fills at most `context.transcript_max_percent` (default
-25) of the model's context window, newest first, using polytokenizer; older messages are reached
-through the chat context tools. See [docs/plan.md](docs/plan.md#context-management),
-[docs/workflows.md](docs/workflows.md#transcript-budget-planned) and
+Design (decided 2026-11-24): the earlier transcript fills at most `context.transcript_max_chars`
+characters (default 100,000), newest first, with no tokenizer dependency and nothing sent to a
+vendor; older messages are reached through the chat context tools. See
+[docs/plan.md](docs/plan.md#context-management),
+[docs/workflows.md](docs/workflows.md#transcript-budget) and
 [docs/config.md](docs/config.md#context).
 
-- [ ] Bounded transcript 1: add `polytokenizer` as a dependency (published to npm; 1.0.23 is
-      months old, so the age gate does not block it, and `.yarnrc.yml` has no exemption to
-      maintain). It pulls in the OpenAI, Google and Anthropic clients, so keep it runner-only: out
-      of the Lambda bundle, like `src/config/mcp-policy.ts`. `yarn install --immutable` must pass.
-- [ ] Bounded transcript 2: schema keys `context.transcript_max_percent` (integer 1 to 100, default
-      25) and `context.window_tokens` (optional positive integer) in `src/config/schema.ts`, with
-      `docs/config.md` updated from "planned", the defaults in `test/config.test.ts` and any
-      fixture that builds the config by hand.
-- [ ] Bounded transcript 3: budget the transcript in `prepare` (window from `window_tokens`, else
-      `CONTEXT_LIMITS` for `anthropic/<model>`, else 200,000; newest-first fill; pending messages
-      always shown; a single message cut to half the budget with a marker; an omission note in
-      `prompt.ts`). Compute pending messages and the marker from the full transcript first. Make
-      sure token-count failures never write message text to the job log (polytokenizer's fallback
-      logs a text preview). Update the "planned" markers in `docs/` when it lands.
-- [ ] Bounded transcript 4: tests with a fake counter in `test/helpers/`: fill order, budget
-      boundary, oversized message, omission note with and without the chat tools, window fallback,
-      and that pending messages and the marker are unchanged.
-- [ ] Bounded transcript 5: depends on the chat context tools item (section 11) for retrieving
-      omitted messages; until it ships the omission note says they are unavailable.
+- [x] Bounded transcript 1: no tokenizer dependency; dropped in favor of a character limit.
+- [x] Bounded transcript 2: schema key `context.transcript_max_chars` (positive integer, default
+      100,000) in `src/config/schema.ts`, with `docs/config.md` and the defaults in
+      `test/config.test.ts`. Done.
+- [x] Bounded transcript 3: `prepare` bounds the earlier transcript of chat and pull request
+      comment turns (`src/workflows/transcript-budget.ts`, `splitTextMaxChars` in
+      `src/workflows/split-text.ts`): newest-first fill, pending messages always shown in full,
+      an earlier message over half the budget cut with a marker, and an omission note in
+      `prompt.ts`. Pending messages and the marker come from the full transcript; no message text
+      is logged. Done.
+- [x] Bounded transcript 4: tests with helpers in `test/helpers/turn-fixtures.ts`: the splitter,
+      fill order, budget boundary, oversized message, pending messages and the marker, omission
+      note with and without the chat tools, pull request comment turn, and the config key. Done.
+- [x] Bounded transcript 5: the omission note names `read_thread` on `thread-0` with a `before`
+      cursor when `chat_tools.scope` is `chat`, and says the messages are unavailable otherwise.
+      Done.
 
 ## 16. Platforms and destinations
 

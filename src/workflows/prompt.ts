@@ -34,6 +34,13 @@ one of these pull requests instead.`;
 
 const SILENCE_CONTRACT = `To stay silent, set "ignore" to true and omit "reply".`;
 
+const omissionNote = (omitted: number, chatTools: boolean | undefined) => {
+  const lead = `${omitted} earlier ${omitted === 1 ? "message" : "messages"} in this thread ${omitted === 1 ? "is" : "are"} omitted and not part of this turn.`;
+  return chatTools
+    ? `${lead} To read them, call \`read_thread\` on \`thread-0\` with a \`before\` cursor.`
+    : `${lead} They are not available this turn: ask the user for anything you need from them.`;
+};
+
 const mentionHint = (handle: string | undefined) =>
   handle ? `People mention you as @${handle}.` : undefined;
 
@@ -61,6 +68,8 @@ export interface PromptParts {
   handle?: string | undefined;
   scheduledTask?: string | undefined;
   history?: ChatMessage[] | undefined;
+  /** How many of the oldest earlier messages the transcript budget left out of `history`. */
+  omitted?: number | undefined;
   messages?: ChatMessage[] | undefined;
   attachmentPath?: AttachmentPath | undefined;
   instructions?: Instructions | undefined;
@@ -78,6 +87,7 @@ export function buildPrompt({
   handle,
   scheduledTask,
   history,
+  omitted = 0,
   messages,
   attachmentPath = NO_ATTACHMENTS,
   instructions = DEFAULT_INSTRUCTIONS,
@@ -121,7 +131,12 @@ export function buildPrompt({
     ],
     [
       "Earlier messages in this thread",
-      history?.length ? renderMessages(history, attachmentPath) : undefined,
+      history?.length || omitted > 0
+        ? joinParagraphs(
+            ...(omitted > 0 ? [omissionNote(omitted, chatTools)] : []),
+            ...(history?.length ? [renderMessages(history, attachmentPath)] : []),
+          )
+        : undefined,
     ],
     [
       "New messages to answer",

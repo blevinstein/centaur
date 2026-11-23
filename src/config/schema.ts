@@ -38,6 +38,8 @@ const repoPath = z
 
 const contextPolicy = z.enum(CONTEXT_POLICIES);
 
+const DEFAULT_TRANSCRIPT_MAX_CHARS = 100_000;
+
 const toolList = z
   .union([z.string(), z.array(z.string().min(1))])
   .transform((tools) =>
@@ -176,8 +178,13 @@ export const centaurConfigSchema = z
       .strictObject({
         default: contextPolicy.default("transcript"),
         scheduled: contextPolicy.default("fresh"),
+        transcript_max_chars: z.number().int().positive().default(DEFAULT_TRANSCRIPT_MAX_CHARS),
       })
-      .default({ default: "transcript", scheduled: "fresh" }),
+      .default({
+        default: "transcript",
+        scheduled: "fresh",
+        transcript_max_chars: DEFAULT_TRANSCRIPT_MAX_CHARS,
+      }),
     provider: z.enum(PROVIDERS),
     model: z.string().min(1),
     effort: z.enum(EFFORT_LEVELS).optional(),

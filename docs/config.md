@@ -65,8 +65,7 @@ prompts:
 | `platforms` | yes | | The platforms the repo expects the bot to be on: a map from `telegram` or `slack` to per-platform settings, at least one. See [Platforms](#platforms). |
 | `context.default` | no | `transcript` | Policy for conversational threads: `fresh`, `transcript` or `resume`. |
 | `context.scheduled` | no | `fresh` | Policy for threads started by a scheduled prompt. |
-| `context.transcript_max_percent` | no | `25` | Planned, not implemented. Share of the model's context window the earlier transcript may fill, an integer from 1 to 100. See [Context](#context). |
-| `context.window_tokens` | no | | Planned, not implemented. The model's context window in tokens, overriding the lookup. The `context` block governs how a thread's history is rebuilt each turn. |
+| `context.transcript_max_chars` | no | `100000` | Characters of message text the earlier transcript may fill, a positive integer. The `context` block governs how a thread's history is rebuilt each turn. See [Context](#context). |
 | `provider` | yes | | API provider: `anthropic` or `openrouter`. Each maps to a base URL and API key secret name in `src/config/providers.ts` (`anthropic` uses the default endpoint); add a provider by adding an entry there. |
 | `model` | yes | | Model passed to the agent (`--model`). Always set explicitly; the CLI default is never relied on. |
 | `effort` | no | | Reasoning effort: `low`, `medium`, `high`, `xhigh` or `max` (`--effort`); unset uses the CLI's default. |
@@ -159,23 +158,20 @@ Scheduled prompts always post.
 
 ## Context
 
-> **Status: planned, not implemented.** The keys below are not in the schema yet; today the whole
-> stored transcript is sent.
-
 ```yaml
 context:
   default: transcript
-  transcript_max_percent: 25   # earlier messages fill at most 25% of the window
-  window_tokens: 200000        # optional; otherwise looked up from the model
+  transcript_max_chars: 100000   # earlier messages fill at most 100,000 characters
 ```
 
-`transcript_max_percent` bounds the earlier messages of a `transcript` turn (and of a `resume` turn
-that falls back to the transcript), newest first. 25 leaves most of the window for the persona, the
-instructions, the repo, tool results and the agent's own work. Pending messages are always shown,
-and one oversized message is truncated. Messages beyond the bound are omitted with a note, and the
-agent reads them through the [chat context tools](chat-context.md). The window comes from
-`window_tokens`, else polytokenizer's context limits for the model, else 200,000 tokens. See
-[workflows.md](workflows.md#transcript-budget-planned) for the mechanics.
+`transcript_max_chars` bounds the earlier messages of a `transcript` turn (and of a `resume` turn
+that falls back to the transcript, and of a pull request comment turn), newest first. The default
+is about 25k tokens of English text, a bounded share of any current model window, which leaves the
+rest for the persona, the instructions, the repo, tool results and the agent's own work. Pending
+messages are always shown in full, and one earlier message longer than half the budget is
+shortened. Messages beyond the bound are omitted with a note, and the agent reads them through the
+[chat context tools](chat-context.md). See [workflows.md](workflows.md#transcript-budget) for the
+mechanics.
 
 ## Tuning cost
 

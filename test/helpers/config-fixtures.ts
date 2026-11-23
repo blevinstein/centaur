@@ -209,6 +209,15 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
   ["unknown platform", yamlOf({ platforms: "{irc: {}}" }), "platforms", /./],
   ["uppercase bot alias", yamlOf({ bot: "Garden" }), "bot", /lowercase alias/],
   ["bad context policy", withExtra("context: {default: sticky}"), "context.default", /./],
+  ...["0", "-5", "1.5", "lots"].map(
+    (value) =>
+      [
+        `transcript_max_chars of ${value}`,
+        withExtra(`context: {transcript_max_chars: ${value}}`),
+        "context.transcript_max_chars",
+        /./,
+      ] as [string, string, string, RegExp],
+  ),
   ["unknown key", withExtra("extra: 1"), "(root)", /unrecognized key/i],
   ["missing allowed_tools", yamlOf({ allowed_tools: undefined }), "allowed_tools", /./],
   ["empty tool list", yamlOf({ allowed_tools: '" , "' }), "allowed_tools", /at least one tool/],

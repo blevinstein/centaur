@@ -152,7 +152,7 @@ Slack granting unrestricted search to bot tokens; or Anthropic shipping embeddin
 
 ## Bounded transcript interaction
 
-The omission note in [workflows.md](workflows.md#transcript-budget-planned) points the agent at
+The omission note in [workflows.md](workflows.md#transcript-budget) points the agent at
 `read_thread` with `before`. The agent finds older messages that note dropped by paging with
 `read_thread` and `before`, or, on Slack with the opt-in enabled, by searching. The search tool
 must not widen `scope`: it reads the dispatched thread's own chat only.

@@ -14,8 +14,7 @@ Findings gathered November 2026. Platform details change quickly; re-verify anyt
    and merges PRs; chat participants never touch GitHub.
 3. **Intentional context management.** The maintainer decides, per conversation type, whether the
    agent sees prior thread context, resumes a full prior session, or starts fresh.
-4. **Repo-level automation.** A repo can declare "run this prompt every week" in version control
-   (see the polytokenizer `quarterly-model-update.yml` workflow for the existing pattern).
+4. **Repo-level automation.** A repo can declare "run this prompt every week" in version control.
 5. **Low fixed cost.** No always-on compute. Pay-per-use API pricing rather than per-seat
    subscriptions.
 6. **Shared across repos.** One toolkit serves many repos; each repo picks its chat platform.
