@@ -268,8 +268,8 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       inferred, and consumers enumerated from `bots/*/repo`. Taken as approved when the maintainer
       approved the cutover on 2026-11-23; the dry run needed no `--alias-platform`.
 - [x] Platforms 1: config schema (`platforms` map only, legacy top-level keys rejected with a pointer
-      to `config migrate`, prompt `destination` as a name or per-platform map, prompt `platforms`);
-      readers take per-platform settings.
+      to `config migrate`, prompt `destination` as a name or per-platform map; its prompt `platforms`
+      selector is removed by slice 21); readers take per-platform settings.
 - [x] Platforms 2: connection model and loader (nested SSM layout only, connection view).
 - [x] Platforms 3: CLI connections (`bot add` onto an existing bot, `--platform` on `access` and
       `admin claim`, `bot list`, `bot remove --platform`). After 2.
@@ -305,16 +305,19 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       2026-11-23): widen the `chats/<platform>/<name>` value to a record (chat, optional topic,
       stored policy), rename `chat-aliases.ts`, `resolveChatAlias`, `proposeChatAlias`,
       `recordChatAlias` and `slugAlias` to destination names, one-lookup resolution, create on first
-      use, topic recreation, `resolve-destination`; no new IAM statement. Deploy gates unchanged.
-      Details pending maintainer review. After 8, 9, 18.
-- [ ] Platforms 12: Slack persistent thread destinations. After 11.
+      use, topic recreation, `resolve-destination`; `start-thread` and `resolve-destination` take
+      `thread` (Decision 19); the schema parses `thread: new | persistent` (default `new`) and
+      rejects `persistent` with a clear error until slice 16 lands; no new IAM statement. Deploy
+      gates unchanged. Details pending maintainer review. After 8, 9, 18 (and 21, same schema file).
+- [ ] Platforms 12: Slack persistent thread destinations (`thread: persistent` on Slack). After 11.
 - [ ] Platforms 13: admin-only `/destination <name>` (Telegram) and `!destination <name>` (Slack)
       bind a topic to a destination name. After 11.
 - [ ] Platforms 14: `centaur destination set|list|remove`; removes `centaur chat list` (breaking).
       After 11.
 - [ ] Platforms 15: multi-target scheduled turns (turn state targets, fan-out in `finish`). After 10.
-- [ ] Platforms 16: persistent-thread scheduled turns (history, marker, session, `resolve` job and
-      concurrency template). After 11, 15 and bounded transcript 3 (section 15).
+- [ ] Platforms 16: `thread: persistent` scheduled turns (the runner passes the prompt's `thread`;
+      history, marker, session, `resolve` job and concurrency template); the schema stops rejecting
+      `persistent`. After 11, 15 and bounded transcript 3 (section 15).
 - [ ] Platforms 17: docs sweep (`onboarding.md`, `plan.md`, `config.md`, `cli.md`, `poster.md`,
       README); remove the word "alias" everywhere; mark the design doc as built.
 - [ ] **[HUMAN APPROVAL]** Deploy the Lambda (`yarn deploy-prod`) after each of slices 9, 11, 12 and
@@ -337,6 +340,16 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
 - [ ] **[HUMAN ACTION]** Live checks on the test bot (slice 19): two platforms on one bot, a
       persistent topic and Slack thread, and the error text for a deleted and a closed Telegram
       topic (confirm the recreate and reopen rules).
+- [ ] Platforms 21: config simplification (design Decision 19, maintainer ruling 2026-11-23): remove
+      the prompt-level `platforms` selector; a string `destination` is valid only for a bot with one
+      platform, a bot with several uses `destination: { <platform>: <name> }`. Updates
+      `docs/config.md`, tests and the self-consumer config. In progress by another worker; built now,
+      independent of the other slices. Rewrite any consumer config that uses the selector before the
+      Lambda is deployed.
+- [ ] **[HUMAN APPROVAL]** The recommended `thread` semantics in Decision 19 (`new` never reuses a
+      bound thread; a record bound to a topic with a `new` prompt posts a fresh thread; `persistent`
+      on a record with no thread creates and binds one; `thread` applies to every fan-out target;
+      `persistent` rejected by the schema until slice 16).
 
 ## Quality Improvements
 

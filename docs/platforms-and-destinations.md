@@ -100,7 +100,7 @@ Destination record (JSON):
 | Field | Meaning |
 |---|---|
 | `chatId` | The chat or channel ID, in the platform's own form. |
-| `threadId` | Optional. The platform thread ID of the persistent thread (`telegram:<chat>:<topic>`, `slack:<channel>:<ts>`). Absent means a destination with no topic: each run starts a new thread, exactly like a chat alias. |
+| `threadId` | Optional. The platform thread ID of the persistent thread (`telegram:<chat>:<topic>`, `slack:<channel>:<ts>`). Absent means a destination with no bound thread, like a chat alias; the prompt's `thread` setting decides whether a run reuses a bound thread or creates and binds one ([Decision 19](#decisions)). |
 | `name`, `at` | Display name and time of the last change, as in access entries. |
 
 Chat aliases become platform-scoped for new approvals (`chats/<platform>/<alias>`), so `household` can
@@ -167,14 +167,20 @@ platforms:
     respond_to: mention
 prompts:
   weekly-plan:
-    platforms: [telegram, slack]
-    destination: weekly-plan            # the same name on each listed platform
+    destination:                        # two entries: the same run is posted to both
+      telegram: weekly-plan
+      slack: garden-weekly
+    thread: persistent                  # one thread per destination, reused every run
     context: transcript
   frost-alert:
-    destination:                        # or one name per platform
-      telegram: household
-      slack: garden-alerts
+    destination: { telegram: household }   # one entry: one target
+  hello:
+    destination: { slack: garden-test }
+    thread: new                         # the default: a fresh thread on every run
 ```
+
+A bot that declares one platform may use a string instead: `destination: household` (with
+`platforms: { telegram: ... }` above, it means `{ telegram: household }`).
 
 - `platforms` is a map from `telegram`/`slack` to `{respond_to?, handle?}` (strict). Its keys are the
   connections the repo expects; `register` fails if one has no secrets in SSM, and the receiver
@@ -182,23 +188,30 @@ prompts:
 - Per-platform settings are exactly today's platform-bound ones: `respond_to` (default `mention`) and
   `handle`. Everything else (`context`, `provider`, `model`, tools, MCP, `pull_requests`) stays
   bot-wide.
-- A prompt's `destination` is a name or a map from platform to name. `platforms` on a prompt lists
-  where a string destination applies; it is required when the bot declares more than one platform and
-  the destination is a string, and must not be combined with the map form. The parser enforces this,
-  so adding a second platform to an existing config makes `centaur config check` point at each prompt
-  that needs it, instead of silently posting to a new place.
+- A prompt's `destination` is a name or a map from platform to name, and the platform is always
+  explicit when the bot has several. A string is valid only when the bot declares exactly one platform
+  (it names a destination on that platform); a bot with several platforms must use the map. A one-entry
+  map is one target; several entries are the fan-out of slice 15. The parser enforces this, so adding
+  a second platform to an existing config makes `centaur config check` point at each string
+  destination that now needs a map, instead of silently posting to a new place. There is no
+  prompt-level `platforms` key.
+- A prompt's `thread` is `new` or `persistent` (default `new`) and applies to every target of the
+  prompt. It states in the config whether each run opens a fresh thread or posts into the
+  destination's one persistent thread; see [Decision 19](#decisions) and [Destinations](#destinations).
+  Chat and thread IDs never appear in the config (Decision 18): the name resolves to a destination
+  record in SSM.
 - The same resolution rule applies per platform: a name that resolves to a destination record uses
-  it; otherwise a chat alias is a destination with no topic (one lookup from slice 11, Decision 18); otherwise the name is a topic destination
-  created on first use (see [Destinations](#destinations)).
+  it; otherwise it is created on first use (one lookup from slice 11, Decision 18; see
+  [Destinations](#destinations)).
 - A prompt with more than one target and `context: resume` is a config error: a session belongs to
   one thread.
 
 **No legacy keys.** The parser accepts only this schema. The old top-level `platform`, `respond_to`
 and `handle` are rejected with an error that names the replacement
 (`platforms: { <platform>: { respond_to, handle } }`) and points at `centaur config migrate`, which
-rewrites a config file in place (comments kept). A string `destination` stays valid (it is a name,
-and needs `platforms` on the prompt only when the bot declares several platforms), so the rewrite
-touches only those three keys. Every consumer repo (`garden`, `centaur-hello`, the self-consumer and
+rewrites a config file in place (comments kept). A legacy file declares one platform, so its string
+destinations stay valid and the rewrite adds no `platforms` line to any prompt; it touches only those
+three keys. Every consumer repo (`garden`, `centaur-hello`, the self-consumer and
 any other repo bound in `bots/*/repo`) is rewritten once during the cutover; see
 [Migration](#migration). Because the Lambda and the runner share the parser, a consumer config in the
 old form fails `register` and `prepare` until it is rewritten.
@@ -225,7 +238,8 @@ the cutover, because it is the only writer of the new registry entry.
 **Poster.** `post`, `read` and `unreact` derive the connection from the thread ID's prefix.
 `start-thread` gains `platform` (derived from `fromThreadId`; with `destination` it is required when
 the bot has several connections and defaults to the only one otherwise, like `--platform` on the CLI) and
-`context` (the policy to store on the thread). `loadBot(params, name, platform)` replaces
+`context` (the policy to store on the thread) and, from slice 11, `thread` (`new` or `persistent`,
+default `new`). `loadBot(params, name, platform)` replaces
 `loadBot(params, name)`. `read` also returns `policy`, the thread's stored policy or `null`. New
 read-only `resolve-destination` (`bot`, `platform`, `name`) returns `{ threadId, chatId }` or
 `{ found: false }` without creating anything, for the runner. Strict schemas still reject unknown
@@ -272,29 +286,43 @@ A destination name resolves, for one connection, in this order:
 2. A chat alias (`chats/<platform>/<name>`, then flat `chats/<name>`): a chat-level destination. The
    chat must be approved for the connection and not blocked, as today. Every run starts a new topic
    or message, which keeps all existing configs unchanged.
-3. Otherwise, **create on first use**: the name is a persistent topic destination.
+3. Otherwise, **create on first use**: the destination is created and bound.
 
 From slice 11 the order collapses to one lookup of the name at `chats/<platform>/<name>`, then create
-on first use (steps 1 and 2 become one, [Decision 18](#decisions)).
+on first use (steps 1 and 2 become one, [Decision 18](#decisions)). The prompt's `thread` setting
+([Decision 19](#decisions)) then decides how a run uses the destination:
+
+| `thread` | Record has no `threadId` | Record has a `threadId` |
+|---|---|---|
+| `new` (default) | A new thread in the record's chat. | A new thread in the record's chat; the bound thread is ignored and untouched. |
+| `persistent` | Create the thread in the record's chat, bind its `threadId` to the record, post into it. | Post into the bound thread. |
+
+With no record, create on first use makes one: topic-less for `new`, with a created and bound thread
+for `persistent`. The record's chat comes from the record, or from create on first use when there is
+none.
 
 **Create on first use.** The poster takes the connection's approved group chats (DMs excluded). With
-exactly one, it creates the topic (Telegram `createForumTopic`, named by the prompt's title or the
-destination name) or the first message (Slack top-level post, whose `ts` is the thread), then writes
-the record with a conditional create under a state lock so two concurrent runs create one topic.
-With none it fails naming `centaur access approve`; with several it fails naming
-`/destination <name>` and `centaur destination set`, since the bot cannot choose.
+exactly one, it writes the record with a conditional create under a state lock so two concurrent
+runs create one. For `persistent` it also creates the thread first (Telegram `createForumTopic`,
+named by the prompt's title or the destination name; Slack a top-level post, whose `ts` is the
+thread). With none it fails naming `centaur access approve`; with several it fails naming
+`/destination <name>` and `centaur destination set`, since the bot cannot choose. A record that
+already has a chat never goes through this step, so binding a thread to a destination whose chat is
+known needs no group-chat count. A Telegram chat that is not a forum cannot hold a topic, so
+`persistent` there fails with an error naming the chat.
 
-**Persistent threads.** A record with a `threadId` makes every run post into that thread. The thread
+**Persistent threads.** A prompt with `thread: persistent` posts every run into the record's
+`threadId`. The thread
 is marked bot-created through `thread-meta`, which also stores the prompt's `context` and the
 destination name, with no expiry, so ownership and policy survive the 30-day Chat SDK thread-state
 TTL that would otherwise end both on a monthly prompt. Each run rewrites the stored policy from the
-prompt, so a thread shared by two prompts of different policy uses the latest run's. Replies in any
-prompt-started thread (persistent or not) now keep the prompt's policy. This resolves the "thread
-policy storage" problem in TODO.md: the policy is stored with the thread, not with the destination,
-because it is the prompt's setting, not the admin's.
+prompt (the record's `context` mirrors it), so a thread shared by two prompts of different policy
+uses the latest run's. Replies in any prompt-started thread (persistent or not) keep the prompt's
+policy. This resolves the "thread policy storage" problem in TODO.md: the policy is stored with the
+thread, not with the destination, because it is the prompt's setting, not the admin's.
 
-**A scheduled run in a persistent thread** is a start-thread turn whose target already has a thread.
-`prepare` calls `resolve-destination`; with a thread and a policy other than `fresh` it reads the
+**A scheduled run in a persistent thread** is a start-thread turn of a `thread: persistent` prompt
+whose target has a thread. `prepare` calls `resolve-destination`; with a thread and a policy other than `fresh` it reads the
 thread (transcript, bounded by [section 15](../TODO.md#15-bounded-transcript)), treats human
 messages after the marker as history, advances the marker after the post and, for `resume`, restores
 and saves the session under that thread. A scheduled workflow for such a prompt gets a `resolve` job
@@ -407,7 +435,7 @@ Each step below is independent and has its own revert.
 1. **Add a platform to a bot.** `centaur bot add <bot> --platform slack` stores the Slack token and
    signing secret nested under the existing bot. Set the Slack app's event URL to
    `<function URL>/slack/<bot>`, add `platforms: {telegram: ..., slack: ...}` to the repo's config
-   (prompts need `platforms` or a map, as `centaur config check` says) and merge it so `register`
+   (each string `destination` becomes a per-platform map, as `centaur config check` says) and merge it so `register`
    runs. Force a cold start (deploy, or any function configuration update). Claim the Slack admin
    (`centaur admin claim <bot> --platform slack`) if none exists, and invite the bot.
    Revert: `centaur bot remove <bot> --platform slack`, revert the config.
@@ -422,10 +450,10 @@ Each step below is independent and has its own revert.
    (**[HUMAN ACTION]**: Slack re-verifies it; point it back to revert) and send a test message.
    After a soak, **[HUMAN APPROVAL]** to `centaur bot unbind garden-slack`, `centaur bot remove
    garden-slack` and retire its config.
-3. **Adopt persistent destinations** per prompt: set the prompt's `destination` to a new name (for
-   an existing chat alias, bind it instead with `/destination`), run it with `workflow_dispatch`,
-   and check the topic. Revert: point `destination` back at the chat alias; delete the record with
-   `centaur destination remove`.
+3. **Adopt persistent destinations** per prompt: set `thread: persistent` on the prompt (to use an
+   existing topic, bind it to the name with `/destination` first), run it with `workflow_dispatch`,
+   and check the topic. Revert: remove `thread: persistent`; delete the record with
+   `centaur destination remove` if it was created for this.
 
 Human steps: the cutover go decision and prune, the deploys, the Slack app edits and secrets (a Slack
 app and its secrets only the maintainer can create), the admin claim in each new connection, test
@@ -439,6 +467,7 @@ messages to the live bots, and the final removal of an old bot.
 | Receiver structure | **One `Chat` per connection on the shared bot prefix**; one `Chat` with several adapters | Per-connection reuses the one-adapter code unchanged (access, admin channel, ownership). A multi-adapter `Chat` needs every handler to branch on `thread.adapter.name`. |
 | Destination key | **By name, per connection**; by chat (topics attached to an approved chat); by name, global | By-chat allows only one persistent topic per chat and cannot say "the same name on two platforms". A global name collides across bots, which each create their own topics. |
 | Naming a chat | **Names in configs, resolved to IDs in SSM**; native platform identifiers in configs | Telegram has no name for a private group: `chat_id` is an integer or the `@username` of a public channel or supergroup only, and topics are numeric. Slack `chat.postMessage` accepts an encoded ID or, for public channels only, a channel name; private channels need the ID, and a name changes when the channel is renamed. Raw IDs in a repo would expose chat IDs in public repos and tie a config to one deployment's chats. |
+| Persistence | **An explicit prompt-level `thread: new \| persistent`** (default `new`); a structured destination object with a `thread` ID in the config; persistence implicit by name (a new name or a bound topic means persistent) | A thread ID in the config violates Decision 18: IDs stay out of public repos and deployments differ. Implicit persistence changes behavior silently when a name is changed or a topic is bound, and the config does not show what a prompt does. |
 | Policy storage | **A `thread-meta` record**; Chat SDK thread state; the destination record | Thread state expires after 30 days, which loses ownership and policy for a monthly prompt. A destination record is the admin's, but the policy is the prompt's, and it would not cover threads that are not destinations. |
 
 ## Decisions
@@ -459,16 +488,18 @@ keys and the consumer `.centaur.yml` files. Decisions that relied on compatibili
    migration.
 4. **Config shape: a `platforms` map only.** The legacy top-level `platform`, `respond_to` and
    `handle` are rejected, with an error naming `centaur config migrate`; there is no normalization.
-5. **Prompt destination: a name or a per-platform map**, with `platforms` required when more than one
-   platform is declared. The alternative, fan out to every declared platform, would make adding
-   Slack change where existing prompts post. `resume` with several targets is rejected.
+5. **Prompt destination: a name or a per-platform map.** A string is valid only when the bot declares
+   exactly one platform; a bot with several uses the map, where one entry is one target and several
+   are a fan-out. The alternative, fan out to every declared platform, would make adding Slack change
+   where existing prompts post. `resume` with several targets is rejected. (Amended by Decision 19.)
 6. **Fan-out: one turn, one reply posted to every target**; a failed target fails the run after the
    others post; the pull request links to the first target.
 7. **Destinations are named per platform** in the single store `chats/<platform>/<name>`; topic-bound
    records carry `bot`. The flat form is migrated and then not read. (Amended by Decision 18.)
 8. **Create on first use only when the connection has exactly one approved group chat.** Otherwise an
-   error names the commands. A destination with no topic keeps its new-thread-per-run behavior, so
-   persistence is chosen by using a new name, not by a config flag. (Amended by Decision 18.)
+   error names the commands. Whether a run opens a fresh thread or posts into the destination's one
+   persistent thread is the prompt's `thread` setting, not the name and not the record alone.
+   (Amended by Decisions 18 and 19.)
 9. **Dispatch payload unchanged**; derive the platform from `thread_id`'s prefix. The alternative is
    an explicit optional `platform` field (files listed above).
 10. **Thread context policy in a `thread-meta` state record**: 90-day TTL refreshed on read, no TTL
@@ -523,8 +554,8 @@ keys and the consumer `.centaur.yml` files. Decisions that relied on compatibili
     - **(d) Config:** no change: `destination: <name>` and the per-platform map keep working.
     - **(e) Resolution:** one lookup of the name at `chats/<platform>/<name>`; if absent, create on
       first use under the rules of Decision 8 (exactly one approved group chat, else an error naming
-      the commands). A topic-less destination keeps a new thread per run; one with `threadId` is
-      persistent.
+      the commands). Whether a run reuses a bound `threadId` is the prompt's `thread` setting
+      (Decision 19).
     - **(f) Cutover:** no impact beyond slice 8. Existing aliases become destinations by
       reinterpreting the stored bare value; the migration, `--alias-platform` and `--prune` are
       unchanged.
@@ -535,6 +566,34 @@ keys and the consumer `.centaur.yml` files. Decisions that relied on compatibili
       `src/cli/destinations.ts`; `src/cli/commands/chats.ts` (`chat list`) is removed in slice 14.
       The `bots/*/platforms/*/destinations/*` IAM statement is not needed, because the Lambda role's
       `chats/*` wildcard already covers the store; `test/infra.test.ts` is unchanged.
+
+19. **An explicit `thread` setting; no prompt-level `platforms`** (maintainer rulings, 2026-11-23).
+    - **`thread: new | persistent` (default `new`) on a prompt.** Whether a scheduled prompt posts a
+      fresh thread each run or into the destination's one persistent thread is visible in the
+      prompt's config instead of implied by a name or by what the record happens to hold. A rename
+      or a `/destination` binding would otherwise change behavior silently. Chat and thread IDs
+      stay out of the config (Decision 18): the destination name still resolves to a record in SSM,
+      bound by `/destination <name>`, `!destination <name>`, `centaur destination set`, or created
+      on first use. Example: `hello: { destination: { slack: centaur-test-slack }, thread: persistent }`.
+      The semantics below are recommended, pending maintainer review:
+      - **`persistent`** posts every run into the record's thread. If the record has no thread,
+        create on first use creates one in the record's chat and binds it to the record, under the
+        limits of Decision 8 (those apply only when there is no record and so no chat). Slack uses a
+        persistent thread (slice 12). The record's stored context policy is the prompt's, rewritten
+        on every run (Decision 10).
+      - **`new`** opens a fresh thread per run, as a chat alias does today, and never reuses a bound
+        thread, so one destination can serve a `persistent` prompt and a `new` prompt. A record bound
+        to a topic with a `new` prompt: the prompt wins, the run posts a new thread in the record's
+        chat and leaves the bound thread alone.
+      - **Fan-out:** `thread` applies to every target of the prompt. A per-target override (for
+        example `destination: { telegram: { name: household, thread: persistent } }`) is out of
+        scope and a later option.
+    - **No prompt-level `platforms` selector.** A string `destination` is valid only when the bot
+      declares exactly one platform; a bot with several platforms uses the per-platform map
+      `destination: { <platform>: <name> }`, where one entry is one target and several are the
+      fan-out of slice 15. The selector was a second way of saying the same thing as the map, and
+      the map form is the one that survives adding a platform. The top-level `platforms:` map of
+      connections is unchanged.
 
 ### Open after amendment
 
@@ -562,28 +621,30 @@ serialized; the others can run in parallel.
 
 | # | Slice | Kind | Likely files | After |
 |---|---|---|---|---|
-| 1 | Config schema: `platforms` map only, legacy top-level keys rejected with a pointer to `config migrate`, destination string or map, prompt `platforms`, errors; readers (`register.ts`, `prepare.ts`) take per-platform settings | Both | `src/config/schema.ts`, `src/config/index.ts`, `src/lambda/register.ts`, `src/workflows/prepare.ts`, `test/config.test.ts`, `test/helpers/config-fixtures.ts`, `docs/config.md` | none |
+| 1 | Config schema: `platforms` map only, legacy top-level keys rejected with a pointer to `config migrate`, destination string or map, errors (the prompt `platforms` selector it first included is removed by slice 21); readers (`register.ts`, `prepare.ts`) take per-platform settings | Both | `src/config/schema.ts`, `src/config/index.ts`, `src/lambda/register.ts`, `src/workflows/prepare.ts`, `test/config.test.ts`, `test/helpers/config-fixtures.ts`, `docs/config.md` | none |
 | 2 | Connection model and loader: nested layout only, connection view, per-connection path helpers | Lambda | `src/lambda/registry.ts`, `parameters.ts`, `access-entries.ts`, `access.ts`, `test/helpers/receiver-fixtures.ts`, `poster-fixtures.ts` | none (parallel with 1) |
 | 3 | CLI connections: `bot add` onto an existing bot, `bot list`, `bot remove --platform`, `--platform` on `access` and `admin claim`, `chat list` for scoped aliases | CLI | `src/cli/commands/bot.ts`, `access.ts`, `admin.ts`, `src/cli/registry.ts`, `docs/cli.md` | 2 |
-| 4 | CLI migration tools: `bot export` and `bot restore` (backup of every bot's SSM parameters and chat aliases), `bot migrate` (`--dry-run`, copy and verify, `--prune` for the flat parameters after the soak, `--alias-platform`), `config migrate` (rewrites a config file, keeping comments), and `bot adopt` (Decision 14) | CLI | `src/cli/commands/bot.ts`, new `src/cli/commands/config.ts`, `docs/cli.md` | 3 (same files), 1 for `config migrate` |
+| 4 | CLI migration tools: `bot export` and `bot restore` (backup of every bot's SSM parameters and chat aliases), `bot migrate` (`--dry-run`, copy and verify, `--prune` for the flat parameters after the soak, `--alias-platform`), `config migrate` (rewrites a config file, keeping comments; string destinations stay, no prompt `platforms` line), and `bot adopt` (Decision 14) | CLI | `src/cli/commands/bot.ts`, new `src/cli/commands/config.ts`, `docs/cli.md` | 3 (same files), 1 for `config migrate` |
 | 5 | Registry entry per platform and `register` over declared platforms; an old-shape entry serves nothing | Lambda | `src/lambda/register.ts`, `registry.ts`, `docs/poster.md` | 1, 2 |
 | 6 | Receiver: one `Chat` per connection, per-platform `respond_to` | Lambda | `src/lambda/receiver.ts`, `chat.ts`, `message-handler.ts`, `test/receiver*.test.ts`, `docs/plan.md` | 2, 5 |
 | 7 | Poster derives the connection from the thread ID; `start-thread` takes `platform` (optional on a single-connection bot) | Lambda | `src/lambda/poster.ts`, `registry.ts`, `docs/poster.md` | 2 (after 5, same `registry.ts`) |
 | 8 | Platform-scoped chat aliases (flat form not read) and the resolution order; folded into destinations in slice 11 | Lambda, CLI | `src/lambda/chat-aliases.ts`, `access-decisions.ts`, `poster.ts`, `src/cli/chat-aliases.ts`, `commands/access.ts`, docs | 2, 7 |
 | 9 | `thread-meta` record: `start-thread` stores `context`, `read` returns `policy`, ownership reads it | Lambda | new `src/lambda/thread-meta.ts`, `poster.ts`, `ownership.ts`, `message-handler.ts`, `docs/poster.md`, `docs/workflows.md` | 18 |
 | 10 | Runner reads the stored policy; scheduled runs pass `context` to `start-thread`: closes the thread-policy gap for every prompt | Runner | `src/workflows/prepare.ts`, `finish.ts`, `transcript.ts`, `docs/workflows.md`, `docs/plan.md` | 9 deployed |
-| 11 | Replace aliases with destinations (Decision 18): widen the `chats/<platform>/<name>` value to a record, rename `chat-aliases.ts`, `resolveChatAlias`, `proposeChatAlias`, `recordChatAlias` and `slugAlias` to destination names, one-lookup resolution, create on first use, recreate (Telegram), `resolve-destination`; no new IAM statement | Lambda | `src/lambda/chat-aliases.ts` renamed `destinations.ts`, `access-decisions.ts`, `access-requests.ts`, `poster.ts`, `telegram.ts`, `src/cli/chat-aliases.ts` renamed `destinations.ts`, `src/cli/commands/access.ts`, `docs/poster.md`, `docs/deploy.md` | 8, 9, 18 |
-| 12 | Slack persistent thread and Slack post-into-thread | Lambda | `src/lambda/destinations.ts`, `poster.ts` | 11 |
+| 11 | Replace aliases with destinations (Decision 18): widen the `chats/<platform>/<name>` value to a record, rename `chat-aliases.ts`, `resolveChatAlias`, `proposeChatAlias`, `recordChatAlias` and `slugAlias` to destination names, one-lookup resolution, create on first use, recreate (Telegram), `resolve-destination` and `start-thread` take `thread` (Decision 19: persistent binds a thread, new never reuses one); the schema parses and validates `thread: new \| persistent` (default `new`) and rejects `persistent` with an error naming slice 16 until it lands, since accepting and ignoring it would post new threads silently; no new IAM statement | Lambda | `src/config/schema.ts`, `docs/config.md`, `src/lambda/chat-aliases.ts` renamed `destinations.ts`, `access-decisions.ts`, `access-requests.ts`, `poster.ts`, `telegram.ts`, `src/cli/chat-aliases.ts` renamed `destinations.ts`, `src/cli/commands/access.ts`, `docs/poster.md`, `docs/deploy.md` | 8, 9, 18 |
+| 12 | Slack persistent thread (the `persistent` mode of `start-thread` on Slack) and Slack post-into-thread | Lambda | `src/lambda/destinations.ts`, `poster.ts` | 11 |
 | 13 | `/destination` and Slack `!destination` handlers (bind a topic to a destination name) | Lambda | new `src/lambda/destination-command.ts`, `admin-handlers.ts`, `chat.ts`, `message-handler.ts` | 11 |
 | 14 | `centaur destination set\|list\|remove`; removes `centaur chat list` (breaking) | CLI | new `src/cli/commands/destination.ts`, `program.ts`, `docs/cli.md` | 11 (parallel with 13) |
 | 15 | Multi-target scheduled turns: targets in the turn state, fan-out in `finish`, per-platform settings in `prepare` | Runner | `src/workflows/prepare.ts`, `turn-state.ts`, `finish.ts`, `cli.ts`, `docs/workflows.md`, `docs/plan.md` | 10 |
-| 16 | Persistent-thread scheduled turns: history, marker and session under the destination thread, `resolve` job and concurrency template | Runner | `src/workflows/prepare.ts`, `finish.ts`, `docs/workflows.md`, the self-consumer workflow | 11, 15, bounded transcript 3 |
+| 16 | `thread: persistent` scheduled turns: `prepare` and `finish` pass the prompt's `thread`; history, marker and session under the destination thread, `resolve` job and concurrency template; the schema stops rejecting `persistent` | Runner | `src/config/schema.ts`, `src/workflows/prepare.ts`, `finish.ts`, `docs/workflows.md`, `docs/config.md`, the self-consumer workflow | 11, 15, bounded transcript 3 |
 | 17 | Docs sweep: `onboarding.md` (add a platform, bind a topic), `plan.md` SSM layout, receiver and access sections, `config.md`, `cli.md`, `poster.md`, README; remove the word "alias" everywhere (Decision 18); mark this doc as built | Docs | `docs/*.md`, `README.md` | all |
 | 18 | Cutover: the runbook in [Migration](#migration), run once by the maintainer after a rehearsal | Human | | 1 to 8 |
 | 19 | Live checks on the test bot: two platforms on one bot, a persistent topic and Slack thread, deleted and closed topic error strings | Human | | 12, 16 |
+| 21 | Config simplification (Decision 19): remove the prompt `platforms` selector, a string `destination` only for a one-platform bot, the map otherwise; update `docs/config.md`, tests, the self-consumer config. Built now, independent of the cutover and the later slices. In progress by another worker | Both | `src/config/schema.ts`, `src/config/index.ts`, `test/config.test.ts`, `test/helpers/config-fixtures.ts`, `.centaur/config.yml`, `docs/config.md` | none |
 
 Parallel groups: {1, 2}; then {3, 5}; then {4, 6, 7}; then 8; then 18; then {9}; then {10, 11}; then
-{12, 13, 14, 15}; then 16, 17, 19.
+{12, 13, 14, 15}; then 16, 17, 19. Slice 21 branches from `main` now and is independent of all of them; it
+shares `src/config/schema.ts` with slices 11 and 16, so those start after it merges. A consumer config that still has the prompt `platforms` selector fails once 21 is deployed, so rewrite it first.
 Deploy gates: (a) nothing from slices 1 to 8 reaches `main` or a deploy before the cutover go
 decision and a passed rehearsal (`bot export` and `bot migrate --dry-run` against production,
 `bot migrate` and a deploy-and-register against a test bot); (b) the cutover deploys the Lambda from
