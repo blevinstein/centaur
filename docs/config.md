@@ -48,12 +48,12 @@ instructions:               # all optional; each replaces the bundled guidance
 prompts:
   weekly-tasks:                 # file defaults to .centaur/prompts/weekly-tasks.md
     context: transcript         # overrides context.scheduled for this prompt
-    platforms: [telegram, slack]  # where a string destination applies; required with 2+ platforms
-    destination: household      # a name on each listed platform (required)
-  frost-alert:
-    destination:                # or one name per platform; no `platforms` key then
+    destination:                # one name per platform (required)
       telegram: household
-      slack: garden-alerts
+      slack: household
+  frost-alert:
+    destination:
+      slack: garden-alerts      # a one-entry map is a single target
 ```
 
 ## Fields
@@ -80,7 +80,7 @@ prompts:
 | `prompts` | no | `{}` | Scheduled prompts by name (see below). |
 
 Each prompt takes `file` (default `.centaur/prompts/<name>.md`), `context` (default
-`context.scheduled`), `destination` (required) and `platforms`; see [Prompts](#prompts). The
+`context.scheduled`), `destination` (required); see [Prompts](#prompts). The
 parser only checks the shape; a destination name is resolved when the run starts (see
 [Access](#access)).
 
@@ -199,19 +199,18 @@ single `claude` invocation per turn cannot do; and a thinking-token budget has n
 
 `prompts` names the scheduled prompts a repo owns. The cron expression stays in the consumer's
 caller workflow (`schedule:`), which passes the prompt name to the shared workflow. Each
-entry has a required `destination`, an optional `platforms`, an optional `file` (default
+entry has a required `destination`, an optional `file` (default
 `.centaur/prompts/<name>.md`) and an optional `context` policy.
 
 `destination` is a name or a map from platform to name:
 
-- A name applies on each platform in the prompt's `platforms`. `platforms` is required when the
-  bot declares more than one platform, so adding a second platform to a config makes
-  `centaur config check` point at each prompt that needs it instead of posting to a new place. With
-  one declared platform, `platforms` may be omitted.
+- A name (`destination: household`) targets the bot's only declared platform. With more than one
+  declared platform it is an error: a name would silently post to every platform, so adding a
+  second platform makes `centaur config check` point at each prompt that needs a map.
 - A map (`destination: {telegram: household, slack: garden-alerts}`) names one destination per
-  platform and must not be combined with `platforms`.
-- Every platform used must be declared in `platforms`, and `context: resume` with more than one
-  target is an error: a session belongs to one thread.
+  platform; a one-entry map is a single target. A prompt-level `platforms` key is not supported.
+- Every platform used must be declared in the top-level `platforms`, and `context: resume` with more
+  than one target is an error: a session belongs to one thread.
 
 The parser resolves the file, context and targets, so consumers see every prompt with a concrete
 `file`, `context` and `targets` (a list of `{ platform, destination }`). The scheduled runner

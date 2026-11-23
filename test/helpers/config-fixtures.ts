@@ -48,8 +48,9 @@ persona: .centaur/persona.md
 prompts:
   weekly-tasks:
     context: transcript
-    platforms: [telegram, slack]
-    destination: household
+    destination:
+      telegram: household
+      slack: household
   seasonal:
     file: .centaur/prompts/season.md
     destination:
@@ -117,28 +118,16 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
       ] as [string, string, string, RegExp],
   ),
   [
-    "a string destination without platforms on a multi-platform bot",
+    "a string destination on a multi-platform bot",
     withPlatforms("{telegram: {}, slack: {}}", "prompts: {weekly: {destination: household}}"),
-    "prompts.weekly.platforms",
-    /required when the bot declares more than one platform/,
-  ],
-  [
-    "platforms combined with a per-platform destination",
-    withPlatforms(
-      "{telegram: {}, slack: {}}",
-      "prompts: {weekly: {platforms: [slack], destination: {slack: a}}}",
-    ),
-    "prompts.weekly.platforms",
-    /must not be combined/,
-  ],
-  [
-    "a prompt platform that is not declared",
-    withPlatforms(
-      "{slack: {}}",
-      "prompts: {weekly: {platforms: [telegram], destination: household}}",
-    ),
     "prompts.weekly.destination",
-    /"telegram", which is not declared/,
+    /ambiguous when the bot declares more than one platform \(telegram, slack\).*per-platform map/,
+  ],
+  [
+    "a leftover prompt platforms key",
+    withExtra("prompts: {weekly: {platforms: [slack], destination: household}}"),
+    "prompts.weekly.platforms",
+    /name the platform in the destination map, e\.g\. destination: \{ slack: <name> \}/,
   ],
   [
     "a destination map naming an undeclared platform",
@@ -156,7 +145,7 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
     "resume with several targets",
     withPlatforms(
       "{telegram: {}, slack: {}}",
-      "prompts: {weekly: {context: resume, platforms: [telegram, slack], destination: household}}",
+      "prompts: {weekly: {context: resume, destination: {telegram: household, slack: household}}}",
     ),
     "prompts.weekly.context",
     /one target/,

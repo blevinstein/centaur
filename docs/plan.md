@@ -156,7 +156,7 @@ prompts:
     destination: household      # chat alias; the chat must be approved for the bot
 ```
 
-The remaining fields (per-platform `handle`, per-prompt `platforms` and per-platform `destination`, `effort`, `max_turns`, `max_budget_usd`, per-prompt `file` and
+The remaining fields (per-platform `handle`, per-platform prompt `destination`, `effort`, `max_turns`, `max_budget_usd`, per-prompt `file` and
 `context`) are in [config.md](config.md).
 
 Names in the config are aliases; the real IDs never appear in any repo, so a public consumer

@@ -145,12 +145,25 @@ describe("parseCentaurConfig", () => {
     });
   });
 
-  it("applies a string destination to the listed platforms only", () => {
+  it("applies a string destination to the only declared platform", () => {
+    expect(
+      parseCentaurConfig(
+        withPlatforms("{telegram: {}}", "prompts: {weekly: {destination: household}}"),
+      ),
+    ).toMatchObject({
+      ok: true,
+      config: {
+        prompts: { weekly: { targets: [{ platform: "telegram", destination: "household" }] } },
+      },
+    });
+  });
+
+  it("accepts a one-entry destination map on a multi-platform bot", () => {
     expect(
       parseCentaurConfig(
         withPlatforms(
           "{telegram: {}, slack: {}}",
-          "prompts: {weekly: {platforms: [slack], destination: household}}",
+          "prompts: {weekly: {destination: {slack: household}}}",
         ),
       ),
     ).toMatchObject({

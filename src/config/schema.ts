@@ -95,10 +95,17 @@ const platformsSchema = z
     message: "must declare at least one platform (telegram or slack)",
   });
 
+const removedPromptPlatforms = z
+  .never({
+    error:
+      "is not supported: name the platform in the destination map, e.g. destination: { slack: <name> }",
+  })
+  .optional();
+
 const promptSchema = z.strictObject({
   file: repoPath.optional(),
   context: contextPolicy.optional(),
-  platforms: z.array(platformName).min(1).optional(),
+  platforms: removedPromptPlatforms,
   destination: z.union([
     alias,
     z.partialRecord(platformName, alias).refine((names) => Object.keys(names).length > 0, {
@@ -114,11 +121,11 @@ export interface PromptTarget {
 
 type PromptInput = z.output<typeof promptSchema>;
 
-/** A string destination applies to the prompt's `platforms`, or to the only declared platform. */
+/** A string destination targets the only declared platform; a map targets the platforms it names. */
 const promptTargets = (prompt: PromptInput, declared: Platform[]): PromptTarget[] => {
   const { destination } = prompt;
   if (typeof destination === "string") {
-    return (prompt.platforms ?? (declared.length === 1 ? declared : [])).map((platform) => ({
+    return (declared.length === 1 ? declared : []).map((platform) => ({
       platform,
       destination,
     }));
@@ -220,14 +227,11 @@ export const centaurConfigSchema = z
       const issue = (key: string, message: string) =>
         ctx.addIssue({ code: "custom", path: ["prompts", name, key], message });
       const targets = promptTargets(prompt, declared);
-      if (typeof prompt.destination === "string" && !prompt.platforms && declared.length > 1) {
+      if (typeof prompt.destination === "string" && declared.length > 1) {
         issue(
-          "platforms",
-          `is required when the bot declares more than one platform (${declared.join(", ")}) and the destination is a name; list where it applies or give destination per platform`,
+          "destination",
+          `is a name, which is ambiguous when the bot declares more than one platform (${declared.join(", ")}); use a per-platform map: destination: { <platform>: <name> }`,
         );
-      }
-      if (typeof prompt.destination !== "string" && prompt.platforms) {
-        issue("platforms", "must not be combined with a per-platform destination");
       }
       for (const { platform } of targets) {
         if (!declared.includes(platform)) {
