@@ -315,8 +315,9 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       gates unchanged. Details approved 2026-11-23. After 8, 9, 18 (and 21, same schema file).
       Done.
 - [ ] Platforms 12: Slack persistent thread destinations (`thread: persistent` on Slack). After 11.
-- [ ] Platforms 13: admin-only `/destination <name>` (Telegram) and `!destination <name>` (Slack)
-      bind a topic to a destination name. After 11.
+- [x] Platforms 13: dropped (design Decision 20, maintainer ruling 2026-11-24): `centaur
+      destination set` binds an existing topic, so the in-chat handlers would add admin-auth
+      receiver code for a rare need.
 - [ ] Platforms 14: `centaur destination set|list|remove`; removes `centaur chat list` (breaking).
       After 11.
 - [ ] Platforms 15: multi-target scheduled turns (turn state targets, fan-out in `finish`). After 10.

@@ -21,7 +21,8 @@
 ## Development
 
 - TypeScript (ESM, Node 24 to match the Lambda runtime; see `.nvmrc`). Run `corepack enable` and
-  `yarn install --immutable` once; Corepack uses the Yarn version pinned in `packageManager` in
+  `yarn install --immutable` once, and again in every fresh worktree before any yarn script
+  (`yarn format`, `yarn verify`); Corepack uses the Yarn version pinned in `packageManager` in
   `package.json`.
 - Yarn does not auto-install peer dependencies; when a tool fails with `ERR_MODULE_NOT_FOUND` for a
   peer (e.g. `vite` for vitest), add it to devDependencies explicitly. Yarn Berry has no `--silent`
@@ -138,3 +139,10 @@
   in `test/helpers/config-fixtures.ts`, not a hand-written YAML string.
 - Test the stdio chat server entry through the esbuild-bundled spawn helper
   (`startChatServerProcess` in `test/helpers/chat-server-stdio.ts`), not by importing the entry.
+- Poster `read` results are parsed by `readResultSchema` (`src/workflows/aws.ts`); a new field on
+  `read` needs it. Use `readThread` for the policy and `readThreadMessages` for messages only.
+- Destination values at `chats/<platform>/<name>` are read with `parseDestination` and written with
+  `encodeDestination` (`src/lambda/destinations.ts`); the CLI reuses them. Never store or compare a
+  raw chat ID there.
+- A new `TelegramApi` method also needs adding to `fakeTelegram` in
+  `test/helpers/poster-fixtures.ts`.
