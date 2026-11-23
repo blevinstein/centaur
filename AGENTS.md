@@ -120,3 +120,21 @@
   Read only the bot's own recent posts, and never print tokens, chat IDs or other people's messages.
 - This repo is public: keep consumer repo names, chat and thread IDs and tokens out of docs,
   `TODO.md`, tests, fixtures and commits.
+- CLI file rewrites (for example `centaur config migrate` in `src/cli/config-migration.ts`) keep
+  untouched text byte-exact: locate the keys with `yaml` parse ranges and splice lines.
+  `Document.toString()` reformats untouched flow collections.
+- The Lambda bundle (`dist/lambda/index.mjs`) must not contain CLI-only code (migration planning and
+  diffs: `createTwoFilesPatch`, `migrateConfigText`, `planMigration`) or the MCP SDK and chat server
+  (`modelcontextprotocol`, `centaur-chat`): after changing imports run `yarn bundle:lambda` and `rg`
+  the bundle for those strings.
+- A new field in a `list-threads` or `read-channel` result (for example `scanned`) goes in
+  `src/lambda/chat-context.ts` (schemas and types, which `PosterClient` in `src/workflows/aws.ts`
+  reuses), the `docs/poster.md` table and the `test/workflow-turn.test.ts` mocks.
+- The stored-history window comes from the `HistoryMaxMessages` and `HistoryTtlDays` stack
+  parameters (`HISTORY_MAX_MESSAGES`, `HISTORY_TTL_DAYS`, read in `src/lambda/history-window.ts`,
+  which holds the default and limit constants); `test/infra.test.ts` checks the defaults and limits
+  in `infra/centaur.yml` against them.
+- A config in test fixtures that declares platforms goes through `yamlOf` or `registerConfigText`
+  in `test/helpers/config-fixtures.ts`, not a hand-written YAML string.
+- Test the stdio chat server entry through the esbuild-bundled spawn helper
+  (`startChatServerProcess` in `test/helpers/chat-server-stdio.ts`), not by importing the entry.
