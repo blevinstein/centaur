@@ -218,6 +218,21 @@ describe("access decisions by command", () => {
     expect(await h.decisions.fromCommand(command("/approve", "  "))).toBe(COMMAND_REPLIES.usage);
   });
 
+  it("leaves a request raised on another platform's connection unknown and unapproved", async () => {
+    const h = await accessHarness();
+    const request = await h.store.create({
+      kind: "user",
+      subjectId: "USLACKUSER",
+      subjectName: "Pat Example",
+      threadId: "slack:C0CLNRASDJ4:1699999999.000100",
+    });
+
+    expect(await h.decisions.fromCommand(command("/approve", request.id))).toBe(
+      COMMAND_REPLIES.unknown,
+    );
+    expect(Object.keys(h.params.values).filter((name) => name.includes("USLACKUSER"))).toEqual([]);
+  });
+
   it.each([
     ["a non-admin", { userId: STRANGER_USER_ID }, "/approve"],
     ["outside a direct message", { isDM: false }, "/approve"],

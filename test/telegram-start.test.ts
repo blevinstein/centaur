@@ -17,30 +17,12 @@ import {
   fakeDispatcher,
   fakeLogger,
   fakeParameterStore,
-  GARDEN_BOT,
   PARAMETERS,
   REGISTERED_ENTRY,
   STRANGER_USER_ID,
 } from "./helpers/receiver-fixtures.js";
 import { strictStates } from "./helpers/strict-state.js";
-
-const SENT_RESULT = { message_id: 1, date: 0, chat: { id: 1, type: "private" } };
-
-function stubTelegram() {
-  const sent: { chat_id: string | number; text: string }[] = [];
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (url: string, init?: RequestInit) => {
-      const body = init?.body ? JSON.parse(String(init.body)) : {};
-      if (url.endsWith("/sendMessage")) sent.push(body);
-      const result = url.endsWith("/getMe")
-        ? { id: 1, is_bot: true, first_name: "Garden", username: "garden_bot" }
-        : SENT_RESULT;
-      return new Response(JSON.stringify({ ok: true, result }));
-    }),
-  );
-  return sent;
-}
+import { stubTelegram, telegramUpdate } from "./helpers/telegram-fixtures.js";
 
 async function startUpdate(
   userId: string,
@@ -64,26 +46,8 @@ async function startUpdate(
     dispatcher,
     logger: fakeLogger(),
   });
-  const command = /^\/\w+/.exec(text) as RegExpExecArray;
   const response = await handler(
-    new Request("https://example.test/telegram/garden", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-telegram-bot-api-secret-token": GARDEN_BOT.webhookSecret,
-      },
-      body: JSON.stringify({
-        update_id: 1,
-        message: {
-          message_id: 10,
-          date: 1,
-          chat: { id: Number(userId), type: "private" },
-          from: { id: Number(userId), is_bot: false, first_name: "Pat" },
-          text,
-          entities: [{ type: "bot_command", offset: 0, length: command[0].length }],
-        },
-      }),
-    }),
+    telegramUpdate({ chatId: Number(userId), chatType: "private", userId: Number(userId), text }),
   );
   expect(response.status).toBe(200);
   return { params, dispatcher };

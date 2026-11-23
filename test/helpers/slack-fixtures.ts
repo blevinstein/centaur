@@ -5,6 +5,7 @@ import { createMemoryState } from "@chat-adapter/state-memory";
 import { vi } from "vitest";
 import { approvedParameter } from "../../src/lambda/connection-paths.js";
 import { createReceiver } from "../../src/lambda/receiver.js";
+import type { Bot } from "../../src/lambda/registry.js";
 import {
   fakeAttachments,
   fakeDispatcher,
@@ -65,7 +66,7 @@ export async function startFakeSlackApi() {
   };
 }
 
-export const signedSlackRequest = (event: object, secret = SLACK_BOT.webhookSecret) => {
+export const signedSlackRequest = (event: object, bot: Bot = SLACK_BOT) => {
   const body = JSON.stringify({
     type: "event_callback",
     team_id: "T1",
@@ -73,8 +74,8 @@ export const signedSlackRequest = (event: object, secret = SLACK_BOT.webhookSecr
     event,
   });
   const timestamp = Math.floor(Date.now() / 1000).toString();
-  const signature = `v0=${createHmac("sha256", secret).update(`v0:${timestamp}:${body}`).digest("hex")}`;
-  return new Request(`https://example.test/slack/${SLACK_BOT.name}`, {
+  const signature = `v0=${createHmac("sha256", bot.webhookSecret).update(`v0:${timestamp}:${body}`).digest("hex")}`;
+  return new Request(`https://example.test/slack/${bot.name}`, {
     method: "POST",
     headers: {
       "content-type": "application/json",

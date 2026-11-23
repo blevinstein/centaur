@@ -40,12 +40,20 @@ in the diagram because it's invoked over IAM, not a public URL.
 ### Receiver Lambda
 
 - Node.js on Lambda with a public **function URL**. No API Gateway or ALB needed.
-- One Chat SDK `Chat` instance per registered bot, built from SSM secrets at cold start. Adapter
-  names are fixed and Telegram message IDs are shared across bots in a group, so each bot's `Chat`
-  uses its own state `keyPrefix` (`bot:<bot>:`, so partition keys look like
-  `bot:<bot>:#kv#<key>`) to keep dedupe keys apart. `concurrency` is
+- One Chat SDK `Chat` instance per connection (a bot's presence on one platform), built from that
+  connection's SSM secrets at cold start, so each webhook is verified with its own connection's
+  secret and handled with its own access lists, admin, `respond_to`, ownership rules, reactions and
+  slash commands. The connections of a bot share the state `keyPrefix` `bot:<bot>:` (partition keys
+  look like `bot:<bot>:#kv#<key>`), which keeps the bot's history and markers, and each connection
+  connects its own adapter once. The prefix is collision-free: the SDK builds its dedupe key as
+  `dedupe:<adapter name>:<message id>`, and thread, channel and message IDs, subscriptions, locks and
+  thread state carry the adapter prefix, so the same raw numeric ID on Telegram and Slack never
+  meets. The bot's access-request store is shared, but a decision applies only to a request raised on
+  its own platform. Bots do not share a prefix, because Telegram message IDs are shared across bots
+  in a group. A connection that fails to start is logged (bot and platform only) and not served;
+  the others keep serving, and startup fails only when no connection starts. `concurrency` is
   `concurrent`, because the default `drop` strategy loses messages that arrive close together.
-  The webhook path selects the bot: `/telegram/<bot>`, `/slack/<bot>`.
+  The webhook path selects the connection: `/telegram/<bot>`, `/slack/<bot>`.
 - The registry entry `{ platforms: { <platform>: { respond_to, handle? } } }` for each bot is stored
   in state under `registry:<bot>` (written by `register`); the bound repo is in SSM at
   `bots/<bot>/repo`. A connection whose platform the entry does not list (no entry, or the old

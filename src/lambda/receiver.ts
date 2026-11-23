@@ -30,9 +30,10 @@ export async function createReceiver({
   history,
 }: ReceiverDeps): Promise<WebHandler> {
   const registryState = await connectState(createState(""));
-  const routes = new Map(
-    await Promise.all(
-      (await loadBots(params, logger)).map(async (bot) => {
+  const bots = await loadBots(params, logger);
+  const connections = await Promise.all(
+    bots.map(async (bot) => {
+      try {
         const chat = createBotChat({
           bot,
           params,
@@ -44,9 +45,20 @@ export async function createReceiver({
           history,
         });
         return [routeKey(bot), { bot, chat }] as const;
-      }),
-    ),
+      } catch (error) {
+        logger.error("connection failed to start; not served", {
+          bot: bot.name,
+          platform: bot.platform,
+          error,
+        });
+        return undefined;
+      }
+    }),
   );
+  const routes = new Map(connections.filter((connection) => connection !== undefined));
+  if (bots.length > 0 && routes.size === 0) {
+    throw new Error("no connection could be started");
+  }
 
   return async (request) => {
     const { pathname } = new URL(request.url);

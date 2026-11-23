@@ -78,7 +78,7 @@ export function createAccessDecisions({
 
   const resolve = async (requestId: string, verdict: Verdict): Promise<DecisionOutcome> => {
     const request = await store.read(requestId);
-    if (!request) return { status: "unknown" };
+    if (!request?.threadId.startsWith(`${bot.platform}:`)) return { status: "unknown" };
     if (!(await store.claimDecision(request.id, verdict))) return { status: "handled" };
     let alias: string | undefined;
     try {
