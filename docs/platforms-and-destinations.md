@@ -347,9 +347,14 @@ threads:
 **Missing or closed topics.** On a Telegram post to a persistent destination, "thread not found" (a
 deleted topic) creates a new topic and overwrites the record; "closed" first tries `reopenForumTopic`
 and falls back to a new topic. The new thread starts without the old transcript. Slack channels that
-are archived or inaccessible fail with the error; a deleted parent message is not recreated until the
-behavior is verified on a real workspace. The exact Bot API error strings must be confirmed on a live
-bot ([**HUMAN ACTION**](../TODO.md#16-platforms-and-destinations)).
+are archived or inaccessible fail with the error. A live check on 2026-11-24 confirmed the Telegram
+deleted-topic and not-a-forum strings and the Slack `channel_not_found` and `not_in_channel` errors.
+A closed topic still accepts posts from a bot with topic rights, so it needs no reopen. Slack accepts
+a reply under a deleted parent message without an error, so a deleted parent is not recreated; the
+replies continue under Slack's "message deleted" stub. Checking the parent with `conversations.replies`
+before posting could detect it, as a possible later change that is not planned. `TOPIC_CLOSED` for a
+bot without topic rights and `is_archived` for a member bot remain unconfirmed
+([TODO](../TODO.md#16-platforms-and-destinations)).
 
 **Slack work.** The Slack items in section 12 (slash commands, onboarding, acknowledgement time) are
 independent of this design. The two meet in two places: the per-connection signing secret (each bot
@@ -503,7 +508,8 @@ keys and the consumer `.centaur.yml` files. Decisions that relied on compatibili
     for destination threads. Precedence: latest in-thread command, else stored, else
     `context.default`. A thread shared by two prompts uses the latest run's policy.
 11. **Missing or closed Telegram topic: reopen if closed, else recreate**, update the record and
-    start with no transcript; Slack archived channels fail with the error.
+    start with no transcript; Slack archived channels fail with the error. A closed topic needs no
+    reopen for an admin bot. (Amended by live check, 2026-11-24.)
 12. **`centaur destination set` may replace an existing binding**, rather than refusing until it is
     removed. (Amended by Decision 20.)
 13. **No Slack binding command.** Slack has no in-chat binding by text or slash command; the CLI
@@ -642,7 +648,7 @@ serialized; the others can run in parallel.
 | 16 | `thread: persistent` scheduled turns: `prepare` and `finish` pass the prompt's `thread`; history, marker and session under the destination thread, `resolve` job and concurrency template; the schema stops rejecting `persistent` | Runner | `src/config/schema.ts`, `src/workflows/prepare.ts`, `finish.ts`, `docs/workflows.md`, `docs/config.md`, the self-consumer workflow | 11, 15, bounded transcript 3 |
 | 17 | Docs sweep: `onboarding.md` (add a platform, bind a topic), `plan.md` SSM layout, receiver and access sections, `config.md`, `cli.md`, `poster.md`, README; remove the word "alias" everywhere (Decision 18); mark this doc as built | Docs | `docs/*.md`, `README.md` | all |
 | 18 | Cutover: the runbook in [Migration](#migration), run once by the maintainer after a rehearsal | Human | | 1 to 8 |
-| 19 | Live checks on the test bot: two platforms on one bot, a persistent topic and Slack thread, deleted and closed topic error strings | Human | | 12, 16 |
+| 19 | Live checks on the test bot: two platforms on one bot, a persistent topic and Slack thread, deleted and closed topic error strings (error strings and closed or deleted behavior verified 2026-11-24; the end-to-end persistent run remains) | Human | | 12, 16 |
 | 21 | Config simplification (Decision 19): remove the prompt `platforms` selector, a string `destination` only for a one-platform bot, the map otherwise; update `docs/config.md`, tests, the self-consumer config. Built now, independent of the cutover and the later slices. In progress by another worker | Both | `src/config/schema.ts`, `src/config/index.ts`, `test/config.test.ts`, `test/helpers/config-fixtures.ts`, `.centaur/config.yml`, `docs/config.md` | none |
 
 Parallel groups: {1, 2}; then {3, 5}; then {4, 6, 7}; then 8; then 18; then {9}; then {10, 11}; then
@@ -659,8 +665,11 @@ decision and a passed rehearsal (`bot export` and `bot migrate --dry-run` agains
 - Whether `garden-slack` exists, which repo it is bound to, and whether `centaur-hello` and the
   self-consumer (`bot: centaur-slack`) share bots. A repo's config names one `bot`, so folding
   `garden-slack` into `garden` also means deciding which repo answers on Slack.
-- The exact Telegram Bot API error text for a deleted or closed topic, how Slack behaves when a
-  thread's parent message is deleted, and whether `state.set` without a TTL never expires in
-  `@blevinstein/chat-state-dynamodb`. Each needs a live check or a read of the adapter.
+- Whether `state.set` without a TTL never expires in `@blevinstein/chat-state-dynamodb`; it needs a
+  read of the adapter.
+- Verified live on 2026-11-24: the Telegram deleted-topic and not-a-forum strings, that a closed
+  topic accepts admin-bot posts, the Slack `channel_not_found` and `not_in_channel` errors, and that
+  a reply under a deleted Slack parent succeeds silently. Still unconfirmed: `TOPIC_CLOSED` for a bot
+  without topic rights and `is_archived` for a bot in an archived channel.
 - Whether a Chat SDK dedupe key includes the adapter name; two `Chat` instances on one prefix rely on
   it, and one test should pin it.

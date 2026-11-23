@@ -102,7 +102,11 @@ thread in the destination's chat and never reuses or changes a bound thread. `pe
   `reopenForumTopic` and falls back to a new topic when that fails. The new topic starts with no
   transcript. A chat that is not a forum fails with `destination "<name>" is a chat without forum
   topics, so it cannot hold a thread`, and binds nothing. Any other posting error is returned and
-  leaves the record alone. The exact Bot API error strings still need a live check.
+  leaves the record alone. A live check on 2026-11-24 confirmed `Bad Request: message thread not
+  found` for a post into a deleted topic and `Bad Request: the chat is not a forum` for
+  `createForumTopic` in a non-forum chat. A bot with the Manage Topics right can still post into a
+  closed topic, so nothing reopens one in that setup; the `TOPIC_CLOSED` text is unconfirmed for a
+  bot without topic rights. `reopenForumTopic` on a deleted topic fails with `TOPIC_ID_INVALID`.
 - **Slack.** With no bound thread, the poster posts the message as a top-level post in the
   record's channel; that post's `ts` is the thread (`slack:<channel>:<ts>`, built by the adapter),
   which is bound to the record. Later runs reply into it. A `message_not_found` or
@@ -111,8 +115,12 @@ thread in the destination's chat and never reuses or changes a bound thread. `pe
   `is_archived`, `channel_not_found` or `not_in_channel` error fails with `destination "<name>" is in
   a channel that is archived or not accessible to the bot`, binds nothing and keeps the record. Any
   other posting error is returned and leaves the record alone. A DM channel works like any other
-  channel. `new` opens a fresh top-level post per run, as before. The exact Slack error names still
-  need a live check.
+  channel. `new` opens a fresh top-level post per run, as before. The same live check confirmed
+  `channel_not_found` for a nonexistent channel and `not_in_channel` for a public channel the bot
+  has not joined, archived or not. Slack accepts a reply whose parent message was deleted (or never
+  existed) without an error, so the replies continue under Slack's "message deleted" stub and the
+  recreate path above does not trigger; only a Telegram deleted topic recreates. `is_archived` is
+  unconfirmed, since it needs a bot that is a member of an archived channel.
 
 The config schema rejects `thread: persistent` for now (`persistent is not supported yet`), so
 scheduled runs send `new` until the runner posts into persistent threads.
