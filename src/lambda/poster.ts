@@ -1,10 +1,10 @@
 import { type Adapter, type Chat, emoji, type Logger, type Message, type StateAdapter } from "chat";
 import { z } from "zod";
 import {
-  alias,
   CONTEXT_POLICIES,
   PLATFORMS,
   type Platform,
+  slug,
   THREAD_MODES,
   threadPlatform,
 } from "../config/index.js";
@@ -34,14 +34,14 @@ const threadId = z.string().min(1);
 const pullRequest = z.number().int().positive();
 
 export const posterRequestSchema = z.discriminatedUnion("operation", [
-  z.strictObject({ operation: z.literal("post"), bot: alias, threadId, text }),
+  z.strictObject({ operation: z.literal("post"), bot: slug, threadId, text }),
   z
     .strictObject({
       operation: z.literal("start-thread"),
-      bot: alias,
+      bot: slug,
       text,
       title: z.string().min(1).max(TOPIC_NAME_MAX).optional(),
-      destination: alias.optional(),
+      destination: slug.optional(),
       /** Selects the connection of a `destination`; optional on a single-connection bot. */
       platform: z.enum(PLATFORMS).optional(),
       fromThreadId: threadId.optional(),
@@ -65,22 +65,22 @@ export const posterRequestSchema = z.discriminatedUnion("operation", [
   z.strictObject({
     operation: z.literal("resolve-destination"),
     token: z.string().min(1),
-    bot: alias,
+    bot: slug,
     platform: z.enum(PLATFORMS).optional(),
-    name: alias,
+    name: slug,
     thread: z.enum(THREAD_MODES).optional(),
   }),
   z.strictObject({
     operation: z.literal("read"),
     token: z.string().min(1),
-    bot: alias,
+    bot: slug,
     threadId,
     /** Drops messages the chat tools may not show (see `visibleTo`); requires an approved chat. */
     visibleOnly: z.boolean().optional(),
   }),
   z.strictObject({
     operation: z.literal("unreact"),
-    bot: alias,
+    bot: slug,
     threadId,
     messageIds: z.array(z.string().min(1)).min(1).max(UNREACT_MAX_MESSAGES),
   }),
@@ -89,7 +89,7 @@ export const posterRequestSchema = z.discriminatedUnion("operation", [
   z.strictObject({
     operation: z.literal("link-pull-request"),
     token: z.string().min(1),
-    bot: alias,
+    bot: slug,
     threadId,
     pullRequest,
   }),

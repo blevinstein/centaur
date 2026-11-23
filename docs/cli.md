@@ -104,62 +104,9 @@ another value, the command lists their names (never the values), changes nothing
 `--force` overwrites them. A file with another format version, invalid JSON, or a parameter outside
 the four trees above is rejected.
 
-### `centaur bot migrate [--dry-run] [--prune] [--alias-platform <alias>=<platform>] [--drop-alias <alias>]`
-
-The migration tooling (`bot migrate`, `config migrate` and `bot adopt`) is single-use and is removed
-after the soak; this is the one place the old term "alias" survives, in the `--alias-platform` and
-`--drop-alias` flags and the flat `chats/<alias>` layout they read.
-
-One-shot move from the flat SSM layout to the nested one (see the
-[migration plan](platforms-and-destinations.md#migration)). It reads each bot's flat `platform`,
-`token`, `webhook-secret`, `signing-secret`, `approved-chats/<id>`, `approved-users/<id>` and
-`blocked/<chat|user>/<id>` and writes them to `bots/<bot>/platforms/<platform>/...` with the same
-type, then reads every copy back and compares. The flat parameters stay in place. The repo binding
-and the admin parameters keep their paths and need no copy.
-
-Flat chat aliases (`chats/<alias>`) become `chats/<platform>/<alias>`. The platform is the one of
-the bots whose approved chats (flat or nested) contain the alias's chat ID. An alias that no bot
-approved, or that two platforms approved, is *unresolved*: assign it with `--alias-platform
-<alias>=<platform>` or leave it out with `--drop-alias <alias>`; both flags repeat.
-
-- `--dry-run` prints every copy (`would copy <flat> -> <nested>`), nested parameters that differ
-  from their flat source, unresolved aliases, bots without a valid `platform` parameter, and
-  unrecognized parameters (skipped), and writes nothing.
-- Without `--dry-run` the command copies only what is missing, and refuses before writing anything
-  while an alias is unresolved or a bot has flat entries but no valid `platform`. A nested parameter
-  that exists with another value is kept (a later approval or revocation wins), so running it again
-  after the Lambda deploy only adds what the old Lambda wrote since.
-- `--prune` deletes the flat parameters (including `platform`) and the flat aliases, after the soak.
-  A flat parameter is deleted only when its nested counterpart exists with an identical value (secrets,
-  approvals, blocked entries and aliases alike); otherwise the whole prune refuses, deleting nothing,
-  and prints the count and the names of the nested parameters that are missing or differ (never
-  values). It also refuses under the same unresolved-alias conditions. Unrecognized parameters, the
-  repo binding and the admin parameters are never deleted. Running it again is a no-op. With
-  `--dry-run` it lists the deletions and what blocks them.
-
-The registry entry in the state table is not migrated: the CLI cannot reach the state table, and
-`register` rewrites it. Values are never printed.
-
 ```sh
 centaur bot export ~/centaur-backup.json
-centaur bot migrate --dry-run
-centaur bot migrate --alias-platform household=telegram --drop-alias old-test
-centaur bot migrate --prune          # after the soak
-```
-
-### `centaur bot adopt <source> <target> [--platform <platform>]`
-
-Copies one connection of the `source` bot (its secrets and its approved and blocked entries) into
-the existing `target` bot, verifying each copy, for example to fold a Slack-only bot into the main
-bot. The source connection is picked like any `--platform`. Refuses if the target is unknown or
-already has a connection on that platform, or if source and target are the same bot. The source is
-left untouched, and destinations need no copy because they are shared per platform. State, sessions
-and branches are not copied: threads of the source start fresh under the target, so merge or close
-their open pull requests first, then point the platform's webhook or event URL at the target and
-retire the source with `bot unbind` and `bot remove`.
-
-```sh
-centaur bot adopt notes-slack notes --platform slack
+centaur bot restore ~/centaur-backup.json
 ```
 
 ### `centaur destination set <bot> <name> --chat <id> [--topic <id>] [--platform <platform>]`
@@ -178,7 +125,6 @@ the bot's connection (or is blocked) it prints a warning that the poster refuses
 
 Prints one line per destination of the connection, `name  chatId[  threadId]`, sorted by name, or
 `No destinations for bot "<bot>" on <platform>.`. Values are read as a bare chat ID or a JSON record.
-Flat names are not listed.
 
 ### `centaur destination remove <bot> <name> [--platform <platform>]`
 
@@ -300,26 +246,6 @@ centaur config check path/to/.centaur.yml
 centaur config check path/to/.centaur/config.yml
 ```
 
-### `centaur config migrate [path] [--dry-run]`
-
-Rewrites a config that still uses the top-level `platform`, `respond_to` and `handle` keys so they
-sit under `platforms.<platform>`, which is the only form the parser accepts. The file is edited in
-place and everything else stays as written: comments, key order, spacing and quoting. A comment
-block directly above `respond_to` or `handle` moves with its key. The result is checked with the
-same parser as `config check` and is only written when valid. A string `destination` stays valid, so
-prompts are not touched.
-
-Running it on a file that already declares `platforms` changes nothing. It refuses to guess, and
-leaves the file as it was, when the file has `respond_to` or `handle` without `platform`, an unknown
-platform, both `platforms` and a legacy key, no platform at all, or a legacy value that spans several
-lines. `--dry-run` prints a unified diff and writes nothing. The default path is the same as for
-`config check`.
-
-```sh
-centaur config migrate --dry-run
-centaur config migrate path/to/.centaur.yml
-```
-
 ## Supplying secrets
 
 For each secret the CLI needs, in order:
@@ -356,11 +282,7 @@ Errors are printed to stderr and the exit code is 1.
 | `<path> is invalid:` followed by issues | `config check` on a file that fails validation. |
 | `<file> already exists; pass --force to overwrite it.` | `bot export` to an existing path. |
 | `<n> parameters already exist with another value; pass --force ...` | `bot restore` into a store holding different values. |
-| `Verification failed: <name> does not read back as written.` | `bot migrate`, `restore` or `adopt` found a copy that differs from its source. |
-| `Nothing was changed:` followed by problems | `bot migrate` with an unresolved alias or a flat bot without a valid `platform`. |
-| `Nothing was deleted: <n> flat parameters have no identical nested copy` | `bot migrate --prune` while a nested counterpart is missing or differs. |
-| `<path> already declares platforms; nothing to do.` | `config migrate` on a migrated file (not an error). |
-| `<path> declares no platform` / `has both ...` / `has platform ...` | `config migrate` could not decide; edit by hand. |
+| `Verification failed: <name> does not read back as written.` | `bot restore` found a copy that differs from its source. |
 | `No GitHub token is stored.` | `github-token remove` with nothing stored. |
 | `Bot "<x>" is bound to <repo>; run "centaur bot unbind" first.` | `bot remove` of a bot's last connection while bound. |
 | `Bot "<x>" is not bound to a repo.` | `bot unbind` on an unbound bot. |

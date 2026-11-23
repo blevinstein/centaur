@@ -1,12 +1,10 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Command } from "commander";
-import { createTwoFilesPatch } from "diff";
 import { formatIssues, parseCentaurConfig } from "../../config/index.js";
 import { checkMcpPolicy, validateMcpPolicy } from "../../config/mcp-policy.js";
 import { configRepoRoot, findConfigFile } from "../../workflows/config-file.js";
 import { MCP_POLICY_FILE } from "../../workflows/mcp-policy-check.js";
-import { ConfigMigrationError, migrateConfigText } from "../config-migration.js";
 import type { CliContext } from "../context.js";
 import { CliError } from "../registry.js";
 
@@ -69,32 +67,5 @@ export function registerConfigCommands(program: Command, context: CliContext): v
         }
       }
       context.log(`${path} is valid.`);
-    });
-
-  config
-    .command("migrate [path]")
-    .option("--dry-run", "print the diff and leave the file unchanged")
-    .description(
-      "Rewrite a config that uses the top-level platform, respond_to and handle keys to platforms.<platform>, keeping comments and key order; does nothing when the file is already migrated",
-    )
-    .action(async (explicitPath: string | undefined, options: { dryRun?: boolean }) => {
-      const { path, text } = await readConfig(explicitPath);
-      const migrated = await Promise.resolve()
-        .then(() => migrateConfigText(text))
-        .catch((error: unknown) => {
-          throw error instanceof ConfigMigrationError
-            ? new CliError(`${path} ${error.message}`)
-            : error;
-        });
-      if (migrated === text) {
-        context.log(`${path} already declares platforms; nothing to do.`);
-        return;
-      }
-      if (options.dryRun) {
-        context.log(createTwoFilesPatch(path, path, text, migrated).trimEnd());
-        return;
-      }
-      await writeFile(path, migrated);
-      context.log(`Migrated ${path}.`);
     });
 }

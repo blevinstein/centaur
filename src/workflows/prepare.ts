@@ -2,12 +2,12 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { z } from "zod";
 import {
-  alias,
   type CentaurConfig,
   type ContextPolicy,
   type Platform,
   PROVIDER_SETTINGS,
   platformSettings,
+  slug,
   threadPlatform,
 } from "../config/index.js";
 import { CHAT_SERVER_NAME } from "../mcp/server-config.js";
@@ -51,7 +51,7 @@ export const MAX_PROMPT_IMAGES = 10;
 const NEW_THREAD_ACK = "Started a new thread.";
 const NEW_THREAD_OPENING = "Fresh thread. What would you like to do?";
 
-const dispatchPayload = z.object({ bot: alias, thread_id: z.string().min(1) });
+const dispatchPayload = z.object({ bot: slug, thread_id: z.string().min(1) });
 
 export type StartTarget =
   | { destination: string; platform: Platform; thread?: "persistent" }

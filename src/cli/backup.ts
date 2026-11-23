@@ -6,7 +6,7 @@ import { CliError } from "./registry.js";
 
 export const BACKUP_FORMAT_VERSION = 1;
 
-/** The parameter trees a backup covers: bots, chat aliases, and the admin and pending claims. */
+/** The parameter trees a backup covers: bots, chats, and the admin and pending claims. */
 const BACKUP_ROOTS = [
   `${BOTS_ROOT}/`,
   `${CHATS_PREFIX}/`,

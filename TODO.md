@@ -28,7 +28,7 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
 - [x] Add a routing test for `src/lambda/handler.ts`.
 - [x] Cache SSM reads in the receiver; each accepted message makes 1 to 3 SSM calls.
 - [x] CLI: clearer error when piped stdin has too few lines (`Missing value for <name>.`).
-- [ ] Decide whether `destination` aliases are checked against SSM at register time.
+- [ ] Decide whether `destination` names are checked against SSM at register time.
 - [x] Add `centaur config check` command wrapping `parseCentaurConfig`, and document it
 - [x] Switch the package manager from npm to yarn or pnpm (pick one; the maintainer's other
       projects use yarn). Replace `package-lock.json` and update everything that calls npm:
@@ -296,8 +296,8 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       the last `register` finished 02:01:29). All three `register` runs succeeded, the Telegram
       webhooks are set, and the self-consumer `hello` prompt ran. Still to do: a message to each live
       bot, and a scheduled prompt per consumer (not dispatched, since they post to real chats).
-- [ ] **[HUMAN APPROVAL]** After a week's soak, `centaur bot migrate --prune` (deletes the flat
-      parameters and aliases) and delete the export file.
+- [x] **[HUMAN APPROVAL]** After a week's soak, `centaur bot migrate --prune` (deletes the flat
+      parameters and aliases) and delete the export file. Done 2026-11-23 without a soak; flat parameters pruned.
 - [x] Platforms 9: `thread-meta` record stores a thread's context policy; `start-thread` accepts
       `context`, `read` returns `policy`, ownership reads it. After 18.
 - [x] Platforms 10: runner uses the stored policy and passes the prompt's `context` to
@@ -330,10 +330,10 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       (10, 15, 16) merge to `main`.
 - [ ] **[HUMAN ACTION]** Per bot, after the cutover as in the design doc: `centaur bot add <bot>
       --platform slack`, a Slack app event URL change, `centaur admin claim <bot> --platform slack`
-      and a test message on each live bot. If `garden-slack` exists, fold it in with
-      `centaur bot adopt` and merge or close its open `centaur/garden-slack-*` pull requests first.
+      and a test message on each live bot. Adding a platform to a bot is `bot add --platform`,
+      nothing else.
 - [ ] **[HUMAN APPROVAL]** After a soak, unbind and remove the old Slack-only bot and its config.
-- [ ] Platforms 20: delete the one-time migration code once the cutover has soaked and every
+- [x] Platforms 20: delete the one-time migration code once the cutover has soaked and every
       consumer config and bot is migrated. The migration tooling (slice 4) is a lot of code for a
       single use: remove `bot migrate` (copy, verify, `--prune`, `--alias-platform`,
       `--drop-alias`), `config migrate` with its line-splicing and the `diff` dependency, and
@@ -341,7 +341,7 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       reword the legacy-key error in `src/config/schema.ts`, which points at `centaur config
       migrate`, to say the key was removed. Decide then whether `bot export` and `bot restore`
       stay as a general backup. Check the Lambda and CLI bundles and `yarn install --immutable`
-      afterwards. **[HUMAN APPROVAL]** to start, since it deletes the way back for a rollback.
+      afterwards. **[HUMAN APPROVAL]** to start, since it deletes the way back for a rollback. Done 2026-11-23.
 - [ ] Live checks on the test bot (slice 19). Verified 2026-11-24: Telegram deleted-topic and
       not-a-forum strings, a closed topic accepting admin-bot posts (no reopen needed), Slack
       `channel_not_found` and `not_in_channel`, and a reply under a deleted Slack parent succeeding

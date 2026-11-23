@@ -243,10 +243,7 @@ revert.
    channel and mention it; approve the chat and user as in [Enrolling chats and
    people](#enrolling-chats-and-people).
 
-Revert: `centaur bot remove garden --platform slack` and revert the config. To fold a separate
-Slack-only bot into the main bot instead, use `centaur bot adopt <source> <bot> --platform slack`
-([cli.md](cli.md#centaur-bot-adopt-source-target---platform-platform)); merge or close the source's
-open pull requests first, since its threads start fresh under the target.
+Revert: `centaur bot remove garden --platform slack` and revert the config.
 
 ## Claiming the admin
 

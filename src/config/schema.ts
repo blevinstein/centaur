@@ -23,11 +23,11 @@ const DEFAULT_CHAT_TOOLS = { scope: "thread", max_threads: 20, max_messages: 50 
 export const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"] as const;
 export const RESPOND_TO = ["mention", "all"] as const;
 
-export const ALIAS_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
+export const SLUG_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
 
-export const alias = z
+export const slug = z
   .string()
-  .regex(ALIAS_PATTERN, "must be a lowercase alias (letters, digits, '-' or '_')");
+  .regex(SLUG_PATTERN, "must be a lowercase name (letters, digits, '-' or '_')");
 
 const repoPath = z
   .string()
@@ -49,7 +49,7 @@ const toolList = z
 
 const GITHUB_RESERVED_PREFIX = "github";
 
-const serverName = alias
+const serverName = slug
   .refine((name) => !name.includes("__"), {
     message: "must not contain '__' (the separator in mcp__<server>__<tool>)",
   })
@@ -111,8 +111,8 @@ const promptSchema = z.strictObject({
   thread: z.enum(THREAD_MODES).default("new"),
   platforms: removedPromptPlatforms,
   destination: z.union([
-    alias,
-    z.partialRecord(platformName, alias).refine((names) => Object.keys(names).length > 0, {
+    slug,
+    z.partialRecord(platformName, slug).refine((names) => Object.keys(names).length > 0, {
       message: "must name a destination for at least one platform",
     }),
   ]),
@@ -141,7 +141,7 @@ const promptTargets = (prompt: PromptInput, declared: Platform[]): PromptTarget[
 };
 
 const LEGACY_PLATFORM_KEY_ERROR =
-  "is not supported: declare it under `platforms: { <platform>: { respond_to, handle } }`; run `centaur config migrate` to rewrite this file";
+  "is not supported: declare it under `platforms: { <platform>: { respond_to, handle } }`";
 
 const removedPlatformKey = z.never({ error: LEGACY_PLATFORM_KEY_ERROR }).optional();
 
@@ -161,7 +161,7 @@ const removedAccessKey = z
 
 export const centaurConfigSchema = z
   .strictObject({
-    bot: alias,
+    bot: slug,
     platforms: platformsSchema,
     platform: removedPlatformKey,
     respond_to: removedPlatformKey,
@@ -228,7 +228,7 @@ export const centaurConfigSchema = z
       .default(DEFAULT_CHAT_TOOLS),
     persona: repoPath.default(".centaur/persona.md"),
     instructions: instructionsSchema.default({}),
-    prompts: z.record(alias, promptSchema).default({}),
+    prompts: z.record(slug, promptSchema).default({}),
   })
   .superRefine((config, ctx) => {
     const declared = declaredPlatforms(config);

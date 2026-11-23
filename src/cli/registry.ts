@@ -1,4 +1,4 @@
-import { ALIAS_PATTERN, PLATFORMS, type Platform } from "../config/index.js";
+import { PLATFORMS, type Platform, SLUG_PATTERN } from "../config/index.js";
 import { BOTS_ROOT, botPath, parseBotParameter } from "../lambda/connection-paths.js";
 import { GITHUB_TOKEN_PARAMETER } from "../lambda/parameters.js";
 import type { ParameterStore } from "./parameter-store.js";
@@ -19,7 +19,7 @@ export const PLATFORM_SECRETS = {
 >;
 
 export function parseName(kind: string, value: string): string {
-  if (!ALIAS_PATTERN.test(value)) {
+  if (!SLUG_PATTERN.test(value)) {
     throw new CliError(
       `Invalid ${kind} name "${value}": use lowercase letters, digits, "-" and "_".`,
     );

@@ -121,11 +121,7 @@
   Read only the bot's own recent posts, and never print tokens, chat IDs or other people's messages.
 - This repo is public: keep consumer repo names, chat and thread IDs and tokens out of docs,
   `TODO.md`, tests, fixtures and commits.
-- CLI file rewrites (for example `centaur config migrate` in `src/cli/config-migration.ts`) keep
-  untouched text byte-exact: locate the keys with `yaml` parse ranges and splice lines.
-  `Document.toString()` reformats untouched flow collections.
-- The Lambda bundle (`dist/lambda/index.mjs`) must not contain CLI-only code (migration planning and
-  diffs: `createTwoFilesPatch`, `migrateConfigText`, `planMigration`) or the MCP SDK and chat server
+- The Lambda bundle (`dist/lambda/index.mjs`) must not contain the MCP SDK or the chat server
   (`modelcontextprotocol`, `centaur-chat`): after changing imports run `yarn bundle:lambda` and `rg`
   the bundle for those strings.
 - A new field in a `list-threads` or `read-channel` result (for example `scanned`) goes in

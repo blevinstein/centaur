@@ -1,6 +1,6 @@
 import type { Logger, Message } from "chat";
 import { z } from "zod";
-import { alias, type Platform } from "../config/index.js";
+import { type Platform, slug } from "../config/index.js";
 import type { Access } from "./access.js";
 import type { OidcVerifier } from "./oidc.js";
 import type { ParameterStore } from "./parameters.js";
@@ -22,7 +22,7 @@ const count = (max: number) => z.number().int().positive().max(max);
 
 const target = {
   token: nonEmpty,
-  bot: alias,
+  bot: slug,
   chatId: nonEmpty,
   /** The thread the turn was dispatched for; the poster derives the one chat the turn may read from it. */
   threadId: nonEmpty,

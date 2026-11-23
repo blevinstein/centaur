@@ -114,7 +114,7 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
         `the legacy top-level ${line.split(":")[0]}`,
         withExtra(line),
         line.split(":")[0] as string,
-        /platforms: \{ <platform>: \{ respond_to, handle \} \}.*`centaur config migrate`/,
+        /platforms: \{ <platform>: \{ respond_to, handle \} \}/,
       ] as [string, string, string, RegExp],
   ),
   [
@@ -175,7 +175,7 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
     "an invalid prompt destination name",
     withExtra("prompts: {weekly: {destination: H}}"),
     "prompts.weekly.destination",
-    /lowercase alias/,
+    /lowercase name/,
   ],
   ...[
     ["an unknown scope", "scope: all", "chat_tools.scope"],
@@ -201,7 +201,7 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
   ["unknown provider", yamlOf({ provider: "bedrock" }), "provider", /./],
   ["missing bot", yamlOf({ bot: undefined }), "bot", /./],
   ["unknown platform", yamlOf({ platforms: "{irc: {}}" }), "platforms", /./],
-  ["uppercase bot alias", yamlOf({ bot: "Garden" }), "bot", /lowercase alias/],
+  ["uppercase bot alias", yamlOf({ bot: "Garden" }), "bot", /lowercase name/],
   ["bad context policy", withExtra("context: {default: sticky}"), "context.default", /./],
   ...["0", "-5", "1.5", "lots"].map(
     (value) =>
@@ -265,7 +265,7 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
       "an uppercase server name",
       "  Linear: {command: npx}",
       "mcp_servers.Linear",
-      /lowercase alias/,
+      /lowercase name/,
     ],
   ].map(
     ([name, servers, path, message]) =>

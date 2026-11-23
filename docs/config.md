@@ -98,10 +98,10 @@ fails if a declared platform has no secrets in SSM. A turn reads the settings of
 thread ID's prefix (`telegram:...`, `slack:...`); a scheduled turn reads those of its target.
 
 The top-level `platform`, `respond_to` and `handle` are not accepted. Each fails with an error that
-names the replacement and points at `centaur config migrate`:
+names the replacement:
 
 ```text
-platform: is not supported: declare it under `platforms: { <platform>: { respond_to, handle } }`; run `centaur config migrate` to rewrite this file
+platform: is not supported: declare it under `platforms: { <platform>: { respond_to, handle } }`
 ```
 
 ## MCP servers
@@ -269,7 +269,7 @@ invalid YAML). Parsing never throws on bad input.
 - **Cron stays in the workflow.** GitHub Actions only honors `schedule:` in workflow files, so
   duplicating cron in the config would drift. The config only describes what a prompt is.
 - **No legacy keys.** The parser accepts one schema; the old top-level `platform`, `respond_to` and
-  `handle` fail with a pointer to `centaur config migrate`, so there is no normalization layer.
+  `handle` fail with an error naming the replacement, so there is no normalization layer.
 - **No allowlist in the repo.** Who may talk to the bot is the admin's decision, made from their
   phone, so it cannot be widened by a pull request. The repo only names where a scheduled prompt
   posts (`prompts.<name>.destination`), and that chat must still be approved.

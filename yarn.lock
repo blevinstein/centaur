@@ -1527,7 +1527,6 @@ __metadata:
     "@types/node": "npm:24.19.2"
     chat: "npm:4.45.0"
     commander: "npm:15.1.0"
-    diff: "npm:9.0.0"
     esbuild: "npm:0.28.2"
     jose: "npm:6.2.13"
     typescript: "npm:7.0.2"
@@ -1715,13 +1714,6 @@ __metadata:
   dependencies:
     dequal: "npm:^2.0.0"
   checksum: 10c0/e0928ab8f94c59417a2b8389c45c55ce0a02d9ac7fd74ef62d01ba48060129e1d594501b77de01f3eeafc7cb00773819b0df74d96251cf20b31c5b3071f45c0e
-  languageName: node
-  linkType: hard
-
-"diff@npm:9.0.0":
-  version: 9.0.0
-  resolution: "diff@npm:9.0.0"
-  checksum: 10c0/a971cc88f66071a33bd3942db2f51b57d484e9856265ae45cf44fb28ab2fde91f132d9c26d8be0fb6082d2be94d29e1295c1adb251b7461935d6a2dd304cd161
   languageName: node
   linkType: hard
 
