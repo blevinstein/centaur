@@ -25,6 +25,9 @@ export const TEXT_MAX = 120;
 
 const MINUTE_MS = 60_000;
 
+export const TELEGRAM_NOTE =
+  "Telegram: the bot's own posts are stored per thread and are not listed here.";
+
 export interface TailOptions {
   platform?: string | undefined;
   minutes: number;
@@ -162,5 +165,6 @@ export function formatTail(
   return [
     ...alignColumns([[...header, ...(withText ? ["text"] : [])], ...rows]),
     `${messages.length} shown, ${dropped} dropped by the sender filter; oldest examined ${oldest ?? "none"}; window ${exhausted ? "exhausted" : "not exhausted"}.`,
+    ...(platform === "telegram" ? [TELEGRAM_NOTE] : []),
   ];
 }

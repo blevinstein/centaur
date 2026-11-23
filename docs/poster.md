@@ -179,7 +179,9 @@ examined range qualified; older messages can be read with `before`.
   chat list, which the window bounds. `list-threads` groups the chat list's messages by topic, so it sees only topics
   with a message among the chat's newest `HistoryMaxMessages`, and `read-channel` cannot page beyond them. `title`
   is the first line of the oldest message seen, `snippet` the newest, `messageCount` and
-  `participants` count visible messages only. `before` skips messages sent at or after it.
+  `participants` count visible messages only. `before` skips messages sent at or after it. The
+  bot's own posts are stored only in the thread's list, not the chat's, so `read-channel` omits
+  them and `list-threads` omits threads nobody but the bot has written in.
 - **Slack:** `list-threads` maps the adapter's `listThreads` (thread parents with replies; the title
   and snippet are the parent's text, `messageCount` is replies plus one, `participants` only the
   parent's author). `read-channel` maps `fetchChannelMessages` (top-level messages only); `before`

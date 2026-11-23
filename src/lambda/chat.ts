@@ -18,10 +18,16 @@ import type { ParameterStore } from "./parameters.js";
 import { type Bot, readPlatformSettings } from "./registry.js";
 import { createThreadMeta } from "./thread-meta.js";
 
-const ADAPTER_FACTORIES: Record<Platform, (bot: Bot) => Adapter> = {
-  telegram: (bot) =>
-    createTelegramAdapter({ botToken: bot.token, secretToken: bot.webhookSecret, mode: "webhook" }),
-  slack: (bot) => createSlackAdapter({ botToken: bot.token, signingSecret: bot.webhookSecret }),
+const ADAPTER_FACTORIES: Record<Platform, (bot: Bot, logger: Logger) => Adapter> = {
+  telegram: (bot, logger) =>
+    createTelegramAdapter({
+      botToken: bot.token,
+      secretToken: bot.webhookSecret,
+      mode: "webhook",
+      logger,
+    }),
+  slack: (bot, logger) =>
+    createSlackAdapter({ botToken: bot.token, signingSecret: bot.webhookSecret, logger }),
 };
 
 export type BotChat = Chat<Record<string, Adapter>, ThreadMetadata>;
@@ -48,7 +54,7 @@ export const createChat = ({
 }: BotChatBaseDeps): BotChat =>
   new Chat<Record<string, Adapter>, ThreadMetadata>({
     userName: bot.name,
-    adapters: { [bot.platform]: ADAPTER_FACTORIES[bot.platform](bot) },
+    adapters: { [bot.platform]: ADAPTER_FACTORIES[bot.platform](bot, logger.child(bot.platform)) },
     state: botState,
     concurrency: "concurrent",
     history: { thread: history },

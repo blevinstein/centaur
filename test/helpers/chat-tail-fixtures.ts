@@ -111,3 +111,27 @@ export async function seedTailBot(
     await store.put(name, value, { secure: false });
   }
 }
+
+export const LEAKY_BOT_ID = 424242;
+export const LEAKY_BOT_USERNAME = "leaky_bot";
+
+/** Answers Telegram's `getMe` with a recognizable identity, which the adapter logs when it initializes. */
+export function stubTelegramIdentity() {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            ok: true,
+            result: {
+              id: LEAKY_BOT_ID,
+              is_bot: true,
+              first_name: "Leaky",
+              username: LEAKY_BOT_USERNAME,
+            },
+          }),
+        ),
+    ),
+  );
+}

@@ -44,6 +44,12 @@ thread and its channel (`persistThreadHistory`, Telegram only). That storage hap
 checks, so on Telegram the stored history also contains messages from senders who are not enrolled.
 Whatever reads it must apply its own filter (see [Privacy](#privacy-and-trust)).
 
+**Known limit on Telegram.** `Chat` appends an incoming message to the thread's list and the
+chat's list, but the bot's own posts only to the thread's list, and the chat tools read the chat's
+list. So on Telegram `read-channel` and `centaur chat tail` omit the bot's own posts, and
+`list-threads` omits threads only the bot has written in (a scheduled prompt's post, for example).
+Slack reads live and is unaffected.
+
 Slack rate limits to verify before building: Slack cut `conversations.history` and
 `conversations.replies` to 1 request per minute (15 messages per call) for commercially distributed
 apps outside the Marketplace, while apps installed in a single workspace (the one-app-per-repo

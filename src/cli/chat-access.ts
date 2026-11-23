@@ -13,7 +13,7 @@ export interface ChatAccess {
 }
 
 export function createChatAccess(env: NodeJS.ProcessEnv = process.env): ChatAccess {
-  const logger = new ConsoleLogger("error");
+  const logger = new ConsoleLogger("silent");
   return {
     env,
     createState: (tableName, keyPrefix) =>

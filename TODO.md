@@ -81,6 +81,24 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
         5. Set `scope: thread` again and repeat step 2: no `centaur-chat` server or tool calls.
         Also confirm the Slack `conversations.history` and `conversations.replies` rate limits
         hold on this install (see Chat search 6).
+- [ ] Telegram chat tools miss the bot's own posts and bot-only threads. On Telegram the Chat SDK
+      appends an incoming message to both the thread's list and the chat's list
+      (`dispatchIncomingMessage`), but the bot's own posts (`post`, `start-thread`) are recorded only
+      in the thread's list. `read-channel`, `list-threads` and `centaur chat tail` read the chat
+      list, so (a) the bot's own replies and posts never appear in them, (b) a thread the bot
+      started that nobody has replied in (a scheduled prompt's post, say) never appears in
+      `list-threads`, and (c) `chat tail` showed no messages for a bot that had just posted. Slack
+      reads live and is unaffected. `chat tail` and the docs state the limit meanwhile. Candidate
+      fixes:
+  - (A) Recommended: at the source, have the poster also append the bot's sent message to the chat
+        list after `post` and `start-thread`. The SDK's public `chat.history.thread.append(id,
+        message)` writes `msg-history:<id>` for any ID, so passing the channel ID writes the chat
+        list; the sent message must serialize through `Message.toJSON`, which needs checking against
+        what `thread.post` returns. Not implemented or tried yet.
+  - (B) In the readers, merge the chat's thread-level lists into the chat list. The DynamoDB state
+        adapter has no key-listing API, so this needs a direct query of the table by key prefix
+        (`msg-history:telegram:<chat>:` under the bot's `bot:<bot>:` prefix), which duplicates the
+        adapter's key format and partition layout and breaks if the fork changes it.
 - [x] Chat search: the Chat SDK has no history search, so any search is ours. Decisions accepted
       2026-11-22 ([docs/chat-search.md](docs/chat-search.md)): no poster-side filter (the poster
       scans the whole window and the Telegram window fits in one call), report the scanned range,
