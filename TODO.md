@@ -315,6 +315,15 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       and a test message on each live bot. If `garden-slack` exists, fold it in with
       `centaur bot adopt` and merge or close its open `centaur/garden-slack-*` pull requests first.
 - [ ] **[HUMAN APPROVAL]** After a soak, unbind and remove the old Slack-only bot and its config.
+- [ ] Platforms 20: delete the one-time migration code once the cutover has soaked and every
+      consumer config and bot is migrated. The migration tooling (slice 4) is a lot of code for a
+      single use: remove `bot migrate` (copy, verify, `--prune`, `--alias-platform`,
+      `--drop-alias`), `config migrate` with its line-splicing and the `diff` dependency, and
+      `bot adopt` if nothing else uses it, plus their tests, fixtures and `docs/cli.md` entries;
+      reword the legacy-key error in `src/config/schema.ts`, which points at `centaur config
+      migrate`, to say the key was removed. Decide then whether `bot export` and `bot restore`
+      stay as a general backup. Check the Lambda and CLI bundles and `yarn install --immutable`
+      afterwards. **[HUMAN APPROVAL]** to start, since it deletes the way back for a rollback.
 - [ ] **[HUMAN ACTION]** Live checks on the test bot (slice 19): two platforms on one bot, a
       persistent topic and Slack thread, and the error text for a deleted and a closed Telegram
       topic (confirm the recreate and reopen rules).
