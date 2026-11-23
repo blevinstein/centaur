@@ -44,4 +44,12 @@ describe("this repo's Centaur config", () => {
       expect(prompts[name]?.targets).toEqual([slack]);
     }
   });
+
+  it("keeps one persistent thread for hello-telegram and a new thread for the other prompts", async () => {
+    const { prompts } = await loadSelfConfig();
+    expect(prompts["hello-telegram"]?.thread).toBe("persistent");
+    expect(Object.values(prompts).filter((prompt) => prompt.thread === "new")).toHaveLength(
+      Object.keys(prompts).length - 1,
+    );
+  });
 });

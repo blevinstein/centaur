@@ -8,8 +8,9 @@
 > readers) and slice 8 (platform-scoped chat aliases) are implemented on `platforms/cutover`. Slice 11 (destinations: the
 > record store at `chats/<platform>/<name>`, create on first use, `resolve-destination`, `start-thread`'s
 > `thread`, Telegram persistent threads and topic recreation) is built, as are Slack persistent threads
-> (slice 12) and the `centaur destination` CLI (slice 14); the runner use of `thread` is not built, and the
-> schema rejects `thread: persistent` until slice 16.
+> (slice 12) and the `centaur destination` CLI (slice 14); the runner's use of `thread` (persistent scheduled
+> turns, slice 16) is built, and the schema accepts `thread: persistent`. The Lambda with slices 11 and 12 must be
+> deployed before a config uses it.
 
 Two items from [TODO.md](../TODO.md) are designed together because they change the same records:
 one bot present on several platforms, and named destinations that can point at a topic or thread
@@ -329,10 +330,14 @@ thread, not with the destination, because it is the prompt's setting, not the ad
 whose target has a thread. `prepare` calls `resolve-destination`; with a thread and a policy other than `fresh` it reads the
 thread (transcript, bounded by [section 15](../TODO.md#15-bounded-transcript)), treats human
 messages after the marker as history, advances the marker after the post and, for `resume`, restores
-and saves the session under that thread. A scheduled workflow for such a prompt gets a `resolve` job
-that outputs `thread_key`, and its turn job uses `concurrency: centaur-<bot>-<thread key>` (the
-pattern `centaur-pr-comment.yml` uses), so a run and a human reply to the same thread are serialized.
-A run with no thread yet uses the usual per-run branch and needs no group.
+and saves the session under that thread. A scheduled workflow gets a `resolve` job
+(the `resolve-schedule` action) that outputs the turn job's concurrency group. For a persistent
+prompt it is `centaur-<bot>-<key>`, where the key hashes the bot and the sorted platform and
+destination names of the prompt's targets (never a chat or thread ID), so runs of the prompt never
+interleave in a thread, including the first run that creates it. A human reply is answered by a
+chat turn in the per-thread group and is not serialized with the scheduled run; the marker makes
+each turn handle every unprocessed message. A run with no thread yet uses the usual per-run branch.
+The run reads the thread of its first target only.
 
 **Binding an existing topic.** The Bot API cannot list topics, so binding one needs its ID, and the
 CLI is the one way to bind it ([Decision 20](#decisions)); create on first use covers new persistent
@@ -506,7 +511,9 @@ keys and the consumer `.centaur.yml` files. Decisions that relied on compatibili
    an explicit optional `platform` field (files listed above).
 10. **Thread context policy in a `thread-meta` state record**: 90-day TTL refreshed on read, no TTL
     for destination threads. Precedence: latest in-thread command, else stored, else
-    `context.default`. A thread shared by two prompts uses the latest run's policy.
+    `context.default`. A thread shared by two prompts uses the latest run's policy. (Amended: for a
+    scheduled run the prompt's context replaces the stored policy, which the run rewrites; a human
+    command in the thread still wins.)
 11. **Missing or closed Telegram topic: reopen if closed, else recreate**, update the record and
     start with no transcript; Slack archived channels fail with the error. A closed topic needs no
     reopen for an admin bot. (Amended by live check, 2026-11-24.)
@@ -645,7 +652,7 @@ serialized; the others can run in parallel.
 | 13 | Dropped (Decision 20): the in-chat `/destination` and `!destination` handlers | | | |
 | 14 | `centaur destination set\|list\|remove`, the one way to bind an existing topic or thread; removes `centaur chat list` and `access approve --alias` (breaking) | CLI | new `src/cli/commands/destination.ts`, `program.ts`, `docs/cli.md` | 11 |
 | 15 | Multi-target scheduled turns: targets in the turn state, fan-out in `finish`, per-platform settings in `prepare` | Runner | `src/workflows/prepare.ts`, `turn-state.ts`, `finish.ts`, `cli.ts`, `docs/workflows.md`, `docs/plan.md` | 10 |
-| 16 | `thread: persistent` scheduled turns: `prepare` and `finish` pass the prompt's `thread`; history, marker and session under the destination thread, `resolve` job and concurrency template; the schema stops rejecting `persistent` | Runner | `src/config/schema.ts`, `src/workflows/prepare.ts`, `finish.ts`, `docs/workflows.md`, `docs/config.md`, the self-consumer workflow | 11, 15, bounded transcript 3 |
+| 16 | `thread: persistent` scheduled turns: `prepare` and `finish` pass the prompt's `thread`; history, marker and session under the destination thread, `resolve` job and concurrency template; the schema stops rejecting `persistent`. Built: `prepare` finds the bound thread with `resolve-destination`, `resolve-schedule` computes the group | Runner | `src/config/schema.ts`, `src/workflows/prepare.ts`, `finish.ts`, `schedule-group.ts`, `cli.ts`, `.github/actions/resolve-schedule`, `docs/workflows.md`, `docs/config.md`, the self-consumer workflow | 11, 15, bounded transcript 3 |
 | 17 | Docs sweep: `onboarding.md` (add a platform, bind a topic), `plan.md` SSM layout, receiver and access sections, `config.md`, `cli.md`, `poster.md`, README; remove the word "alias" everywhere (Decision 18); mark this doc as built | Docs | `docs/*.md`, `README.md` | all |
 | 18 | Cutover: the runbook in [Migration](#migration), run once by the maintainer after a rehearsal | Human | | 1 to 8 |
 | 19 | Live checks on the test bot: two platforms on one bot, a persistent topic and Slack thread, deleted and closed topic error strings (error strings and closed or deleted behavior verified 2026-11-24; the end-to-end persistent run remains) | Human | | 12, 16 |

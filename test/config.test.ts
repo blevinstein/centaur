@@ -155,12 +155,17 @@ describe("parseCentaurConfig", () => {
   });
 
   it.each([
-    ["by default", "prompts: {weekly: {destination: household}}"],
-    ["when new", "prompts: {weekly: {destination: household, thread: new}}"],
-  ])("starts a new thread %s", (_name, prompts) => {
+    ["by default", "prompts: {weekly: {destination: household}}", "new"],
+    ["when new", "prompts: {weekly: {destination: household, thread: new}}", "new"],
+    [
+      "when persistent",
+      "prompts: {weekly: {destination: household, thread: persistent}}",
+      "persistent",
+    ],
+  ])("sets the thread mode %s", (_name, prompts, mode) => {
     expect(parseCentaurConfig(withExtra(prompts))).toMatchObject({
       ok: true,
-      config: { prompts: { weekly: { thread: "new" } } },
+      config: { prompts: { weekly: { thread: mode } } },
     });
   });
 

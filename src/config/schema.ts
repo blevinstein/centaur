@@ -105,16 +105,10 @@ const removedPromptPlatforms = z
   })
   .optional();
 
-/** The runner cannot yet post scheduled turns into a persistent thread, and would open new ones. */
-const promptThread = z
-  .enum(THREAD_MODES)
-  .default("new")
-  .refine((mode) => mode !== "persistent", { message: "persistent is not supported yet" });
-
 const promptSchema = z.strictObject({
   file: repoPath.optional(),
   context: contextPolicy.optional(),
-  thread: promptThread,
+  thread: z.enum(THREAD_MODES).default("new"),
   platforms: removedPromptPlatforms,
   destination: z.union([
     alias,

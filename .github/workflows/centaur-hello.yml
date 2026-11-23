@@ -13,9 +13,28 @@ permissions:
   id-token: write
 
 jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      group: ${{ steps.resolve.outputs.group }}
+    env:
+      CENTAUR_ROLE_ARN: ${{ vars.CENTAUR_ROLE_ARN }}
+      CENTAUR_AWS_REGION: ${{ vars.CENTAUR_AWS_REGION }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-runtime
+      - id: resolve
+        uses: ./.github/actions/resolve-schedule
+        with:
+          prompt_name: ${{ inputs.prompt_name }}
+
   hello:
+    needs: resolve
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    concurrency:
+      group: ${{ needs.resolve.outputs.group }}
+      cancel-in-progress: false
     env:
       CENTAUR_ROLE_ARN: ${{ vars.CENTAUR_ROLE_ARN }}
       CENTAUR_AWS_REGION: ${{ vars.CENTAUR_AWS_REGION }}

@@ -166,12 +166,6 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
     /./,
   ],
   [
-    "thread: persistent",
-    withExtra("prompts: {weekly: {destination: household, thread: persistent}}"),
-    "prompts.weekly.thread",
-    /persistent is not supported yet/,
-  ],
-  [
     "an unknown thread mode",
     withExtra("prompts: {weekly: {destination: household, thread: forever}}"),
     "prompts.weekly.thread",

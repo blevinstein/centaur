@@ -1,0 +1,19 @@
+name: Centaur resolve schedule
+description: Compute the concurrency group of a scheduled prompt's turn job, so runs of a thread-persistent prompt never interleave in one thread. Run after checkout and the centaur setup-runtime step.
+inputs:
+  prompt_name:
+    description: Name of the prompt in the Centaur config, the same value the turn step receives.
+    required: true
+outputs:
+  group:
+    description: The concurrency group for the turn job. Built from hashed names, never a chat or thread ID.
+    value: ${{ steps.resolve.outputs.group }}
+runs:
+  using: composite
+  steps:
+    - name: Resolve the concurrency group
+      id: resolve
+      shell: bash
+      env:
+        PROMPT_NAME: ${{ inputs.prompt_name }}
+      run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" resolve-schedule

@@ -16,6 +16,7 @@ import { pushChanges, pushNewBranch } from "./push.js";
 import { pushExisting } from "./push-existing.js";
 import { registerRepo } from "./register.js";
 import { createGitHubClient, createGitHubRequester, resolve } from "./resolve.js";
+import { scheduleGroup } from "./schedule-group.js";
 import { turnStateDir } from "./turn-state.js";
 
 const poster = () => createPosterClient(env("CENTAUR_FUNCTION_NAME"));
@@ -78,6 +79,15 @@ program.command("resolve").action(async () => {
     thread_key: outcome.threadKey,
     head_ref: outcome.headRef,
     pull_request: String(outcome.pullRequest),
+  });
+});
+
+program.command("resolve-schedule").action(async () => {
+  const config = parseConfigOrThrow(
+    await readConfigText(process.env.CENTAUR_CONFIG_ROOT || workspace()),
+  );
+  await writeOutputs(env("GITHUB_OUTPUT"), {
+    group: scheduleGroup(config, env("PROMPT_NAME"), env("GITHUB_RUN_ID")),
   });
 });
 

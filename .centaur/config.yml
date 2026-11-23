@@ -17,6 +17,7 @@ prompts:
     destination: { slack: centaur-test-slack, telegram: centaur-test }
   hello-telegram:
     file: .centaur/prompts/hello.md
+    thread: persistent
     destination: { telegram: centaur-test }
   pr-smoke:
     destination: { slack: centaur-test-slack }

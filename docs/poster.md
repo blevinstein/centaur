@@ -122,8 +122,9 @@ thread in the destination's chat and never reuses or changes a bound thread. `pe
   recreate path above does not trigger; only a Telegram deleted topic recreates. `is_archived` is
   unconfirmed, since it needs a bot that is a member of an archived channel.
 
-The config schema rejects `thread: persistent` for now (`persistent is not supported yet`), so
-scheduled runs send `new` until the runner posts into persistent threads.
+The runner sends `thread` on `start-thread` only for a `thread: persistent` prompt, and calls
+`resolve-destination` (with `thread: persistent`) before the agent runs to find the bound thread, so
+this Lambda must be deployed before a config uses `thread: persistent`.
 
 ## `unreact`
 

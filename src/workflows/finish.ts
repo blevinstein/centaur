@@ -361,7 +361,9 @@ export async function finish(deps: FinishDeps) {
   if (threadId) {
     await linkPullRequest(deps.poster, link, state.bot, threadId);
     const store = deps.storeFor(state.bot, threadId);
-    if (state.marker) await store.writeMarker(state.marker);
+    if (state.marker && (state.markerThreadId ?? threadId) === threadId) {
+      await store.writeMarker(state.marker);
+    }
     if (state.policy === "resume" && result.sessionId) {
       await store.saveSession(state.sessionDirectory, result.sessionId);
     }

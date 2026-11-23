@@ -48,7 +48,7 @@ instructions:               # all optional; each replaces the bundled guidance
 prompts:
   weekly-tasks:                 # file defaults to .centaur/prompts/weekly-tasks.md
     context: transcript         # overrides context.scheduled for this prompt
-    thread: new                 # new (default): a fresh thread each run; persistent is not supported yet
+    thread: new                 # new (default): a fresh thread each run; persistent: one thread per destination
     destination:                # one name per platform (required)
       telegram: household
       slack: household
@@ -210,10 +210,10 @@ entry has a required `destination`, an optional `file` (default
 - Every platform used must be declared in the top-level `platforms`, and `context: resume` with more
   than one target is an error: a session belongs to one thread.
 - `thread` is `new` (the default) or `persistent`, for every target of the prompt. `new` opens a fresh
-  thread on every run. `persistent` would post every run into the destination's one thread (the
-  poster supports it on Telegram; see [poster.md](poster.md#destinations)), but the runner cannot
-  yet, and accepting it would open new threads silently, so the parser rejects it with
-  `persistent is not supported yet`. `register` and `centaur config check` use the same parser.
+  thread on every run. `persistent` posts every run into the destination's one thread (created and bound on first use;
+  see [poster.md](poster.md#destinations)), and the run sees that thread's earlier messages and
+  replies as context ([workflows.md](workflows.md#persistent-scheduled-threads)). The poster must be
+  deployed with persistent thread support before a config uses `thread: persistent`.
 
 The parser resolves the file, context and targets, so consumers see every prompt with a concrete
 `file`, `context`, `thread` and `targets` (a list of `{ platform, destination }`). A prompt with several

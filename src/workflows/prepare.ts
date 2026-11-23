@@ -53,7 +53,9 @@ const NEW_THREAD_OPENING = "Fresh thread. What would you like to do?";
 
 const dispatchPayload = z.object({ bot: alias, thread_id: z.string().min(1) });
 
-export type StartTarget = { destination: string; platform: Platform } | { fromThreadId: string };
+export type StartTarget =
+  | { destination: string; platform: Platform; thread?: "persistent" }
+  | { fromThreadId: string };
 
 export interface TurnState {
   mode: "reply" | "start-thread" | "comment";
@@ -67,6 +69,8 @@ export interface TurnState {
   start?: StartTarget[];
   policy: ContextPolicy;
   marker?: string;
+  /** The thread `marker` was read from; `finish` stores it only when that thread is the primary one. */
+  markerThreadId?: string;
   source?: ReactionSource;
   sessionDirectory: string;
 }
@@ -121,6 +125,7 @@ interface Turn {
   start?: StartTarget[];
   policy: ContextPolicy;
   marker?: string;
+  markerThreadId?: string;
   source?: ReactionSource;
   prompt: string;
   resumeSessionId?: string;
@@ -146,6 +151,34 @@ const earlierTranscript = (config: CentaurConfig, show: boolean, earlier: ChatMe
     ? boundTranscript(earlier, config.context.transcript_max_chars)
     : { messages: [], omitted: 0 };
 
+/**
+ * What a turn in an existing thread shows besides the pending messages: the session to resume,
+ * or the bounded earlier transcript when the policy calls for it and no session exists.
+ */
+async function threadContext(
+  deps: PrepareDeps,
+  config: CentaurConfig,
+  directory: string,
+  input: {
+    store: ThreadStore;
+    messages: ChatMessage[];
+    pending: ChatMessage[];
+    policy: ContextPolicy;
+  },
+) {
+  const { store, messages, pending, policy } = input;
+  const resumeSessionId = policy === "resume" ? await store.restoreSession(directory) : undefined;
+  const showHistory = policy === "transcript" || (policy === "resume" && !resumeSessionId);
+  const pendingIds = new Set(pending.map((m) => m.id));
+  const { messages: history, omitted } = earlierTranscript(
+    config,
+    showHistory,
+    messages.filter((m) => !pendingIds.has(m.id)),
+  );
+  const attachmentPath = await loadAttachments(deps, [...history, ...pending]);
+  return { resumeSessionId, history, omitted, attachmentPath };
+}
+
 const safeRef = (value: string) => value.replaceAll(/[^A-Za-z0-9._-]/g, "-");
 
 export const sessionDirectory = (home: string, workspace: string) =>
@@ -160,22 +193,78 @@ const skipped: PrepareOutputs = {
   api_key_secret: "",
 };
 
+type ScheduledPrompt = CentaurConfig["prompts"][string];
+
+/**
+ * The context of a `thread: persistent` prompt's first target: its bound thread's transcript, marker
+ * and session. Undefined when the prompt is not persistent or the destination has no thread yet
+ * (the first run starts empty). The thread's policy is the latest in-thread command, else the
+ * prompt's own, since every run rewrites the stored policy from the prompt.
+ */
+async function persistentContext(
+  deps: PrepareDeps,
+  config: CentaurConfig,
+  directory: string,
+  prompt: ScheduledPrompt,
+) {
+  const [target] = prompt.targets;
+  if (prompt.thread !== "persistent" || !target) return undefined;
+  const token = await deps.fetchToken();
+  const { threadId } = await deps.poster.call<{ threadId?: string }>({
+    operation: "resolve-destination",
+    token,
+    bot: config.bot,
+    platform: target.platform,
+    name: target.destination,
+    thread: "persistent",
+  });
+  if (!threadId) return undefined;
+  const { messages } = await readThread(deps.poster, { token, bot: config.bot, threadId });
+  const store = deps.storeFor(config.bot, threadId);
+  const pending = pendingMessages(messages, await store.readMarker());
+  const policy = threadPolicy(messages, prompt.context);
+  return {
+    threadId,
+    policy,
+    pending,
+    marker: messages.at(-1)?.id,
+    ...(await threadContext(deps, config, directory, { store, messages, pending, policy })),
+  };
+}
+
 async function scheduledTurn(
   deps: PrepareDeps,
   config: CentaurConfig,
   instructions: Instructions,
+  directory: string,
   name: string,
 ): Promise<Turn> {
   const prompt = config.prompts[name];
   if (!prompt) throw new Error(`The Centaur config defines no prompt named "${name}"`);
   const scheduledTask = await readFile(join(deps.workspace, prompt.file), "utf8");
+  const persistent = await persistentContext(deps, config, directory, prompt);
   const targets = prTargetFlags(config, await existingTargets(deps, config));
   return {
     mode: "start-thread",
-    policy: prompt.context,
-    start: prompt.targets,
+    policy: persistent?.policy ?? prompt.context,
+    start:
+      prompt.thread === "persistent"
+        ? prompt.targets.map((target) => ({ ...target, thread: "persistent" as const }))
+        : prompt.targets,
     allowExisting: targets.allowExisting,
-    prompt: buildPrompt({ scheduledTask, instructions, ...targets }),
+    ...(persistent?.marker
+      ? { marker: persistent.marker, markerThreadId: persistent.threadId }
+      : {}),
+    ...(persistent?.resumeSessionId ? { resumeSessionId: persistent.resumeSessionId } : {}),
+    prompt: buildPrompt({
+      scheduledTask,
+      instructions,
+      ...targets,
+      history: persistent?.history,
+      omitted: persistent?.omitted,
+      messages: persistent?.pending,
+      attachmentPath: persistent?.attachmentPath,
+    }),
   };
 }
 
@@ -254,19 +343,14 @@ async function chatTurn(
       };
     }
     case "reply": {
-      const resumeSessionId =
-        plan.policy === "resume" ? await store.restoreSession(directory) : undefined;
+      const { resumeSessionId, history, omitted, attachmentPath } = await threadContext(
+        deps,
+        config,
+        directory,
+        { store, messages, pending: plan.pending, policy: plan.policy },
+      );
       const settings = platformSettings(config, threadPlatform(threadId));
       const canStaySilent = settings.respond_to === "all";
-      const pendingIds = new Set(plan.pending.map((m) => m.id));
-      const showHistory =
-        plan.policy === "transcript" || (plan.policy === "resume" && !resumeSessionId);
-      const { messages: history, omitted } = earlierTranscript(
-        config,
-        showHistory,
-        messages.filter((m) => !pendingIds.has(m.id)),
-      );
-      const attachmentPath = await loadAttachments(deps, [...history, ...plan.pending]);
       const targets = prTargetFlags(config, await existingTargets(deps, config));
       return {
         mode: "reply",
@@ -328,17 +412,16 @@ async function commentTurn(
   if (pending.length === 0) return undefined;
 
   const policy = threadPolicy(messages, storedPolicy ?? config.context.default);
-  const resumeSessionId =
-    policy === "resume"
-      ? await deps.storeFor(config.bot, threadId).restoreSession(directory)
-      : undefined;
-  const hasSession = resumeSessionId !== undefined;
-  const showHistory = policy === "transcript" || (policy === "resume" && !hasSession);
-  const { messages: history, omitted } = earlierTranscript(config, showHistory, messages);
-  const attachmentPath = await loadAttachments(deps, history);
-  const diff = hasSession
-    ? undefined
-    : truncateDiff(await comment.github.diff(comment.repository, comment.pullRequest));
+  const { resumeSessionId, history, omitted, attachmentPath } = await threadContext(
+    deps,
+    config,
+    directory,
+    { store: deps.storeFor(config.bot, threadId), messages, pending: [], policy },
+  );
+  const diff =
+    resumeSessionId !== undefined
+      ? undefined
+      : truncateDiff(await comment.github.diff(comment.repository, comment.pullRequest));
   const replyTo = singleInlineThread(pending);
   return {
     mode: "comment",
@@ -454,7 +537,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   }
   const instructions = await loadInstructions(configRoot, config.instructions);
   const turn = deps.promptName
-    ? await scheduledTurn(deps, config, instructions, deps.promptName)
+    ? await scheduledTurn(deps, config, instructions, directory, deps.promptName)
     : deps.comment
       ? await commentTurn(deps, deps.comment, config, instructions, directory)
       : await chatTurn(deps, config, instructions, directory);
@@ -471,6 +554,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     ...(turn.replyTo ? { replyTo: turn.replyTo } : {}),
     ...(turn.start ? { start: turn.start } : {}),
     ...(turn.marker ? { marker: turn.marker } : {}),
+    ...(turn.markerThreadId ? { markerThreadId: turn.markerThreadId } : {}),
     ...(turn.source ? { source: turn.source } : {}),
   };
   await mkdir(join(deps.workspace, TURN_DIR), { recursive: true });

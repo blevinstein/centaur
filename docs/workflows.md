@@ -10,6 +10,7 @@ operations they invoke, and [config.md](config.md) for the config.
 | `setup-runtime` | Builds the workflow scripts from the action's own checkout and assumes the AWS role through OIDC. Run once per job, after checking out the consumer repo. |
 | `register` | Validates the config, requests a GitHub OIDC token for the poster's audience and invokes `register`. |
 | `resolve-pr-comment` | Decides whether a pull request comment event starts a turn and which bot and thread it belongs to; see [Comment turns](#comment-turns). |
+| `resolve-schedule` | Computes the concurrency group of a scheduled prompt's turn job; see [Persistent scheduled threads](#persistent-scheduled-threads). |
 | `turn` | One agent turn: answers a dispatched chat message, or (with `prompt_name`) starts a new thread from a scheduled prompt, or (with `comment`) answers the comments on a pull request. Outputs `skip` and `pull-request-url`. |
 | `notify-failure` | Posts a failure notice in the thread (and, with `comment`, on the pull request) and clears the 👀 reactions. Use with `if: failure()`; does nothing if the turn never started. |
 
@@ -77,9 +78,24 @@ permissions:
   pull-requests: write
   id-token: write
 jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      group: ${{ steps.resolve.outputs.group }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: <owner>/centaur/.github/actions/setup-runtime@main
+      - id: resolve
+        uses: <owner>/centaur/.github/actions/resolve-schedule@main
+        with:
+          prompt_name: weekly-tasks
   weekly-tasks:
+    needs: resolve
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    concurrency:
+      group: ${{ needs.resolve.outputs.group }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
       - uses: <owner>/centaur/.github/actions/setup-runtime@main
@@ -100,6 +116,42 @@ repo settings. Pull requests opened with the default token do not trigger other 
 To add another scheduled prompt, add a `prompts:` entry to the config and a workflow like the
 last one. Because the consumer owns the job, it can add its own steps before or after the actions
 (for example to fetch data the prompt needs).
+
+## Persistent scheduled threads
+
+A prompt with `thread: persistent` ([config.md](config.md#prompts)) posts every run into the
+destination's one thread instead of a new one, and the run sees what the thread already holds.
+
+- **Finding the thread.** Before the agent runs, `prepare` calls the poster's `resolve-destination`
+  with `thread: persistent` for the prompt's first target. It returns `threadId` only when the
+  destination has a bound thread; for a destination with none (the first run) there is no history,
+  and the run starts empty. Only the first target is read; the other targets of a fan-out prompt
+  start their threads in `finish`.
+- **Context.** With a bound thread, `prepare` reads it (`read`) and builds the prompt like a chat
+  reply: the human messages after the thread's last-processed marker are shown as the new messages,
+  and the earlier messages as the transcript, bounded by `context.transcript_max_chars`
+  ([Transcript budget](#transcript-budget)) with the omission note. The policy is the latest
+  `/resume` or `/transcript` in the thread, else the prompt's own `context`: every run rewrites the
+  thread's stored policy from the prompt, so the stored value is the prompt's from the last run and
+  reading it would keep a changed `context` from taking effect. A `resume` prompt restores the
+  session saved under the destination thread, and falls back to the transcript when none exists.
+- **Posting.** `finish` adds `thread: persistent` to each `start-thread` request, and only for a
+  persistent prompt: a `new` prompt sends no `thread`, so it works against a poster that predates
+  the field. The thread each call returns is used like a new thread's: the first target that
+  received the reply is the primary thread and takes the marker (the last message `prepare` read;
+  the run's own post comes after it and is never pending), the saved session and the pull request
+  link. The marker is stored only when the primary thread is the one it was read from.
+- **Concurrency.** The `resolve-schedule` action (the `resolve` job in the template) outputs the
+  turn job's `concurrency` group. For a persistent prompt it is `centaur-<bot>-<key>`, with the key
+  a hash (`src/thread-key.ts`) of the bot and the sorted `<platform>/<destination>` names of the
+  prompt's targets, so runs of the prompt queue instead of interleaving, including the first run
+  that creates the thread, and no chat or thread ID appears in the name. Any other prompt gets
+  `centaur-<bot>-<prompt>-<run id>`, which serializes nothing. Two prompts that share a destination
+  but not the same targets use different groups. Replies from humans are chat turns in the thread's
+  own group; they are not serialized with the scheduled run.
+- **Deploy order.** The runner calls `resolve-destination` and sends `thread` to `start-thread`,
+  which the poster Lambda must understand first. Deploy the Lambda (`yarn deploy-prod`) before any
+  config sets `thread: persistent`; prompts without it work against either Lambda.
 
 ## MCP server secrets
 
@@ -138,7 +190,7 @@ read them.
 
 This repo is its own consumer, for end-to-end testing: `.centaur/config.yml` binds the `centaur-slack` bot to Slack and Telegram
 and the `centaur-*.yml` workflows use the actions locally (`uses: ./.github/actions/...`). Its agent is
-read-write on the repo (`Read,Glob,Grep,Write,Edit` plus the read-only GitHub MCP tools), and it uses `respond_to: all` on both platforms. Its `hello` and `mcp-smoke` prompts post to Slack and Telegram, `hello-telegram` (the `hello` text) to Telegram only, and the pull-request prompts (`pr-smoke`, `pr-update`) post to Slack only, since a PR attaches to one thread.
+read-write on the repo (`Read,Glob,Grep,Write,Edit` plus the read-only GitHub MCP tools), and it uses `respond_to: all` on both platforms. Its `hello` and `mcp-smoke` prompts post to Slack and Telegram, `hello-telegram` (the `hello` text) to Telegram only, keeping one persistent thread (`thread: persistent`; the other prompts open a new thread each run), and the pull-request prompts (`pr-smoke`, `pr-update`) post to Slack only, since a PR attaches to one thread.
 
 Run **Actions > Centaur register** to bind the bot, or **Actions > Centaur hello** to start a thread
 from `.centaur/prompts/hello.md`. Messages sent to the bot dispatch `centaur-message` and are
@@ -173,7 +225,7 @@ centaur repo must be readable by the consumer's `GITHUB_TOKEN` (public, or grant
 read the variables above through the `vars` context; API keys are inputs of `turn` because
 composite actions cannot read secrets.
 
-Commands: `register`, `resolve`, `prepare`, `pr-details`, `finish`, `notify-failure`.
+Commands: `register`, `resolve`, `resolve-schedule`, `prepare`, `pr-details`, `finish`, `notify-failure`.
 
 ## Agent turn
 
@@ -260,9 +312,9 @@ name>` for scheduled prompts) and the body is the footer alone.
 ### Turn state
 
 Every field of the turn state steers a trusted step, so none of it lives in the workspace, where
-the agent could rewrite it: `mode`, `bot`, `threadId`, `pullRequest`, `replyTo`, `start` (a list: one entry per target of a scheduled prompt, or the single
+the agent could rewrite it: `mode`, `bot`, `threadId`, `pullRequest`, `replyTo`, `start` (a list: one entry per target of a scheduled prompt, each with `thread: persistent` for a persistent prompt, or the single
 `fromThreadId` of `/new`) and
-`source` pick where `finish` posts and which messages lose their reaction; `marker`, `policy` and
+`source` pick where `finish` posts and which messages lose their reaction; `marker` (with `markerThreadId`, the thread a persistent scheduled turn read it from), `policy` and
 `sessionDirectory` decide what is saved for the next turn; `promptName` and `bot` appear in the
 pull request footer. `prepare` writes the file to `<RUNNER_TEMP>/centaur-turn/state.json`
 (`turnStateDir` in `src/workflows/turn-state.ts`, falling back to the OS temp directory outside
@@ -436,7 +488,8 @@ Actions-masked, and the raw thread ID is never printed.
 first 12 hex characters of a SHA-256 over the bot and thread ID (`src/thread-key.ts`), computed by
 the receiver and carried in the dispatch payload as `thread_key`. The PR branch is
 `centaur/<bot>-<thread key>` and stays the same across a thread's turns; scheduled runs use
-`<prompt>-<run id>` for the branch and need no group.
+`<prompt>-<run id>` for the branch. A scheduled workflow's group comes from `resolve-schedule`
+([Persistent scheduled threads](#persistent-scheduled-threads)).
 
 ### Context policies
 

@@ -320,9 +320,9 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
 - [x] Platforms 14: `centaur destination set|list|remove`; removes `centaur chat list` (breaking).
       After 11. Done. `chat list` and `access approve --alias` are removed.
 - [x] Platforms 15: multi-target scheduled turns (turn state targets, fan-out in `finish`). After 10.
-- [ ] Platforms 16: `thread: persistent` scheduled turns (the runner passes the prompt's `thread`;
+- [x] Platforms 16: `thread: persistent` scheduled turns (the runner passes the prompt's `thread`;
       history, marker, session, `resolve` job and concurrency template); the schema stops rejecting
-      `persistent`. After 11, 15 and bounded transcript 3 (section 15).
+      `persistent`. After 11, 15 and bounded transcript 3 (section 15). Done.
 - [ ] Platforms 17: docs sweep (`onboarding.md`, `plan.md`, `config.md`, `cli.md`, `poster.md`,
       README); remove the word "alias" everywhere; mark the design doc as built.
 - [ ] **[HUMAN APPROVAL]** Deploy the Lambda (`yarn deploy-prod`) after each of slices 9, 11, 12 and
