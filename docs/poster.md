@@ -15,8 +15,8 @@ to a repo (secrets plus `bots/<bot>/repo`) for every operation except `register`
 | `start-thread` | `bot`, `text`, optional `title`, exactly one of `destination` (chat alias) or `fromThreadId` | `{ threadId }` |
 | `read` | `token` (GitHub OIDC JWT), `bot`, `threadId` | `{ messages: [{ id, userId, userName, fromBot, text, attachments, sentAt }] }`, oldest first; `attachments` are the S3 keys of the message's stored images (see [Attachments](#attachments)) |
 | `unreact` | `bot`, `threadId`, `messageIds` (1 to 50) | `{ results: [{ messageId, removed }] }` |
-| `list-threads` | `token` (GitHub OIDC JWT), `bot`, `chatId`, `threadId` (the dispatched thread), optional `limit` (default 20, max 50), optional `includeBots` | `{ threads: [{ threadId, title, lastActivity, messageCount, participants, snippet }] }`, most recent first |
-| `read-channel` | `token` (GitHub OIDC JWT), `bot`, `chatId`, `threadId` (the dispatched thread), optional `limit` (default 50, max 200), optional `before` (ISO 8601 instant), optional `includeBots` | `{ messages: [{ id, threadId, userId, userName, fromBot, text, attachments, sentAt }] }`, newest first; `attachments` is always empty |
+| `list-threads` | `token` (GitHub OIDC JWT), `bot`, `chatId`, `threadId` (the dispatched thread), optional `limit` (default 20, max 50), optional `includeBots` | `{ threads: [{ threadId, title, lastActivity, messageCount, participants, snippet }], scanned }`, most recent first |
+| `read-channel` | `token` (GitHub OIDC JWT), `bot`, `chatId`, `threadId` (the dispatched thread), optional `limit` (default 50, max 200), optional `before` (ISO 8601 instant), optional `includeBots` | `{ messages: [{ id, threadId, userId, userName, fromBot, text, attachments, sentAt }], scanned }`, newest first; `attachments` is always empty |
 | `get-mcp-policy` | none | `{ policy }`: the text of the global MCP policy bundled with the Lambda (`mcp-policy.cedar` next to the handler), or `null` when none is deployed |
 | `register` | `token` (GitHub OIDC JWT), `config` (the config file's text) | `{ bot, repo }` |
 | `link-pull-request` | `token` (GitHub OIDC JWT), `bot`, `threadId`, `pullRequest` (number) | `{ linked: true }` |
@@ -76,6 +76,13 @@ caller, enforces:
   100, snippets to 200, and a thread lists at most 10 participants.
 
 Failures log the operation, bot, chat ID, requested limit and error type, never message content.
+
+**`scanned`** is `{ oldest: string | null, exhausted: boolean }`: `oldest` is the send time of the
+oldest message examined (`null` when none was; messages from senders who are not enrolled count as
+examined), and `exhausted` is `true` when nothing older was left to examine, because the stored list
+or the one Slack page was the whole source. It is `false` when the read stopped at `limit` or Slack
+reported an older page. When `exhausted` is `false`, a short result means only that nothing in the
+examined range qualified; older messages can be read with `before`.
 
 - **Telegram:** the Bot API has no history call, so both operations read the messages the receiver
   stored for the chat (including messages from senders who are not enrolled, which are filtered

@@ -17,6 +17,7 @@ import {
   SLACK_TARGET,
   SLACK_THREAD,
   STRANGER,
+  scannedRange,
   TELEGRAM_TARGET,
 } from "./helpers/chat-context-fixtures.js";
 import { blockedChat, HOUSEHOLD_CHAT_ID, WORKSHOP_CHAT_ID } from "./helpers/poster-fixtures.js";
@@ -144,6 +145,7 @@ describe("telegram list-threads", () => {
           snippet: "latest A",
         },
       ],
+      scanned: scannedRange(1, true),
     });
   });
 
@@ -242,6 +244,7 @@ describe("telegram read-channel", () => {
           sentAt: "2026-01-02T03:01:00.000Z",
         },
       ],
+      scanned: scannedRange(1, true),
     });
   });
 
@@ -308,6 +311,7 @@ describe("slack list-threads", () => {
           snippet: "Plan the week\ndetails",
         },
       ],
+      scanned: scannedRange(0, true),
     });
     expect(listThreads).toHaveBeenCalledExactlyOnceWith("slack:C0123", { limit: 5 });
   });
@@ -371,6 +375,47 @@ describe("slack read-channel", () => {
       direction: "backward",
       cursor: "1767323045.000000",
     });
+  });
+});
+
+describe("scanned range", () => {
+  const history = () => [
+    contextMessage({ id: "3", minute: 3 }),
+    contextMessage({ id: "2", userId: STRANGER, minute: 2 }),
+    contextMessage({ id: "1", minute: 1 }),
+  ];
+
+  it("is empty and exhausted when there is no history", async () => {
+    const { poster } = await contextSetup();
+
+    expect(await poster(READ)).toEqual({ messages: [], scanned: scannedRange(null, true) });
+    expect(await poster(LIST)).toEqual({ threads: [], scanned: scannedRange(null, true) });
+  });
+
+  it("counts messages from unenrolled senders as examined", async () => {
+    const { poster } = await contextSetup({
+      history: [contextMessage({ id: "2", userId: STRANGER, minute: 2 })],
+    });
+
+    expect(await poster(READ)).toEqual({ messages: [], scanned: scannedRange(2, true) });
+  });
+
+  it("is not exhausted when the limit stops a telegram read early", async () => {
+    const { poster } = await contextSetup({ history: history() });
+
+    expect(await poster({ ...READ, limit: 1 })).toMatchObject({ scanned: scannedRange(3, false) });
+  });
+
+  it("is not exhausted when Slack reports older pages", async () => {
+    const { poster } = await contextSetup({
+      platform: "slack",
+      nextCursor: "older",
+      channelPage: [contextMessage({ id: "1", minute: 7 })],
+      threads: [listedThread({ minute: 9 })],
+    });
+
+    expect(await poster(SLACK_READ)).toMatchObject({ scanned: scannedRange(7, false) });
+    expect(await poster(SLACK_LIST)).toMatchObject({ scanned: scannedRange(9, false) });
   });
 });
 

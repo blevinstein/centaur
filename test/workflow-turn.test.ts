@@ -13,6 +13,7 @@ import {
   TURN_DIR,
 } from "../src/workflows/prepare.js";
 import { readTurnState, turnStateDir } from "../src/workflows/turn-state.js";
+import { scannedRange } from "./helpers/chat-context-fixtures.js";
 import { envRef } from "./helpers/config-fixtures.js";
 import {
   fakePolicyGitHub,
@@ -42,8 +43,10 @@ async function setup(
   const aws = createFakeAws((request) => {
     if (request.operation === "read") return { messages };
     if (request.operation === "start-thread") return { threadId: "telegram:-100:99" };
-    if (request.operation === "list-threads") return { threads: [] };
-    if (request.operation === "read-channel") return { messages: [] };
+    if (request.operation === "list-threads")
+      return { threads: [], scanned: scannedRange(null, true) };
+    if (request.operation === "read-channel")
+      return { messages: [], scanned: scannedRange(null, true) };
     return { messageId: "m" };
   });
   const { root, home, stateDir } = await createWorkspace({
@@ -92,9 +95,13 @@ describe("prepare", () => {
     const { aws } = await setup([]);
     const request = { token: "jwt", bot: "sprout", chatId: "-100", threadId: THREAD };
 
-    await expect(aws.poster.listThreads(request)).resolves.toEqual({ threads: [] });
+    await expect(aws.poster.listThreads(request)).resolves.toEqual({
+      threads: [],
+      scanned: scannedRange(null, true),
+    });
     await expect(aws.poster.readChannel({ ...request, limit: 3 })).resolves.toEqual({
       messages: [],
+      scanned: scannedRange(null, true),
     });
 
     expect(aws.requests).toEqual([

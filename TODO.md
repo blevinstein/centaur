@@ -113,10 +113,22 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
       backed by new poster operations. Design and recommendations:
       [docs/chat-context.md](docs/chat-context.md); **[HUMAN APPROVAL]** accept or amend its
       Decisions before building.
-- [ ] Chat search: the Chat SDK has no history search, so any search is ours. Proposal (a bounded
-      poster-side filter first, no new infrastructure):
-      [docs/chat-search.md](docs/chat-search.md); **[HUMAN APPROVAL]** accept or amend its
-      Decisions before building.
+- [x] Chat search: the Chat SDK has no history search, so any search is ours. Decisions accepted
+      2026-11-22 ([docs/chat-search.md](docs/chat-search.md)): no poster-side filter (the poster
+      scans the whole window and the Telegram window fits in one call), report the scanned range,
+      and add opt-in Slack-native search; no secondary index (SQLite FTS, OpenSearch, embeddings)
+      because of the infrastructure cost. Slices, in order:
+  - [x] Chat search 1: `scanned: { oldest, exhausted }` range in `read-channel` and
+        `list-threads` results.
+  - [ ] Chat search 2: `chat_context` config key for the Slack search opt-in.
+  - [ ] Chat search 3: MCP server renders the scanned range and the bounded-window note.
+  - [ ] Chat search 4: Slack-native search (receiver captures the `action_token` into the state
+        table with a TTL, poster `search-chat`, MCP `search_chat`, manifest scopes). Settle the
+        design questions in the doc first.
+  - [ ] Chat search 5: the stored-history window, tracked in the next item.
+  - [ ] **[HUMAN ACTION]** Chat search 6: verify on a real install (Slack rate limits,
+        `action_token` lifetime and presence in events, AI features in the workspace, Telegram
+        window cost).
 - [ ] Decide and set the stored-history window (`history.thread` `maxMessages` and `ttlMs`)
       explicitly in `src/lambda/chat.ts`. Telegram keeps only the newest 100 messages per chat and
       per thread (SDK default, 7-day TTL); the poster's `STORED_HISTORY_SCAN_MAX` (2000) is moot

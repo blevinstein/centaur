@@ -58,6 +58,12 @@ export const contextMessage = ({
   metadata: { dateSent: new Date(Date.UTC(2026, 0, 2, 3, minute)) },
 });
 
+/** The result's scanned range for a read whose oldest message was sent at the given minute. */
+export const scannedRange = (minute: number | null, exhausted: boolean) => ({
+  oldest: minute === null ? null : new Date(Date.UTC(2026, 0, 2, 3, minute)).toISOString(),
+  exhausted,
+});
+
 export const listedThread = (
   options: ContextMessageOptions & { replyCount?: number; lastReplyMinute?: number } = {},
 ) => {
@@ -80,6 +86,8 @@ export async function contextSetup(
     history?: ReturnType<typeof contextMessage>[];
     threads?: ReturnType<typeof listedThread>[];
     channelPage?: ReturnType<typeof contextMessage>[];
+    /** Cursor to older Slack history, as returned when more remains. */
+    nextCursor?: string;
     repository?: string;
     parameters?: Record<string, string>;
   } = {},
@@ -93,8 +101,14 @@ export async function contextSetup(
       ...options.parameters,
     },
   });
-  const listThreads = vi.fn(async () => ({ threads: options.threads ?? [] }));
-  const fetchChannelMessages = vi.fn(async () => ({ messages: options.channelPage ?? [] }));
+  const listThreads = vi.fn(async () => ({
+    threads: options.threads ?? [],
+    nextCursor: options.nextCursor,
+  }));
+  const fetchChannelMessages = vi.fn(async () => ({
+    messages: options.channelPage ?? [],
+    nextCursor: options.nextCursor,
+  }));
   const history = options.history ?? [];
   setup.chatMock.channel.mockReturnValue({
     post: setup.channelPost,

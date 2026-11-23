@@ -64,11 +64,24 @@ export const channelMessageSchema = z.object({
   sentAt: z.string(),
 });
 
-export const listThreadsResultSchema = z.object({ threads: z.array(threadSummarySchema) });
-export const readChannelResultSchema = z.object({ messages: z.array(channelMessageSchema) });
+/** The range a read examined: the oldest message seen, and whether nothing older was left to see. */
+export const scannedSchema = z.object({
+  oldest: z.string().nullable(),
+  exhausted: z.boolean(),
+});
+
+export const listThreadsResultSchema = z.object({
+  threads: z.array(threadSummarySchema),
+  scanned: scannedSchema,
+});
+export const readChannelResultSchema = z.object({
+  messages: z.array(channelMessageSchema),
+  scanned: scannedSchema,
+});
 
 export type ListThreadsRequest = z.input<typeof listThreadsRequestSchema>;
 export type ReadChannelRequest = z.input<typeof readChannelRequestSchema>;
+export type Scanned = z.infer<typeof scannedSchema>;
 export type ThreadSummary = z.infer<typeof threadSummarySchema>;
 export type ChannelMessage = z.infer<typeof channelMessageSchema>;
 export type ListThreadsResult = z.infer<typeof listThreadsResultSchema>;
@@ -83,9 +96,19 @@ interface ChannelQuery {
   limit: number;
 }
 
+interface Scan {
+  oldest: Date | undefined;
+  exhausted: boolean;
+}
+
+interface Found<T> {
+  found: T;
+  scan: Scan;
+}
+
 interface ChannelReader {
-  threads(query: ChannelQuery): Promise<ThreadSummary[]>;
-  messages(query: ChannelQuery & { before?: Date | undefined }): Promise<Message[]>;
+  threads(query: ChannelQuery): Promise<Found<ThreadSummary[]>>;
+  messages(query: ChannelQuery & { before?: Date | undefined }): Promise<Found<Message[]>>;
 }
 
 /** Messages from the bot itself and enrolled users; other bots only when the caller opts in. */
@@ -96,6 +119,17 @@ const visibleTo =
     if (author.isBot === true) return includeBots;
     return access.userIds.has(author.userId);
   };
+
+const newScan = (exhausted = false): Scan => ({ oldest: undefined, exhausted });
+
+const observe = (scan: Scan, { metadata }: Message) => {
+  if (!scan.oldest || metadata.dateSent < scan.oldest) scan.oldest = metadata.dateSent;
+};
+
+const toScanned = ({ oldest, exhausted }: Scan): Scanned => ({
+  oldest: oldest?.toISOString() ?? null,
+  exhausted,
+});
 
 const toChannelMessage = (message: Message): ChannelMessage => ({
   id: message.id,
@@ -119,13 +153,19 @@ const summarize = (
   snippet: clip(summary.last, SNIPPET_MAX),
 });
 
-/** The receiver's stored history of a chat, newest first, bounded so a long-lived chat stays cheap. */
-async function* storedHistory({ chat, channelId }: ChannelQuery) {
-  let scanned = 0;
+/**
+ * The receiver's stored history of a chat, newest first, bounded so a long-lived chat stays cheap.
+ * The scan is exhausted only when the list ends before the bound; a consumer that stops early
+ * leaves it unexhausted.
+ */
+async function* storedHistory({ chat, channelId }: ChannelQuery, scan: Scan) {
+  let seen = 0;
   for await (const message of chat.channel(channelId).messages) {
-    if (++scanned > STORED_HISTORY_SCAN_MAX) return;
+    if (++seen > STORED_HISTORY_SCAN_MAX) return;
+    observe(scan, message);
     yield message;
   }
+  scan.exhausted = true;
 }
 
 const slackCursor = (before: Date) => (before.getTime() / 1000).toFixed(6);
@@ -143,7 +183,8 @@ const READERS: Record<Platform, ChannelReader> = {
           count: number;
         }
       >();
-      for await (const message of storedHistory(query)) {
+      const scan = newScan();
+      for await (const message of storedHistory(query, scan)) {
         if (!query.visible(message)) continue;
         const group = groups.get(message.threadId) ?? {
           first: "",
@@ -157,7 +198,7 @@ const READERS: Record<Platform, ChannelReader> = {
         group.count += 1;
         groups.set(message.threadId, group);
       }
-      return [...groups].slice(0, query.limit).map(([threadId, group]) =>
+      const found = [...groups].slice(0, query.limit).map(([threadId, group]) =>
         summarize({
           threadId,
           first: group.first,
@@ -167,24 +208,28 @@ const READERS: Record<Platform, ChannelReader> = {
           participants: [...group.participants],
         }),
       );
+      return { found, scan };
     },
     async messages(query) {
       const found: Message[] = [];
-      for await (const message of storedHistory(query)) {
+      const scan = newScan();
+      for await (const message of storedHistory(query, scan)) {
         if (query.before && message.metadata.dateSent >= query.before) continue;
         if (!query.visible(message)) continue;
         found.push(message);
         if (found.length >= query.limit) break;
       }
-      return found;
+      return { found, scan };
     },
   },
   slack: {
     async threads({ chat, channelId, visible, limit }) {
       const { adapter } = chat.channel(channelId);
       if (!adapter.listThreads) throw new Error(`${adapter.name} cannot list threads`);
-      const { threads } = await adapter.listThreads(channelId, { limit });
-      return threads
+      const { threads, nextCursor } = await adapter.listThreads(channelId, { limit });
+      const scan = newScan(!nextCursor);
+      for (const { rootMessage } of threads) observe(scan, rootMessage);
+      const found = threads
         .filter(({ rootMessage }) => visible(rootMessage))
         .map(({ id, rootMessage, replyCount, lastReplyAt }) =>
           summarize({
@@ -196,16 +241,19 @@ const READERS: Record<Platform, ChannelReader> = {
             participants: [rootMessage.author.userName],
           }),
         );
+      return { found, scan };
     },
     async messages({ chat, channelId, visible, limit, before }) {
       const { adapter } = chat.channel(channelId);
       if (!adapter.fetchChannelMessages) throw new Error(`${adapter.name} cannot read channels`);
-      const { messages } = await adapter.fetchChannelMessages(channelId, {
+      const { messages, nextCursor } = await adapter.fetchChannelMessages(channelId, {
         limit,
         direction: "backward",
         ...(before ? { cursor: slackCursor(before) } : {}),
       });
-      return messages.filter(visible).reverse();
+      const scan = newScan(!nextCursor);
+      for (const message of messages) observe(scan, message);
+      return { found: messages.filter(visible).reverse(), scan };
     },
   },
 };
@@ -261,18 +309,18 @@ export function createChatContext({
   return {
     async listThreads(request: z.output<typeof listThreadsRequestSchema>) {
       const limit = request.limit ?? LIST_THREADS_DEFAULT;
-      const threads = await read(request.operation, request, limit, (reader, query) =>
+      const { found, scan } = await read(request.operation, request, limit, (reader, query) =>
         reader.threads(query),
       );
-      return { threads };
+      return { threads: found, scanned: toScanned(scan) };
     },
     async readChannel(request: z.output<typeof readChannelRequestSchema>) {
       const limit = request.limit ?? READ_CHANNEL_DEFAULT;
       const before = request.before ? new Date(request.before) : undefined;
-      const found = await read(request.operation, request, limit, (reader, query) =>
+      const { found, scan } = await read(request.operation, request, limit, (reader, query) =>
         reader.messages({ ...query, before }),
       );
-      return { messages: found.slice(0, limit).map(toChannelMessage) };
+      return { messages: found.slice(0, limit).map(toChannelMessage), scanned: toScanned(scan) };
     },
   };
 }
