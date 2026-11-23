@@ -13,6 +13,7 @@
     "format": "biome check --write .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "verify": "yarn lint && yarn typecheck && yarn build && yarn bundle:lambda && yarn test",
     "build": "tsc -p tsconfig.build.json && cp -R src/workflows/instructions dist/workflows/",
     "deploy-prod": "scripts/deploy.sh --stack centaur --params-file parameters-prod.json",
     "lint:cfn": ".venv/bin/cfn-lint infra/*.yml",

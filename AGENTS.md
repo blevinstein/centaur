@@ -109,3 +109,14 @@
   connected adapters (a failed connect is dropped so the next request retries). `Chat` calls
   `connect()` on the same instance again, which is a no-op. Tests that need the adapter contract
   (calls reject before `connect()`) use `test/helpers/strict-state.ts`.
+- `yarn verify` runs lint, typecheck, build, `bundle:lambda` and test; run it on the rebased tree
+  before a merge.
+- `register` parses a consumer's config in the Lambda, and consumer workflows run these actions at
+  `@main`. A config that uses a new or renamed key must not reach the default branch before the
+  Lambda with that schema is deployed: deploy, then push, then check the `register` run.
+- To verify a live run: the DynamoDB state table is readable with the maintainer's AWS credentials
+  (keys under `bot:<bot>:`; every `start-thread` writes a `thread-meta` record); Slack channels are
+  readable with `conversations.history` and the bot token from SSM; Telegram has no history API.
+  Read only the bot's own recent posts, and never print tokens, chat IDs or other people's messages.
+- This repo is public: keep consumer repo names, chat and thread IDs and tokens out of docs,
+  `TODO.md`, tests, fixtures and commits.
