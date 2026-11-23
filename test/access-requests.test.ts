@@ -198,7 +198,7 @@ describe("access requester", () => {
   });
 });
 
-describe("access request chat title and alias", () => {
+describe("access request chat title and destination name", () => {
   const request = async (
     h: Awaited<ReturnType<typeof accessHarness>>,
     thread = fakeThread().thread,
@@ -207,12 +207,12 @@ describe("access request chat title and alias", () => {
     return h.store.read(h.requestId());
   };
 
-  it("shows the proposed alias in the admin message and stores it on the request", async () => {
+  it("shows the proposed destination name in the admin message and stores it on the request", async () => {
     const h = await accessHarness();
 
     const stored = await request(h);
 
-    expect(h.adminText()).toContain("Alias: garden-club");
+    expect(h.adminText()).toContain("Destination: garden-club");
     expect(stored).toMatchObject({ subjectName: GROUP_CHAT_TITLE, alias: "garden-club" });
   });
 
@@ -236,18 +236,18 @@ describe("access request chat title and alias", () => {
     const stored = await request(h, thread);
 
     expect(h.adminText()).toContain(`Chat: (unknown) (${GROUP_CHAT_ID})`);
-    expect(h.adminText()).toContain("Alias: chat-0500");
+    expect(h.adminText()).toContain("Destination: chat-0500");
     expect(stored).toMatchObject({ subjectName: "(unknown)", alias: "chat-0500" });
   });
 
-  it("proposes a numeric suffix when the alias names another chat", async () => {
+  it("proposes a numeric suffix when the name holds another chat", async () => {
     const h = await accessHarness();
     await h.params.put("/centaur/chats/telegram/garden-club", "-1");
 
     expect(await request(h)).toMatchObject({ alias: "garden-club-2" });
   });
 
-  it("ignores aliases of other platforms and the flat form", async () => {
+  it("ignores destinations of other platforms and the flat form", async () => {
     const h = await accessHarness();
     await h.params.put("/centaur/chats/slack/garden-club", "C1");
     await h.params.put("/centaur/chats/garden-club", "-1");
@@ -255,19 +255,19 @@ describe("access request chat title and alias", () => {
     expect(await request(h)).toMatchObject({ alias: "garden-club" });
   });
 
-  it("proposes the alias that already names the chat", async () => {
+  it("proposes the name that already holds the chat", async () => {
     const h = await accessHarness();
     await h.params.put("/centaur/chats/telegram/household", GROUP_CHAT_ID);
 
     expect(await request(h)).toMatchObject({ alias: "household" });
   });
 
-  it("proposes no alias for a user request", async () => {
+  it("proposes no destination name for a user request", async () => {
     const h = await accessHarness();
 
     await h.requestAccess("user", fakeThread().thread, strangerMessage());
 
-    expect(h.adminText()).not.toContain("Alias:");
+    expect(h.adminText()).not.toContain("Destination:");
     expect(await h.store.read(h.requestId())).not.toHaveProperty("alias");
   });
 });

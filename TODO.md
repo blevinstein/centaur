@@ -305,7 +305,7 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
 - [x] Platforms 10: runner uses the stored policy and passes the prompt's `context` to
       `start-thread` (fixes thread policy storage for every prompt). After 9 is deployed.
       Done.
-- [ ] Platforms 11: replace aliases with destinations (design Decision 18, maintainer ruling
+- [x] Platforms 11: replace aliases with destinations (design Decision 18, maintainer ruling
       2026-11-23): widen the `chats/<platform>/<name>` value to a record (chat, optional topic,
       stored policy), rename `chat-aliases.ts`, `resolveChatAlias`, `proposeChatAlias`,
       `recordChatAlias` and `slugAlias` to destination names, one-lookup resolution, create on first
@@ -313,6 +313,7 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       `thread` (Decision 19); the schema parses `thread: new | persistent` (default `new`) and
       rejects `persistent` with a clear error until slice 16 lands; no new IAM statement. Deploy
       gates unchanged. Details approved 2026-11-23. After 8, 9, 18 (and 21, same schema file).
+      Done.
 - [ ] Platforms 12: Slack persistent thread destinations (`thread: persistent` on Slack). After 11.
 - [ ] Platforms 13: admin-only `/destination <name>` (Telegram) and `!destination <name>` (Slack)
       bind a topic to a destination name. After 11.
@@ -349,7 +350,7 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       platform, a bot with several uses `destination: { <platform>: <name> }`. Updates
       `docs/config.md`, tests and the self-consumer config. Built independent of the other slices;
       merged to `main` and not yet pushed. No consumer config used the selector.
-- [ ] **[HUMAN APPROVAL]** The recommended `thread` semantics in Decision 19 (`new` never reuses a
+- [x] **[HUMAN APPROVAL]** The recommended `thread` semantics in Decision 19 (`new` never reuses a
       bound thread; a record bound to a topic with a `new` prompt posts a fresh thread; `persistent`
       on a record with no thread creates and binds one; `thread` applies to every fan-out target;
       `persistent` rejected by the schema until slice 16).

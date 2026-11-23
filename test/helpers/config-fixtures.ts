@@ -166,7 +166,19 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
     /./,
   ],
   [
-    "an invalid prompt destination alias",
+    "thread: persistent",
+    withExtra("prompts: {weekly: {destination: household, thread: persistent}}"),
+    "prompts.weekly.thread",
+    /persistent is not supported yet/,
+  ],
+  [
+    "an unknown thread mode",
+    withExtra("prompts: {weekly: {destination: household, thread: forever}}"),
+    "prompts.weekly.thread",
+    /./,
+  ],
+  [
+    "an invalid prompt destination name",
     withExtra("prompts: {weekly: {destination: H}}"),
     "prompts.weekly.destination",
     /lowercase alias/,

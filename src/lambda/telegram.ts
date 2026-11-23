@@ -2,6 +2,7 @@ export interface TelegramApi {
   getMe(token: string): Promise<{ username: string }>;
   setWebhook(token: string, url: string, secretToken: string): Promise<void>;
   createForumTopic(token: string, chatId: string, name: string): Promise<number>;
+  reopenForumTopic(token: string, chatId: string, topicId: number): Promise<void>;
 }
 
 export const WEBHOOK_UPDATES = [
@@ -49,6 +50,9 @@ export function createTelegramApi(fetchImpl = fetch): TelegramApi {
         name,
       });
       return topic.message_thread_id;
+    },
+    async reopenForumTopic(token, chatId, topicId) {
+      await call(token, "reopenForumTopic", { chat_id: chatId, message_thread_id: topicId });
     },
   };
 }

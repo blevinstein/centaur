@@ -7,7 +7,6 @@ import {
   encodeEntry,
   subjectIdOf,
 } from "../../lambda/access-entries.js";
-import { proposeChatAlias } from "../../lambda/chat-aliases.js";
 import {
   approvedParameter,
   approvedPrefix,
@@ -15,8 +14,9 @@ import {
   blockedPrefix,
   scopedChatParameter,
 } from "../../lambda/connection-paths.js";
-import { knownChatAliases } from "../chat-aliases.js";
+import { encodeDestination, proposeDestinationName } from "../../lambda/destinations.js";
 import type { CliContext } from "../context.js";
+import { knownDestinations } from "../destinations.js";
 import { type PlatformOptions, withPlatformOption } from "../platform-option.js";
 import { CliError, type Platform, parseName, requireConnection } from "../registry.js";
 
@@ -61,25 +61,37 @@ export function registerAccessCommands(program: Command, context: CliContext): v
     await context.store.delete([name]);
   };
 
-  const chatAliasFor = async (
+  const destinationFor = async (
     platform: Platform,
     id: string,
-    name: string | undefined,
+    displayName: string | undefined,
     requested: string | undefined,
   ) => {
-    const known = await knownChatAliases(context.store, platform);
-    if (requested === undefined) return proposeChatAlias(known, id, name);
-    parseName("alias", requested);
-    const holder = known[scopedChatParameter(platform, requested)];
-    if (holder !== undefined && holder !== id) {
-      throw new CliError(`Alias "${requested}" already names chat ${holder}.`);
+    const known = await knownDestinations(context.store, platform);
+    const destinationName =
+      requested === undefined ? proposeDestinationName(known, id, displayName) : requested;
+    if (requested !== undefined) {
+      parseName("destination", requested);
+      const holder = known[scopedChatParameter(platform, requested)]?.chatId;
+      if (holder !== undefined && holder !== id) {
+        throw new CliError(`Destination "${requested}" already holds chat ${holder}.`);
+      }
     }
-    return requested;
+    const parameter = scopedChatParameter(platform, destinationName);
+    if (!(parameter in known)) {
+      await context.store.put(parameter, encodeDestination({ chatId: id, name: displayName }), {
+        secure: false,
+      });
+    }
+    return destinationName;
   };
 
   subjectCommand("approve", "Approve a chat or user (kind: chat or user)")
-    .option("--name <name>", "display name to record; a chat's alias defaults to a slug of it")
-    .option("--alias <alias>", "chat alias to create (chats only)")
+    .option(
+      "--name <name>",
+      "display name to record; a chat's destination name defaults to a slug of it",
+    )
+    .option("--alias <name>", "destination name to create for the chat (chats only)")
     .action(
       run(async ({ bot, platform, kind, id, name, alias }) => {
         if (kind === "user" && alias !== undefined) {
@@ -89,16 +101,14 @@ export function registerAccessCommands(program: Command, context: CliContext): v
           (await context.store.get(approvedParameter(bot, platform, kind, id))) ?? "",
         );
         const displayName = name ?? stored.name;
-        const chatAlias =
-          kind === "chat" ? await chatAliasFor(platform, id, displayName, alias) : undefined;
-        if (chatAlias)
-          await context.store.put(scopedChatParameter(platform, chatAlias), id, { secure: false });
+        const destinationName =
+          kind === "chat" ? await destinationFor(platform, id, displayName, alias) : undefined;
         await context.store.put(
           approvedParameter(bot, platform, kind, id),
-          encodeEntry({ name: displayName, alias: chatAlias }),
+          encodeEntry({ name: displayName, alias: destinationName }),
           { secure: false },
         );
-        return `Approved ${kind} ${id} for bot "${bot}"${chatAlias ? ` as "${chatAlias}"` : ""}.`;
+        return `Approved ${kind} ${id} for bot "${bot}"${destinationName ? ` as "${destinationName}"` : ""}.`;
       }),
     );
 

@@ -5,11 +5,11 @@ import {
   CONTEXT_POLICIES,
   PLATFORMS,
   type Platform,
+  THREAD_MODES,
   threadPlatform,
 } from "../config/index.js";
 import { createAccessResolver } from "./access.js";
 import type { AttachmentStore } from "./attachments.js";
-import { resolveChatAlias } from "./chat-aliases.js";
 import {
   createChatContext,
   listThreadsRequestSchema,
@@ -17,17 +17,16 @@ import {
 } from "./chat-context.js";
 import type { McpPolicyReader } from "./mcp-policy.js";
 import type { OidcVerifier } from "./oidc.js";
-import { BOT_CREATED_STATE, type ThreadMetadata } from "./ownership.js";
+import type { ThreadMetadata } from "./ownership.js";
 import type { ParameterStore } from "./parameters.js";
 import { createPullRequests } from "./pull-requests.js";
 import { createRegister } from "./register.js";
 import { type Bot, botStatePrefix, requireBot, requireBound } from "./registry.js";
 import { connectState } from "./state.js";
 import type { TelegramApi } from "./telegram.js";
-import { firstLine } from "./text.js";
 import { createThreadMeta } from "./thread-meta.js";
+import { createThreadStarter, TOPIC_NAME_MAX } from "./thread-starter.js";
 
-const TOPIC_NAME_MAX = 128;
 export const UNREACT_MAX_MESSAGES = 50;
 
 const text = z.string().min(1);
@@ -48,6 +47,8 @@ export const posterRequestSchema = z.discriminatedUnion("operation", [
       fromThreadId: threadId.optional(),
       /** The prompt's context policy, stored on the new thread for its replies. */
       context: z.enum(CONTEXT_POLICIES).optional(),
+      /** `new` always opens a fresh thread; `persistent` posts into the destination's bound thread. */
+      thread: z.enum(THREAD_MODES).optional(),
     })
     .refine(
       (request) => (request.destination === undefined) !== (request.fromThreadId === undefined),
@@ -57,7 +58,18 @@ export const posterRequestSchema = z.discriminatedUnion("operation", [
     )
     .refine((request) => request.fromThreadId === undefined || request.platform === undefined, {
       message: "start-thread takes platform only with destination; fromThreadId implies it",
+    })
+    .refine((request) => request.fromThreadId === undefined || request.thread === undefined, {
+      message: "start-thread takes thread only with destination",
     }),
+  z.strictObject({
+    operation: z.literal("resolve-destination"),
+    token: z.string().min(1),
+    bot: alias,
+    platform: z.enum(PLATFORMS).optional(),
+    name: alias,
+    thread: z.enum(THREAD_MODES).optional(),
+  }),
   z.strictObject({
     operation: z.literal("read"),
     token: z.string().min(1),
@@ -110,29 +122,6 @@ export interface PosterDeps {
   logger: Pick<Logger, "warn">;
 }
 
-interface OpenedThread {
-  threadId: string;
-  posted: boolean;
-}
-
-type ThreadOpener = (
-  bot: Bot,
-  chat: PosterChat,
-  destination: { chatId: string; text: string; title: string },
-  telegram: TelegramApi,
-) => Promise<OpenedThread>;
-
-const THREAD_OPENERS: Record<Platform, ThreadOpener> = {
-  telegram: async (bot, _chat, { chatId, title }, telegram) => ({
-    threadId: `telegram:${chatId}:${await telegram.createForumTopic(bot.token, chatId, title)}`,
-    posted: false,
-  }),
-  slack: async (_bot, chat, { chatId, text }) => ({
-    threadId: (await chat.channel(`slack:${chatId}`).post(text)).threadId,
-    posted: true,
-  }),
-};
-
 export async function createPoster(deps: PosterDeps) {
   const { params, createState, chatFor, attachments, telegram, logger } = deps;
   const states = new Map<string, Promise<StateAdapter>>();
@@ -162,12 +151,15 @@ export async function createPoster(deps: PosterDeps) {
     oidc: deps.oidc,
   });
 
+  const loadBot = (botName: string, platform?: Platform) =>
+    requireBot(params, botName, { logger, ...(platform ? { platform } : {}) });
+
   const openChat = async (botName: string, platform?: Platform) => {
-    const bot = await requireBot(params, botName, { logger, ...(platform ? { platform } : {}) });
+    const bot = await loadBot(botName, platform);
     const botState = await stateFor(botStatePrefix(bot.name));
     const chat = chatFor(bot, botState);
     await chat.initialize();
-    return { bot, chat, threadMeta: createThreadMeta(botState) };
+    return { bot, chat, threadMeta: createThreadMeta(botState), state: botState };
   };
 
   const openThreadChat = (botName: string, threadId: string) =>
@@ -194,21 +186,13 @@ export async function createPoster(deps: PosterDeps) {
     logger,
   });
 
-  const startChatId = async (
-    bot: Bot,
-    chat: PosterChat,
-    target: { destination?: string | undefined; fromThreadId?: string | undefined },
-  ) => {
-    if (target.destination !== undefined) {
-      const chatId = await resolveChatAlias(params, bot, target.destination);
-      await requireApprovedChat(bot, chatId, `"${target.destination}"`);
-      return chatId;
-    }
-    const origin = chat.thread(target.fromThreadId as string);
-    const chatId = origin.channelId.slice(bot.platform.length + 1);
-    if (!origin.isDM) await requireApprovedChat(bot, chatId);
-    return chatId;
-  };
+  const threadStarter = createThreadStarter({
+    params,
+    telegram,
+    loadBot,
+    openChat,
+    requireApprovedChat,
+  });
 
   return async (rawRequest: unknown) => {
     const request = posterRequestSchema.parse(rawRequest);
@@ -230,31 +214,11 @@ export async function createPoster(deps: PosterDeps) {
         const sent = await chat.thread(request.threadId).post(request.text);
         return { messageId: sent.id };
       }
-      case "start-thread": {
-        const { bot, chat, threadMeta } = await openChat(
-          request.bot,
-          request.fromThreadId === undefined
-            ? request.platform
-            : threadPlatform(request.fromThreadId),
-        );
-        const opened = await THREAD_OPENERS[bot.platform](
-          bot,
-          chat,
-          {
-            chatId: await startChatId(bot, chat, request),
-            text: request.text,
-            title: request.title ?? firstLine(request.text, TOPIC_NAME_MAX),
-          },
-          telegram,
-        );
-        const thread = chat.thread(opened.threadId);
-        await thread.setState(BOT_CREATED_STATE);
-        await threadMeta.write(opened.threadId, {
-          setBy: "start-thread",
-          context: request.context,
-        });
-        if (!opened.posted) await thread.post(request.text);
-        return { threadId: opened.threadId };
+      case "start-thread":
+        return threadStarter.start(request);
+      case "resolve-destination": {
+        await requireBound(params, deps.oidc, request.token, request.bot);
+        return threadStarter.resolve(request);
       }
       case "read": {
         await requireBound(params, deps.oidc, request.token, request.bot);

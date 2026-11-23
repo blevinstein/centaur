@@ -86,6 +86,7 @@ describe("parseCentaurConfig", () => {
           "weekly-tasks": {
             file: ".centaur/prompts/weekly-tasks.md",
             context: "transcript",
+            thread: "new",
             targets: [
               { platform: "telegram", destination: "household" },
               { platform: "slack", destination: "household" },
@@ -94,6 +95,7 @@ describe("parseCentaurConfig", () => {
           seasonal: {
             file: ".centaur/prompts/season.md",
             context: "fresh",
+            thread: "new",
             targets: [
               { platform: "telegram", destination: "workshop" },
               { platform: "slack", destination: "workshop-alerts" },
@@ -142,6 +144,16 @@ describe("parseCentaurConfig", () => {
         platforms: { slack: { respond_to: "all" } },
         prompts: { weekly: { targets: [{ platform: "slack", destination: "household" }] } },
       },
+    });
+  });
+
+  it.each([
+    ["by default", "prompts: {weekly: {destination: household}}"],
+    ["when new", "prompts: {weekly: {destination: household, thread: new}}"],
+  ])("starts a new thread %s", (_name, prompts) => {
+    expect(parseCentaurConfig(withExtra(prompts))).toMatchObject({
+      ok: true,
+      config: { prompts: { weekly: { thread: "new" } } },
     });
   });
 

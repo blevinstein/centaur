@@ -138,25 +138,25 @@ describe("poster start-thread", () => {
 
   it.each([
     [
-      "an unknown alias",
+      "an unknown name with several approved chats",
       { destination: "attic" },
       {},
-      /bot "garden" has no chat alias "attic" on telegram.*centaur access approve garden chat <id> --platform telegram --alias attic/,
+      /bot "garden" has no destination "attic" on telegram and has several approved chats.*centaur access approve garden chat <id> --platform telegram --alias attic/,
     ],
     [
-      "a flat alias, which is not read",
+      "a flat name, which is not read",
       { destination: "attic" },
       { "/centaur/chats/attic": "-100500" },
-      /bot "garden" has no chat alias "attic" on telegram/,
+      /bot "garden" has no destination "attic" on telegram/,
     ],
     [
-      "an alias that exists only on another platform",
+      "a name that exists only on another platform",
       { destination: "notes-channel" },
       {},
-      /bot "garden" has no chat alias "notes-channel" on telegram/,
+      /bot "garden" has no destination "notes-channel" on telegram/,
     ],
     [
-      "an alias whose chat is not approved",
+      "a destination whose chat is not approved",
       { destination: "attic" },
       { "/centaur/chats/telegram/attic": "-100777" },
       /not approved for bot "garden".*centaur access approve garden chat -100777/,
@@ -236,7 +236,7 @@ describe("poster start-thread", () => {
   it.each([
     ["neither a destination nor a thread", {}],
     ["both a destination and a thread", { destination: "household", fromThreadId: "telegram:1:2" }],
-    ["an invalid destination alias", { destination: "Household" }],
+    ["an invalid destination name", { destination: "Household" }],
   ])("rejects a request with %s", async (_name, target) => {
     const { poster, telegram } = await posterSetup();
 

@@ -3,6 +3,7 @@ import { PROVIDERS } from "./providers.js";
 
 export const PLATFORMS = ["telegram", "slack"] as const;
 export const CONTEXT_POLICIES = ["fresh", "transcript", "resume"] as const;
+export const THREAD_MODES = ["new", "persistent"] as const;
 export const PR_EXISTING_SCOPES = ["off", "bot"] as const;
 export const AUTHOR_ASSOCIATIONS = [
   "OWNER",
@@ -102,9 +103,16 @@ const removedPromptPlatforms = z
   })
   .optional();
 
+/** The runner cannot yet post scheduled turns into a persistent thread, and would open new ones. */
+const promptThread = z
+  .enum(THREAD_MODES)
+  .default("new")
+  .refine((mode) => mode !== "persistent", { message: "persistent is not supported yet" });
+
 const promptSchema = z.strictObject({
   file: repoPath.optional(),
   context: contextPolicy.optional(),
+  thread: promptThread,
   platforms: removedPromptPlatforms,
   destination: z.union([
     alias,
@@ -278,6 +286,7 @@ export const centaurConfigSchema = z
         {
           file: prompt.file ?? `.centaur/prompts/${name}.md`,
           context: prompt.context ?? config.context.scheduled,
+          thread: prompt.thread,
           targets: promptTargets(prompt, declaredPlatforms(config)),
         },
       ]),
@@ -292,6 +301,7 @@ export type ChatToolsScope = (typeof CHAT_TOOLS_SCOPES)[number];
 export type Platform = (typeof PLATFORMS)[number];
 export type RespondTo = (typeof RESPOND_TO)[number];
 export type ContextPolicy = (typeof CONTEXT_POLICIES)[number];
+export type ThreadMode = (typeof THREAD_MODES)[number];
 export const declaredPlatforms = (config: { platforms: Partial<Record<Platform, unknown>> }) =>
   Object.keys(config.platforms) as Platform[];
 

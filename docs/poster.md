@@ -12,7 +12,8 @@ to a repo (a connection's secrets under `bots/<bot>/platforms/<platform>/` plus 
 | `operation` | Fields | Result |
 |---|---|---|
 | `post` | `bot`, `threadId`, `text` | `{ messageId }` |
-| `start-thread` | `bot`, `text`, optional `title`, optional `context` (`fresh`, `transcript` or `resume`: the policy stored on the new thread), exactly one of `destination` (chat alias, with `platform`: required when the bot has several connections) or `fromThreadId` (implies the platform; `platform` is rejected with it) | `{ threadId }` |
+| `start-thread` | `bot`, `text`, optional `title`, optional `context` (`fresh`, `transcript` or `resume`: the policy stored on the new thread), exactly one of `destination` (a destination name, with `platform`: required when the bot has several connections, and optional `thread`: `new` (default) or `persistent`) or `fromThreadId` (implies the platform; `platform` and `thread` are rejected with it) | `{ threadId }` |
+| `resolve-destination` | `token` (GitHub OIDC JWT), `bot`, `name`, optional `platform` (as for `start-thread`), optional `thread` | `{ chatId }`, plus `threadId` when `thread` is `persistent` and the destination has a bound thread, or `{ found: false }` when the name holds nothing; creates nothing |
 | `read` | `token` (GitHub OIDC JWT), `bot`, `threadId`, optional `visibleOnly` | `{ messages: [{ id, userId, userName, fromBot, text, attachments, sentAt }], policy? }`, oldest first; `policy` is the context policy stored on the thread by `start-thread`, absent when none is stored (reading refreshes its expiry); `attachments` are the S3 keys of the message's stored images (see [Attachments](#attachments)); with `visibleOnly: true` the poster drops messages from senders who are not enrolled and from other bots, the same filter as `list-threads` and `read-channel`, and the thread's chat must be approved and not blocked. Without it every stored message is returned, as `prepare` needs for the dispatched thread |
 | `unreact` | `bot`, `threadId`, `messageIds` (1 to 50) | `{ results: [{ messageId, removed }] }` |
 | `list-threads` | `token` (GitHub OIDC JWT), `bot`, `chatId`, `threadId` (the dispatched thread), optional `limit` (default 20, max 50), optional `includeBots` | `{ threads: [{ threadId, title, lastActivity, messageCount, participants, snippet }], scanned }`, most recent first |
@@ -42,16 +43,15 @@ platform is required`). `platform` together with `fromThreadId` is rejected. `li
 ## `start-thread`
 
 The destination chat comes from the request, so the poster never needs prompt names. Scheduled
-runs pass `destination`, the prompt's chat alias from the config (aliases are folded into
-destinations in slice 11; see [the design](platforms-and-destinations.md)). The poster reads its ID from
-`/centaur/chats/<platform>/<destination>`, on the connection's platform, and requires that chat to
-be approved for that connection and not blocked. Aliases are scoped to a platform, so one name can
-mean a Telegram group and a Slack channel; the flat `/centaur/chats/<alias>` is not read, and an
-alias that exists only on another platform is unknown. An unknown alias, an unapproved chat or a
-blocked chat fails the request with an error that names the bot, the platform and the alias and, for
-an unapproved chat, the `centaur access approve <bot> chat <id>` command that fixes it. `/new` passes `fromThreadId`, the
-thread the command came from, and the new thread starts in that thread's chat, which must be an
-approved chat or a DM.
+runs pass `destination`, the prompt's destination name from the config, which the poster looks up
+once at `/centaur/chats/<platform>/<destination>` on the connection's platform (see
+[Destinations](#destinations)). The chat it holds must be approved for that connection and not
+blocked. Names are scoped to a platform, so one name can mean a Telegram group and a Slack channel;
+the flat `/centaur/chats/<name>` is not read, and a name that exists only on another platform is
+unknown. An unapproved or blocked chat fails the request with an error that names the bot, the
+platform and the name and, for an unapproved chat, the `centaur access approve <bot> chat <id>`
+command that fixes it. `/new` passes `fromThreadId`, the thread the command came from, and the new
+thread starts in that thread's chat, which must be an approved chat or a DM.
 
 - **Telegram:** `createForumTopic` in the destination supergroup (the bot needs the Manage Topics
   admin right), named `title` or the first line of `text` (at most 128 characters), then `text` is
@@ -66,6 +66,47 @@ record in the bot's state (`src/lambda/thread-meta.ts`) holding the optional `co
 `read` and by the ownership rule), and the ownership rule accepts a reply in any thread that still
 has one, which outlives the 30-day thread state. A request without `context` still writes the
 record, with no policy.
+
+## Destinations
+
+A destination is the one store `chats/<platform>/<name>`, per platform. Its value is either a bare
+chat ID (a destination with no thread, which approvals and the CLI wrote before records) or a JSON
+record:
+
+| Field | Meaning |
+|---|---|
+| `chatId` | The chat or channel ID, in the platform's own form. |
+| `threadId` | Optional. The persistent thread (`telegram:<chat>:<topic>`), bound by a `persistent` run. |
+| `bot` | Set with `threadId`: the bot that owns the thread. Another bot resolving the name fails with `destination "<name>" on <platform> is bound to a thread owned by bot "<owner>", not "<bot>"`. |
+| `context` | The context policy of the prompt that last posted into `threadId`, mirrored from `thread-meta`. |
+| `name`, `at` | Display name and time of the last change. |
+
+New writes (approvals, create on first use, binding) always store the record; both shapes are read.
+
+**Resolution.** One lookup of the name. A record or bare ID is used as it is, after the approved and
+not-blocked check. A name with no value is created on first use: if the connection has exactly one
+approved chat, the poster writes a thread-less destination for it with a conditional create, so two
+concurrent runs create one. With no approved chat, or several, it fails and names `centaur access
+approve <bot> chat <id> --platform <platform> --alias <name>`. `resolve-destination` never creates.
+
+**`thread`.** `new` (the default, and what a request without `thread` means) always opens a fresh
+thread in the destination's chat and never reuses or changes a bound thread. `persistent`:
+
+- posts into the record's `threadId`; with none, it opens a thread in the record's chat, binds the
+  thread, the owning bot and the request's `context` to the record, and posts into it. A run holds
+  a state lock on the name while it does this, so concurrent runs share one thread.
+- writes `thread-meta` for the thread with `destination` set, so the record never expires, and
+  rewrites the stored policy and the record's `context` on every run.
+- **Telegram** only for now. On a bound topic, a "thread not found" error from Telegram (a deleted
+  topic) opens a new topic and overwrites the record; a "topic closed" error first calls
+  `reopenForumTopic` and falls back to a new topic when that fails. The new topic starts with no
+  transcript. A chat that is not a forum fails with `destination "<name>" is a chat without forum
+  topics, so it cannot hold a thread`, and binds nothing. Any other posting error is returned and
+  leaves the record alone. The exact Bot API error strings still need a live check.
+- **Slack** fails with `a persistent thread is not supported on slack yet`; `new` works as before.
+
+The config schema rejects `thread: persistent` for now (`persistent is not supported yet`), so
+scheduled runs send `new` until the runner posts into persistent threads.
 
 ## `unreact`
 
@@ -226,7 +267,7 @@ has `s3:PutObject` and `s3:ListBucket` on `attachments/*` only, and objects expi
 
 IAM for the function role: everything the receiver has. `register` writes only
 `/centaur/bots/*/repo`; the receiver's access-request decisions write the approved and blocked paths
-and create chat aliases under `/centaur/chats/<platform>/*` (without overwriting)
+and create destinations under `/centaur/chats/<platform>/*` (without overwriting; binding a thread rewrites the record)
 (see [deploy.md](deploy.md#iam)). `start-thread` resolves access with the same resolver as the
 receiver (admin, approved and blocked chats). It needs
 `ssm:GetParametersByPath` on `/centaur/bots` and `/centaur/chats`, `ssm:GetParameter` on

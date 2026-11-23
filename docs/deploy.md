@@ -86,7 +86,7 @@ The function role gets the state table policy (`GetItem`, `PutItem`, `UpdateItem
 `/centaur/chats/*`, `/centaur/admin/*` and `/centaur/admin-claim/*`,
 `ssm:PutParameter` only on `/centaur/bots/*/repo`, `/centaur/bots/*/approved-chats/*`,
 `/centaur/bots/*/approved-users/*`, `/centaur/bots/*/blocked/*`, `/centaur/chats/*` and `/centaur/admin/*`,
-`ssm:DeleteParameter` only on `/centaur/admin-claim/*`, and `kms:Decrypt` through SSM. The `/centaur/chats/*` write lets approvals create chat aliases; the code never overwrites one, since IAM cannot condition on the `Overwrite` flag.
+`ssm:DeleteParameter` only on `/centaur/admin-claim/*`, and `kms:Decrypt` through SSM. The `/centaur/chats/*` write lets approvals create destinations and lets a persistent run bind a thread to one (the only overwrite; approvals never replace a destination, but IAM cannot condition on the `Overwrite` flag).
 The GitHub OIDC role (assumable by repositories under `GitHubOwner`) can read and write objects
 under `sessions/` in the session bucket and invoke the function.
 The function URL is public (`AuthType NONE`) so Telegram and Slack can reach it.

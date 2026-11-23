@@ -5,7 +5,11 @@
 > and the code does not implement them. Existing data and configs are migrated once; the old forms
 > are not kept working (see [Decisions](#decisions) and [Migration](#migration)). Terms (receiver, poster, turn, state table, alias) are defined in
 > [plan.md](plan.md), [poster.md](poster.md) and [workflows.md](workflows.md). Slice 1 (config schema and
-> readers) and slice 8 (platform-scoped chat aliases) are implemented on `platforms/cutover`.
+> readers) and slice 8 (platform-scoped chat aliases) are implemented on `platforms/cutover`. Slice 11 (destinations: the
+> record store at `chats/<platform>/<name>`, create on first use, `resolve-destination`, `start-thread`'s
+> `thread`, Telegram persistent threads and topic recreation) is built; Slack persistent threads, the
+> `/destination` handlers, the `centaur destination` CLI and the runner use of `thread` are not, and the
+> schema rejects `thread: persistent` until slice 16.
 
 Two items from [TODO.md](../TODO.md) are designed together because they change the same records:
 one bot present on several platforms, and named destinations that can point at a topic or thread
@@ -64,7 +68,7 @@ per platform (`admin/<platform>`, `admin-claim/<platform>`).
   secret, approved and blocked chats and users, and destinations. At most one per platform per bot.
 - **Destination**: a name that resolves, for one connection, to a chat and optionally a topic or
   thread.
-- **Chat alias**: the platform-scoped name `chats/<platform>/<alias>` for a chat (slice 8). Slice 11
+- **Chat alias** (retired by slice 11): the platform-scoped name `chats/<platform>/<alias>` for a chat (slice 8). Slice 11
   folds it into the destination: an alias is a destination with no topic, and the word "alias" is
   retired ([Decision 18](#decisions)).
 
@@ -567,7 +571,7 @@ keys and the consumer `.centaur.yml` files. Decisions that relied on compatibili
       The `bots/*/platforms/*/destinations/*` IAM statement is not needed, because the Lambda role's
       `chats/*` wildcard already covers the store; `test/infra.test.ts` is unchanged.
 
-19. **An explicit `thread` setting; no prompt-level `platforms`** (maintainer rulings, 2026-11-23).
+19. **An explicit `thread` setting; no prompt-level `platforms`** (approved by the maintainer, 2026-11-23, all five points).
     - **`thread: new | persistent` (default `new`) on a prompt.** Whether a scheduled prompt posts a
       fresh thread each run or into the destination's one persistent thread is visible in the
       prompt's config instead of implied by a name or by what the record happens to hold. A rename
@@ -575,7 +579,7 @@ keys and the consumer `.centaur.yml` files. Decisions that relied on compatibili
       stay out of the config (Decision 18): the destination name still resolves to a record in SSM,
       bound by `/destination <name>`, `!destination <name>`, `centaur destination set`, or created
       on first use. Example: `hello: { destination: { slack: centaur-test-slack }, thread: persistent }`.
-      The semantics below are recommended, pending maintainer review:
+      The semantics below are approved:
       - **`persistent`** posts every run into the record's thread. If the record has no thread,
         create on first use creates one in the record's chat and binds it to the record, under the
         limits of Decision 8 (those apply only when there is no record and so no chat). Slack uses a

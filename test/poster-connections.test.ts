@@ -118,7 +118,7 @@ describe("poster start-thread connection", () => {
     expect(chatFor.mock.calls[0]?.[0]).toMatchObject({ platform: "slack", token: "xoxb-garden" });
   });
 
-  it("resolves one alias name to each platform's own chat", async () => {
+  it("resolves one destination name to each platform's own chat", async () => {
     const { poster, telegram, channelPost, chatMock } = await twoConnections();
 
     await poster({ ...start, destination: "household", platform: "telegram" });
@@ -129,12 +129,12 @@ describe("poster start-thread connection", () => {
     expect(channelPost).toHaveBeenCalledWith("x");
   });
 
-  it("does not resolve another platform's alias", async () => {
+  it("does not resolve another platform's destination", async () => {
     const { poster } = await twoConnections();
 
     await expect(
       poster({ ...start, destination: "garden-channel", platform: "telegram" }),
-    ).rejects.toThrow('bot "garden" has no chat alias "garden-channel" on telegram');
+    ).rejects.toThrow('bot "garden" has no destination "garden-channel" on telegram');
   });
 
   it("derives the connection from fromThreadId", async () => {

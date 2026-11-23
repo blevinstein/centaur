@@ -23,10 +23,10 @@ export const connectionPath = (bot: string, platform: Platform) =>
 export const connectionParameter = (bot: string, platform: Platform, key: string) =>
   `${connectionPath(bot, platform)}/${key}`;
 
-/** Chat aliases are scoped to one platform: `chats/<platform>/<alias>`. */
+/** Destinations are scoped to one platform: `chats/<platform>/<name>`. */
 export const scopedChatPrefix = (platform: Platform) => `${CHATS_PREFIX}/${platform}`;
-export const scopedChatParameter = (platform: Platform, alias: string) =>
-  `${scopedChatPrefix(platform)}/${alias}`;
+export const scopedChatParameter = (platform: Platform, name: string) =>
+  `${scopedChatPrefix(platform)}/${name}`;
 
 export const tokenParameter = (bot: string, platform: Platform) =>
   connectionParameter(bot, platform, "token");

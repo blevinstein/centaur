@@ -8,8 +8,8 @@ import {
   type DirectMessenger,
   lookupAdminId,
 } from "./admin-channel.js";
-import { proposeChatAlias } from "./chat-aliases.js";
 import { scopedChatPrefix } from "./connection-paths.js";
+import { parseDestinations, proposeDestinationName } from "./destinations.js";
 import type { ThreadMetadata } from "./ownership.js";
 import type { ParameterStore } from "./parameters.js";
 import type { Bot } from "./registry.js";
@@ -77,15 +77,19 @@ export function createAccessRequester({
       return true;
     }
     const title = thread.isDM ? DM_TITLE : await chatTitle(thread);
-    const alias =
+    const destinationName =
       kind === "chat"
-        ? proposeChatAlias(await params.getByPath(scopedChatPrefix(bot.platform)), chatId, title)
+        ? proposeDestinationName(
+            parseDestinations(await params.getByPath(scopedChatPrefix(bot.platform))),
+            chatId,
+            title,
+          )
         : undefined;
     const request = await store.create({
       kind,
       subjectId,
       subjectName: kind === "chat" ? (title ?? UNKNOWN_NAME) : requesterName,
-      ...(alias ? { alias } : {}),
+      ...(destinationName ? { alias: destinationName } : {}),
       threadId: thread.id,
     });
     await store.recordRequest();
@@ -96,7 +100,7 @@ export function createAccessRequester({
       `Kind: ${kind}`,
       `Requester: ${requesterName} (${requesterId})`,
       `Chat: ${title ?? UNKNOWN_NAME} (${chatId})`,
-      ...(alias ? [`Alias: ${alias}`] : []),
+      ...(destinationName ? [`Destination: ${destinationName}`] : []),
       `React ${APPROVE_EMOJI} to approve, or ${DENY_EMOJI} to deny and block.`,
       ...(channel.commands ? [`Or reply /approve ${request.id} or /deny ${request.id}.`] : []),
       `Expires in ${store.ttlMs / DAY_MS} days.`,

@@ -48,6 +48,7 @@ instructions:               # all optional; each replaces the bundled guidance
 prompts:
   weekly-tasks:                 # file defaults to .centaur/prompts/weekly-tasks.md
     context: transcript         # overrides context.scheduled for this prompt
+    thread: new                 # new (default): a fresh thread each run; persistent is not supported yet
     destination:                # one name per platform (required)
       telegram: household
       slack: household
@@ -60,7 +61,7 @@ prompts:
 
 | Field | Required | Default | Meaning |
 |---|---|---|---|
-| `bot` | yes | | Bot alias; secrets live under `/centaur/bots/<bot>/` in SSM. |
+| `bot` | yes | | Bot name; secrets live under `/centaur/bots/<bot>/` in SSM. |
 | `platforms` | yes | | The platforms the repo expects the bot to be on: a map from `telegram` or `slack` to per-platform settings, at least one. See [Platforms](#platforms). |
 | `context.default` | no | `transcript` | Policy for conversational threads: `fresh`, `transcript` or `resume`. |
 | `context.scheduled` | no | `fresh` | Policy for threads started by a scheduled prompt. |
@@ -80,7 +81,7 @@ prompts:
 | `prompts` | no | `{}` | Scheduled prompts by name (see below). |
 
 Each prompt takes `file` (default `.centaur/prompts/<name>.md`), `context` (default
-`context.scheduled`), `destination` (required); see [Prompts](#prompts). The
+`context.scheduled`), `thread` (`new`, the default), `destination` (required); see [Prompts](#prompts). The
 parser only checks the shape; a destination name is resolved when the run starts (see
 [Access](#access)).
 
@@ -106,7 +107,7 @@ platform: is not supported: declare it under `platforms: { <platform>: { respond
 
 ## MCP servers
 
-Each `mcp_servers` entry is exactly one of two shapes; names are aliases that contain no `__` and do
+Each `mcp_servers` entry is exactly one of two shapes; names are lowercase names that contain no `__` and do
 not start with `github` (the action's built-in servers). Values in `headers` and `env` are a plain
 string or `{ secret: NAME, prefix?: string }`, where `NAME` matches `[A-Z][A-Z0-9_]*`.
 
@@ -130,16 +131,17 @@ users approved for that bot through an [access request](plan.md#access-requests)
 approve`, minus anything blocked; blocked wins. Direct messages are exempt from the chat check but
 not from the user check. Approvals are stored per bot in SSM, so they never appear in the repo.
 
-Approving a chat also creates a chat alias scoped to the connection's platform,
-`/centaur/chats/<platform>/<alias>`, named after the chat's title (see [cli.md](cli.md)). A prompt's
-`destination` names such an alias, and it is looked up on the platform the prompt targets, so
+Approving a chat also creates a destination scoped to the connection's platform,
+`/centaur/chats/<platform>/<name>`, named after the chat's title (see [cli.md](cli.md)). A prompt's
+`destination` names such a destination, and it is looked up on the platform the prompt targets, so
 `household` can name a Telegram group and a Slack channel. When the run starts, the poster resolves
-the alias to a chat ID and requires that chat to be approved for that connection and not blocked;
-otherwise it fails with the bot, the platform and the alias, and the `centaur access approve`
-command that fixes it.
+the name to a chat ID and requires that chat to be approved for that connection and not blocked;
+the poster doc covers a name that holds nothing yet ([poster.md](poster.md#destinations)). A chat
+that is not approved or is blocked fails with the bot, the platform and the name, and the
+`centaur access approve` command that fixes it.
 
 Names (`bot`, `destination` entries, prompt names) are lowercase
-aliases matching `[a-z0-9][a-z0-9_-]*`, the same pattern the CLI enforces; real IDs never appear in the repo. Paths must be relative
+names matching `[a-z0-9][a-z0-9_-]*`, the same pattern the CLI enforces; real IDs never appear in the repo. Paths must be relative
 and stay inside the repo (no leading `/`, no `..`). Unknown keys are errors.
 
 `/new` starts its thread in the chat the command came from (a DM stays in that DM), so it needs no
@@ -200,7 +202,7 @@ single `claude` invocation per turn cannot do; and a thinking-token budget has n
 `prompts` names the scheduled prompts a repo owns. The cron expression stays in the consumer's
 caller workflow (`schedule:`), which passes the prompt name to the shared workflow. Each
 entry has a required `destination`, an optional `file` (default
-`.centaur/prompts/<name>.md`) and an optional `context` policy.
+`.centaur/prompts/<name>.md`), an optional `context` policy and an optional `thread`.
 
 `destination` is a name or a map from platform to name:
 
@@ -211,9 +213,14 @@ entry has a required `destination`, an optional `file` (default
   platform; a one-entry map is a single target. A prompt-level `platforms` key is not supported.
 - Every platform used must be declared in the top-level `platforms`, and `context: resume` with more
   than one target is an error: a session belongs to one thread.
+- `thread` is `new` (the default) or `persistent`, for every target of the prompt. `new` opens a fresh
+  thread on every run. `persistent` would post every run into the destination's one thread (the
+  poster supports it on Telegram; see [poster.md](poster.md#destinations)), but the runner cannot
+  yet, and accepting it would open new threads silently, so the parser rejects it with
+  `persistent is not supported yet`. `register` and `centaur config check` use the same parser.
 
 The parser resolves the file, context and targets, so consumers see every prompt with a concrete
-`file`, `context` and `targets` (a list of `{ platform, destination }`). A prompt with several
+`file`, `context`, `thread` and `targets` (a list of `{ platform, destination }`). A prompt with several
 targets runs one agent turn and posts the same reply to each; see [workflows.md](workflows.md#turn-state).
 
 ## Pull request targets

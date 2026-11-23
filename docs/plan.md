@@ -82,8 +82,8 @@ in the diagram because it's invoked over IAM, not a public URL.
 ### Poster Lambda
 
 Invoked by the workflow (`aws lambda invoke`, using a role assumed via GitHub OIDC; no stored AWS
-keys). Operations: `post` (bot, thread ID, text), `start-thread` (a `destination` chat alias or the
-originating thread, with an optional title), `read`, `unreact`, `register`, and
+keys). Operations: `post` (bot, thread ID, text), `start-thread` (a `destination` name, with an optional `thread` of `new` or `persistent`, or the
+originating thread, with an optional title), `resolve-destination`, `read`, `unreact`, `register`, and
 `link-pull-request`, `resolve-pull-request` and `get-mcp-policy` (the global MCP policy bundled with
 the Lambda, or null). Posting
 through the SDK means the bot's own messages are recorded in state, so the transcript stays
@@ -125,7 +125,7 @@ actions. The full files are in [workflows.md](workflows.md#consumer-workflows). 
 prompt's workflow also has `workflow_dispatch`, which doubles as a setup check.
 
 A scheduled run starts a **new thread** (a new Telegram topic, or a new top-level Slack message)
-in the prompt's `destination` chat (an alias that must resolve to a chat approved for the bot) with a `fresh` context, and replies to it continue as normal conversation. A prompt whose `destination` map has several entries runs one agent turn and posts its reply to every target, each in its own new thread.
+in the prompt's `destination` chat (a destination that must hold a chat approved for the bot) with a `fresh` context, and replies to it continue as normal conversation. A prompt whose `destination` map has several entries runs one agent turn and posts its reply to every target, each in its own new thread.
 
 ### Configuration
 
@@ -135,7 +135,7 @@ anyone. Configuration lives in three places:
 | What | Where | Example |
 |---|---|---|
 | Bot identity, platform, routing, and agent behavior | Each consumer repo's config (`.centaur.yml` or `.centaur/config.yml`) | `bot: garden`, `platforms: {telegram: {}}` |
-| Secrets, personal identifiers and access | SSM Parameter Store, managed with a CLI in this repo | Bot tokens, webhook secrets, the admin, approved and blocked chats and users, chat aliases |
+| Secrets, personal identifiers and access | SSM Parameter Store, managed with a CLI in this repo | Bot tokens, webhook secrets, the admin, approved and blocked chats and users, destinations |
 | Deployment parameters | CloudFormation parameter overrides, kept in the deployer's own private infra repo | GitHub owner for the OIDC trust policy, stack name |
 
 ```yaml
@@ -153,14 +153,14 @@ allowed_tools: "Read,Edit,Write,Glob,Grep,WebFetch,WebSearch"
 persona: .centaur/persona.md    # tone, audience, what to ask humans for
 prompts:
   weekly-tasks:
-    destination: household      # chat alias; the chat must be approved for the bot
+    destination: household      # destination name; the chat must be approved for the bot
 ```
 
 The remaining fields (per-platform `handle`, per-platform prompt `destination`, `effort`, `max_turns`, `max_budget_usd`, per-prompt `file` and
 `context`) are in [config.md](config.md).
 
-Names in the config are aliases; the real IDs never appear in any repo, so a public consumer
-repo reveals only aliases. The file carries no allowlist (`allow` and `chats` are validation
+Names in the config are destination names; the real IDs never appear in any repo, so a public consumer
+repo reveals only names. The file carries no allowlist (`allow` and `chats` are validation
 errors); who may talk to the bot is decided only by the admin.
 
 #### Registration
@@ -286,7 +286,7 @@ users without touching SSM by hand: the bot asks them, and they answer from thei
    silently, with no request and no cost.
 2. If the admin has an ID for the bot's platform, the receiver creates a request and sends the admin
    a DM from the bot: request ID, kind (`chat` or `user`), the requester's display name and ID, the
-   chat's title and ID, the chat alias that approval will create (chat requests), and the bot's
+   chat's title and ID, the destination name that approval will create (chat requests), and the bot's
    name. The title comes from the adapter's thread lookup (`fetchThread`); the channel lookup
    cannot be used, because Telegram's rejects the `telegram:<id>` channel ID the SDK passes. An
    unavailable title is shown as `(unknown)`. The message text is never included. The requester gets
@@ -294,7 +294,7 @@ users without touching SSM by hand: the bot asks them, and they answer from thei
    ignored, users refused).
 3. The admin reacts to that DM: 👍 approves, 👎 denies and blocks. Only a reaction by the admin's
    user ID on that request's DM message counts. Approval adds the chat or user and posts a short
-   confirmation to the requester's thread. Approving a chat also records its alias (below). Denial is silent.
+   confirmation to the requester's thread. Approving a chat also records its destination (below). Denial is silent.
 4. `/approve <id>` and `/deny <id>` in the admin DM do the same on Telegram, and are the fallback if
    reactions stop arriving. Slack has no text fallback; its commands would need a registered
    slash command, so Slack decisions are reactions only.
@@ -302,21 +302,27 @@ users without touching SSM by hand: the bot asks them, and they answer from thei
 A chat request and a user request are separate: a new group needs its chat approved, and each
 person in it still needs approval to talk to the bot (DMs only need the user).
 
-**Chat aliases.** Approving a chat creates an alias scoped to the connection's platform,
-`/centaur/chats/<platform>/<alias>` = chat ID, which is what a prompt's `destination` names on that
-platform; collisions are handled per platform and the flat `/centaur/chats/<alias>` is not read. The default is a slug of the chat's title (lowercase,
+**Destinations.** Approving a chat creates a destination scoped to the connection's platform,
+`/centaur/chats/<platform>/<name>`: a JSON record `{ chatId, threadId?, bot?, context?, name, at }`
+(a bare chat ID, as older approvals wrote, reads as a destination with no thread). A prompt's
+`destination` names it on that platform; collisions are handled per platform and the flat
+`/centaur/chats/<name>` is not read. The default name is a slug of the chat's title (lowercase,
 `[a-z0-9-]`, at most 40 characters), `-2`, `-3` and so on when the name is taken, and
-`chat-<last 4 digits of the ID>` when the title is unknown or has no Latin letters or digits; an
-existing alias that already names the chat is reused. The request stores the proposal and the admin
-DM shows it; the approved entry stores the alias that was recorded. The Lambda writes aliases with
-SSM `Overwrite: false` and takes the next free name on a conflict, so it can never replace an
-alias, and its role may write only `/centaur/chats/*`. `centaur access approve --alias` is the manual route; approving an approved chat again with a new
-`--alias` adds that alias and updates the entry (earlier aliases stay).
+`chat-<last 4 digits of the ID>` when the title is unknown or has no Latin letters or digits; a
+destination with no thread that already holds the chat is reused. The request stores the proposal and
+the admin DM shows it; the approved entry stores the name that was recorded. The Lambda creates
+destinations with SSM `Overwrite: false` and takes the next free name on a conflict, so approving
+never replaces one, and its role may write only `/centaur/chats/*`. `centaur access approve --alias`
+is the manual route; approving an approved chat again with a new `--alias` adds that destination and
+updates the entry (earlier ones stay).
 
-When a scheduled run starts a thread, the poster resolves the prompt's alias on the connection's platform through SSM and
-requires the chat to be approved for that connection and not blocked; a missing alias, an unapproved chat
-or a blocked chat fails with an error naming the bot, platform and alias and the `centaur access approve` command to
-run. `/new` starts its thread in the originating thread's chat, which must be approved or a DM.
+When a scheduled run starts a thread, the poster looks the prompt's name up once on the connection's
+platform and requires the chat to be approved for that connection and not blocked; an unapproved or
+blocked chat fails with an error naming the bot, platform and name and the `centaur access approve`
+command to run. A name that holds nothing is created on first use when the connection has exactly one
+approved chat, and otherwise fails naming that command. A record bound to a thread belongs to the bot
+in its `bot` field; the prompt's `thread` setting decides whether a run opens a new thread or posts
+into the bound one (see [poster.md](poster.md#destinations)). `/new` starts its thread in the originating thread's chat, which must be approved or a DM.
 
 **Admin channel.** `AdminChannel` (`src/lambda/admin-channel.ts`) has two jobs: send a request to
 the admin as a DM, and map an incoming reaction to a verdict. Telegram and Slack implementations use
@@ -360,8 +366,8 @@ recovered by claiming again.
 | State table (TTL) | `access-subject:<kind>:<id>` | One pending slot per subject. |
 | State table (TTL) | `access-request-message:<message id>` | Maps the admin DM to its request. |
 | State table (TTL) | `access-request-claim:<id>` | Makes a decision single-use. |
-| SSM | `bots/<bot>/platforms/<platform>/approved-chats/<chatId>`, `approved-users/<userId>` | Approved subjects (JSON: name, alias for chats, time). |
-| SSM | `chats/<platform>/<alias>` | A chat alias and its ID; created by approvals, never overwritten by the Lambda. |
+| SSM | `bots/<bot>/platforms/<platform>/approved-chats/<chatId>`, `approved-users/<userId>` | Approved subjects (JSON: name, destination name for chats, time). |
+| SSM | `chats/<platform>/<name>` | A destination: a chat ID or a JSON record with an optional bound thread; created by approvals, never overwritten by approvals. |
 | SSM | `bots/<bot>/platforms/<platform>/blocked/<chat\|user>/<id>` | Blocked subjects (JSON: name, time). |
 | SSM | `admin/<platform>` | The admin's user ID. |
 | SSM | `admin-claim/<platform>` | The pending claim: bot, expiry, code hash. |
@@ -457,7 +463,7 @@ IDs and names are plain `String`.
 | `bots/<bot>/platforms/<platform>/blocked/<chat\|user>/<id>` | String (JSON) | access request denial; `centaur access block` |
 | `admin/<platform>` | String | `centaur admin set`; a successful admin claim |
 | `admin-claim/<platform>` | String (JSON) | `centaur admin claim`; deleted on use, failure limit or `--cancel` |
-| `chats/<platform>/<alias>` | String | access request approval; `centaur access approve` |
+| `chats/<platform>/<name>` | String (a chat ID or JSON) | access request approval; `centaur access approve`; binding a thread in `start-thread` |
 | `github/token` | SecureString | `centaur github-token set` |
 
 A connection is a bot's presence on one platform, addressed by the base path

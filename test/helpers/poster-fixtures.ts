@@ -81,6 +81,7 @@ export const fakeTelegram = () => ({
   getMe: vi.fn<TelegramApi["getMe"]>(async () => ({ username: "garden_bot" })),
   setWebhook: vi.fn<TelegramApi["setWebhook"]>(async () => {}),
   createForumTopic: vi.fn<TelegramApi["createForumTopic"]>(async () => TOPIC_ID),
+  reopenForumTopic: vi.fn<TelegramApi["reopenForumTopic"]>(async () => {}),
 });
 
 export function fakePosterChat(transcript: unknown[] = []) {

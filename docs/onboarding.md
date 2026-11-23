@@ -63,7 +63,7 @@ Bot: garden
 Kind: chat
 Requester: Pat Example (111222333)
 Chat: Household (-1001234567890)
-Alias: household
+Destination: household
 React 👍 to approve, or 👎 to deny and block.
 Or reply /approve k7m2qx or /deny k7m2qx.
 Expires in 7 days.
@@ -71,9 +71,9 @@ Expires in 7 days.
 
 - **👍** approves: the chat or person is added for that bot and the requester is told. A new group
   needs its chat approved, and each person in it needs their own user approval. Approving a chat
-  also creates the chat alias shown on the request (`Alias:`), a slug of the chat's title with a
+  also creates the destination shown on the request (`Destination:`), a slug of the chat's title with a
   numeric suffix if the name is taken (`chat-<last 4 digits>` when the title is unknown). Existing
-  aliases are never overwritten. A scheduled prompt's `destination` names such an alias.
+  destinations are never overwritten. A scheduled prompt's `destination` names such a destination.
 - **👎** denies and blocks: future attempts from that chat or user are ignored without any reply.
 - Only your reaction on that DM counts, each request can be decided once, and it expires after 7
   days. The text commands `/approve <id>` and `/deny <id>` do the same if reactions don't work.
@@ -88,7 +88,7 @@ group silently); the user ID is logged either way.
 There is no allowlist in the config; access is only what you approve. Manual alternative, no
 request needed: if you already know an ID, approve it for one bot with `centaur access approve
 garden chat <id> --name "Household"` (a supergroup's ID is negative, `-100...`; `--alias` picks the
-alias) or `centaur access approve garden user <id>`. The receiver logs the IDs of unknown chats
+destination name) or `centaur access approve garden user <id>`. The receiver logs the IDs of unknown chats
 and users, so you can read them from its logs. `centaur access list garden` shows what has been
 approved or blocked, and `centaur access revoke|block|unblock` undo it.
 
@@ -126,7 +126,7 @@ Repeat for each consumer repo, after the bot exists (Telegram above, Slack below
 
 1. In the repo, add:
    - `.centaur.yml`, or `.centaur/config.yml` for a repo with many files under `.centaur/` ([schema](config.md): bot, `platforms` with per-platform `respond_to` and `handle`, context, model
-     and cost-tuning fields, tool allowlist, persona, and a `destination` chat alias on each
+     and cost-tuning fields, tool allowlist, persona, and a `destination` name on each
      scheduled prompt); it holds no list of chats or users;
    - `.centaur/persona.md`, and any scheduled prompts under `.centaur/prompts/`;
    - the caller workflows in `.github/workflows/` (register, message, one per scheduled prompt, and optionally
@@ -153,9 +153,9 @@ Repeat for each consumer repo, after the bot exists (Telegram above, Slack below
    manually so the `register` job runs. Check that `bots/<bot>/repo` now exists in SSM.
 6. Approve the chat each scheduled prompt posts to if it is not approved yet: mention the bot there
    and answer the request, or run `centaur access approve <bot> chat <id> --name "<title>"`; the
-   alias that creates is what `destination` names.
+   destination that creates is what `destination` names.
 7. Run the scheduled prompt once with a manual dispatch to confirm a test topic appears, then
-   message the bot. A prompt whose destination is unknown or unapproved fails with the alias and
+   message the bot. A prompt whose destination is unknown or unapproved fails with the name and
    the command to approve it.
 8. If the repo is public, check that its workflow follows the no-content-in-logs rules in
    [plan.md](plan.md#security).

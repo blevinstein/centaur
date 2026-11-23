@@ -1,6 +1,6 @@
 # CLI
 
-The `centaur` CLI manages the SSM parameters the deployed Lambda reads: bot secrets, chat aliases,
+The `centaur` CLI manages the SSM parameters the deployed Lambda reads: bot secrets, destinations,
 the admin, approved and blocked chats and users, and the GitHub token. The parameter names and types are listed in [SSM parameter
 layout](plan.md#ssm-parameter-layout); this page covers usage.
 
@@ -23,7 +23,7 @@ The CLI talks to SSM through the AWS SDK's default credential chain and region (
 
 ## Names
 
-Bot names and chat aliases given to the CLI must match `[a-z0-9][a-z0-9_-]*` (lowercase letters,
+Bot names and destination names given to the CLI must match `[a-z0-9][a-z0-9_-]*` (lowercase letters,
 digits, `-` and `_`), the same pattern the config uses. Anything else is rejected before SSM is
 touched.
 
@@ -160,11 +160,11 @@ centaur bot adopt notes-slack notes --platform slack
 
 ### `centaur chat list <bot> [--platform <platform>]`
 
-Prints one line per chat alias of the bot's connection (`chats/<platform>/<alias>`), `name  id`,
-sorted by name, or `No chats registered.`. `--platform` may be omitted when the bot has one
-connection (see [Connections](#connections)). Flat aliases are not listed. Aliases are folded into
-destinations in slice 11, which replaces this command with `centaur destination list`
-([design](platforms-and-destinations.md)).
+Prints one line per destination of the bot's connection (`chats/<platform>/<name>`), `name  chatId`,
+sorted by name, or `No chats registered.`. Each value is read as a bare chat ID or a JSON record
+(see [poster.md](poster.md#destinations)); a record's thread is not shown. `--platform` may be omitted when the bot has one
+connection (see [Connections](#connections)). Flat names are not listed. A later slice replaces
+this command with `centaur destination list` ([design](platforms-and-destinations.md)).
 
 ### `centaur admin set [--telegram <id>] [--slack <id>]`
 
@@ -209,19 +209,21 @@ Every `access` command takes `--platform <platform>` to pick the bot's connectio
 [Connections](#connections)); approvals and blocks belong to one connection, so approving a chat on
 Telegram says nothing about Slack.
 
-### `centaur access approve <bot> <chat|user> <id> [--platform <platform>] [--name <name>] [--alias <alias>]`
+### `centaur access approve <bot> <chat|user> <id> [--platform <platform>] [--name <name>] [--alias <name>]`
 
 Approves a chat or user for one connection of a bot without waiting for a request, writing
 `/centaur/bots/<bot>/platforms/<platform>/approved-chats/<id>` or `approved-users/<id>`. `--name`
 records a display name for `access list`. Telegram group IDs are negative; they are accepted as-is.
 
-Approving a chat also records a chat alias scoped to the connection's platform,
-`/centaur/chats/<platform>/<alias>`, and stores it on the approved entry. Name collisions are
+Approving a chat also records a destination scoped to the connection's platform,
+`/centaur/chats/<platform>/<name>` (a JSON record holding the chat ID and display name), and stores
+the name on the approved entry. Name collisions are
 checked within that platform only. `--alias` names it (chats only); otherwise it is a slug of `--name` (lowercase
 `[a-z0-9-]`), or `chat-<last 4 digits of the ID>` without a name. A taken name gets a numeric
-suffix (`household-2`), an alias that already names the chat is reused, and an explicit `--alias`
-that names a different chat is refused. Existing aliases are never overwritten. Approving an approved chat again with a new `--alias` adds that alias and updates the entry,
-keeping its name; earlier aliases stay. Revoking leaves the aliases in place.
+suffix (`household-2`), a destination with no thread that already holds the chat is reused, and an explicit `--alias`
+that names a different chat is refused. Existing destinations are never overwritten, including one
+bound to a thread. Approving an approved chat again with a new `--alias` adds that destination and updates the entry,
+keeping its name; earlier ones stay. Revoking leaves the destinations in place.
 
 ### `centaur access revoke <bot> <chat|user> <id> [--platform <platform>]`
 
@@ -237,14 +239,14 @@ access again.
 ### `centaur access list <bot> [--platform <platform>]`
 
 Prints, for one connection, each approved and blocked entry as `state  kind  id  name  time`, followed by
-`alias=<alias>` for an approved chat that has one, or `Nothing approved or blocked for "<bot>".`.
+`alias=<name>` for an approved chat that has one, or `Nothing approved or blocked for "<bot>".`.
 
 Changes take effect within about 30 seconds (the receiver's cache).
 
 ```sh
 centaur admin set --telegram 111222333
 centaur access approve garden user 444555666 --name "Pat"
-centaur access approve garden chat -1001234567890 --name "Garden Club"   # alias: garden-club
+centaur access approve garden chat -1001234567890 --name "Garden Club"   # destination: garden-club
 centaur access list garden
 ```
 
@@ -322,7 +324,7 @@ Errors are printed to stderr and the exit code is 1.
 
 | Message | Cause |
 |---|---|
-| `Invalid <kind> name "<x>"` | Bot name or alias outside the pattern above. |
+| `Invalid <kind> name "<x>"` | Bot name or destination name outside the pattern above. |
 | `Unknown platform "<x>"` | `--platform` is not `telegram` or `slack`. |
 | `Bot "<x>" already has a <platform> connection; remove it first.` | `bot add` on a platform the bot is already on. |
 | `Unknown bot "<x>".` | A bot command or `access`/`admin claim` on a bot with no parameters. |
@@ -341,7 +343,7 @@ Errors are printed to stderr and the exit code is 1.
 | `No GitHub token is stored.` | `github-token remove` with nothing stored. |
 | `Bot "<x>" is bound to <repo>; run "centaur bot unbind" first.` | `bot remove` of a bot's last connection while bound. |
 | `Bot "<x>" is not bound to a repo.` | `bot unbind` on an unbound bot. |
-| `Alias "<x>" already names chat <id>.` | `access approve --alias` with a name that points at another chat. |
+| `Destination "<x>" already holds chat <id>.` | `access approve --alias` with a name that points at another chat. |
 | `--alias applies to chats only.` | `access approve <bot> user <id> --alias ...`. |
 | `Unknown kind "<x>": expected chat or user.` | `access` with a kind other than `chat` or `user`. |
 | `Approved <kind> <id> not found.` / `Blocked <kind> <id> not found.` | `access revoke` / `unblock` with no such entry. |

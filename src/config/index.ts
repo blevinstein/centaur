@@ -24,6 +24,8 @@ export {
   platformSettings,
   type RespondTo,
   type SecretRef,
+  THREAD_MODES,
+  type ThreadMode,
   threadPlatform,
 } from "./schema.js";
 

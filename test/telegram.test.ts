@@ -36,6 +36,16 @@ describe("Telegram API client", () => {
     expect(JSON.parse(init.body as string)).toEqual({ chat_id: "-100500", name: "Week 12" });
   });
 
+  it("reopens a topic by its message_thread_id", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({ ok: true, result: true }));
+
+    await createTelegramApi(fetchImpl).reopenForumTopic("123:abc", "-100500", 55);
+
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://api.telegram.org/bot123:abc/reopenForumTopic");
+    expect(JSON.parse(init.body as string)).toEqual({ chat_id: "-100500", message_thread_id: 55 });
+  });
+
   it("reports Telegram's description without leaking the token", async () => {
     const fetchImpl = vi.fn(async () =>
       jsonResponse({ ok: false, description: "Bad Request: not enough rights" }, 400),

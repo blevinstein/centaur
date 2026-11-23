@@ -7,8 +7,8 @@ import {
   type Verdict,
 } from "./access-request-store.js";
 import { type AdminChannel, lookupAdminId } from "./admin-channel.js";
-import { recordChatAlias, slugAlias } from "./chat-aliases.js";
 import { approvedParameter, blockedParameter } from "./connection-paths.js";
+import { recordDestination, slugName } from "./destinations.js";
 import type { ParameterStore } from "./parameters.js";
 import type { Bot } from "./registry.js";
 
@@ -23,8 +23,8 @@ export const APPROVED_TEXT: Record<AccessRequest["kind"], string> = {
 };
 
 export const COMMAND_REPLIES = {
-  approve: (request: AccessRequest, alias?: string) =>
-    `Approved ${request.kind} ${request.id}${alias ? ` as "${alias}"` : ""}.`,
+  approve: (request: AccessRequest, destinationName?: string) =>
+    `Approved ${request.kind} ${request.id}${destinationName ? ` as "${destinationName}"` : ""}.`,
   deny: (request: AccessRequest) => `Denied and blocked ${request.kind} ${request.id}.`,
   unknown: "Unknown or expired request.",
   handled: "That request was already handled.",
@@ -32,7 +32,7 @@ export const COMMAND_REPLIES = {
 } as const;
 
 export type DecisionOutcome =
-  | { status: "applied"; request: AccessRequest; alias?: string | undefined }
+  | { status: "applied"; request: AccessRequest; destinationName?: string | undefined }
   | { status: "unknown" | "handled" };
 
 export interface AccessDecisionsDeps {
@@ -60,30 +60,30 @@ export function createAccessDecisions({
 
   const apply = async (request: AccessRequest, verdict: Verdict) => {
     const parameter = verdict === "approve" ? approvedParameter : blockedParameter;
-    const alias =
+    const destinationName =
       verdict === "approve" && request.kind === "chat"
-        ? await recordChatAlias(
+        ? await recordDestination(
             params,
             bot.platform,
-            request.subjectId,
-            request.alias ?? slugAlias(undefined, request.subjectId),
+            { chatId: request.subjectId, name: request.subjectName },
+            request.alias ?? slugName(undefined, request.subjectId),
           )
         : undefined;
     await params.put(
       parameter(bot.name, bot.platform, request.kind, request.subjectId),
-      encodeEntry({ name: request.subjectName, alias }),
+      encodeEntry({ name: request.subjectName, alias: destinationName }),
     );
     invalidateAccess();
-    return alias;
+    return destinationName;
   };
 
   const resolve = async (requestId: string, verdict: Verdict): Promise<DecisionOutcome> => {
     const request = await store.read(requestId);
     if (!request?.threadId.startsWith(`${bot.platform}:`)) return { status: "unknown" };
     if (!(await store.claimDecision(request.id, verdict))) return { status: "handled" };
-    let alias: string | undefined;
+    let destinationName: string | undefined;
     try {
-      alias = await apply(request, verdict);
+      destinationName = await apply(request, verdict);
     } catch (error) {
       await store.releaseDecision(request.id);
       throw error;
@@ -106,7 +106,7 @@ export function createAccessDecisions({
         });
       }
     }
-    return { status: "applied", request, alias };
+    return { status: "applied", request, destinationName };
   };
 
   return {
@@ -150,7 +150,7 @@ export function createAccessDecisions({
       if (!requestId) return COMMAND_REPLIES.usage;
       const outcome = await resolve(requestId, verdict);
       return outcome.status === "applied"
-        ? COMMAND_REPLIES[verdict](outcome.request, outcome.alias)
+        ? COMMAND_REPLIES[verdict](outcome.request, outcome.destinationName)
         : COMMAND_REPLIES[outcome.status];
     },
   };

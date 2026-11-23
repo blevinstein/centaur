@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { encodeDestination } from "../src/lambda/destinations.js";
 import { createCliHarness } from "./helpers/cli.js";
+import { TELEGRAM_TOPIC } from "./helpers/destination-fixtures.js";
 
 const TELEGRAM = "/centaur/bots/garden/platforms/telegram";
 const SLACK = "/centaur/bots/garden/platforms/slack";
@@ -266,7 +268,7 @@ describe("github-token", () => {
 });
 
 describe("chat list", () => {
-  it("lists chat aliases sorted by name", async () => {
+  it("lists destinations sorted by name", async () => {
     const cli = createCliHarness();
     await cli.connect("garden", "telegram");
     await cli.run("chat", "list", "garden");
@@ -279,7 +281,22 @@ describe("chat list", () => {
     expect(cli.output.at(-1)).toBe("household  -1\nworkshop  -2");
   });
 
-  it("lists the aliases of the chosen connection only, ignoring the flat form", async () => {
+  it("reads bare chat IDs and records alike", async () => {
+    const cli = createCliHarness();
+    await cli.connect("garden", "telegram");
+    await cli.store.put("/centaur/chats/telegram/household", "-1", { secure: false });
+    await cli.store.put(
+      "/centaur/chats/telegram/weekly",
+      encodeDestination({ chatId: "-2", threadId: TELEGRAM_TOPIC, bot: "garden" }),
+      { secure: false },
+    );
+
+    await cli.run("chat", "list", "garden");
+
+    expect(cli.output.at(-1)).toBe("household  -1\nweekly  -2");
+  });
+
+  it("lists the destinations of the chosen connection only, ignoring the flat form", async () => {
     const cli = createCliHarness();
     await cli.connect("garden", "telegram");
     await cli.connect("garden", "slack");
