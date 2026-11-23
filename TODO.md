@@ -262,34 +262,39 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
 
 - [x] Accept the Decisions in the design doc (2026-11-22): nested SSM layout approved, existing data
       and consumer configs migrated once instead of kept compatible, everything else as recommended.
-- [ ] **[HUMAN APPROVAL]** Approve the three recommendations under "Open after amendment" in the
+- [x] **[HUMAN APPROVAL]** Approve the three recommendations under "Open after amendment" in the
       design doc: `register` rewrites the registry entry (so every bot is silent from the Lambda
       deploy until re-registered), `--alias-platform` for chat aliases whose platform cannot be
-      inferred, and consumers enumerated from `bots/*/repo`.
-- [ ] Platforms 1: config schema (`platforms` map only, legacy top-level keys rejected with a pointer
+      inferred, and consumers enumerated from `bots/*/repo`. Taken as approved when the maintainer
+      approved the cutover on 2026-11-23; the dry run needed no `--alias-platform`.
+- [x] Platforms 1: config schema (`platforms` map only, legacy top-level keys rejected with a pointer
       to `config migrate`, prompt `destination` as a name or per-platform map, prompt `platforms`);
       readers take per-platform settings.
-- [ ] Platforms 2: connection model and loader (nested SSM layout only, connection view).
-- [ ] Platforms 3: CLI connections (`bot add` onto an existing bot, `--platform` on `access` and
+- [x] Platforms 2: connection model and loader (nested SSM layout only, connection view).
+- [x] Platforms 3: CLI connections (`bot add` onto an existing bot, `--platform` on `access` and
       `admin claim`, `bot list`, `bot remove --platform`). After 2.
-- [ ] Platforms 4: CLI migration tools: `bot export` and `bot restore`, `bot migrate` (`--dry-run`,
+- [x] Platforms 4: CLI migration tools: `bot export` and `bot restore`, `bot migrate` (`--dry-run`,
       `--prune`, `--alias-platform`), `config migrate`, and `bot adopt`. After 3 (and 1).
-- [ ] Platforms 5: per-platform registry entry and `register` over declared platforms; an old-shape
+- [x] Platforms 5: per-platform registry entry and `register` over declared platforms; an old-shape
       entry serves nothing. After 1, 2.
-- [ ] Platforms 6: receiver builds one `Chat` per connection; per-platform `respond_to`. After 2, 5.
-- [ ] Platforms 7: poster derives the connection from the thread ID; `start-thread` takes
+- [x] Platforms 6: receiver builds one `Chat` per connection; per-platform `respond_to`. After 2, 5.
+- [x] Platforms 7: poster derives the connection from the thread ID; `start-thread` takes
       `platform` (optional on a single-connection bot). After 2 (and 5, same `registry.ts`).
-- [ ] Platforms 8: platform-scoped chat aliases (flat form not read) and the destination resolution
+- [x] Platforms 8: platform-scoped chat aliases (flat form not read) and the destination resolution
       order; slice 11 folds aliases into destinations. After 2, 7.
-- [ ] **[HUMAN APPROVAL]** Cutover go decision: after a passed rehearsal (`bot export` and
+- [x] **[HUMAN APPROVAL]** Cutover go decision: after a passed rehearsal (`bot export` and
       `bot migrate --dry-run` on production; the full sequence on a test bot) and slices 1 to 8
       done, approve the window (about 5 to 10 minutes of unanswered messages), then the
-      `yarn deploy-prod` of the Lambda from `platforms/cutover`.
-- [ ] **[HUMAN ACTION]** Platforms 18, the cutover, in the design doc's order: `bot export`,
+      `yarn deploy-prod` of the Lambda from `platforms/cutover`. Approved 2026-11-23 after the
+      production dry run; the test-bot rehearsal was skipped.
+- [x] **[HUMAN ACTION]** Platforms 18, the cutover, in the design doc's order: `bot export`,
       `bot migrate`, deploy, `bot migrate` again, merge `platforms/cutover` and each consumer's
       `config migrate` pull request (each merge runs `register`), smoke-test every bot and one
       scheduled prompt per consumer. Rollback: redeploy the previous Lambda, revert the merges and
-      re-register.
+      re-register. Done 2026-11-23: the window ran about 90 seconds (Lambda deployed 01:59:59 UTC,
+      the last `register` finished 02:01:29). All three `register` runs succeeded, the Telegram
+      webhooks are set, and the self-consumer `hello` prompt ran. Still to do: a message to each live
+      bot, and a scheduled prompt per consumer (not dispatched, since they post to real chats).
 - [ ] **[HUMAN APPROVAL]** After a week's soak, `centaur bot migrate --prune` (deletes the flat
       parameters and aliases) and delete the export file.
 - [ ] Platforms 9: `thread-meta` record stores a thread's context policy; `start-thread` accepts
