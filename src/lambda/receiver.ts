@@ -2,6 +2,7 @@ import type { Logger, StateAdapter } from "chat";
 import type { AttachmentStore } from "./attachments.js";
 import { createBotChat } from "./chat.js";
 import type { RepositoryDispatcher } from "./github.js";
+import type { HistoryWindow } from "./history-window.js";
 import type { WebHandler } from "./http.js";
 import type { ParameterStore } from "./parameters.js";
 import { type Bot, botStatePrefix, loadBots } from "./registry.js";
@@ -13,6 +14,7 @@ export interface ReceiverDeps {
   attachments: AttachmentStore;
   dispatcher: RepositoryDispatcher;
   logger: Logger;
+  history?: HistoryWindow | undefined;
 }
 
 const ROUTE = /^\/(telegram|slack)\/([a-z0-9][a-z0-9_-]*)$/;
@@ -25,6 +27,7 @@ export async function createReceiver({
   attachments,
   dispatcher,
   logger,
+  history,
 }: ReceiverDeps): Promise<WebHandler> {
   const registryState = await connectState(createState(""));
   const routes = new Map(
@@ -38,6 +41,7 @@ export async function createReceiver({
           attachments,
           dispatcher,
           logger,
+          history,
         });
         return [routeKey(bot), { bot, chat }] as const;
       }),

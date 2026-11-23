@@ -147,15 +147,23 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
   - [ ] Chat search 4: Slack-native search (receiver captures the `action_token` into the state
         table with a TTL, poster `search-chat`, MCP `search_chat`, manifest scopes). Settle the
         design questions in the doc first.
-  - [ ] Chat search 5: the stored-history window, tracked in the next item.
+  - [x] Chat search 5: the stored-history window, tracked in the next item.
   - [ ] **[HUMAN ACTION]** Chat search 6: verify on a real install (Slack rate limits,
         `action_token` lifetime and presence in events, AI features in the workspace, Telegram
         window cost).
-- [ ] Decide and set the stored-history window (`history.thread` `maxMessages` and `ttlMs`)
-      explicitly in `src/lambda/chat.ts`. Telegram keeps only the newest 100 messages per chat and
-      per thread (SDK default, 7-day TTL); the poster's `STORED_HISTORY_SCAN_MAX` (2000) is moot
-      until this is set. Measure the adapter's cost per append first (it reads the whole list to
-      trim). See [docs/chat-search.md](docs/chat-search.md).
+- [x] Decide and set the stored-history window (`history.thread` `maxMessages` and `ttlMs`)
+      explicitly in `src/lambda/chat.ts`. The window is the `HistoryMaxMessages` (default 100,
+      max 5000) and `HistoryTtlDays` (default 7, max 365) stack parameters, read by
+      `src/lambda/history-window.ts`; the dead `STORED_HISTORY_SCAN_MAX` is gone. Measured on
+      DynamoDB Local (which reports no capacity), the adapter's trim reads the whole list on every
+      append: 20 / 25 / 31 / 49 / 109 ms p50 per append at 100 / 500 / 1000 / 2000 / 5000
+      messages (N+1 items read; two queries at 5000). At 1 KB per message and two lists per
+      message that is about N/2 read units, roughly $0.000006 / $0.00003 / $0.0003 per message at
+      100 / 500 / 5000 on-demand (estimate). Recommended: 500 messages, 7 days.
+- [ ] **[HUMAN APPROVAL]** Raise the deployed stored-history window to the recommended 500
+      messages (`HistoryMaxMessages=500`, `HistoryTtlDays` stays 7): a CloudFormation parameter
+      change, deployed with `scripts/deploy.sh ... HistoryMaxMessages=500`. Unblocks chat search and
+      `list-threads` seeing more than the newest 100 messages of a Telegram chat.
 
 ## 12. Slack support
 

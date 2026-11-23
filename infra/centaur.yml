@@ -45,6 +45,18 @@ Parameters:
     Type: Number
     Default: 30
     Description: Days to keep Lambda logs.
+  HistoryMaxMessages:
+    Type: Number
+    Default: 100
+    MinValue: 1
+    MaxValue: 5000
+    Description: Newest messages kept per chat and per thread in stored history (Telegram). The state adapter reads the whole list on every append, so cost per message grows with this.
+  HistoryTtlDays:
+    Type: Number
+    Default: 7
+    MinValue: 1
+    MaxValue: 365
+    Description: Days a stored history list lives after its latest message.
 
 Conditions:
   ShouldDeployLambda: !Equals [!Ref DeployLambda, 'TRUE']
@@ -244,6 +256,8 @@ Resources:
           SESSION_BUCKET_NAME: !Ref SessionBucket
           GITHUB_OWNER: !Ref GitHubOwner
           OIDC_AUDIENCE: !Ref OidcAudience
+          HISTORY_MAX_MESSAGES: !Ref HistoryMaxMessages
+          HISTORY_TTL_DAYS: !Ref HistoryTtlDays
 
   ReceiverFunctionUrl:
     Type: AWS::Lambda::Url

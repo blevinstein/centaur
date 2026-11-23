@@ -6,6 +6,7 @@ import { createAttachmentStore, createS3ObjectStore } from "./attachments.js";
 import { createCachedParameterStore } from "./cached-parameters.js";
 import { createChat } from "./chat.js";
 import { createGitHubDispatcher } from "./github.js";
+import { readHistoryWindow } from "./history-window.js";
 import { wrapHandler } from "./http.js";
 import { readBundledMcpPolicy } from "./mcp-policy.js";
 import { createGitHubOidcVerifier } from "./oidc.js";
@@ -56,6 +57,7 @@ async function buildReceiver() {
     attachments: buildAttachments(),
     dispatcher: createGitHubDispatcher(token),
     logger,
+    history: readHistoryWindow(),
   });
 }
 
@@ -64,10 +66,11 @@ async function buildPoster() {
   const params = createSsmParameterStore();
   const functionUrl = await params.get(FUNCTION_URL_PARAMETER);
   if (!functionUrl) throw new Error(`missing SSM parameter ${FUNCTION_URL_PARAMETER}`);
+  const history = readHistoryWindow();
   return createPoster({
     params,
     createState: stateCreator(tableName),
-    chatFor: (bot, botState) => createChat({ bot, botState, logger }),
+    chatFor: (bot, botState) => createChat({ bot, botState, logger, history }),
     attachments: buildAttachments(),
     telegram: createTelegramApi(),
     oidc: createGitHubOidcVerifier({

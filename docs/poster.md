@@ -87,11 +87,15 @@ examined range qualified; older messages can be read with `before`.
 - **Telegram:** the Bot API has no history call, so both operations read the messages the receiver
   stored for the chat (including messages from senders who are not enrolled, which are filtered
   out here). The SDK keeps one list per thread and one per chat (`msg-history:<id>`), each capped at
-  the newest 100 messages (`ThreadHistoryCache` default; not overridden here) with a 7-day TTL
-  refreshed on every append, so a list expires after 7 days without a message. The reader scans at
-  most 2000, but the chat list never holds more than 100, so that cap has no effect until the window
-  is set explicitly. `list-threads` groups the chat list's messages by topic, so it sees only topics
-  with a message among the chat's newest 100, and `read-channel` cannot page beyond them. `title`
+  the newest `HistoryMaxMessages` messages with a `HistoryTtlDays` TTL refreshed on every append, so
+  a list expires after that many days without a message. The stack parameters default to 100 and 7
+  (the SDK's own defaults), are bounded to 5000 and 365, and reach the Lambda as
+  `HISTORY_MAX_MESSAGES` and `HISTORY_TTL_DAYS` (`src/lambda/history-window.ts`; invalid values fail
+  the cold start). The window is stack-wide, not per bot. The state adapter reads a whole list on
+  every append to trim it, so the cost per stored message grows with the window; see
+  [chat-context.md](chat-context.md#what-the-platforms-can-provide). The reader scans the whole
+  chat list, which the window bounds. `list-threads` groups the chat list's messages by topic, so it sees only topics
+  with a message among the chat's newest `HistoryMaxMessages`, and `read-channel` cannot page beyond them. `title`
   is the first line of the oldest message seen, `snippet` the newest, `messageCount` and
   `participants` count visible messages only. `before` skips messages sent at or after it.
 - **Slack:** `list-threads` maps the adapter's `listThreads` (thread parents with replies; the title

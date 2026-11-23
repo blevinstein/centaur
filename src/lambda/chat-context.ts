@@ -16,7 +16,6 @@ export const MESSAGE_TEXT_MAX = 4000;
 export const SNIPPET_MAX = 200;
 export const TITLE_MAX = 100;
 export const PARTICIPANTS_MAX = 10;
-export const STORED_HISTORY_SCAN_MAX = 2000;
 
 const nonEmpty = z.string().min(1);
 const count = (max: number) => z.number().int().positive().max(max);
@@ -154,14 +153,11 @@ const summarize = (
 });
 
 /**
- * The receiver's stored history of a chat, newest first, bounded so a long-lived chat stays cheap.
- * The scan is exhausted only when the list ends before the bound; a consumer that stops early
- * leaves it unexhausted.
+ * The receiver's stored history of a chat, newest first. The stored list is bounded by the
+ * configured history window, so the scan is exhausted unless a consumer stops early.
  */
 async function* storedHistory({ chat, channelId }: ChannelQuery, scan: Scan) {
-  let seen = 0;
   for await (const message of chat.channel(channelId).messages) {
-    if (++seen > STORED_HISTORY_SCAN_MAX) return;
     observe(scan, message);
     yield message;
   }

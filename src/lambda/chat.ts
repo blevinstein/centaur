@@ -11,6 +11,7 @@ import { createAdminClaimer } from "./admin-claims.js";
 import { registerAdminHandlers } from "./admin-handlers.js";
 import type { AttachmentStore } from "./attachments.js";
 import type { RepositoryDispatcher } from "./github.js";
+import { DEFAULT_HISTORY_WINDOW, type HistoryWindow } from "./history-window.js";
 import { createMessageHandler } from "./message-handler.js";
 import type { ThreadMetadata } from "./ownership.js";
 import type { ParameterStore } from "./parameters.js";
@@ -28,6 +29,7 @@ export interface BotChatBaseDeps {
   bot: Bot;
   botState: StateAdapter;
   logger: Logger;
+  history?: HistoryWindow | undefined;
 }
 
 export interface BotChatDeps extends BotChatBaseDeps {
@@ -37,12 +39,18 @@ export interface BotChatDeps extends BotChatBaseDeps {
   dispatcher: RepositoryDispatcher;
 }
 
-export const createChat = ({ bot, botState, logger }: BotChatBaseDeps): BotChat =>
+export const createChat = ({
+  bot,
+  botState,
+  logger,
+  history = DEFAULT_HISTORY_WINDOW,
+}: BotChatBaseDeps): BotChat =>
   new Chat<Record<string, Adapter>, ThreadMetadata>({
     userName: bot.name,
     adapters: { [bot.platform]: ADAPTER_FACTORIES[bot.platform](bot) },
     state: botState,
     concurrency: "concurrent",
+    history: { thread: history },
     logger,
   });
 
@@ -54,8 +62,9 @@ export function createBotChat({
   attachments,
   dispatcher,
   logger,
+  history,
 }: BotChatDeps) {
-  const chat = createChat({ bot, botState, logger });
+  const chat = createChat({ bot, botState, logger, history });
   const resolveAccess = createAccessResolver(bot, params);
   const channel = ADMIN_CHANNELS[bot.platform];
   const store = createAccessRequestStore(botState);

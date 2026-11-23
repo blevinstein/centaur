@@ -2,6 +2,12 @@ import { readFileSync } from "node:fs";
 import { TABLE_DEFINITION, TTL_ATTRIBUTE } from "@blevinstein/chat-state-dynamodb";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import {
+  DEFAULT_HISTORY_MAX_MESSAGES,
+  DEFAULT_HISTORY_TTL_DAYS,
+  HISTORY_MAX_MESSAGES_LIMIT,
+  HISTORY_TTL_DAYS_LIMIT,
+} from "../src/lambda/history-window.js";
 
 interface Statement {
   Action: string | string[];
@@ -110,5 +116,27 @@ describe("the state table", () => {
       "dynamodb:Query",
       "dynamodb:UpdateItem",
     ]);
+  });
+});
+
+describe("the stored-history window", () => {
+  it("has template parameters that match the code's defaults and bounds", () => {
+    expect(template.Parameters.HistoryMaxMessages).toMatchObject({
+      Default: DEFAULT_HISTORY_MAX_MESSAGES,
+      MinValue: 1,
+      MaxValue: HISTORY_MAX_MESSAGES_LIMIT,
+    });
+    expect(template.Parameters.HistoryTtlDays).toMatchObject({
+      Default: DEFAULT_HISTORY_TTL_DAYS,
+      MinValue: 1,
+      MaxValue: HISTORY_TTL_DAYS_LIMIT,
+    });
+  });
+
+  it("is passed to the Lambda through its environment", () => {
+    expect(template.Resources.ReceiverFunction.Properties.Environment.Variables).toMatchObject({
+      HISTORY_MAX_MESSAGES: "HistoryMaxMessages",
+      HISTORY_TTL_DAYS: "HistoryTtlDays",
+    });
   });
 });
