@@ -308,7 +308,7 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       use, topic recreation, `resolve-destination`; `start-thread` and `resolve-destination` take
       `thread` (Decision 19); the schema parses `thread: new | persistent` (default `new`) and
       rejects `persistent` with a clear error until slice 16 lands; no new IAM statement. Deploy
-      gates unchanged. Details pending maintainer review. After 8, 9, 18 (and 21, same schema file).
+      gates unchanged. Details approved 2026-11-23. After 8, 9, 18 (and 21, same schema file).
 - [ ] Platforms 12: Slack persistent thread destinations (`thread: persistent` on Slack). After 11.
 - [ ] Platforms 13: admin-only `/destination <name>` (Telegram) and `!destination <name>` (Slack)
       bind a topic to a destination name. After 11.

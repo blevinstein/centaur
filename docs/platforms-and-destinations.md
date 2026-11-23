@@ -523,14 +523,14 @@ keys and the consumer `.centaur.yml` files. Decisions that relied on compatibili
     after bounded transcript 3, because a weekly thread's transcript grows without bound. The
     earlier slices have no such dependency.
 
-18. **Aliases fold into destinations in slice 11** (maintainer ruling, 2026-11-23): after slice 11 the
+18. **Aliases fold into destinations in slice 11** (maintainer ruling; details approved by the
+    maintainer, 2026-11-23): after slice 11 the
     only concept is the destination, a named record per platform holding a chat ID and an optional
     topic or thread ID; a destination with no topic is what an alias is. Telegram has no native name
     for a private group (only numeric chat IDs, and `@username` for public channels), and Slack names
     change and cannot address private channels, so configs keep using names and the IDs stay in SSM,
     out of public repos and portable between deployments. Slice 8 is unchanged and remains the
-    cutover's migration target and the base of slice 11. The direction is decided; the details below
-    are recommended, pending maintainer review:
+    cutover's migration target and the base of slice 11. The details are:
     - **(a) Storage:** keep `chats/<platform>/<name>` as the one destination store and widen the value
       from a bare chat ID to a JSON record `{ chatId, threadId?, bot?, context?, name, at }`. A bare
       chat ID reads as a topic-less destination, so no second data migration follows the cutover;
