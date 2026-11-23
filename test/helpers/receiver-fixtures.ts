@@ -3,10 +3,15 @@ import type { Message, Thread } from "chat";
 import { vi } from "vitest";
 import type { Access } from "../../src/lambda/access.js";
 import type { AttachmentStore } from "../../src/lambda/attachments.js";
+import {
+  repoParameter,
+  tokenParameter,
+  webhookSecretParameter,
+} from "../../src/lambda/connection-paths.js";
 import type { RepositoryDispatcher } from "../../src/lambda/github.js";
 import type { ThreadMetadata } from "../../src/lambda/ownership.js";
 import type { ParameterStore } from "../../src/lambda/parameters.js";
-import { type Bot, registryKey } from "../../src/lambda/registry.js";
+import { type Bot, type BotSecrets, registryKey } from "../../src/lambda/registry.js";
 
 export const GARDEN_BOT: Bot = {
   name: "garden",
@@ -24,22 +29,41 @@ export const SLACK_BOT: Bot = {
   webhookSecret: "signing-secret",
 };
 
+export const connectionParameters = (
+  { name, platform, token, webhookSecret }: BotSecrets,
+  repo?: string,
+): Record<string, string> => ({
+  [tokenParameter(name, platform)]: token,
+  [webhookSecretParameter(name, platform)]: webhookSecret,
+  ...(repo ? { [repoParameter(name)]: repo } : {}),
+});
+
+const UNBOUND_BOT: BotSecrets = { ...GARDEN_BOT, name: "unbound", token: "t", webhookSecret: "s" };
+
+export const GARDEN_SLACK_BOT: Bot = {
+  ...SLACK_BOT,
+  name: GARDEN_BOT.name,
+  repo: GARDEN_BOT.repo,
+  token: "xoxb-garden",
+  webhookSecret: "garden-signing-secret",
+};
+
 export const PARAMETERS: Record<string, string> = {
-  "/centaur/bots/garden/platform": "telegram",
-  "/centaur/bots/garden/token": GARDEN_BOT.token,
-  "/centaur/bots/garden/webhook-secret": GARDEN_BOT.webhookSecret,
-  "/centaur/bots/garden/repo": GARDEN_BOT.repo,
-  "/centaur/bots/notes/platform": "slack",
-  "/centaur/bots/notes/token": SLACK_BOT.token,
-  "/centaur/bots/notes/signing-secret": SLACK_BOT.webhookSecret,
-  "/centaur/bots/notes/repo": SLACK_BOT.repo,
-  "/centaur/bots/unbound/platform": "telegram",
-  "/centaur/bots/unbound/token": "t",
-  "/centaur/bots/unbound/webhook-secret": "s",
-  "/centaur/bots/partial/platform": "slack",
-  "/centaur/bots/partial/token": "t",
-  "/centaur/bots/partial/repo": "octo/partial",
+  ...connectionParameters(GARDEN_BOT, GARDEN_BOT.repo),
+  ...connectionParameters(SLACK_BOT, SLACK_BOT.repo),
+  ...connectionParameters(UNBOUND_BOT),
+  [tokenParameter("partial", "slack")]: "t",
+  [repoParameter("partial")]: "octo/partial",
   "/centaur/chats/household": "-100500",
+};
+
+export const GARDEN_SLACK_PARAMETERS = connectionParameters(GARDEN_SLACK_BOT);
+
+export const FLAT_PARAMETERS = {
+  "/centaur/bots/flat/platform": "telegram",
+  "/centaur/bots/flat/token": "t",
+  "/centaur/bots/flat/webhook-secret": "s",
+  "/centaur/bots/flat/repo": "octo/flat",
 };
 
 export const GROUP_CHAT_ID = "-100500";
@@ -70,6 +94,9 @@ export const fakeParameterStore = (
     },
   };
 };
+
+export const twoConnections = () =>
+  fakeParameterStore({ ...PARAMETERS, ...GARDEN_SLACK_PARAMETERS });
 
 export const fakeDispatcher = () => ({ dispatch: vi.fn<RepositoryDispatcher["dispatch"]>() });
 

@@ -5,6 +5,11 @@ import {
   createCachedParameterStore,
   PARAMETER_CACHE_TTL_MS,
 } from "../src/lambda/cached-parameters.js";
+import {
+  approvedParameter,
+  approvedPrefix,
+  tokenParameter,
+} from "../src/lambda/connection-paths.js";
 import type { ParameterStore } from "../src/lambda/parameters.js";
 import { fakeParameterStore } from "./helpers/receiver-fixtures.js";
 
@@ -56,6 +61,26 @@ describe("createCachedParameterStore", () => {
     expect(await store.get("/centaur/missing")).toBeUndefined();
     inner.values["/centaur/missing"] = "now here";
     expect(await store.get("/centaur/missing")).toBe("now here");
+  });
+
+  it("caches connection secrets but never lists a path from the cache", async () => {
+    const token = tokenParameter("garden", "telegram");
+    const approvedUsers = approvedPrefix("garden", "telegram", "user");
+    const listSpy = vi.fn<ParameterStore["getByPath"]>(inner.getByPath);
+    const listing = createCachedParameterStore(
+      { ...inner, getByPath: listSpy },
+      { now: () => clock },
+    );
+    inner.values[token] = "tg-token";
+
+    await store.get(token);
+    await store.get(token);
+    expect(getSpy).toHaveBeenCalledTimes(1);
+
+    expect(await listing.getByPath(approvedUsers)).toEqual({});
+    inner.values[approvedParameter("garden", "telegram", "user", "1001")] = "{}";
+    expect(Object.keys(await listing.getByPath(approvedUsers))).toHaveLength(1);
+    expect(listSpy).toHaveBeenCalledTimes(2);
   });
 
   it("never caches admin claims", async () => {

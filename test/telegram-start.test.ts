@@ -49,7 +49,7 @@ async function startUpdate(
   const params = fakeParameterStore({
     ...PARAMETERS,
     [ADMIN_PARAMETER]: ADMIN_ID,
-    "/centaur/bots/garden/approved-users/1001": "{}",
+    "/centaur/bots/garden/platforms/telegram/approved-users/1001": "{}",
     ...(claim ? { [CLAIM_PARAMETER]: encodeClaim("garden", CLAIM_CODE, claim) } : {}),
   });
   const dispatcher = fakeDispatcher();

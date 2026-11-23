@@ -1,5 +1,5 @@
 import type { Logger, ReactionEvent, SlashCommandEvent } from "chat";
-import { approvedParameter, blockedParameter, encodeEntry } from "./access-entries.js";
+import { encodeEntry } from "./access-entries.js";
 import {
   type AccessRequest,
   type AccessRequestStore,
@@ -8,6 +8,7 @@ import {
 } from "./access-request-store.js";
 import { type AdminChannel, lookupAdminId } from "./admin-channel.js";
 import { recordChatAlias, slugAlias } from "./chat-aliases.js";
+import { approvedParameter, blockedParameter } from "./connection-paths.js";
 import type { ParameterStore } from "./parameters.js";
 import type { Bot } from "./registry.js";
 
@@ -68,7 +69,7 @@ export function createAccessDecisions({
           )
         : undefined;
     await params.put(
-      parameter(bot.name, request.kind, request.subjectId),
+      parameter(bot.name, bot.platform, request.kind, request.subjectId),
       encodeEntry({ name: request.subjectName, alias }),
     );
     invalidateAccess();

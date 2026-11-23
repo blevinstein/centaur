@@ -32,7 +32,7 @@ export async function createReceiver({
   const registryState = await connectState(createState(""));
   const routes = new Map(
     await Promise.all(
-      (await loadBots(params)).map(async (bot) => {
+      (await loadBots(params, logger)).map(async (bot) => {
         const chat = createBotChat({
           bot,
           params,

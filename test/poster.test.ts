@@ -207,8 +207,8 @@ describe("poster start-thread", () => {
     it("accepts an approved chat and refuses a blocked one", async () => {
       const { poster, telegram, thread } = await posterSetup({
         parameters: {
-          "/centaur/bots/garden/approved-chats/-100777": "{}",
-          [`/centaur/bots/garden/blocked/chat/${HOUSEHOLD_CHAT_ID}`]: "{}",
+          "/centaur/bots/garden/platforms/telegram/approved-chats/-100777": "{}",
+          [`/centaur/bots/garden/platforms/telegram/blocked/chat/${HOUSEHOLD_CHAT_ID}`]: "{}",
         },
       });
       Object.assign(thread, { channelId: "telegram:-100777" });

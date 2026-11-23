@@ -7,6 +7,7 @@ import {
   posterSetup,
   REGISTERED_ENTRY,
 } from "./helpers/poster-fixtures.js";
+import { connectionParameters } from "./helpers/receiver-fixtures.js";
 
 const register = (
   poster: Awaited<ReturnType<typeof posterSetup>>["poster"],
@@ -43,11 +44,12 @@ describe("register", () => {
 
   it("registers a Slack bot without calling setWebhook", async () => {
     const { poster, params, telegram } = await posterSetup({
-      parameters: {
-        "/centaur/bots/inbox/platform": "slack",
-        "/centaur/bots/inbox/token": "xoxb",
-        "/centaur/bots/inbox/signing-secret": "sig",
-      },
+      parameters: connectionParameters({
+        name: "inbox",
+        platform: "slack",
+        token: "xoxb",
+        webhookSecret: "sig",
+      }),
     });
 
     await register(poster, registerConfigText({ bot: "inbox", platforms: "{slack: {}}" }));

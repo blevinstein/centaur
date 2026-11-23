@@ -345,9 +345,9 @@ recovered by claiming again.
 | State table (TTL) | `access-subject:<kind>:<id>` | One pending slot per subject. |
 | State table (TTL) | `access-request-message:<message id>` | Maps the admin DM to its request. |
 | State table (TTL) | `access-request-claim:<id>` | Makes a decision single-use. |
-| SSM | `bots/<bot>/approved-chats/<chatId>`, `approved-users/<userId>` | Approved subjects (JSON: name, alias for chats, time). |
+| SSM | `bots/<bot>/platforms/<platform>/approved-chats/<chatId>`, `approved-users/<userId>` | Approved subjects (JSON: name, alias for chats, time). |
 | SSM | `chats/<alias>` | A chat alias and its ID; created by approvals, never overwritten by the Lambda. |
-| SSM | `bots/<bot>/blocked/<chat\|user>/<id>` | Blocked subjects (JSON: name, time). |
+| SSM | `bots/<bot>/platforms/<platform>/blocked/<chat\|user>/<id>` | Blocked subjects (JSON: name, time). |
 | SSM | `admin/<platform>` | The admin's user ID. |
 | SSM | `admin-claim/<platform>` | The pending claim: bot, expiry, code hash. |
 | State table (TTL) | `admin-claim-failures:<hash>` | Wrong-code count for that claim. |
@@ -434,18 +434,23 @@ IDs and names are plain `String`.
 
 | Parameter | Type | Written by |
 |---|---|---|
-| `bots/<bot>/platform` | String | `centaur bot add` |
-| `bots/<bot>/token` | SecureString | `centaur bot add` |
-| `bots/<bot>/webhook-secret` | SecureString | `centaur bot add` (Telegram; generated) |
-| `bots/<bot>/signing-secret` | SecureString | `centaur bot add` (Slack; supplied) |
 | `bots/<bot>/repo` | String | `register` operation; cleared by `centaur bot unbind` |
-| `bots/<bot>/approved-chats/<chatId>` | String (JSON) | access request approval; `centaur access approve` |
-| `bots/<bot>/approved-users/<userId>` | String (JSON) | access request approval; `centaur access approve` |
-| `bots/<bot>/blocked/<chat\|user>/<id>` | String (JSON) | access request denial; `centaur access block` |
+| `bots/<bot>/platforms/<platform>/token` | SecureString | `centaur bot add` |
+| `bots/<bot>/platforms/<platform>/webhook-secret` | SecureString | `centaur bot add` (Telegram; generated) |
+| `bots/<bot>/platforms/<platform>/signing-secret` | SecureString | `centaur bot add` (Slack; supplied) |
+| `bots/<bot>/platforms/<platform>/approved-chats/<chatId>`, `approved-users/<userId>` | String (JSON) | access request approval; `centaur access approve` |
+| `bots/<bot>/platforms/<platform>/blocked/<chat\|user>/<id>` | String (JSON) | access request denial; `centaur access block` |
 | `admin/<platform>` | String | `centaur admin set`; a successful admin claim |
 | `admin-claim/<platform>` | String (JSON) | `centaur admin claim`; deleted on use, failure limit or `--cancel` |
 | `chats/<alias>` | String | access request approval; `centaur access approve` |
 | `github/token` | SecureString | `centaur github-token set` |
+
+A connection is a bot's presence on one platform, addressed by the base path
+`bots/<bot>/platforms/<platform>`; every per-connection key hangs off it (`src/lambda/connection-paths.ts`
+is the only place that builds these paths). The loader (`loadBots` in `src/lambda/registry.ts`)
+reads only this nested layout and returns one `Bot` per connection: `name`, `platform`, `repo`,
+`token`, `webhookSecret`. A bot without a complete connection (token and webhook or signing secret)
+serves nothing, and the receiver logs one warning per bot per container.
 
 `bots/<bot>/repo` is the bot's binding: the `owner/repo` that registered it. `register` must
 refuse to overwrite it with a different repo, and `centaur bot remove` refuses while it is set.

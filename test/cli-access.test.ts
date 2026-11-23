@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createCliHarness } from "./helpers/cli.js";
 
 const BOT_PLATFORM = "/centaur/bots/garden/platform";
-const approvedChat = (id: string) => `/centaur/bots/garden/approved-chats/${id}`;
+const approvedChat = (id: string) => `/centaur/bots/garden/platforms/telegram/approved-chats/${id}`;
 
 async function harnessWithBot() {
   const cli = createCliHarness();
@@ -42,14 +42,16 @@ describe("access", () => {
 
     await cli.run("access", "approve", "garden", kind, "42", "--name", "Garden Club");
     const stored = JSON.parse(
-      (await cli.store.get(`/centaur/bots/garden/approved-${kind}s/42`)) ?? "",
+      (await cli.store.get(`/centaur/bots/garden/platforms/telegram/approved-${kind}s/42`)) ?? "",
     );
     expect(stored).toMatchObject({ name: "Garden Club" });
     await cli.run("access", "list", "garden");
     expect(cli.output.at(-1)).toMatch(new RegExp(`^approved  ${kind}  42  Garden Club  \\d{4}-`));
 
     await cli.run("access", "revoke", "garden", kind, "42");
-    expect(await cli.store.get(`/centaur/bots/garden/approved-${kind}s/42`)).toBeUndefined();
+    expect(
+      await cli.store.get(`/centaur/bots/garden/platforms/telegram/approved-${kind}s/42`),
+    ).toBeUndefined();
   });
 
   it("blocks by removing the approval, and unblocking does not restore it", async () => {
@@ -57,7 +59,9 @@ describe("access", () => {
     await cli.run("access", "approve", "garden", "user", "42");
 
     await cli.run("access", "block", "garden", "user", "42");
-    expect(await cli.store.get("/centaur/bots/garden/approved-users/42")).toBeUndefined();
+    expect(
+      await cli.store.get("/centaur/bots/garden/platforms/telegram/approved-users/42"),
+    ).toBeUndefined();
     await cli.run("access", "list", "garden");
     expect(cli.output.at(-1)).toMatch(/^blocked {2}user {2}42/);
 
@@ -72,18 +76,26 @@ describe("access", () => {
     await expect(cli.run("access", "block", "garden", "user", "5001")).rejects.toThrow(
       /Cannot block 5001: they are the admin for telegram/,
     );
-    expect(cli.store.names()).not.toContain("/centaur/bots/garden/blocked/user/5001");
+    expect(cli.store.names()).not.toContain(
+      "/centaur/bots/garden/platforms/telegram/blocked/user/5001",
+    );
 
     await cli.run("access", "block", "garden", "chat", "5001");
     await cli.run("access", "block", "garden", "user", "5002");
-    expect(cli.store.names()).toContain("/centaur/bots/garden/blocked/chat/5001");
-    expect(cli.store.names()).toContain("/centaur/bots/garden/blocked/user/5002");
+    expect(cli.store.names()).toContain(
+      "/centaur/bots/garden/platforms/telegram/blocked/chat/5001",
+    );
+    expect(cli.store.names()).toContain(
+      "/centaur/bots/garden/platforms/telegram/blocked/user/5002",
+    );
   });
 
   it("blocks a subject that was never approved", async () => {
     const cli = await harnessWithBot();
     await cli.run("access", "block", "garden", "chat", "-1");
-    expect(await cli.store.get("/centaur/bots/garden/blocked/chat/-1")).toBeDefined();
+    expect(
+      await cli.store.get("/centaur/bots/garden/platforms/telegram/blocked/chat/-1"),
+    ).toBeDefined();
   });
 
   it("says when nothing is approved or blocked", async () => {

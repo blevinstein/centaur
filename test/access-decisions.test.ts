@@ -44,7 +44,9 @@ describe("access decisions by reaction", () => {
       await h.decisions.fromReaction(h.reaction("👍"));
 
       const { id, name } = subjects[kind];
-      const approved = h.params.values[`/centaur/bots/garden/approved-${kind}s/${id}`] as string;
+      const approved = h.params.values[
+        `/centaur/bots/garden/platforms/telegram/approved-${kind}s/${id}`
+      ] as string;
       expect(JSON.parse(approved)).toMatchObject({ name });
       expect(h.invalidateAccess).toHaveBeenCalledOnce();
       expect(h.postToThread).toHaveBeenCalledExactlyOnceWith(
@@ -62,7 +64,9 @@ describe("access decisions by reaction", () => {
       await h.decisions.fromReaction(h.reaction("👎"));
 
       const { id } = subjects[kind];
-      expect(h.params.values[`/centaur/bots/garden/blocked/${kind}/${id}`]).toBeDefined();
+      expect(
+        h.params.values[`/centaur/bots/garden/platforms/telegram/blocked/${kind}/${id}`],
+      ).toBeDefined();
       expect(Object.keys(h.params.values).some((name) => name.includes("/approved-"))).toBe(false);
       expect(h.postToThread).not.toHaveBeenCalled();
       expect(h.invalidateAccess).toHaveBeenCalledOnce();
@@ -80,7 +84,9 @@ describe("access decisions by reaction", () => {
 
     await h.decisions.fromReaction(h.reaction(emoji, overrides));
 
-    expect(h.params.values["/centaur/bots/garden/approved-users/9999"]).toBeUndefined();
+    expect(
+      h.params.values["/centaur/bots/garden/platforms/telegram/approved-users/9999"],
+    ).toBeUndefined();
     expect(h.invalidateAccess).not.toHaveBeenCalled();
     expect(h.postToThread).not.toHaveBeenCalled();
   });
@@ -119,7 +125,9 @@ describe("access decisions by reaction", () => {
 
     expect(h.postToThread).toHaveBeenCalledOnce();
     expect(h.invalidateAccess).toHaveBeenCalledOnce();
-    expect(h.params.values["/centaur/bots/garden/blocked/user/9999"]).toBeUndefined();
+    expect(
+      h.params.values["/centaur/bots/garden/platforms/telegram/blocked/user/9999"],
+    ).toBeUndefined();
   });
 
   it("ignores an expired request", async () => {
@@ -130,7 +138,9 @@ describe("access decisions by reaction", () => {
 
       await h.decisions.fromReaction(h.reaction("👍"));
 
-      expect(h.params.values["/centaur/bots/garden/approved-users/9999"]).toBeUndefined();
+      expect(
+        h.params.values["/centaur/bots/garden/platforms/telegram/approved-users/9999"],
+      ).toBeUndefined();
       expect(h.postToThread).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
@@ -145,7 +155,9 @@ describe("access decisions by reaction", () => {
     failing.mockRestore();
     await h.decisions.fromReaction(h.reaction("👍"));
 
-    expect(h.params.values["/centaur/bots/garden/approved-users/9999"]).toBeDefined();
+    expect(
+      h.params.values["/centaur/bots/garden/platforms/telegram/approved-users/9999"],
+    ).toBeDefined();
   });
 
   it("still records the approval when the confirmation cannot be posted", async () => {
@@ -154,7 +166,9 @@ describe("access decisions by reaction", () => {
 
     await h.decisions.fromReaction(h.reaction("👍"));
 
-    expect(h.params.values["/centaur/bots/garden/approved-users/9999"]).toBeDefined();
+    expect(
+      h.params.values["/centaur/bots/garden/platforms/telegram/approved-users/9999"],
+    ).toBeDefined();
     expect(h.logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("confirm approval"),
       expect.anything(),
@@ -182,9 +196,13 @@ describe("access decisions by command", () => {
     const denyReply = await denied.decisions.fromCommand(command("/deny", denied.requestId()));
 
     expect(approveReply).toBe(`Approved chat ${approved.requestId()} as "garden-club".`);
-    expect(approved.params.values["/centaur/bots/garden/approved-chats/-100500"]).toBeDefined();
+    expect(
+      approved.params.values["/centaur/bots/garden/platforms/telegram/approved-chats/-100500"],
+    ).toBeDefined();
     expect(denyReply).toContain("Denied and blocked user");
-    expect(denied.params.values["/centaur/bots/garden/blocked/user/9999"]).toBeDefined();
+    expect(
+      denied.params.values["/centaur/bots/garden/platforms/telegram/blocked/user/9999"],
+    ).toBeDefined();
   });
 
   it("answers repeats, unknown IDs and missing IDs", async () => {
@@ -209,14 +227,20 @@ describe("access decisions by command", () => {
 
     expect(await h.decisions.fromCommand(command(name, h.requestId(), overrides))).toBeUndefined();
 
-    expect(h.params.values["/centaur/bots/garden/approved-users/9999"]).toBeUndefined();
+    expect(
+      h.params.values["/centaur/bots/garden/platforms/telegram/approved-users/9999"],
+    ).toBeUndefined();
   });
 });
 
 describe("chat aliases on approval", () => {
   const ALIAS_PARAMETER = `/centaur/chats/garden-club`;
   const approvedEntry = (h: Awaited<ReturnType<typeof pendingRequest>>) =>
-    JSON.parse(h.params.values[`/centaur/bots/garden/approved-chats/${GROUP_CHAT_ID}`] as string);
+    JSON.parse(
+      h.params.values[
+        `/centaur/bots/garden/platforms/telegram/approved-chats/${GROUP_CHAT_ID}`
+      ] as string,
+    );
 
   it("records the proposed alias globally and on the approved entry", async () => {
     const h = await pendingRequest("chat");
@@ -284,7 +308,9 @@ describe("chat aliases on approval", () => {
 
     await expect(h.decisions.fromReaction(h.reaction("👍"))).rejects.toThrow("throttled");
 
-    expect(h.params.values[`/centaur/bots/garden/approved-chats/${GROUP_CHAT_ID}`]).toBeUndefined();
+    expect(
+      h.params.values[`/centaur/bots/garden/platforms/telegram/approved-chats/${GROUP_CHAT_ID}`],
+    ).toBeUndefined();
     await h.decisions.fromReaction(h.reaction("👍"));
     expect(approvedEntry(h)).toMatchObject({ alias: "garden-club" });
   });

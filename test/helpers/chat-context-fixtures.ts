@@ -103,8 +103,8 @@ export async function contextSetup(
   const setup = await posterSetup({
     repository: options.repository ?? (platform === "slack" ? NOTES_REPOSITORY : GARDEN_REPOSITORY),
     parameters: {
-      "/centaur/bots/garden/approved-users/1001": "{}",
-      "/centaur/bots/notes/approved-users/1001": "{}",
+      "/centaur/bots/garden/platforms/telegram/approved-users/1001": "{}",
+      "/centaur/bots/notes/platforms/slack/approved-users/1001": "{}",
       ...options.parameters,
     },
     ...(options.transcript ? { transcript: options.transcript } : {}),

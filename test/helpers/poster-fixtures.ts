@@ -2,11 +2,18 @@ import { createMemoryState } from "@chat-adapter/state-memory";
 import type { StateAdapter } from "chat";
 import { generateKeyPair, type JWTPayload, SignJWT } from "jose";
 import { vi } from "vitest";
+import type { Platform } from "../../src/config/index.js";
+import { approvedParameter, blockedParameter } from "../../src/lambda/connection-paths.js";
 import { GITHUB_OIDC_ISSUER, type OidcVerifier } from "../../src/lambda/oidc.js";
 import type { ThreadMetadata } from "../../src/lambda/ownership.js";
 import { createPoster, type PosterChat } from "../../src/lambda/poster.js";
 import type { TelegramApi } from "../../src/lambda/telegram.js";
-import { fakeAttachments, fakeParameterStore, PARAMETERS } from "./receiver-fixtures.js";
+import {
+  connectionParameters,
+  fakeAttachments,
+  fakeParameterStore,
+  PARAMETERS,
+} from "./receiver-fixtures.js";
 
 export const GARDEN_REPOSITORY = "octo/garden";
 export const OIDC_OWNER = "octo";
@@ -20,23 +27,23 @@ export const SLACK_POST_THREAD_ID = "slack:C0123:1700000000.000100";
 export const WORKSHOP_CHAT_ID = "-100900";
 export const REGISTERED_ENTRY = { respond_to: "mention" };
 
-export const approvedChat = (bot: string, chatId: string) =>
-  `/centaur/bots/${bot}/approved-chats/${chatId}`;
+export const approvedChat = (bot: string, chatId: string, platform: Platform = "telegram") =>
+  approvedParameter(bot, platform, "chat", chatId);
 const APPROVALS: Record<string, string> = {
   [approvedChat("garden", HOUSEHOLD_CHAT_ID)]: "{}",
   [approvedChat("garden", WORKSHOP_CHAT_ID)]: "{}",
-  [approvedChat("notes", SLACK_CHANNEL_ID)]: "{}",
+  [approvedChat("notes", SLACK_CHANNEL_ID, "slack")]: "{}",
 };
 
 export const blockedChat = (bot: string, chatId: string) =>
-  `/centaur/bots/${bot}/blocked/chat/${chatId}`;
+  blockedParameter(bot, "telegram", "chat", chatId);
 
-export const ORPHAN_PARAMETERS: Record<string, string> = {
-  "/centaur/bots/sprout/platform": "telegram",
-  "/centaur/bots/sprout/token": "sprout-token",
-  "/centaur/bots/sprout/webhook-secret": "sprout-secret",
-  "/centaur/bots/ghost/platform": "telegram",
-};
+export const ORPHAN_PARAMETERS: Record<string, string> = connectionParameters({
+  name: "sprout",
+  platform: "telegram",
+  token: "sprout-token",
+  webhookSecret: "sprout-secret",
+});
 
 export const configText = (overrides: Record<string, string | undefined> = {}) =>
   Object.entries({

@@ -19,7 +19,6 @@ export interface ParameterStore {
   delete(name: string): Promise<void>;
 }
 
-export const botParameter = (bot: string, key: string) => `${PARAMETER_ROOT}/bots/${bot}/${key}`;
 export const CHATS_PREFIX = `${PARAMETER_ROOT}/chats`;
 export const chatParameter = (name: string) => `${CHATS_PREFIX}/${name}`;
 export const FUNCTION_URL_PARAMETER = `${PARAMETER_ROOT}/function-url`;

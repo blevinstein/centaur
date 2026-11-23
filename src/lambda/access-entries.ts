@@ -1,22 +1,9 @@
 import { z } from "zod";
-import { botParameter, PARAMETER_ROOT } from "./parameters.js";
+import { PARAMETER_ROOT } from "./parameters.js";
 
 export const ACCESS_KINDS = ["chat", "user"] as const;
 export type AccessKind = (typeof ACCESS_KINDS)[number];
 
-const APPROVED_DIRECTORY: Record<AccessKind, string> = {
-  chat: "approved-chats",
-  user: "approved-users",
-};
-
-export const approvedPrefix = (bot: string, kind: AccessKind) =>
-  botParameter(bot, APPROVED_DIRECTORY[kind]);
-export const approvedParameter = (bot: string, kind: AccessKind, id: string) =>
-  `${approvedPrefix(bot, kind)}/${id}`;
-export const blockedPrefix = (bot: string, kind: AccessKind) =>
-  botParameter(bot, `blocked/${kind}`);
-export const blockedParameter = (bot: string, kind: AccessKind, id: string) =>
-  `${blockedPrefix(bot, kind)}/${id}`;
 export const adminParameter = (platform: string) => `${PARAMETER_ROOT}/admin/${platform}`;
 
 export const subjectIdOf = (parameterName: string) =>

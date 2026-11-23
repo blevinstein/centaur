@@ -1,10 +1,5 @@
-import {
-  type AccessKind,
-  adminParameter,
-  approvedPrefix,
-  blockedPrefix,
-  subjectIdOf,
-} from "./access-entries.js";
+import { type AccessKind, adminParameter, subjectIdOf } from "./access-entries.js";
+import { approvedPrefix, blockedPrefix } from "./connection-paths.js";
 import type { ParameterStore } from "./parameters.js";
 import type { Bot } from "./registry.js";
 import { cachedFor } from "./ttl-cache.js";
@@ -32,8 +27,10 @@ export function createAccessResolver(
   params: ParameterStore,
   ttlMs = ACCESS_CACHE_TTL_MS,
 ): CachedAccessResolver {
-  const approved = (kind: AccessKind) => idsUnder(params, approvedPrefix(bot.name, kind));
-  const blocked = (kind: AccessKind) => idsUnder(params, blockedPrefix(bot.name, kind));
+  const approved = (kind: AccessKind) =>
+    idsUnder(params, approvedPrefix(bot.name, bot.platform, kind));
+  const blocked = (kind: AccessKind) =>
+    idsUnder(params, blockedPrefix(bot.name, bot.platform, kind));
   const load = async (): Promise<Access> => {
     const [approvedChats, blockedChatIds, approvedUsers, blockedUsers, adminId] = await Promise.all(
       [

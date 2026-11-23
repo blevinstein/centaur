@@ -124,7 +124,7 @@ describe("telegram list-threads", () => {
           minute: 1,
         }),
       ],
-      parameters: { "/centaur/bots/garden/approved-users/2002": "{}" },
+      parameters: { "/centaur/bots/garden/platforms/telegram/approved-users/2002": "{}" },
     });
 
     expect(await poster(LIST)).toEqual({

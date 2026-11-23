@@ -1,8 +1,18 @@
-import type { StateAdapter } from "chat";
-import { PLATFORMS, type Platform, type RespondTo } from "../config/index.js";
+import type { Logger, StateAdapter } from "chat";
+import type { Platform, RespondTo } from "../config/index.js";
+import {
+  BOTS_ROOT,
+  botPath,
+  parseBotParameter,
+  repoParameter,
+  WEBHOOK_SECRET_KEY,
+} from "./connection-paths.js";
 import type { OidcVerifier } from "./oidc.js";
-import { botParameter, PARAMETER_ROOT, type ParameterStore } from "./parameters.js";
+import type { ParameterStore } from "./parameters.js";
 
+export { repoParameter };
+
+/** The connection view: one bot's presence on one platform, with the bot's repo binding. */
 export interface Bot {
   name: string;
   platform: Platform;
@@ -17,16 +27,8 @@ export interface RegistryEntry {
   respond_to?: RespondTo;
 }
 
-const WEBHOOK_SECRET_KEY: Record<Platform, string> = {
-  telegram: "webhook-secret",
-  slack: "signing-secret",
-};
-
-const BOT_PARAMETER = new RegExp(`^${PARAMETER_ROOT}/bots/([^/]+)/([^/]+)$`);
-
 export const registryKey = (bot: string) => `registry:${bot}`;
 export const botStatePrefix = (bot: string) => `bot:${bot}:`;
-export const repoParameter = (bot: string) => botParameter(bot, "repo");
 
 export const isBoundTo = async (params: ParameterStore, bot: string, repository: string) =>
   (await params.get(repoParameter(bot))) === repository;
@@ -45,44 +47,91 @@ export async function requireBound(
   return repository;
 }
 
-function secretsOf(name: string, found: Record<string, string>): BotSecrets | undefined {
-  const platform = PLATFORMS.find((candidate) => candidate === found.platform);
-  const webhookSecret = platform && found[WEBHOOK_SECRET_KEY[platform]];
-  const { token } = found;
-  return platform && webhookSecret && token ? { name, platform, token, webhookSecret } : undefined;
+interface BotRecord {
+  repo?: string;
+  connections: Map<Platform, Record<string, string>>;
 }
 
-const withRepo = (name: string, found: Record<string, string>): Bot | undefined => {
-  const secrets = secretsOf(name, found);
-  return secrets && found.repo ? { ...secrets, repo: found.repo } : undefined;
-};
+export interface LoadOptions {
+  /** Selects one connection; without it, a bot with exactly one connection is selected. */
+  platform?: Platform;
+  /** Receives the warning for a bot with no connection, once per bot per container. */
+  logger?: Pick<Logger, "warn">;
+}
+
+const warnedBots = new Set<string>();
 
 function groupByBot(entries: Record<string, string>) {
-  const byBot = new Map<string, Record<string, string>>();
+  const byBot = new Map<string, BotRecord>();
   for (const [name, value] of Object.entries(entries)) {
-    const [, bot, key] = BOT_PARAMETER.exec(name) ?? [];
-    if (bot && key) byBot.set(bot, { ...byBot.get(bot), [key]: value });
+    const parsed = parseBotParameter(name);
+    if (!parsed) continue;
+    const record: BotRecord = byBot.get(parsed.bot) ?? { connections: new Map() };
+    byBot.set(parsed.bot, record);
+    if (parsed.platform && parsed.key) {
+      const found = record.connections.get(parsed.platform) ?? {};
+      record.connections.set(parsed.platform, { ...found, [parsed.key]: value });
+    } else if (parsed.key === "repo") {
+      record.repo = value;
+    }
   }
   return byBot;
 }
 
-export async function loadBots(params: ParameterStore): Promise<Bot[]> {
-  const byBot = groupByBot(await params.getByPath(`${PARAMETER_ROOT}/bots`));
-  return [...byBot].flatMap(([name, found]) => withRepo(name, found) ?? []);
+function secretsOf(name: string, { connections }: BotRecord): BotSecrets[] {
+  return [...connections].flatMap(([platform, found]) => {
+    const { token } = found;
+    const webhookSecret = found[WEBHOOK_SECRET_KEY[platform]];
+    return token && webhookSecret ? { name, platform, token, webhookSecret } : [];
+  });
 }
 
-export async function loadBot(params: ParameterStore, name: string): Promise<Bot | undefined> {
-  const found = groupByBot(await params.getByPath(`${PARAMETER_ROOT}/bots/${name}`)).get(name);
-  return found && withRepo(name, found);
+function pick(secrets: BotSecrets[], platform?: Platform) {
+  if (platform) return secrets.find((candidate) => candidate.platform === platform);
+  return secrets.length === 1 ? secrets[0] : undefined;
+}
+
+async function readBots(params: ParameterStore, path: string, logger?: LoadOptions["logger"]) {
+  const bots = new Map<string, { repo?: string; secrets: BotSecrets[] }>();
+  for (const [name, record] of groupByBot(await params.getByPath(path))) {
+    const secrets = secretsOf(name, record);
+    if (secrets.length === 0 && logger && !warnedBots.has(name)) {
+      warnedBots.add(name);
+      logger.warn(`bot "${name}" has no connection under ${botPath(name)}/platforms; not served`);
+    }
+    bots.set(name, { ...(record.repo ? { repo: record.repo } : {}), secrets });
+  }
+  return bots;
+}
+
+/** One connection view for every connection of every bound bot. */
+export async function loadBots(
+  params: ParameterStore,
+  logger?: LoadOptions["logger"],
+): Promise<Bot[]> {
+  const bots = await readBots(params, BOTS_ROOT, logger);
+  return [...bots.values()].flatMap(({ repo, secrets }) =>
+    repo ? secrets.map((connection) => ({ ...connection, repo })) : [],
+  );
+}
+
+export async function loadBot(
+  params: ParameterStore,
+  name: string,
+  { platform, logger }: LoadOptions = {},
+): Promise<Bot | undefined> {
+  const found = (await readBots(params, botPath(name), logger)).get(name);
+  const connection = found && pick(found.secrets, platform);
+  return connection && found.repo ? { ...connection, repo: found.repo } : undefined;
 }
 
 export async function loadBotBinding(
   params: ParameterStore,
   name: string,
+  { platform, logger }: LoadOptions = {},
 ): Promise<{ secrets: BotSecrets | undefined; repo: string | undefined }> {
-  const found =
-    groupByBot(await params.getByPath(`${PARAMETER_ROOT}/bots/${name}`)).get(name) ?? {};
-  return { secrets: secretsOf(name, found), repo: found.repo };
+  const found = (await readBots(params, botPath(name), logger)).get(name);
+  return { secrets: found && pick(found.secrets, platform), repo: found?.repo };
 }
 
 export async function readRegistryEntry(

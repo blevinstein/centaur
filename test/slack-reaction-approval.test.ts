@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { approvedParameter } from "../src/lambda/access-entries.js";
+import { approvedParameter } from "../src/lambda/connection-paths.js";
 import {
   channelMention,
   reactionOn,
@@ -23,7 +23,7 @@ describe("Slack admin reaction approval", () => {
     expect((await harness.receive(reactionOn(dmTs, "+1"))).status).toBe(200);
 
     expect(
-      harness.params.values[approvedParameter("notes", "chat", SLACK_CHANNEL_ID)],
+      harness.params.values[approvedParameter("notes", "slack", "chat", SLACK_CHANNEL_ID)],
     ).toBeDefined();
     expect(harness.api.posts().at(-1)?.body).toMatchObject({ channel: SLACK_CHANNEL_ID });
     expect(harness.api.posts().at(-1)?.body.text).toContain("approved");

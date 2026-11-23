@@ -1,21 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createGitHubDispatcher } from "../src/lambda/github.js";
-import { loadBots, readRespondTo } from "../src/lambda/registry.js";
-import {
-  fakeParameterStore,
-  GARDEN_BOT,
-  registryStateWith,
-  SLACK_BOT,
-} from "./helpers/receiver-fixtures.js";
-
-describe("loadBots", () => {
-  it("returns bound, fully configured bots using the platform's secret parameter", async () => {
-    const bots = await loadBots(fakeParameterStore());
-
-    expect(bots).toEqual(expect.arrayContaining([GARDEN_BOT, SLACK_BOT]));
-    expect(bots.map((bot) => bot.name).sort()).toEqual(["garden", "notes"]);
-  });
-});
+import { readRespondTo } from "../src/lambda/registry.js";
+import { registryStateWith } from "./helpers/receiver-fixtures.js";
 
 describe("readRespondTo", () => {
   it.each([

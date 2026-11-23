@@ -7,7 +7,7 @@ everything else as a webhook. See [plan.md](plan.md#poster-lambda) for where it 
 
 Requests are JSON objects validated strictly (unknown keys are errors). A failure surfaces as a
 Lambda `FunctionError` whose payload carries the message. Bots must be fully configured and bound
-to a repo (secrets plus `bots/<bot>/repo`) for every operation except `register`.
+to a repo (a connection's secrets under `bots/<bot>/platforms/<platform>/` plus `bots/<bot>/repo`) for every operation except `register`.
 
 | `operation` | Fields | Result |
 |---|---|---|

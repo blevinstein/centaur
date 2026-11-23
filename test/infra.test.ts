@@ -41,6 +41,15 @@ describe("the Lambda role's parameter permissions", () => {
     ]);
   });
 
+  it.each([
+    "/centaur/bots/garden/platforms/telegram/approved-chats/-100500",
+    "/centaur/bots/garden/platforms/slack/approved-users/U1",
+    "/centaur/bots/garden/platforms/slack/blocked/chat/C1",
+  ])("can write the connection-scoped access entry %s", (name) => {
+    const covers = (pattern: string) => new RegExp(`^${pattern.replace(/\*/g, ".*")}$`).test(name);
+    expect(resourcesFor("ssm:PutParameter").some(covers)).toBe(true);
+  });
+
   it("can read chat aliases individually and by path", () => {
     expect(resourcesFor("ssm:GetParameter")).toContain("/centaur/chats/*");
     expect(resourcesFor("ssm:GetParametersByPath")).toEqual(

@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { createMemoryState } from "@chat-adapter/state-memory";
 import { vi } from "vitest";
-import { approvedParameter } from "../../src/lambda/access-entries.js";
+import { approvedParameter } from "../../src/lambda/connection-paths.js";
 import { createReceiver } from "../../src/lambda/receiver.js";
 import {
   fakeAttachments,
@@ -145,6 +145,6 @@ export async function slackApprovalHarness(extraParameters: Record<string, strin
 
 export const slackEnrolledHarness = () =>
   slackApprovalHarness({
-    [approvedParameter(SLACK_BOT.name, "chat", SLACK_CHANNEL_ID)]: "1",
-    [approvedParameter(SLACK_BOT.name, "user", SLACK_REQUESTER_ID)]: "1",
+    [approvedParameter(SLACK_BOT.name, "slack", "chat", SLACK_CHANNEL_ID)]: "1",
+    [approvedParameter(SLACK_BOT.name, "slack", "user", SLACK_REQUESTER_ID)]: "1",
   });

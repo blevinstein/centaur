@@ -3,15 +3,17 @@ import {
   ACCESS_KINDS,
   type AccessKind,
   adminParameter,
-  approvedParameter,
-  approvedPrefix,
-  blockedParameter,
-  blockedPrefix,
   decodeEntry,
   encodeEntry,
   subjectIdOf,
 } from "../../lambda/access-entries.js";
 import { proposeChatAlias } from "../../lambda/chat-aliases.js";
+import {
+  approvedParameter,
+  approvedPrefix,
+  blockedParameter,
+  blockedPrefix,
+} from "../../lambda/connection-paths.js";
 import { knownChatAliases } from "../chat-aliases.js";
 import type { CliContext } from "../context.js";
 import {
@@ -82,18 +84,18 @@ export function registerAccessCommands(program: Command, context: CliContext): v
     .option("--name <name>", "display name to record; a chat's alias defaults to a slug of it")
     .option("--alias <alias>", "chat alias to create (chats only)")
     .action(
-      run(async ({ bot, kind, id, name, alias }) => {
+      run(async ({ bot, platform, kind, id, name, alias }) => {
         if (kind === "user" && alias !== undefined) {
           throw new CliError("--alias applies to chats only.");
         }
         const stored = decodeEntry(
-          (await context.store.get(approvedParameter(bot, kind, id))) ?? "",
+          (await context.store.get(approvedParameter(bot, platform, kind, id))) ?? "",
         );
         const displayName = name ?? stored.name;
         const chatAlias = kind === "chat" ? await chatAliasFor(id, displayName, alias) : undefined;
         if (chatAlias) await context.store.put(chatParameter(chatAlias), id, { secure: false });
         await context.store.put(
-          approvedParameter(bot, kind, id),
+          approvedParameter(bot, platform, kind, id),
           encodeEntry({ name: displayName, alias: chatAlias }),
           { secure: false },
         );
@@ -102,8 +104,8 @@ export function registerAccessCommands(program: Command, context: CliContext): v
     );
 
   subjectCommand("revoke", "Remove an approval").action(
-    run(async ({ bot, kind, id }) => {
-      await remove(approvedParameter(bot, kind, id), `Approved ${kind} ${id}`);
+    run(async ({ bot, platform, kind, id }) => {
+      await remove(approvedParameter(bot, platform, kind, id), `Approved ${kind} ${id}`);
       return `Revoked ${kind} ${id} for bot "${bot}".`;
     }),
   );
@@ -113,17 +115,17 @@ export function registerAccessCommands(program: Command, context: CliContext): v
       if (kind === "user" && id === (await context.store.get(adminParameter(platform)))) {
         throw new CliError(`Cannot block ${id}: they are the admin for ${platform}.`);
       }
-      await context.store.put(blockedParameter(bot, kind, id), encodeEntry(), {
+      await context.store.put(blockedParameter(bot, platform, kind, id), encodeEntry(), {
         secure: false,
       });
-      await context.store.delete([approvedParameter(bot, kind, id)]);
+      await context.store.delete([approvedParameter(bot, platform, kind, id)]);
       return `Blocked ${kind} ${id} for bot "${bot}".`;
     }),
   );
 
   subjectCommand("unblock", "Remove a block").action(
-    run(async ({ bot, kind, id }) => {
-      await remove(blockedParameter(bot, kind, id), `Blocked ${kind} ${id}`);
+    run(async ({ bot, platform, kind, id }) => {
+      await remove(blockedParameter(bot, platform, kind, id), `Blocked ${kind} ${id}`);
       return `Unblocked ${kind} ${id} for bot "${bot}".`;
     }),
   );
@@ -132,10 +134,10 @@ export function registerAccessCommands(program: Command, context: CliContext): v
     .command("list <bot>")
     .description("List approved and blocked chats and users")
     .action(async (bot: string) => {
-      await requireBotPlatform(context.store, bot);
+      const platform = await requireBotPlatform(context.store, bot);
       const sections = ACCESS_KINDS.flatMap((kind) => [
-        { label: "approved", kind, prefix: approvedPrefix(bot, kind) },
-        { label: "blocked", kind, prefix: blockedPrefix(bot, kind) },
+        { label: "approved", kind, prefix: approvedPrefix(bot, platform, kind) },
+        { label: "blocked", kind, prefix: blockedPrefix(bot, platform, kind) },
       ]);
       const lines: string[] = [];
       for (const { label, kind, prefix } of sections) {

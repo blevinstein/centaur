@@ -29,7 +29,7 @@ async function photoUpdate(extra: Record<string, unknown> = {}) {
   );
   const params = fakeParameterStore({
     ...PARAMETERS,
-    [`/centaur/bots/garden/approved-users/${ALLOWED_USER_ID}`]: "{}",
+    [`/centaur/bots/garden/platforms/telegram/approved-users/${ALLOWED_USER_ID}`]: "{}",
   });
   const attachments = fakeAttachments();
   const dispatcher = fakeDispatcher();

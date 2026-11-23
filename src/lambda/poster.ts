@@ -148,7 +148,7 @@ export async function createPoster(deps: PosterDeps) {
   });
 
   const openChat = async (botName: string) => {
-    const bot = await loadBot(params, botName);
+    const bot = await loadBot(params, botName, { logger });
     if (!bot) throw new Error(`unknown or unbound bot "${botName}"`);
     const chat = chatFor(bot, await stateFor(botStatePrefix(bot.name)));
     await chat.initialize();
