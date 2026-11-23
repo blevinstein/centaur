@@ -7,11 +7,17 @@ import {
   type ContextPolicy,
   PROVIDER_SETTINGS,
 } from "../config/index.js";
+import { CHAT_SERVER_NAME } from "../mcp/server-config.js";
 import { threadKey } from "../thread-key.js";
-import type { AttachmentDownloader, PosterClient, ThreadStore } from "./aws.js";
+import {
+  type AttachmentDownloader,
+  type PosterClient,
+  readThreadMessages,
+  type ThreadStore,
+} from "./aws.js";
 import { parseConfigOrThrow, readConfigText } from "./config-file.js";
 import { type Instructions, loadInstructions } from "./instructions.js";
-import { buildMcpConfig } from "./mcp-config.js";
+import { buildChatServerConfig, buildMcpConfig } from "./mcp-config.js";
 import { enforceMcpPolicy, type McpPolicyDeps } from "./mcp-policy-check.js";
 import { type CandidateDeps, listCandidates, type TargetDeps } from "./pr-target.js";
 import { buildPrompt, type PullRequestCandidate, replySchema } from "./prompt.js";
@@ -129,16 +135,6 @@ async function loadAttachments(deps: PrepareDeps, shown: ChatMessage[]): Promise
   return (key) => (loaded.has(key) ? localAttachment(key) : undefined);
 }
 
-async function readThread(deps: PrepareDeps, bot: string, threadId: string, token: string) {
-  const { messages } = await deps.poster.call<{ messages: ChatMessage[] }>({
-    operation: "read",
-    token,
-    bot,
-    threadId,
-  });
-  return messages;
-}
-
 const safeRef = (value: string) => value.replaceAll(/[^A-Za-z0-9._-]/g, "-");
 
 export const sessionDirectory = (home: string, workspace: string) =>
@@ -186,7 +182,11 @@ async function chatTurn(
   }
   const threadId = payload.thread_id;
   const store = deps.storeFor(config.bot, threadId);
-  const messages = await readThread(deps, config.bot, threadId, await deps.fetchToken());
+  const messages = await readThreadMessages(deps.poster, {
+    token: await deps.fetchToken(),
+    bot: config.bot,
+    threadId,
+  });
   const marker = messages.at(-1)?.id;
   const lastProcessed = await store.readMarker();
   const source: ReactionSource = {
@@ -264,6 +264,7 @@ async function chatTurn(
         prompt: buildPrompt({
           canStaySilent,
           ...targets,
+          chatTools: chatToolsEnabled(config),
           instructions,
           handle: config.handle,
           history,
@@ -303,7 +304,7 @@ async function commentTurn(
   const [details, all, messages] = await Promise.all([
     comment.github.details(comment.repository, comment.pullRequest),
     comment.github.comments(comment.repository, comment.pullRequest),
-    readThread(deps, config.bot, threadId, token),
+    readThreadMessages(deps.poster, { token, bot: config.bot, threadId }),
   ]);
   const authors = config.pull_requests.comment_authors;
   const pending = pendingComments(all, details.createdAt, authors);
@@ -336,6 +337,7 @@ async function commentTurn(
       history,
       attachmentPath,
       instructions,
+      chatTools: chatToolsEnabled(config),
       ...prTargetFlags(config, NO_EXISTING_TARGETS),
       pullRequest: {
         title: details.title,
@@ -376,6 +378,8 @@ const prTargetFlags = (config: CentaurConfig, existing: ExistingTargets) => ({
   candidates: existing.candidates,
 });
 
+const chatToolsEnabled = (config: CentaurConfig) => config.chat_context.scope === "chat";
+
 export function buildClaudeArgs(input: {
   config: CentaurConfig;
   persona: string | undefined;
@@ -383,12 +387,14 @@ export function buildClaudeArgs(input: {
   canStaySilent: boolean;
   mode: TurnState["mode"];
   allowExisting: boolean;
+  chatTools?: boolean | undefined;
   mcpConfig?: string | undefined;
 }) {
   const { config, persona, resumeSessionId, canStaySilent, mode, allowExisting, mcpConfig } = input;
   const allowNewPr = config.pull_requests.comment_new;
   const readRule = config.allowed_tools.includes("Read") ? [] : [`Read(./${TURN_DIR}/**)`];
-  const tools = [...config.allowed_tools, ...readRule].join(",");
+  const chatRule = input.chatTools ? [`mcp__${CHAT_SERVER_NAME}__*`] : [];
+  const tools = [...config.allowed_tools, ...readRule, ...chatRule].join(",");
   return [
     `--model ${config.model}`,
     ...(config.effort ? [`--effort ${config.effort}`] : []),
@@ -418,7 +424,11 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
       `mcp_servers reference secrets that are not set in the turn step's env: ${mcp.missingSecrets.join(", ")}`,
     );
   }
-  const hasMcpServers = Object.keys(config.mcp_servers).length > 0;
+  if (chatToolsEnabled(config) && CHAT_SERVER_NAME in config.mcp_servers) {
+    throw new Error(
+      `mcp_servers must not define "${CHAT_SERVER_NAME}", which chat_context.scope: chat provides`,
+    );
+  }
   const directory = sessionDirectory(deps.home, deps.workspace);
   await mkdir(directory, { recursive: true });
   if (deps.promptName && deps.comment) {
@@ -448,8 +458,22 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   await mkdir(join(deps.workspace, TURN_DIR), { recursive: true });
   await writeFile(join(deps.workspace, PROMPT_FILE), turn.prompt);
   await writeTurnState(deps.stateDir, state);
+  const chatTools = Boolean(turn.threadId) && chatToolsEnabled(config);
+  const mcpServers = {
+    ...mcp.config.mcpServers,
+    ...(chatTools
+      ? {
+          [CHAT_SERVER_NAME]: buildChatServerConfig({
+            env: deps.env,
+            stateDir: deps.stateDir,
+            chatContext: config.chat_context,
+          }),
+        }
+      : {}),
+  };
+  const hasMcpServers = Object.keys(mcpServers).length > 0;
   if (hasMcpServers) {
-    await writeFile(join(deps.workspace, MCP_CONFIG_FILE), JSON.stringify(mcp.config), {
+    await writeFile(join(deps.workspace, MCP_CONFIG_FILE), JSON.stringify({ mcpServers }), {
       mode: 0o600,
     });
   }
@@ -475,6 +499,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
       canStaySilent: turn.canStaySilent === true,
       mode: turn.mode,
       allowExisting: turn.allowExisting,
+      chatTools,
       mcpConfig: hasMcpServers ? MCP_CONFIG_FILE : undefined,
     }),
   };

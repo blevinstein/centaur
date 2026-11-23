@@ -12,6 +12,7 @@ import {
   readChannelResultSchema,
 } from "../lambda/chat-context.js";
 import type { PosterRequest } from "../lambda/poster.js";
+import type { ChatMessage } from "./transcript.js";
 
 export type Exec = (file: string, args: string[]) => Promise<string>;
 
@@ -87,6 +88,18 @@ export function createPosterClient(functionName: string, exec: Exec = execComman
     },
   };
   return client;
+}
+
+/** The stored transcript of a thread, oldest first. */
+export async function readThreadMessages(
+  poster: Pick<PosterClient, "call">,
+  request: { token: string; bot: string; threadId: string; visibleOnly?: boolean },
+) {
+  const { messages } = await poster.call<{ messages: ChatMessage[] }>({
+    operation: "read",
+    ...request,
+  });
+  return messages;
 }
 
 export interface AttachmentDownloader {

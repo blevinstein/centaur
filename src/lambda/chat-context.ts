@@ -307,6 +307,13 @@ export function createChatContext({
   };
 
   return {
+    /** The sender filter of the chat tools, for a thread whose chat the bot is approved for. */
+    async visibleInThread(botName: string, threadId: string): Promise<Visible> {
+      const { bot, chat } = await openChat(botName);
+      const channelId = chat.thread(threadId).channelId;
+      const access = await requireApprovedChat(bot, channelId.slice(bot.platform.length + 1));
+      return visibleTo(access, false);
+    },
     async listThreads(request: z.output<typeof listThreadsRequestSchema>) {
       const limit = request.limit ?? LIST_THREADS_DEFAULT;
       const { found, scan } = await read(request.operation, request, limit, (reader, query) =>

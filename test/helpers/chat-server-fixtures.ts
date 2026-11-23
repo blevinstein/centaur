@@ -3,9 +3,11 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type {
   ChannelMessage,
   ChatPosterClient,
+  Scanned,
   ThreadSummary,
 } from "../../src/mcp/chat-poster-client.js";
 import { type ChatServerDeps, createChatServer } from "../../src/mcp/chat-server.js";
+import { scannedRange } from "./chat-context-fixtures.js";
 import { message } from "./workflow-fixtures.js";
 
 export const CURRENT = "telegram:-1001234567890:7";
@@ -39,21 +41,23 @@ export function fakeChatClient(
     threads?: ThreadSummary[];
     channel?: ChannelMessage[];
     thread?: ReturnType<typeof message>[];
+    scanned?: Scanned;
   } = {},
 ) {
+  const scanned = data.scanned ?? scannedRange(null, true);
   const calls: { op: string; request: unknown }[] = [];
   const client: ChatPosterClient = {
     async listThreads(request) {
       calls.push({ op: "listThreads", request });
-      return { threads: data.threads ?? [] };
+      return { threads: data.threads ?? [], scanned };
     },
     async readChannel(request) {
       calls.push({ op: "readChannel", request });
-      return { messages: data.channel ?? [] };
+      return { messages: data.channel ?? [], scanned };
     },
     async readThread(request) {
       calls.push({ op: "readThread", request });
-      return { messages: data.thread ?? [] };
+      return { messages: data.thread ?? [], scanned };
     },
   };
   return { client, calls };

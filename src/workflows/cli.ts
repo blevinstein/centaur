@@ -4,23 +4,19 @@ import { Command } from "commander";
 import { createAttachmentDownloader, createPosterClient, createThreadStore } from "./aws.js";
 import { cleanTitle } from "./clean-text.js";
 import { parseConfigOrThrow, readConfigText } from "./config-file.js";
+import { requireEnv as env } from "./env.js";
 import { finish, notifyFailure } from "./finish.js";
 import { maskValue, writeOutputs } from "./github-output.js";
+import { oidcTokenFetcher } from "./oidc-token.js";
 import { createPullRequestTargetClient, planForTurn, planOutputs } from "./pr-target.js";
 import { prepare } from "./prepare.js";
 import { describePullRequest } from "./pull-request.js";
 import { createPullRequestReader, createPullRequestWriter } from "./pull-request-comments.js";
 import { pushChanges, pushNewBranch } from "./push.js";
 import { pushExisting } from "./push-existing.js";
-import { oidcTokenFetcher, registerRepo } from "./register.js";
+import { registerRepo } from "./register.js";
 import { createGitHubClient, createGitHubRequester, resolve } from "./resolve.js";
 import { turnStateDir } from "./turn-state.js";
-
-const env = (name: string) => {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set`);
-  return value;
-};
 
 const poster = () => createPosterClient(env("CENTAUR_FUNCTION_NAME"));
 const storeFor = (bot: string, threadId: string) =>

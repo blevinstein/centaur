@@ -113,6 +113,28 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
       backed by new poster operations. Design and recommendations:
       [docs/chat-context.md](docs/chat-context.md); **[HUMAN APPROVAL]** accept or amend its
       Decisions before building.
+  - [x] Config key, poster operations, platform support and the MCP server (steps 1 to 4).
+  - [x] Poster-backed client, stdio entry (`dist/mcp/chat-server-main.js`), `prepare` wiring and
+        prompt block (step 5); `scope: thread` is unchanged.
+  - [ ] Tool gate (step 6): the per-call `CallTool` gate is not on `main`, so only the allowlist
+        bounds the server today. Once the Per-call MCP policy item below lands, add a test that a
+        `forbid` on `centaur-chat` is honored.
+  - [ ] **[HUMAN ACTION]** Chat context 7: real run on `centaur-hello` (or `centaur-test`) in each
+        platform with `chat_context: { scope: chat }` on the default branch. Telegram forum group,
+        then Slack channel; in each:
+        1. In thread A say: "We decided the garden party is Saturday at 6pm and we need tomatoes
+           and basil."
+        2. In thread B (a new topic or a reply to a different top-level message) say: "Summarize
+           what was decided about the garden party in the other thread."
+        3. Expect the reply to give Saturday, 6pm, tomatoes and basil. The run's execution log
+           should show `list_threads` and `read_thread` on `mcp__centaur-chat__*` and the
+           `centaur-chat` server connected; the job log, step outputs and PR text must show no
+           message text, thread ID or chat ID.
+        4. Ask in thread B: "Put that summary in a pull request description." Expect the agent to
+           decline or leave the cross-thread content out.
+        5. Set `scope: thread` again and repeat step 2: no `centaur-chat` server or tool calls.
+        Also confirm the Slack `conversations.history` and `conversations.replies` rate limits
+        hold on this install (see Chat search 6).
 - [x] Chat search: the Chat SDK has no history search, so any search is ours. Decisions accepted
       2026-11-22 ([docs/chat-search.md](docs/chat-search.md)): no poster-side filter (the poster
       scans the whole window and the Telegram window fits in one call), report the scanned range,
@@ -121,7 +143,7 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
   - [x] Chat search 1: `scanned: { oldest, exhausted }` range in `read-channel` and
         `list-threads` results.
   - [ ] Chat search 2: `chat_context` config key for the Slack search opt-in.
-  - [ ] Chat search 3: MCP server renders the scanned range and the bounded-window note.
+  - [x] Chat search 3: MCP server renders the scanned range and the bounded-window note.
   - [ ] Chat search 4: Slack-native search (receiver captures the `action_token` into the state
         table with a TTL, poster `search-chat`, MCP `search_chat`, manifest scopes). Settle the
         design questions in the doc first.

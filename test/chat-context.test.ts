@@ -19,6 +19,7 @@ import {
   STRANGER,
   scannedRange,
   TELEGRAM_TARGET,
+  transcriptMessage,
 } from "./helpers/chat-context-fixtures.js";
 import { blockedChat, HOUSEHOLD_CHAT_ID, WORKSHOP_CHAT_ID } from "./helpers/poster-fixtures.js";
 
@@ -452,5 +453,62 @@ describe("poster read repository check", () => {
     await expect(
       poster({ operation: "read", bot: "garden", threadId: GARDEN_THREAD }),
     ).rejects.toThrow();
+  });
+});
+
+describe("poster read visibleOnly", () => {
+  const TRANSCRIPT = [
+    transcriptMessage({ id: "m1", userId: ENROLLED_USER, userName: "pat" }),
+    transcriptMessage({ id: "m2", userId: STRANGER, userName: "stranger" }),
+    transcriptMessage({ id: "m3", userId: OTHER_BOT_USER, userName: "other", isBot: true }),
+    transcriptMessage({ id: "m4", userId: "bot", userName: "me", isMe: true }),
+  ];
+  const ids = (result: unknown) =>
+    (result as { messages: { id: string }[] }).messages.map((m) => m.id);
+
+  it.each([
+    ["telegram", "garden", GARDEN_THREAD],
+    ["slack", "notes", SLACK_THREAD],
+  ] as const)("returns every stored message by default on %s", async (platform, bot, threadId) => {
+    const { poster } = await contextSetup({ platform, transcript: TRANSCRIPT });
+
+    const result = await poster({ operation: "read", token: "jwt", bot, threadId });
+
+    expect(ids(result)).toEqual(["m1", "m2", "m3", "m4"]);
+  });
+
+  it.each([
+    ["telegram", "garden", GARDEN_THREAD],
+    ["slack", "notes", SLACK_THREAD],
+  ] as const)(
+    "drops unenrolled senders and other bots on %s, keeping the bot's own",
+    async (platform, bot, threadId) => {
+      const { poster } = await contextSetup({ platform, transcript: TRANSCRIPT });
+
+      const result = await poster({
+        operation: "read",
+        token: "jwt",
+        bot,
+        threadId,
+        visibleOnly: true,
+      });
+
+      expect(ids(result)).toEqual(["m1", "m4"]);
+    },
+  );
+
+  it("refuses a thread of a chat that is not approved", async () => {
+    const { poster, thread } = await contextSetup({ transcript: TRANSCRIPT });
+    Object.assign(thread, { channelId: "telegram:-100777" });
+
+    await expect(
+      poster({
+        operation: "read",
+        token: "jwt",
+        bot: "garden",
+        threadId: GARDEN_THREAD,
+        visibleOnly: true,
+      }),
+    ).rejects.toThrow(/chat -100777 is not approved/);
   });
 });

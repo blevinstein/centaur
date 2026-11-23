@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { CentaurConfig } from "../config/index.js";
 
-export const INSTRUCTION_KINDS = ["chat", "comment", "silence"] as const;
+export const INSTRUCTION_KINDS = ["chat", "chat_context", "comment", "silence"] as const;
 
 export type Instructions = Record<(typeof INSTRUCTION_KINDS)[number], string>;
 
@@ -12,6 +12,7 @@ const bundled = (kind: keyof Instructions) =>
 
 export const DEFAULT_INSTRUCTIONS: Instructions = {
   chat: bundled("chat"),
+  chat_context: bundled("chat_context"),
   comment: bundled("comment"),
   silence: bundled("silence"),
 };

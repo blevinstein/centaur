@@ -59,6 +59,11 @@ export const contextMessage = ({
 });
 
 /** The result's scanned range for a read whose oldest message was sent at the given minute. */
+export const transcriptMessage = (options: ContextMessageOptions = {}) => ({
+  ...contextMessage(options),
+  attachments: [],
+});
+
 export const scannedRange = (minute: number | null, exhausted: boolean) => ({
   oldest: minute === null ? null : new Date(Date.UTC(2026, 0, 2, 3, minute)).toISOString(),
   exhausted,
@@ -84,6 +89,8 @@ export async function contextSetup(
   options: {
     platform?: "telegram" | "slack";
     history?: ReturnType<typeof contextMessage>[];
+    /** The stored transcript the poster's `read` returns. */
+    transcript?: ReturnType<typeof transcriptMessage>[];
     threads?: ReturnType<typeof listedThread>[];
     channelPage?: ReturnType<typeof contextMessage>[];
     /** Cursor to older Slack history, as returned when more remains. */
@@ -100,6 +107,7 @@ export async function contextSetup(
       "/centaur/bots/notes/approved-users/1001": "{}",
       ...options.parameters,
     },
+    ...(options.transcript ? { transcript: options.transcript } : {}),
   });
   const listThreads = vi.fn(async () => ({
     threads: options.threads ?? [],

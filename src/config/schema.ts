@@ -87,6 +87,7 @@ const promptSchema = z.strictObject({
 
 const instructionsSchema = z.strictObject({
   chat: repoPath.optional(),
+  chat_context: repoPath.optional(),
   comment: repoPath.optional(),
   silence: repoPath.optional(),
 });

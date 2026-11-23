@@ -55,6 +55,8 @@ export interface PromptParts {
   canStaySilent?: boolean | undefined;
   allowNewPr?: boolean | undefined;
   allowExisting?: boolean | undefined;
+  /** Describes the chat context tools; set only when the turn has them. */
+  chatTools?: boolean | undefined;
   candidates?: PullRequestCandidate[] | undefined;
   handle?: string | undefined;
   scheduledTask?: string | undefined;
@@ -71,6 +73,7 @@ export function buildPrompt({
   canStaySilent,
   allowNewPr,
   allowExisting,
+  chatTools,
   candidates,
   handle,
   scheduledTask,
@@ -79,17 +82,20 @@ export function buildPrompt({
   attachmentPath = NO_ATTACHMENTS,
   instructions = DEFAULT_INSTRUCTIONS,
 }: PromptParts) {
+  const chatToolsGuidance = chatTools ? [instructions.chat_context] : [];
   const sections: [title: string, body: string | undefined][] = [
     [
       "Instructions",
       pullRequest
         ? joinParagraphs(
             instructions.comment,
+            ...chatToolsGuidance,
             COMMENT_CONTRACT,
             ...(allowNewPr ? [NEW_PR_CONTRACT] : []),
           )
         : joinParagraphs(
             instructions.chat,
+            ...chatToolsGuidance,
             CHAT_CONTRACT,
             ...(allowExisting ? [EXISTING_PR_CONTRACT] : []),
             ...(canStaySilent

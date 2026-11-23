@@ -1,4 +1,6 @@
-import type { McpServer, SecretRef } from "../config/index.js";
+import { fileURLToPath } from "node:url";
+import type { ChatContextConfig, McpServer, SecretRef } from "../config/index.js";
+import { CHAT_SERVER_ENV } from "../mcp/server-config.js";
 
 export interface McpConfig {
   mcpServers: Record<string, Record<string, unknown>>;
@@ -48,4 +50,50 @@ export function buildMcpConfig(
   );
 
   return { config: { mcpServers }, missingSecrets: [...missing] };
+}
+
+/** The built entry of the chat server, resolved next to this module in the trusted checkout's `dist/`. */
+export const CHAT_SERVER_ENTRY = fileURLToPath(
+  new URL("../mcp/chat-server-main.js", import.meta.url),
+);
+
+/** Passed to the chat server as `${NAME}` references so the file holds no values. */
+const CHAT_SERVER_FORWARDED_ENV = [
+  "PATH",
+  "HOME",
+  "CENTAUR_FUNCTION_NAME",
+  "CENTAUR_OIDC_AUDIENCE",
+  "ACTIONS_ID_TOKEN_REQUEST_URL",
+  "ACTIONS_ID_TOKEN_REQUEST_TOKEN",
+  "AWS_ACCESS_KEY_ID",
+  "AWS_SECRET_ACCESS_KEY",
+  "AWS_SESSION_TOKEN",
+  "AWS_REGION",
+  "AWS_DEFAULT_REGION",
+  "AWS_PROFILE",
+  "AWS_CONFIG_FILE",
+  "AWS_SHARED_CREDENTIALS_FILE",
+  "AWS_ROLE_ARN",
+  "AWS_WEB_IDENTITY_TOKEN_FILE",
+];
+
+export function buildChatServerConfig(input: {
+  env: Record<string, string | undefined>;
+  stateDir: string;
+  chatContext: ChatContextConfig;
+}) {
+  const { env, stateDir, chatContext } = input;
+  return {
+    type: "stdio",
+    command: "node",
+    args: [CHAT_SERVER_ENTRY],
+    env: {
+      ...Object.fromEntries(
+        CHAT_SERVER_FORWARDED_ENV.filter((name) => env[name]).map((name) => [name, `\${${name}}`]),
+      ),
+      [CHAT_SERVER_ENV.stateDir]: stateDir,
+      [CHAT_SERVER_ENV.maxThreads]: String(chatContext.max_threads),
+      [CHAT_SERVER_ENV.maxMessages]: String(chatContext.max_messages),
+    },
+  };
 }

@@ -8,7 +8,6 @@ import {
   MAX_PROMPT_IMAGES,
   MCP_CONFIG_FILE,
   PROMPT_FILE,
-  type PrepareDeps,
   prepare,
   TURN_DIR,
 } from "../src/workflows/prepare.js";
@@ -22,57 +21,17 @@ import {
   WORKSPACE_PERMIT_FILES,
 } from "./helpers/mcp-policy-fixtures.js";
 import { candidatePr, targetSetup } from "./helpers/pr-target-fixtures.js";
+import { setup } from "./helpers/turn-fixtures.js";
 import {
   botMessage,
   configText,
   createFakeAws,
-  createWorkspace,
   mcpConfigText,
   message,
   pullRequestLink,
   THREAD,
   THREAD_PREFIX,
 } from "./helpers/workflow-fixtures.js";
-
-async function setup(
-  messages: ReturnType<typeof message>[],
-  config = configText(),
-  files: Record<string, string> = {},
-  configFile = ".centaur.yml",
-) {
-  const aws = createFakeAws((request) => {
-    if (request.operation === "read") return { messages };
-    if (request.operation === "start-thread") return { threadId: "telegram:-100:99" };
-    if (request.operation === "list-threads")
-      return { threads: [], scanned: scannedRange(null, true) };
-    if (request.operation === "read-channel")
-      return { messages: [], scanned: scannedRange(null, true) };
-    return { messageId: "m" };
-  });
-  const { root, home, stateDir } = await createWorkspace({
-    [configFile]: config,
-    ".centaur/persona.md": "Be kind.",
-    ".centaur/prompts/weekly.md": "Post this week's tasks.",
-    ...files,
-  });
-  const deps = (overrides: Partial<PrepareDeps> = {}): PrepareDeps => ({
-    workspace: root,
-    stateDir,
-    home,
-    runId: "42",
-    env: {},
-    clientPayload: { bot: "sprout", thread_id: THREAD, message_id: "1" },
-    poster: aws.poster,
-    fetchToken: async () => "jwt",
-    attachments: aws.attachments,
-    storeFor: aws.storeFor,
-    ...overrides,
-  });
-  const executionFile = join(root, "execution.json");
-  const writeExecution = (entry: object) =>
-    writeFile(executionFile, JSON.stringify([{ type: "system" }, { type: "result", ...entry }]));
-  return { aws, root, home, stateDir, deps, executionFile, writeExecution };
-}
 
 const prompt = (root: string) => readFile(join(root, PROMPT_FILE), "utf8");
 const state = (stateDir: string) => readTurnState(stateDir);

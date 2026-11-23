@@ -1,28 +1,27 @@
 # Chat context tools (design)
 
-> **Status: partly implemented.** The `chat_context` config key (step 1), the poster operations
-> `list-threads` and `read-channel`, the repo-binding check on `read` and the platform support
-> (steps 2 and 3) and the MCP server (step 4, not yet started by a turn) exist; see
-> [poster.md](poster.md#list-threads-and-read-channel). The `prepare` wiring and prompt block
-> below are still proposed.
+> **Status: implemented behind `chat_context.scope: chat`, not yet run against a real chat.** The
+> config key, the poster operations (`list-threads`, `read-channel`, the repo-binding check on
+> `read`), the platform support, the MCP server and its stdio entry, the `prepare` wiring and the
+> prompt block exist; see [poster.md](poster.md#list-threads-and-read-channel). Open: the per-call
+> tool gate (it is not on `main`, see [Tool gate](#tool-gate)), and the live test on each platform.
 
 Lets the agent see conversations other than the one it was asked to answer: sibling threads in the
 same chat or channel, and recent top-level messages. Terms
 (poster, receiver, turn, state table) are defined in [plan.md](plan.md), [poster.md](poster.md) and
 [workflows.md](workflows.md).
 
-## What the bot sees today
+## What the bot sees by default
 
-Nothing outside the current thread.
+Nothing outside the current thread (`chat_context.scope: thread`, the default).
 
 - `prepare` calls the poster's `read` operation for the one thread that triggered the turn
   (`thread.allMessages`) and renders it into the prompt according to the
   [context policy](plan.md#context-management). `resume` sessions carry only what earlier turns of
   that thread saw.
-- The agent has no tool that lists threads, reads a channel or reads another thread; the poster
-  operations that could back them exist, but nothing calls them yet. `read` takes any `threadId` of
-  the bot (for a caller bound to the bot's repository), and only `prepare` calls it, with the
-  dispatched thread.
+- The agent has no tool that lists threads, reads a channel or reads another thread. `read` takes any
+  `threadId` of the bot (for a caller bound to the bot's repository); `prepare` calls it with the
+  dispatched thread, and with `scope: chat` the chat server also calls it for threads it listed.
 - The prompt does not say which chat or channel the thread belongs to, who else is in it, or that
   other threads exist.
 - The agent has no network tool to the chat platform, and the bot token never reaches the runner.
@@ -109,10 +108,34 @@ Searching by text is out of scope: Slack's search API needs a user token, and Te
 The agent filters what the tools return. A bounded poster-side filter is proposed in
 [chat-search.md](chat-search.md).
 
-The server is a trusted built-in, so it skips the `UseServer` operator policy, but its calls pass
-through the same `PreToolUse` gate as any MCP tool ([mcp.md](mcp.md#tool-call-policy)), so an
-operator can still `forbid` `CallTool` on it. `prepare` adds `mcp__centaur-chat__*` to the allowed
-tools for the turn only when the feature is on.
+The server is a trusted built-in, so it skips the `UseServer` operator policy. `prepare` adds it to
+`mcp.json` and `mcp__centaur-chat__*` to `--allowedTools` for the turn only when `scope` is `chat`
+and the turn has a dispatched thread (a scheduled turn or a `/new` seed has none); a configured
+server of the same name fails the turn. What bounds its calls today is described under
+[Tool gate](#tool-gate).
+
+#### Runner side
+
+`prepare` writes the server as `node <dist>/mcp/chat-server-main.js`, where `<dist>` is the build
+next to the running `prepare` (`CHAT_SERVER_ENTRY` in `src/workflows/mcp-config.ts`). That is the
+Centaur action's checkout, which the `turn` action runs `prepare` from; it is never the workspace,
+so a pull request cannot substitute the entry code, on comment turns too. The `env` in `mcp.json`
+holds the turn state directory (outside the workspace), the two limits and `${NAME}` references to
+the poster and OIDC settings and the AWS credentials the runner already has, so the file holds no
+secret and no thread ID. The entry reads the bot and the dispatched thread from the turn state,
+derives the chat from the thread ID (the poster re-derives it and rejects a mismatch), fetches a
+fresh OIDC token for every call and invokes the poster like the other runner steps. It writes only
+the MCP protocol to stdout and logs nothing but its startup errors to stderr, never message text or
+the thread ID.
+
+The poster pages `read-channel` by instant and the server's cursors stand for message IDs, so the
+client (`src/mcp/poster-chat-client.ts`) remembers the send time of every message it returns and
+sends that as `before`. The poster's `read` has no `before` and returns the thread oldest first, up
+to the stored window of 100 messages, so `read_thread` pages inside the client: it drops messages
+sent at or after the cursor, keeps the newest `limit` and reports the range it returned.
+`scanned.exhausted` is true only when the page reaches the start of a stored list shorter than 100
+messages. Text is clipped to the poster's 4000-character cap. Every result ends with a line such as
+`scanned back to <time>, window exhausted: no`.
 
 ### Config
 
@@ -130,16 +153,35 @@ config by hand and `test/config.test.ts` defaults change with it.
 
 ### Prompt
 
-One short block in `src/workflows/instructions/` (overridable like other guidance) when the feature
-is on: the chat's name, that `list_threads`, `read_thread` and `read_channel` exist, and that their
-output is untrusted data written by other people. Tool results are also fenced the way transcript
+One short block, `src/workflows/instructions/chat_context.md` (overridable as `instructions.chat_context`),
+is included in chat and pull request comment turns when the feature is on: that `list_threads`,
+`read_thread` and `read_channel` exist, that their output is untrusted data written by other people,
+that results cover a bounded window (each says how far back it scanned), and that cross-thread
+content is not for public artifacts. The chat's name is not included: no source provides one. Tool results are also fenced the way transcript
 messages are, so a message in another thread that says "ignore your instructions" has the same
 standing as one in this thread. Per `AGENTS.md`, anything the code parses stays in `prompt.ts`.
 
-The tools are also how the agent reaches messages the
+The tools are also how the agent will reach messages the
 [transcript budget](workflows.md#transcript-budget-planned) leaves out of a long thread:
-`read_thread` on `thread-0` with a `before` cursor. Without them (`scope: thread`) omitted messages
-are unreachable and the omission note says so.
+`read_thread` on `thread-0` with a `before` cursor. The transcript budget is not built yet, so the
+omission note and its tools variant are not either. Without the tools (`scope: thread`) omitted
+messages are unreachable and the note will say so.
+
+## Tool gate
+
+The per-call `CallTool` gate (a Claude Code `PreToolUse` hook that evaluates operator Cedar policy
+per call, [mcp-tool-policy.md](mcp-tool-policy.md)) is a proposal on a separate branch and is not
+on `main`. For this server that means:
+
+- **Enforced today:** the server runs only when `chat_context.scope` is `chat` and the turn has a
+  dispatched thread; its tools are in `--allowedTools` for that turn only (`mcp__centaur-chat__*`);
+  the poster enforces the OIDC repo binding, the approved chat, the dispatched-thread chat, the
+  sender filter and the caps whatever the server asks for.
+- **Not enforced:** an operator `forbid` on `CallTool` for `centaur-chat` or one of its tools, or
+  per-argument rules. The `UseServer` check does not apply to it. To disable the tools, set
+  `scope: thread`.
+- **To confirm once the gate exists:** that a `forbid` on `Action::"CallTool"` for the
+  `centaur-chat` tools denies the call and that the denial reaches the agent as a tool error.
 
 ## Privacy and trust
 
@@ -153,6 +195,7 @@ are unreachable and the omission note says so.
   turn that may hold secrets and write access. The enrolled-sender filter limits who can write into
   it, fencing limits what it can do, and the existing tool allowlist and Cedar gate still bound the
   consequences. Cross-thread reading does not widen `allowed_tools`.
+- **Reads of other threads are sender-filtered.** `read_thread` sends the poster's `read` with `visibleOnly: true`, which applies the same filter as `list-threads` and `read-channel` and requires the thread's chat to be approved. Rollout: a runner that sends `visibleOnly` to a Lambda that predates it is rejected by the strict request schema, so deploy the Lambda first; only `scope: chat` turns are affected.
 - **No content in GitHub.** Tool output stays between the MCP server and the agent. The server never
   writes it to the job log, step outputs or summary, and the turn already keeps message content out
   of artifacts.
@@ -182,9 +225,9 @@ Each step lands with tests and docs.
    and caps, behind the fake adapters in `test/helpers/`. `docs/poster.md`.
 3. **Done** (Slack limits still to verify). Telegram: group stored history into threads for `list-threads`; Slack: map `listThreads` and
    `fetchChannelMessages`. Verify Slack limits on a real app (**[HUMAN ACTION]**).
-4. **Implemented:** `src/mcp/chat-server.ts` (`createChatServer`, `serveChatServer`) with the handle and cursor mapping, fenced output and caps, using the MCP SDK and a `ChatPosterClient` interface (`src/mcp/chat-poster-client.ts`); unit-tested against a fake client over an in-memory transport. Not yet wired to the real poster client or started by a turn (it builds to `dist/mcp/chat-server.js`).
-5. `prepare`: write the server into `mcp.json`, extend the tool allowlist, add the prompt block.
-6. Tool gate: confirm a `CallTool` `forbid` on the server is honored.
+4. **Done.** `src/mcp/chat-server.ts` (`createChatServer`, `serveChatServer`) with the handle and cursor mapping, fenced output and caps, using the MCP SDK and a `ChatPosterClient` interface; unit-tested against a fake client over an in-memory transport.
+5. **Done.** The poster-backed client, the stdio entry `src/mcp/chat-server-main.js` (spawned-process test against a fake `aws` and token endpoint), `prepare` writing the server into `mcp.json`, extending the allowlist and adding the prompt block; `dist/` builds it and the Lambda bundle does not contain it.
+6. **Partly done.** The per-call gate is not on `main` (see [Tool gate](#tool-gate)), so what is enforced is the allowlist. Open: confirm that a `CallTool` `forbid` on `centaur-chat` is honored once the gate lands (tracked in `TODO.md`).
 7. Real run on `centaur-hello` in each platform: the agent in one thread summarizes another
    (**[HUMAN ACTION]**).
 

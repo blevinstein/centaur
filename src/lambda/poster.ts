@@ -43,7 +43,14 @@ export const posterRequestSchema = z.discriminatedUnion("operation", [
         message: "start-thread needs exactly one of destination and fromThreadId",
       },
     ),
-  z.strictObject({ operation: z.literal("read"), token: z.string().min(1), bot: alias, threadId }),
+  z.strictObject({
+    operation: z.literal("read"),
+    token: z.string().min(1),
+    bot: alias,
+    threadId,
+    /** Drops messages the chat tools may not show (see `visibleTo`); requires an approved chat. */
+    visibleOnly: z.boolean().optional(),
+  }),
   z.strictObject({
     operation: z.literal("unreact"),
     bot: alias,
@@ -230,6 +237,9 @@ export async function createPoster(deps: PosterDeps) {
       case "read": {
         await requireBound(params, deps.oidc, request.token, request.bot);
         const { chat } = await openChat(request.bot);
+        const visible = request.visibleOnly
+          ? await chatContext.visibleInThread(request.bot, request.threadId)
+          : undefined;
         const thread = chat.thread(request.threadId);
         const attachmentsOf = await attachments.forThread(request.bot, request.threadId);
         const storedAttachments = async (message: Message) => {
@@ -254,6 +264,7 @@ export async function createPoster(deps: PosterDeps) {
         };
         const messages = [];
         for await (const message of thread.allMessages) {
+          if (visible && !visible(message)) continue;
           messages.push({
             id: message.id,
             userId: message.author.userId,
