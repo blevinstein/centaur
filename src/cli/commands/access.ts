@@ -18,7 +18,7 @@ import { encodeDestination, proposeDestinationName } from "../../lambda/destinat
 import type { CliContext } from "../context.js";
 import { knownDestinations } from "../destinations.js";
 import { type PlatformOptions, withPlatformOption } from "../platform-option.js";
-import { CliError, type Platform, parseName, requireConnection } from "../registry.js";
+import { CliError, type Platform, requireConnection } from "../registry.js";
 
 function parseKind(value: string): AccessKind {
   if (!ACCESS_KINDS.includes(value as AccessKind)) {
@@ -41,7 +41,6 @@ export function registerAccessCommands(program: Command, context: CliContext): v
     kind: AccessKind;
     id: string;
     name?: string | undefined;
-    alias?: string | undefined;
   }
 
   const run =
@@ -50,7 +49,7 @@ export function registerAccessCommands(program: Command, context: CliContext): v
       bot: string,
       kind: string,
       id: string,
-      { platform: requested, ...options }: PlatformOptions & { name?: string; alias?: string } = {},
+      { platform: requested, ...options }: PlatformOptions & { name?: string } = {},
     ) => {
       const platform = await requireConnection(context.store, bot, requested);
       context.log(await action({ bot, platform, kind: parseKind(kind), id, ...options }));
@@ -65,18 +64,9 @@ export function registerAccessCommands(program: Command, context: CliContext): v
     platform: Platform,
     id: string,
     displayName: string | undefined,
-    requested: string | undefined,
   ) => {
     const known = await knownDestinations(context.store, platform);
-    const destinationName =
-      requested === undefined ? proposeDestinationName(known, id, displayName) : requested;
-    if (requested !== undefined) {
-      parseName("destination", requested);
-      const holder = known[scopedChatParameter(platform, requested)]?.chatId;
-      if (holder !== undefined && holder !== id) {
-        throw new CliError(`Destination "${requested}" already holds chat ${holder}.`);
-      }
-    }
+    const destinationName = proposeDestinationName(known, id, displayName);
     const parameter = scopedChatParameter(platform, destinationName);
     if (!(parameter in known)) {
       await context.store.put(parameter, encodeDestination({ chatId: id, name: displayName }), {
@@ -91,18 +81,14 @@ export function registerAccessCommands(program: Command, context: CliContext): v
       "--name <name>",
       "display name to record; a chat's destination name defaults to a slug of it",
     )
-    .option("--alias <name>", "destination name to create for the chat (chats only)")
     .action(
-      run(async ({ bot, platform, kind, id, name, alias }) => {
-        if (kind === "user" && alias !== undefined) {
-          throw new CliError("--alias applies to chats only.");
-        }
+      run(async ({ bot, platform, kind, id, name }) => {
         const stored = decodeEntry(
           (await context.store.get(approvedParameter(bot, platform, kind, id))) ?? "",
         );
         const displayName = name ?? stored.name;
         const destinationName =
-          kind === "chat" ? await destinationFor(platform, id, displayName, alias) : undefined;
+          kind === "chat" ? await destinationFor(platform, id, displayName) : undefined;
         await context.store.put(
           approvedParameter(bot, platform, kind, id),
           encodeEntry({ name: displayName, alias: destinationName }),

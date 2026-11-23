@@ -87,8 +87,7 @@ group silently); the user ID is logged either way.
 
 There is no allowlist in the config; access is only what you approve. Manual alternative, no
 request needed: if you already know an ID, approve it for one bot with `centaur access approve
-garden chat <id> --name "Household"` (a supergroup's ID is negative, `-100...`; `--alias` picks the
-destination name) or `centaur access approve garden user <id>`. The receiver logs the IDs of unknown chats
+garden chat <id> --name "Household"` (a supergroup's ID is negative, `-100...`; the destination is named from `--name`; `centaur destination set` binds other names) or `centaur access approve garden user <id>`. The receiver logs the IDs of unknown chats
 and users, so you can read them from its logs. `centaur access list garden` shows what has been
 approved or blocked, and `centaur access revoke|block|unblock` undo it.
 

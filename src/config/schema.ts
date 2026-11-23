@@ -314,6 +314,10 @@ export function platformSettings(
   return settings;
 }
 
+/** A thread ID in the adapters' format: `telegram:<chat>:<topic>`, `slack:<channel>:<thread ts>`. */
+export const buildThreadId = (platform: Platform, chatId: string, topicId: string) =>
+  `${platform}:${chatId}:${topicId}`;
+
 /** The platform of a thread ID, which the adapter prefixes (`telegram:<chat>`, `slack:<channel>:<ts>`). */
 export function threadPlatform(threadId: string): Platform {
   const prefix = threadId.split(":", 1)[0];

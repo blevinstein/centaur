@@ -312,9 +312,8 @@ person in it still needs approval to talk to the bot (DMs only need the user).
 destination with no thread that already holds the chat is reused. The request stores the proposal and
 the admin DM shows it; the approved entry stores the name that was recorded. The Lambda creates
 destinations with SSM `Overwrite: false` and takes the next free name on a conflict, so approving
-never replaces one, and its role may write only `/centaur/chats/*`. `centaur access approve --alias`
-is the manual route; approving an approved chat again with a new `--alias` adds that destination and
-updates the entry (earlier ones stay).
+never replaces one, and its role may write only `/centaur/chats/*`. `centaur destination set` binds a name to a chat or
+topic by hand and replaces a record that has no owner or the same bot as owner.
 
 When a scheduled run starts a thread, the poster looks the prompt's name up once on the connection's
 platform and requires the chat to be approved for that connection and not blocked; an unapproved or

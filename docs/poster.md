@@ -86,8 +86,8 @@ New writes (approvals, create on first use, binding) always store the record; bo
 **Resolution.** One lookup of the name. A record or bare ID is used as it is, after the approved and
 not-blocked check. A name with no value is created on first use: if the connection has exactly one
 approved chat, the poster writes a thread-less destination for it with a conditional create, so two
-concurrent runs create one. With no approved chat, or several, it fails and names `centaur access
-approve <bot> chat <id> --platform <platform> --alias <name>`. `resolve-destination` never creates.
+concurrent runs create one. With no approved chat, or several, it fails and names `centaur destination
+set <bot> <name> --platform <platform> --chat <id>`. `resolve-destination` never creates.
 
 **`thread`.** `new` (the default, and what a request without `thread` means) always opens a fresh
 thread in the destination's chat and never reuses or changes a bound thread. `persistent`:

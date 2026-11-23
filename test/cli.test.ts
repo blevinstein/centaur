@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { encodeDestination } from "../src/lambda/destinations.js";
 import { createCliHarness } from "./helpers/cli.js";
-import { TELEGRAM_TOPIC } from "./helpers/destination-fixtures.js";
 
 const TELEGRAM = "/centaur/bots/garden/platforms/telegram";
 const SLACK = "/centaur/bots/garden/platforms/slack";
@@ -239,14 +237,6 @@ describe("removed user commands", () => {
   });
 });
 
-describe("removed chat add", () => {
-  it("is not a command", async () => {
-    await expect(createCliHarness().run("chat", "add", "household", "-1")).rejects.toThrow(
-      /unknown command 'add'/,
-    );
-  });
-});
-
 describe("github-token", () => {
   it("stores the token as a secure parameter without printing it", async () => {
     const cli = createCliHarness({ "github-token": "ghp_secret" });
@@ -264,60 +254,5 @@ describe("github-token", () => {
     await cli.run("github-token", "set");
     await cli.run("github-token", "remove");
     expect(cli.store.names()).toEqual([]);
-  });
-});
-
-describe("chat list", () => {
-  it("lists destinations sorted by name", async () => {
-    const cli = createCliHarness();
-    await cli.connect("garden", "telegram");
-    await cli.run("chat", "list", "garden");
-    expect(cli.output.at(-1)).toBe("No chats registered.");
-
-    await cli.store.put("/centaur/chats/telegram/workshop", "-2", { secure: false });
-    await cli.store.put("/centaur/chats/telegram/household", "-1", { secure: false });
-    await cli.run("chat", "list", "garden");
-
-    expect(cli.output.at(-1)).toBe("household  -1\nworkshop  -2");
-  });
-
-  it("reads bare chat IDs and records alike", async () => {
-    const cli = createCliHarness();
-    await cli.connect("garden", "telegram");
-    await cli.store.put("/centaur/chats/telegram/household", "-1", { secure: false });
-    await cli.store.put(
-      "/centaur/chats/telegram/weekly",
-      encodeDestination({ chatId: "-2", threadId: TELEGRAM_TOPIC, bot: "garden" }),
-      { secure: false },
-    );
-
-    await cli.run("chat", "list", "garden");
-
-    expect(cli.output.at(-1)).toBe("household  -1\nweekly  -2");
-  });
-
-  it("lists the destinations of the chosen connection only, ignoring the flat form", async () => {
-    const cli = createCliHarness();
-    await cli.connect("garden", "telegram");
-    await cli.connect("garden", "slack");
-    await cli.store.put("/centaur/chats/telegram/household", "-1", { secure: false });
-    await cli.store.put("/centaur/chats/slack/household", "C1", { secure: false });
-    await cli.store.put("/centaur/chats/legacy", "-9", { secure: false });
-
-    await cli.run("chat", "list", "garden", "--platform", "slack");
-    expect(cli.output.at(-1)).toBe("household  C1");
-    await cli.run("chat", "list", "garden", "--platform", "telegram");
-    expect(cli.output.at(-1)).toBe("household  -1");
-  });
-
-  it("asks for --platform with several connections and rejects an unknown bot", async () => {
-    const cli = createCliHarness();
-    await cli.connect("garden", "telegram");
-    await cli.connect("garden", "slack");
-
-    await expect(cli.run("chat", "list", "garden")).rejects.toThrow(
-      /several connections \(telegram, slack\); pass --platform/,
-    );
-    await expect(cli.run("chat", "list", "missing")).rejects.toThrow(/Unknown bot "missing"/);
   });
 });

@@ -318,8 +318,8 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
 - [x] Platforms 13: dropped (design Decision 20, maintainer ruling 2026-11-24): `centaur
       destination set` binds an existing topic, so the in-chat handlers would add admin-auth
       receiver code for a rare need.
-- [ ] Platforms 14: `centaur destination set|list|remove`; removes `centaur chat list` (breaking).
-      After 11.
+- [x] Platforms 14: `centaur destination set|list|remove`; removes `centaur chat list` (breaking).
+      After 11. Done. `chat list` and `access approve --alias` are removed.
 - [ ] Platforms 15: multi-target scheduled turns (turn state targets, fan-out in `finish`). After 10.
 - [ ] Platforms 16: `thread: persistent` scheduled turns (the runner passes the prompt's `thread`;
       history, marker, session, `resolve` job and concurrency template); the schema stops rejecting

@@ -544,10 +544,9 @@ keys and the consumer `.centaur.yml` files. Decisions that relied on compatibili
       set` binds a topic by writing the record (Decision 20);
       create-on-first-use of a persistent topic is as designed above.
     - **(c) CLI:** `centaur chat list` is subsumed by `centaur destination list|set|remove` (slice 14)
-      and removed there, a breaking CLI change. `access approve --alias` is renamed `--destination`
-      (`--name` is taken by the display name, so reusing it would be ambiguous; keeping `--alias`
-      would leave the retired word in the CLI). No old spelling is kept, as there is no backwards
-      compatibility. The word "alias" is removed from docs and messages in slice 17.
+      and removed there, a breaking CLI change. `access approve --alias` is removed, not renamed;
+      `centaur destination set` is the one way to name an existing topic or thread. No old spelling
+      is kept, as there is no backwards compatibility. (Amended by Decision 20.) The word "alias" is removed from docs and messages in slice 17.
     - **(d) Config:** no change: `destination: <name>` and the per-platform map keep working.
     - **(e) Resolution:** one lookup of the name at `chats/<platform>/<name>`; if absent, create on
       first use under the rules of Decision 8 (exactly one approved group chat, else an error naming
@@ -560,7 +559,7 @@ keys and the consumer `.centaur.yml` files. Decisions that relied on compatibili
       planned new file): `resolveChatAlias` becomes `resolveDestination`, `proposeChatAlias` becomes
       `proposeDestinationName`, `recordChatAlias` becomes `recordDestination`, `slugAlias` becomes
       `slugName`; `src/cli/chat-aliases.ts` (`knownChatAliases`) becomes
-      `src/cli/destinations.ts`; `src/cli/commands/chats.ts` (`chat list`) is removed in slice 14.
+      `src/cli/destinations.ts`; `src/cli/commands/chats.ts` (`chat list`) was removed in slice 14.
       The `bots/*/platforms/*/destinations/*` IAM statement is not needed, because the Lambda role's
       `chats/*` wildcard already covers the store; `test/infra.test.ts` is unchanged.
 
@@ -627,7 +626,7 @@ serialized; the others can run in parallel.
 |---|---|---|---|---|
 | 1 | Config schema: `platforms` map only, legacy top-level keys rejected with a pointer to `config migrate`, destination string or map, errors (the prompt `platforms` selector it first included is removed by slice 21); readers (`register.ts`, `prepare.ts`) take per-platform settings | Both | `src/config/schema.ts`, `src/config/index.ts`, `src/lambda/register.ts`, `src/workflows/prepare.ts`, `test/config.test.ts`, `test/helpers/config-fixtures.ts`, `docs/config.md` | none |
 | 2 | Connection model and loader: nested layout only, connection view, per-connection path helpers | Lambda | `src/lambda/registry.ts`, `parameters.ts`, `access-entries.ts`, `access.ts`, `test/helpers/receiver-fixtures.ts`, `poster-fixtures.ts` | none (parallel with 1) |
-| 3 | CLI connections: `bot add` onto an existing bot, `bot list`, `bot remove --platform`, `--platform` on `access` and `admin claim`, `chat list` for scoped aliases | CLI | `src/cli/commands/bot.ts`, `access.ts`, `admin.ts`, `src/cli/registry.ts`, `docs/cli.md` | 2 |
+| 3 | CLI connections: `bot add` onto an existing bot, `bot list`, `bot remove --platform`, `--platform` on `access` and `admin claim`, `chat list` for scoped aliases (removed in slice 14) | CLI | `src/cli/commands/bot.ts`, `access.ts`, `admin.ts`, `src/cli/registry.ts`, `docs/cli.md` | 2 |
 | 4 | CLI migration tools: `bot export` and `bot restore` (backup of every bot's SSM parameters and chat aliases), `bot migrate` (`--dry-run`, copy and verify, `--prune` for the flat parameters after the soak, `--alias-platform`), `config migrate` (rewrites a config file, keeping comments; string destinations stay, no prompt `platforms` line), and `bot adopt` (Decision 14) | CLI | `src/cli/commands/bot.ts`, new `src/cli/commands/config.ts`, `docs/cli.md` | 3 (same files), 1 for `config migrate` |
 | 5 | Registry entry per platform and `register` over declared platforms; an old-shape entry serves nothing | Lambda | `src/lambda/register.ts`, `registry.ts`, `docs/poster.md` | 1, 2 |
 | 6 | Receiver: one `Chat` per connection, per-platform `respond_to` | Lambda | `src/lambda/receiver.ts`, `chat.ts`, `message-handler.ts`, `test/receiver*.test.ts`, `docs/plan.md` | 2, 5 |

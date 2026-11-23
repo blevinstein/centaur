@@ -209,12 +209,12 @@ describe("createDestinationOnFirstUse", () => {
     [
       "no approved chat",
       [],
-      /no approved chat to create it in; approve one with `centaur access approve garden chat <id> --platform telegram --alias attic`/,
+      /no approved chat to create it in; approve a chat with `centaur access approve garden chat <id> --platform telegram`, then bind the name with `centaur destination set garden attic --platform telegram --chat <id>`/,
     ],
     [
       "several approved chats",
       ["-1", "-2"],
-      /several approved chats, so it cannot choose one; bind the name to a chat with `centaur access approve garden chat <id>/,
+      /several approved chats, so it cannot choose one; bind the name to a chat with `centaur destination set garden attic --platform telegram --chat <id>`/,
     ],
   ])("fails with %s, naming the command", async (_name, chatIds, message) => {
     const params = fakeParameterStore({});

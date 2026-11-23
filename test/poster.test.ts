@@ -141,7 +141,7 @@ describe("poster start-thread", () => {
       "an unknown name with several approved chats",
       { destination: "attic" },
       {},
-      /bot "garden" has no destination "attic" on telegram and has several approved chats.*centaur access approve garden chat <id> --platform telegram --alias attic/,
+      /bot "garden" has no destination "attic" on telegram and has several approved chats.*centaur destination set garden attic --platform telegram --chat <id>/,
     ],
     [
       "a flat name, which is not read",

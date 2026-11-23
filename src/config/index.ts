@@ -6,6 +6,7 @@ export { PROVIDER_SETTINGS, PROVIDERS, type Provider } from "./providers.js";
 export {
   ALIAS_PATTERN,
   alias,
+  buildThreadId,
   type CentaurConfig,
   CHAT_TOOLS_MAX_MESSAGES,
   CHAT_TOOLS_MAX_THREADS,

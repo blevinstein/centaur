@@ -122,12 +122,12 @@ export async function createDestinationOnFirstUse(
   approvedChatIds: Iterable<string>,
 ): Promise<Destination> {
   const chatIds = [...approvedChatIds];
-  const bindWith = `\`centaur access approve ${bot.name} chat <id> --platform ${bot.platform} --alias ${name}\``;
+  const bindWith = `\`centaur destination set ${bot.name} ${name} --platform ${bot.platform} --chat <id>\``;
   const missing = `bot "${bot.name}" has no destination "${name}" on ${bot.platform}`;
   const [chatId] = chatIds;
   if (chatId === undefined) {
     throw new Error(
-      `${missing} and no approved chat to create it in; approve one with ${bindWith}`,
+      `${missing} and no approved chat to create it in; approve a chat with \`centaur access approve ${bot.name} chat <id> --platform ${bot.platform}\`, then bind the name with ${bindWith}`,
     );
   }
   if (chatIds.length > 1) {

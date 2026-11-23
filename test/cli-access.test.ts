@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { encodeDestination } from "../src/lambda/destinations.js";
 import { createCliHarness } from "./helpers/cli.js";
-import { chatIdAt, TELEGRAM_TOPIC } from "./helpers/destination-fixtures.js";
+import { chatIdAt } from "./helpers/destination-fixtures.js";
 
 const TOKEN_PARAMETER = "/centaur/bots/garden/platforms/telegram/token";
 const approvedChat = (id: string) => `/centaur/bots/garden/platforms/telegram/approved-chats/${id}`;
@@ -138,24 +137,6 @@ describe("destinations on approval", () => {
     expect(cli.output.at(-1)).toMatch(/Garden Club {2}\d{4}-.* {2}alias=garden-club$/);
   });
 
-  it("leaves a destination bound to a thread untouched when its chat is approved again", async () => {
-    const cli = await harnessWithBot();
-    const bound = encodeDestination({ chatId: "-100500", threadId: TELEGRAM_TOPIC, bot: "garden" });
-    await cli.store.put("/centaur/chats/telegram/weekly", bound, { secure: false });
-
-    await cli.run("access", "approve", "garden", "chat", "-100500", "--alias", "weekly");
-
-    expect(await cli.store.get("/centaur/chats/telegram/weekly")).toBe(bound);
-  });
-
-  it("uses an explicit destination name", async () => {
-    const cli = await harnessWithBot();
-
-    await cli.run("access", "approve", "garden", "chat", "-100500", "--alias", "household");
-
-    expect(await chatIdAt(cli.store, "/centaur/chats/telegram/household")).toBe("-100500");
-  });
-
   it.each([
     ["without a name", [], "chat-0500"],
     ["from a name that has no letters or digits", ["--name", "!!!"], "chat-0500"],
@@ -200,22 +181,21 @@ describe("destinations on approval", () => {
       "C0123",
       "--platform",
       "slack",
-      "--alias",
-      "household",
+      "--name",
+      "Household",
     );
 
     expect(await chatIdAt(cli.store, "/centaur/chats/slack/household")).toBe("C0123");
     expect(await chatIdAt(cli.store, "/centaur/chats/telegram/household")).toBe("-1");
   });
 
-  it("does not read a flat name when deriving or checking a name", async () => {
+  it("no longer accepts --alias or the chat command group", async () => {
     const cli = await harnessWithBot();
-    await cli.store.put("/centaur/chats/household", "-1", { secure: false });
 
-    await cli.run("access", "approve", "garden", "chat", "-100500", "--alias", "household");
-
-    expect(await chatIdAt(cli.store, "/centaur/chats/telegram/household")).toBe("-100500");
-    expect(await chatIdAt(cli.store, "/centaur/chats/household")).toBe("-1");
+    await expect(
+      cli.run("access", "approve", "garden", "chat", "-100500", "--alias", "weekly"),
+    ).rejects.toThrow(/unknown option/);
+    await expect(cli.run("chat", "list", "garden")).rejects.toThrow(/unknown command/);
   });
 
   it("asks for --platform when approving on a bot with several connections", async () => {
@@ -225,54 +205,6 @@ describe("destinations on approval", () => {
     await expect(cli.run("access", "approve", "garden", "chat", "-100500")).rejects.toThrow(
       /several connections \(telegram, slack\); pass --platform/,
     );
-  });
-
-  it("refuses an explicit destination name that names another chat, changing nothing", async () => {
-    const cli = await harnessWithBot();
-    await cli.store.put("/centaur/chats/telegram/household", "-1", { secure: false });
-
-    await expect(
-      cli.run("access", "approve", "garden", "chat", "-100500", "--alias", "household"),
-    ).rejects.toThrow(/Destination "household" already holds chat -1/);
-    expect(await chatIdAt(cli.store, "/centaur/chats/telegram/household")).toBe("-1");
-    expect(await cli.store.get(approvedChat("-100500"))).toBeUndefined();
-  });
-
-  it.each(["foo_bar", "foo-bar", "a1"])("accepts the destination name %s", async (name) => {
-    const cli = await harnessWithBot();
-    await cli.run("access", "approve", "garden", "chat", "-100500", "--alias", name);
-    expect(await chatIdAt(cli.store, `/centaur/chats/telegram/${name}`)).toBe("-100500");
-  });
-
-  it.each(["Bad Alias", "_foo", "-foo", "foo.bar", "Foo"])(
-    "rejects the destination name %j",
-    async (name) => {
-      const cli = await harnessWithBot();
-      await expect(
-        cli.run("access", "approve", "garden", "chat", "1", "--alias", name),
-      ).rejects.toThrow(/Invalid destination name/);
-    },
-  );
-
-  it("refuses a destination name for a user", async () => {
-    const cli = await harnessWithBot();
-
-    await expect(
-      cli.run("access", "approve", "garden", "user", "42", "--alias", "pat"),
-    ).rejects.toThrow(/--alias applies to chats only/);
-  });
-
-  it("renames a chat by approving it again with a new name, keeping its name", async () => {
-    const cli = await harnessWithBot();
-    await cli.run("access", "approve", "garden", "chat", "-100500", "--name", "Garden Club");
-
-    await cli.run("access", "approve", "garden", "chat", "-100500", "--alias", "household");
-
-    expect(await chatIdAt(cli.store, "/centaur/chats/telegram/household")).toBe("-100500");
-    expect(JSON.parse((await cli.store.get(approvedChat("-100500"))) ?? "")).toMatchObject({
-      name: "Garden Club",
-      alias: "household",
-    });
   });
 
   it("keeps the destination when the approval is revoked", async () => {

@@ -158,13 +158,31 @@ retire the source with `bot unbind` and `bot remove`.
 centaur bot adopt notes-slack notes --platform slack
 ```
 
-### `centaur chat list <bot> [--platform <platform>]`
+### `centaur destination set <bot> <name> --chat <id> [--topic <id>] [--platform <platform>]`
 
-Prints one line per destination of the bot's connection (`chats/<platform>/<name>`), `name  chatId`,
-sorted by name, or `No chats registered.`. Each value is read as a bare chat ID or a JSON record
-(see [poster.md](poster.md#destinations)); a record's thread is not shown. `--platform` may be omitted when the bot has one
-connection (see [Connections](#connections)). Flat names are not listed. A later slice replaces
-this command with `centaur destination list` ([design](platforms-and-destinations.md)).
+Binds a destination name (`/centaur/chats/<platform>/<name>`, see
+[poster.md](poster.md#destinations)) to a chat, or with `--topic` to an existing Telegram topic
+(its ID) or Slack thread (its timestamp). With `--topic` the record carries the platform thread ID
+(`telegram:<chat>:<topic>`, `slack:<channel>:<ts>`) and `<bot>` as the owner; without it the name is
+a destination with no thread. It only writes the record. A name that holds a record is replaced when
+the record has no owner or belongs to the same bot, and the output says what it replaced; a thread
+owned by another bot is refused. `set` never approves the chat: when the chat is not approved for
+the bot's connection (or is blocked) it prints a warning that the poster refuses it until
+`centaur access approve` is run, and still writes the record.
+
+### `centaur destination list <bot> [--platform <platform>]`
+
+Prints one line per destination of the connection, `name  chatId[  threadId]`, sorted by name, or
+`No destinations for bot "<bot>" on <platform>.`. Values are read as a bare chat ID or a JSON record.
+Flat names are not listed.
+
+### `centaur destination remove <bot> <name> [--platform <platform>]`
+
+Deletes the destination and refuses if there is none.
+
+**Breaking change.** `centaur chat list` and `centaur access approve --alias` are removed: use
+`destination list` and `destination set`. Approving a chat still creates its thread-less
+destination, named from `--name`.
 
 ### `centaur admin set [--telegram <id>] [--slack <id>]`
 
@@ -209,7 +227,7 @@ Every `access` command takes `--platform <platform>` to pick the bot's connectio
 [Connections](#connections)); approvals and blocks belong to one connection, so approving a chat on
 Telegram says nothing about Slack.
 
-### `centaur access approve <bot> <chat|user> <id> [--platform <platform>] [--name <name>] [--alias <name>]`
+### `centaur access approve <bot> <chat|user> <id> [--platform <platform>] [--name <name>]`
 
 Approves a chat or user for one connection of a bot without waiting for a request, writing
 `/centaur/bots/<bot>/platforms/<platform>/approved-chats/<id>` or `approved-users/<id>`. `--name`
@@ -218,12 +236,10 @@ records a display name for `access list`. Telegram group IDs are negative; they 
 Approving a chat also records a destination scoped to the connection's platform,
 `/centaur/chats/<platform>/<name>` (a JSON record holding the chat ID and display name), and stores
 the name on the approved entry. Name collisions are
-checked within that platform only. `--alias` names it (chats only); otherwise it is a slug of `--name` (lowercase
+checked within that platform only. The name is a slug of `--name` (lowercase
 `[a-z0-9-]`), or `chat-<last 4 digits of the ID>` without a name. A taken name gets a numeric
-suffix (`household-2`), a destination with no thread that already holds the chat is reused, and an explicit `--alias`
-that names a different chat is refused. Existing destinations are never overwritten, including one
-bound to a thread. Approving an approved chat again with a new `--alias` adds that destination and updates the entry,
-keeping its name; earlier ones stay. Revoking leaves the destinations in place.
+suffix (`household-2`), a destination with no thread that already holds the chat is reused. Existing destinations are never overwritten, including one
+bound to a thread; `destination set` replaces them. Revoking leaves the destinations in place.
 
 ### `centaur access revoke <bot> <chat|user> <id> [--platform <platform>]`
 
@@ -343,8 +359,8 @@ Errors are printed to stderr and the exit code is 1.
 | `No GitHub token is stored.` | `github-token remove` with nothing stored. |
 | `Bot "<x>" is bound to <repo>; run "centaur bot unbind" first.` | `bot remove` of a bot's last connection while bound. |
 | `Bot "<x>" is not bound to a repo.` | `bot unbind` on an unbound bot. |
-| `Destination "<x>" already holds chat <id>.` | `access approve --alias` with a name that points at another chat. |
-| `--alias applies to chats only.` | `access approve <bot> user <id> --alias ...`. |
+| `Destination "<x>" on <platform> is bound to a thread owned by bot "<y>".` | `destination set` over a thread another bot owns. |
+| `Destination "<x>" not found on <platform>.` | `destination remove` with no such name. |
 | `Unknown kind "<x>": expected chat or user.` | `access` with a kind other than `chat` or `user`. |
 | `Approved <kind> <id> not found.` / `Blocked <kind> <id> not found.` | `access revoke` / `unblock` with no such entry. |
 | `No admin is set for <platform>.` | `admin remove` for a platform with no admin. |
