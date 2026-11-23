@@ -340,12 +340,11 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
 - [ ] **[HUMAN ACTION]** Live checks on the test bot (slice 19): two platforms on one bot, a
       persistent topic and Slack thread, and the error text for a deleted and a closed Telegram
       topic (confirm the recreate and reopen rules).
-- [ ] Platforms 21: config simplification (design Decision 19, maintainer ruling 2026-11-23): remove
+- [x] Platforms 21: config simplification (design Decision 19, maintainer ruling 2026-11-23): remove
       the prompt-level `platforms` selector; a string `destination` is valid only for a bot with one
       platform, a bot with several uses `destination: { <platform>: <name> }`. Updates
-      `docs/config.md`, tests and the self-consumer config. In progress by another worker; built now,
-      independent of the other slices. Rewrite any consumer config that uses the selector before the
-      Lambda is deployed.
+      `docs/config.md`, tests and the self-consumer config. Built independent of the other slices;
+      merged to `main` and not yet pushed. No consumer config used the selector.
 - [ ] **[HUMAN APPROVAL]** The recommended `thread` semantics in Decision 19 (`new` never reuses a
       bound thread; a record bound to a topic with a `new` prompt posts a fresh thread; `persistent`
       on a record with no thread creates and binds one; `thread` applies to every fan-out target;
