@@ -28,7 +28,9 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
 - [x] Add a routing test for `src/lambda/handler.ts`.
 - [x] Cache SSM reads in the receiver; each accepted message makes 1 to 3 SSM calls.
 - [x] CLI: clearer error when piped stdin has too few lines (`Missing value for <name>.`).
-- [ ] Decide whether `destination` names are checked against SSM at register time.
+- [x] Decide whether `destination` names are checked against SSM at register time. No (design
+      Decision 16): with create on first use a name can be unresolved at register, so `register`
+      checks only that each declared platform has a connection; names resolve when the run starts.
 - [x] Add `centaur config check` command wrapping `parseCentaurConfig`, and document it
 - [x] Switch the package manager from npm to yarn or pnpm (pick one; the maintainer's other
       projects use yarn). Replace `package-lock.json` and update everything that calls npm:
