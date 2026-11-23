@@ -1,5 +1,5 @@
 import type { Logger, StateAdapter } from "chat";
-import type { Platform, RespondTo } from "../config/index.js";
+import type { Platform, PlatformSettings } from "../config/index.js";
 import {
   BOTS_ROOT,
   botPath,
@@ -23,8 +23,9 @@ export interface Bot {
 
 export type BotSecrets = Omit<Bot, "repo">;
 
+/** A bot's registry entry: the settings of each connection its repo declares. */
 export interface RegistryEntry {
-  respond_to?: RespondTo;
+  platforms: Partial<Record<Platform, PlatformSettings>>;
 }
 
 export const registryKey = (bot: string) => `registry:${bot}`;
@@ -141,8 +142,20 @@ export async function readRegistryEntry(
   return state.get<RegistryEntry>(registryKey(bot));
 }
 
-export async function readRespondTo(state: StateAdapter, bot: string): Promise<RespondTo> {
-  return (await readRegistryEntry(state, bot))?.respond_to ?? "mention";
+const warnedUnregistered = new Set<string>();
+
+/** The connection's settings; undefined when the entry does not list it, as with the old shape. */
+export async function readPlatformSettings(
+  state: StateAdapter,
+  { name, platform }: Pick<Bot, "name" | "platform">,
+  logger?: Pick<Logger, "warn">,
+): Promise<PlatformSettings | undefined> {
+  const entry = (await readRegistryEntry(state, name))?.platforms?.[platform];
+  if (!entry && logger && !warnedUnregistered.has(name)) {
+    warnedUnregistered.add(name);
+    logger.warn(`bot "${name}" has no registry entry for a connection; not served until register`);
+  }
+  return entry;
 }
 
 export async function writeRegistryEntry(

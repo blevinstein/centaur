@@ -20,7 +20,8 @@ export interface MessageHandlerDeps {
   requestAccess: AccessRequester;
   attachments: Pick<AttachmentStore, "save">;
   claimAdmin?: AdminClaimer | undefined;
-  resolveRespondTo: () => Promise<RespondTo>;
+  /** Undefined when the connection is not registered; the message is then ignored. */
+  resolveRespondTo: () => Promise<RespondTo | undefined>;
   dispatcher: RepositoryDispatcher;
   logger: Pick<Logger, "info" | "warn" | "error">;
 }
@@ -47,7 +48,7 @@ export function createMessageHandler({
     }
 
     const respondTo = await resolveRespondTo();
-    if (!(await ownsMessage(thread, message, respondTo))) return;
+    if (!respondTo || !(await ownsMessage(thread, message, respondTo))) return;
 
     const refusable = respondTo === "mention" || isAddressed(thread, message);
 

@@ -10,6 +10,7 @@ import {
   fakeParameterStore,
   GARDEN_BOT,
   PARAMETERS,
+  REGISTERED_ENTRY,
 } from "./helpers/receiver-fixtures.js";
 
 const PHOTO = [
@@ -35,7 +36,7 @@ async function photoUpdate(extra: Record<string, unknown> = {}) {
   const dispatcher = fakeDispatcher();
   const state = createMemoryState();
   await state.connect();
-  await writeRegistryEntry(state, "garden", {});
+  await writeRegistryEntry(state, "garden", REGISTERED_ENTRY);
   const handler = await createReceiver({
     params,
     createState: () => state,

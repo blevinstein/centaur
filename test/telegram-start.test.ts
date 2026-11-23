@@ -19,6 +19,7 @@ import {
   fakeParameterStore,
   GARDEN_BOT,
   PARAMETERS,
+  REGISTERED_ENTRY,
   STRANGER_USER_ID,
 } from "./helpers/receiver-fixtures.js";
 import { strictStates } from "./helpers/strict-state.js";
@@ -55,7 +56,7 @@ async function startUpdate(
   const dispatcher = fakeDispatcher();
   const state = strict?.inner("") ?? createMemoryState();
   await state.connect();
-  await writeRegistryEntry(state, "garden", {});
+  await writeRegistryEntry(state, "garden", REGISTERED_ENTRY);
   const handler = await createReceiver({
     params,
     createState: strict?.createState ?? (() => state),

@@ -13,6 +13,8 @@ import {
   fakeAttachments,
   fakeParameterStore,
   PARAMETERS,
+  REGISTERED_ENTRY,
+  registryEntryFor,
 } from "./receiver-fixtures.js";
 
 export const GARDEN_REPOSITORY = "octo/garden";
@@ -25,7 +27,6 @@ export const TOPIC_ID = 77;
 export const SLACK_POST_THREAD_ID = "slack:C0123:1700000000.000100";
 
 export const WORKSHOP_CHAT_ID = "-100900";
-export const REGISTERED_ENTRY = { respond_to: "mention" };
 
 export const approvedChat = (bot: string, chatId: string, platform: Platform = "telegram") =>
   approvedParameter(bot, platform, "chat", chatId);
@@ -140,7 +141,7 @@ export async function posterSetup(
   const registryState = options.registryState ?? createMemoryState();
   await registryState.connect();
   await registryState.set("registry:garden", REGISTERED_ENTRY);
-  await registryState.set("registry:notes", REGISTERED_ENTRY);
+  await registryState.set("registry:notes", registryEntryFor("slack"));
   const telegram = fakeTelegram();
   const oidc = fakeOidc(options.repository);
   const posting = fakePosterChat(options.transcript);
@@ -175,3 +176,10 @@ export async function posterSetup(
     ...posting,
   };
 }
+
+export const SPROUT_SLACK_PARAMETERS = connectionParameters({
+  name: "sprout",
+  platform: "slack",
+  token: "sprout-xoxb",
+  webhookSecret: "sprout-signing",
+});

@@ -1,17 +1,38 @@
 import { describe, expect, it, vi } from "vitest";
 import { createGitHubDispatcher } from "../src/lambda/github.js";
-import { readRespondTo } from "../src/lambda/registry.js";
-import { registryStateWith } from "./helpers/receiver-fixtures.js";
+import { readPlatformSettings } from "../src/lambda/registry.js";
+import {
+  fakeLogger,
+  GARDEN_BOT,
+  GARDEN_SLACK_BOT,
+  registryStateWith,
+} from "./helpers/receiver-fixtures.js";
 
-describe("readRespondTo", () => {
+describe("readPlatformSettings", () => {
+  it("reads the settings of the connection's platform", async () => {
+    const state = await registryStateWith({
+      garden: { platforms: { telegram: { respond_to: "all", handle: "garden_bot" } } },
+    });
+
+    await expect(readPlatformSettings(state, GARDEN_BOT)).resolves.toEqual({
+      respond_to: "all",
+      handle: "garden_bot",
+    });
+  });
+
   it.each([
-    ["an entry without respond_to", {}, "mention"],
-    ["an entry that names respond_to", { respond_to: "all" }, "all"],
-    ["no entry", undefined, "mention"],
-  ])("reads respond_to from %s", async (_name, entry, expected) => {
-    const state = await registryStateWith(entry ? { garden: entry } : {});
+    ["an old-shape entry", "legacy", { respond_to: "all" }],
+    ["no entry", "fresh", undefined],
+    ["an entry that omits the platform", "partial", { platforms: { telegram: {} } }],
+  ])("serves nothing for %s and logs the bot once", async (_name, name, entry) => {
+    const state = await registryStateWith(entry ? { [name]: entry } : {});
+    const logger = fakeLogger();
+    const bot = { ...GARDEN_SLACK_BOT, name };
 
-    await expect(readRespondTo(state, "garden")).resolves.toBe(expected);
+    await expect(readPlatformSettings(state, bot, logger)).resolves.toBeUndefined();
+    await readPlatformSettings(state, bot, logger);
+
+    expect(logger.warn).toHaveBeenCalledExactlyOnceWith(expect.stringContaining(`bot "${name}"`));
   });
 });
 

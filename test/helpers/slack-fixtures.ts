@@ -11,6 +11,8 @@ import {
   fakeLogger,
   fakeParameterStore,
   PARAMETERS,
+  registryEntryFor,
+  registryStateWith,
   SLACK_BOT,
 } from "./receiver-fixtures.js";
 
@@ -121,9 +123,10 @@ export async function slackApprovalHarness(extraParameters: Record<string, strin
   });
   const dispatcher = fakeDispatcher();
   const logger = fakeLogger();
+  const registryState = await registryStateWith({ [SLACK_BOT.name]: registryEntryFor("slack") });
   const receive = await createReceiver({
     params,
-    createState: () => createMemoryState(),
+    createState: (prefix) => (prefix === "" ? registryState : createMemoryState()),
     attachments: fakeAttachments(),
     dispatcher,
     logger,

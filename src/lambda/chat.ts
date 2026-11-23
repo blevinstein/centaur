@@ -15,7 +15,7 @@ import { DEFAULT_HISTORY_WINDOW, type HistoryWindow } from "./history-window.js"
 import { createMessageHandler } from "./message-handler.js";
 import type { ThreadMetadata } from "./ownership.js";
 import type { ParameterStore } from "./parameters.js";
-import { type Bot, readRespondTo } from "./registry.js";
+import { type Bot, readPlatformSettings } from "./registry.js";
 
 const ADAPTER_FACTORIES: Record<Platform, (bot: Bot) => Adapter> = {
   telegram: (bot) =>
@@ -88,7 +88,8 @@ export function createBotChat({
     }),
     attachments,
     claimAdmin: channel.commands ? undefined : claimAdmin,
-    resolveRespondTo: () => readRespondTo(registryState, bot.name),
+    resolveRespondTo: async () =>
+      (await readPlatformSettings(registryState, bot, logger))?.respond_to,
     dispatcher,
     logger,
   });

@@ -21,7 +21,7 @@ import {
   STRANGER_USER_ID,
 } from "./helpers/receiver-fixtures.js";
 
-function setup(access = accessFor(), respondTo: RespondTo = "mention") {
+function setup(access = accessFor(), respondTo: RespondTo | null = "mention") {
   const claimAdmin = vi.fn<AdminClaimer>(async () => "claimed");
   const dispatcher = fakeDispatcher();
   const logger = fakeLogger();
@@ -33,7 +33,7 @@ function setup(access = accessFor(), respondTo: RespondTo = "mention") {
     requestAccess,
     attachments,
     claimAdmin,
-    resolveRespondTo: async () => respondTo,
+    resolveRespondTo: async () => respondTo ?? undefined,
     dispatcher,
     logger,
   });
@@ -41,6 +41,15 @@ function setup(access = accessFor(), respondTo: RespondTo = "mention") {
 }
 
 describe("message handler", () => {
+  it("ignores a message on a connection the registry does not list", async () => {
+    const { handle, dispatcher } = setup(accessFor(), null);
+    const { thread, addReaction } = fakeThread();
+
+    await handle(thread, fakeMessage({ isMention: true }));
+
+    expect(addReaction).not.toHaveBeenCalled();
+    expect(dispatcher.dispatch).not.toHaveBeenCalled();
+  });
   it("reacts then dispatches IDs only for an allowed sender mentioning the bot", async () => {
     const { handle, dispatcher } = setup();
     const { thread, addReaction } = fakeThread();

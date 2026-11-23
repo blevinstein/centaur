@@ -114,12 +114,17 @@ the configured owner. The repo name comes only from the verified `repository` cl
 
 Then it parses `config` with `parseCentaurConfig` and, in order:
 
-1. requires the bot's `platform`, `token` and webhook/signing secret in SSM, with a platform that
-   matches the config;
+1. requires, for each platform in the config's `platforms`, that connection's `token` and
+   webhook/signing secret in SSM, and fails naming the bot and platform otherwise, before any write.
+   A connection in SSM that the config does not declare is left untouched and is not served;
 2. refuses if `bots/<bot>/repo` holds a different repo (`centaur bot unbind` first);
-3. writes `bots/<bot>/repo`, then the registry entry `registry:<bot>` = `{ respond_to }`;
-4. for Telegram, calls `setWebhook` with `<function URL>/telegram/<bot>` and the stored webhook
-   secret. Slack needs no call.
+3. writes `bots/<bot>/repo`, then the registry entry `registry:<bot>` =
+   `{ platforms: { <platform>: { respond_to, handle? } } }`, one item per declared platform. The
+   receiver serves a connection only while this entry lists its platform; an entry in the old shape
+   (`{ respond_to }`), or none, serves nothing until `register` rewrites it, with one log line naming
+   the bot;
+4. for each Telegram connection, calls `setWebhook` with `<function URL>/telegram/<bot>` and the
+   stored webhook secret. Slack needs no call.
 
 Re-registering from the owning repo is idempotent. Binding is check-then-write, so two repos
 registering a fresh bot at the same instant could race; the maintainer's secret creation is the

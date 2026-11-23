@@ -5,9 +5,9 @@ import {
   FUNCTION_URL,
   ORPHAN_PARAMETERS,
   posterSetup,
-  REGISTERED_ENTRY,
+  SPROUT_SLACK_PARAMETERS,
 } from "./helpers/poster-fixtures.js";
-import { connectionParameters } from "./helpers/receiver-fixtures.js";
+import { connectionParameters, REGISTERED_ENTRY } from "./helpers/receiver-fixtures.js";
 
 const register = (
   poster: Awaited<ReturnType<typeof posterSetup>>["poster"],
@@ -25,7 +25,9 @@ describe("register", () => {
     expect(result).toEqual({ bot: "sprout", repo: "octo/sprout" });
     expect(oidc.verify).toHaveBeenCalledWith("jwt");
     expect(params.values["/centaur/bots/sprout/repo"]).toBe("octo/sprout");
-    expect(await readRegistryEntry(registryState, "sprout")).toEqual({ respond_to: "mention" });
+    expect(await readRegistryEntry(registryState, "sprout")).toEqual({
+      platforms: { telegram: { respond_to: "mention" } },
+    });
     expect(telegram.setWebhook).toHaveBeenCalledExactlyOnceWith(
       "sprout-token",
       `${FUNCTION_URL.replace(/\/$/, "")}/telegram/sprout`,
@@ -71,12 +73,55 @@ describe("register", () => {
     },
   );
 
-  it("stores the platform's respond_to from the config in the registry entry", async () => {
-    const { poster, registryState } = await posterSetup({ parameters: ORPHAN_PARAMETERS });
+  it("stores each declared platform's settings from the config in the registry entry", async () => {
+    const { poster, registryState } = await posterSetup({
+      parameters: { ...ORPHAN_PARAMETERS, ...SPROUT_SLACK_PARAMETERS },
+    });
 
-    await register(poster, registerConfigText({ platforms: "{telegram: {respond_to: all}}" }));
+    await register(
+      poster,
+      registerConfigText({
+        platforms: "{telegram: {respond_to: all, handle: sprout_bot}, slack: {}}",
+      }),
+    );
 
-    expect(await readRegistryEntry(registryState, "sprout")).toMatchObject({ respond_to: "all" });
+    expect(await readRegistryEntry(registryState, "sprout")).toEqual({
+      platforms: {
+        telegram: { respond_to: "all", handle: "sprout_bot" },
+        slack: { respond_to: "mention" },
+      },
+    });
+  });
+
+  it("sets the webhook only for the Telegram connection of a two-platform bot", async () => {
+    const { poster, params, telegram } = await posterSetup({
+      parameters: { ...ORPHAN_PARAMETERS, ...SPROUT_SLACK_PARAMETERS },
+    });
+
+    await register(poster, registerConfigText({ platforms: "{telegram: {}, slack: {}}" }));
+
+    expect(params.values["/centaur/bots/sprout/repo"]).toBe("octo/sprout");
+    expect(telegram.setWebhook).toHaveBeenCalledExactlyOnceWith(
+      "sprout-token",
+      `${FUNCTION_URL.replace(/\/$/, "")}/telegram/sprout`,
+      "sprout-secret",
+    );
+  });
+
+  it("leaves a connection the config does not declare untouched and unlisted", async () => {
+    const { poster, params, registryState, telegram } = await posterSetup({
+      parameters: { ...ORPHAN_PARAMETERS, ...SPROUT_SLACK_PARAMETERS },
+    });
+    const slackParameters = Object.entries(params.values).filter(([name]) =>
+      name.includes("/platforms/slack/"),
+    );
+
+    await register(poster, registerConfigText({ platforms: "{telegram: {}}" }));
+
+    expect(slackParameters).not.toHaveLength(0);
+    for (const [name, value] of slackParameters) expect(params.values[name]).toBe(value);
+    expect(await readRegistryEntry(registryState, "sprout")).toEqual(REGISTERED_ENTRY);
+    expect(telegram.setWebhook).toHaveBeenCalledOnce();
   });
 
   describe("first-registration race", () => {
@@ -110,8 +155,8 @@ describe("register", () => {
   describe("refusals", () => {
     it.each<[string, Record<string, string>, RegExp]>([
       ["a bot bound to another repo", { bot: "garden" }, /bound to octo\/garden/],
-      ["a bot with no secrets", { bot: "ghost" }, /no secrets in SSM/],
-      ["an unknown bot", { bot: "nobody" }, /no secrets in SSM/],
+      ["a bot with no secrets", { bot: "ghost" }, /no telegram connection/],
+      ["an unknown bot", { bot: "nobody" }, /no telegram connection/],
       [
         "an extra declared platform with no connection",
         { platforms: "{telegram: {}, slack: {}}" },

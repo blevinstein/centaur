@@ -40,16 +40,18 @@ export function createRegister({
     const { bot } = parsed.config;
     const declared = declaredPlatforms(parsed.config);
 
-    const { secrets, repo: boundRepo } = await loadBotBinding(params, bot);
-    if (!secrets) {
-      throw new Error(`bot "${bot}" has no secrets in SSM; run "centaur bot add" first`);
-    }
-    const missing = declared.find((platform) => platform !== secrets.platform);
-    if (missing) {
-      throw new Error(`bot "${bot}" has no ${missing} connection; run "centaur bot add" first`);
-    }
-    const { platform } = secrets;
-    const { respond_to } = platformSettings(parsed.config, platform);
+    const bindings = await Promise.all(
+      declared.map(async (platform) => {
+        const { secrets, repo } = await loadBotBinding(params, bot, { platform });
+        if (!secrets) {
+          throw new Error(
+            `bot "${bot}" has no ${platform} connection; run "centaur bot add" first`,
+          );
+        }
+        return { secrets, repo };
+      }),
+    );
+    const boundRepo = bindings[0]?.repo;
     // The conditional create makes the first binding atomic: a concurrent registration that lost
     // the race re-reads the winner's repo and is refused like any other non-owner.
     const owner =
@@ -61,13 +63,19 @@ export function createRegister({
       throw new Error(`bot "${bot}" is bound to ${owner}; run "centaur bot unbind" first`);
     }
 
-    await writeRegistryEntry(registryState, bot, { respond_to });
-    if (platform === "telegram") {
-      await telegram.setWebhook(
-        secrets.token,
-        webhookUrl(functionUrl, platform, bot),
-        secrets.webhookSecret,
-      );
+    await writeRegistryEntry(registryState, bot, {
+      platforms: Object.fromEntries(
+        declared.map((platform) => [platform, platformSettings(parsed.config, platform)]),
+      ),
+    });
+    for (const { secrets } of bindings) {
+      if (secrets.platform === "telegram") {
+        await telegram.setWebhook(
+          secrets.token,
+          webhookUrl(functionUrl, secrets.platform, bot),
+          secrets.webhookSecret,
+        );
+      }
     }
     return { bot, repo: repository };
   };

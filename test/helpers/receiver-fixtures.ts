@@ -1,6 +1,7 @@
 import { createMemoryState } from "@chat-adapter/state-memory";
 import type { Message, Thread } from "chat";
 import { vi } from "vitest";
+import type { Platform, PlatformSettings } from "../../src/config/index.js";
 import type { Access } from "../../src/lambda/access.js";
 import type { AttachmentStore } from "../../src/lambda/attachments.js";
 import {
@@ -193,3 +194,11 @@ export async function registryStateWith(entries: Record<string, unknown>) {
   }
   return state;
 }
+
+export const registryEntryFor = (
+  ...platforms: Platform[]
+): { platforms: Partial<Record<Platform, PlatformSettings>> } => ({
+  platforms: Object.fromEntries(platforms.map((platform) => [platform, { respond_to: "mention" }])),
+});
+
+export const REGISTERED_ENTRY = registryEntryFor("telegram");

@@ -46,9 +46,10 @@ in the diagram because it's invoked over IAM, not a public URL.
   `bot:<bot>:#kv#<key>`) to keep dedupe keys apart. `concurrency` is
   `concurrent`, because the default `drop` strategy loses messages that arrive close together.
   The webhook path selects the bot: `/telegram/<bot>`, `/slack/<bot>`.
-- The registry entry `{respond_to}` for each bot is stored in state under `registry:<bot>` (written
-  by `register`); the bound repo is in SSM at `bots/<bot>/repo`. With no entry or no `respond_to`,
-  the bot answers `mention`. Access does not come from the entry: it is the admin plus the
+- The registry entry `{ platforms: { <platform>: { respond_to, handle? } } }` for each bot is stored
+  in state under `registry:<bot>` (written by `register`); the bound repo is in SSM at
+  `bots/<bot>/repo`. A connection whose platform the entry does not list (no entry, or the old
+  `{respond_to}` shape) is not served. Access does not come from the entry: it is the admin plus the
   chats and users approved for the bot in SSM (see [Access requests](#access-requests)). Any other field in a stored entry is ignored.
 - On a message:
   1. Adapter verifies the request (Telegram secret token, Slack signing secret) and deduplicates.
@@ -164,9 +165,9 @@ The receiver has to map an incoming webhook to a repo without reading every repo
 2. It invokes the Lambda's `register` operation through the GitHub OIDC role, sending the parsed
    config and the calling repo name taken from the OIDC token's claims, not from input the
    workflow could forge.
-3. The Lambda upserts the registry entry (`bot → respond_to`) in the state store. For Telegram it also calls `setWebhook` with the bot's token and secret from SSM, so
+3. The Lambda upserts the registry entry (`bot → platforms → respond_to, handle`) in the state store. For Telegram it also calls `setWebhook` with the bot's token and secret from SSM, so
    webhook setup is never a manual step.
-4. Registration fails if the bot's secrets aren't in SSM. Creating them is the maintainer's
+4. Registration fails if a declared platform's secrets aren't in SSM. Creating them is the maintainer's
    explicit consent that a bot exists; registration only binds it to a repo. A bot already bound
    to a different repo can't be claimed without first unbinding it with the CLI. The first binding
    is a create-only `PutParameter` (`Overwrite: false`), so of two repos racing for an unbound bot
