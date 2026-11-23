@@ -1,9 +1,9 @@
 import { ALIAS_PATTERN, PLATFORMS, type Platform } from "../config/index.js";
 import { BOTS_ROOT, botPath, parseBotParameter } from "../lambda/connection-paths.js";
-import { chatParameter, GITHUB_TOKEN_PARAMETER } from "../lambda/parameters.js";
+import { GITHUB_TOKEN_PARAMETER } from "../lambda/parameters.js";
 import type { ParameterStore } from "./parameter-store.js";
 
-export { chatParameter, GITHUB_TOKEN_PARAMETER, type Platform };
+export { GITHUB_TOKEN_PARAMETER, type Platform };
 
 export class CliError extends Error {}
 

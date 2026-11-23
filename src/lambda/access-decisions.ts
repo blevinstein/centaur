@@ -64,6 +64,7 @@ export function createAccessDecisions({
       verdict === "approve" && request.kind === "chat"
         ? await recordChatAlias(
             params,
+            bot.platform,
             request.subjectId,
             request.alias ?? slugAlias(undefined, request.subjectId),
           )

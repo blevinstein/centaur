@@ -13,17 +13,12 @@ import {
   approvedPrefix,
   blockedParameter,
   blockedPrefix,
+  scopedChatParameter,
 } from "../../lambda/connection-paths.js";
 import { knownChatAliases } from "../chat-aliases.js";
 import type { CliContext } from "../context.js";
 import { type PlatformOptions, withPlatformOption } from "../platform-option.js";
-import {
-  CliError,
-  chatParameter,
-  type Platform,
-  parseName,
-  requireConnection,
-} from "../registry.js";
+import { CliError, type Platform, parseName, requireConnection } from "../registry.js";
 
 function parseKind(value: string): AccessKind {
   if (!ACCESS_KINDS.includes(value as AccessKind)) {
@@ -67,14 +62,15 @@ export function registerAccessCommands(program: Command, context: CliContext): v
   };
 
   const chatAliasFor = async (
+    platform: Platform,
     id: string,
     name: string | undefined,
     requested: string | undefined,
   ) => {
-    const known = await knownChatAliases(context.store);
+    const known = await knownChatAliases(context.store, platform);
     if (requested === undefined) return proposeChatAlias(known, id, name);
     parseName("alias", requested);
-    const holder = known[chatParameter(requested)];
+    const holder = known[scopedChatParameter(platform, requested)];
     if (holder !== undefined && holder !== id) {
       throw new CliError(`Alias "${requested}" already names chat ${holder}.`);
     }
@@ -93,8 +89,10 @@ export function registerAccessCommands(program: Command, context: CliContext): v
           (await context.store.get(approvedParameter(bot, platform, kind, id))) ?? "",
         );
         const displayName = name ?? stored.name;
-        const chatAlias = kind === "chat" ? await chatAliasFor(id, displayName, alias) : undefined;
-        if (chatAlias) await context.store.put(chatParameter(chatAlias), id, { secure: false });
+        const chatAlias =
+          kind === "chat" ? await chatAliasFor(platform, id, displayName, alias) : undefined;
+        if (chatAlias)
+          await context.store.put(scopedChatParameter(platform, chatAlias), id, { secure: false });
         await context.store.put(
           approvedParameter(bot, platform, kind, id),
           encodeEntry({ name: displayName, alias: chatAlias }),

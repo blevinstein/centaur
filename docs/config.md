@@ -130,11 +130,13 @@ users approved for that bot through an [access request](plan.md#access-requests)
 approve`, minus anything blocked; blocked wins. Direct messages are exempt from the chat check but
 not from the user check. Approvals are stored per bot in SSM, so they never appear in the repo.
 
-Approving a chat also creates a global chat alias, `/centaur/chats/<alias>`, named after the chat's
-title (see [cli.md](cli.md)). A
-prompt's `destination` names such an alias. When the run starts, the poster resolves the alias to a
-chat ID and requires that chat to be approved for the bot and not blocked; otherwise it fails with
-the alias and the `centaur access approve` command that fixes it.
+Approving a chat also creates a chat alias scoped to the connection's platform,
+`/centaur/chats/<platform>/<alias>`, named after the chat's title (see [cli.md](cli.md)). A prompt's
+`destination` names such an alias, and it is looked up on the platform the prompt targets, so
+`household` can name a Telegram group and a Slack channel. When the run starts, the poster resolves
+the alias to a chat ID and requires that chat to be approved for that connection and not blocked;
+otherwise it fails with the bot, the platform and the alias, and the `centaur access approve`
+command that fixes it.
 
 Names (`bot`, `destination` entries, prompt names) are lowercase
 aliases matching `[a-z0-9][a-z0-9_-]*`, the same pattern the CLI enforces; real IDs never appear in the repo. Paths must be relative

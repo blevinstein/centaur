@@ -249,7 +249,7 @@ describe("access decisions by command", () => {
 });
 
 describe("chat aliases on approval", () => {
-  const ALIAS_PARAMETER = `/centaur/chats/garden-club`;
+  const ALIAS_PARAMETER = `/centaur/chats/telegram/garden-club`;
   const approvedEntry = (h: Awaited<ReturnType<typeof pendingRequest>>) =>
     JSON.parse(
       h.params.values[
@@ -277,6 +277,16 @@ describe("chat aliases on approval", () => {
     expect(approvedEntry(h)).toMatchObject({ alias: "garden-club-2" });
   });
 
+  it("takes the plain name when another platform already uses it", async () => {
+    const h = await pendingRequest("chat");
+    h.params.values["/centaur/chats/slack/garden-club"] = "C1";
+
+    await h.decisions.fromReaction(h.reaction("👍"));
+
+    expect(h.params.values[ALIAS_PARAMETER]).toBe(GROUP_CHAT_ID);
+    expect(h.params.values["/centaur/chats/slack/garden-club"]).toBe("C1");
+  });
+
   it("keeps an alias that already names the chat", async () => {
     const h = await pendingRequest("chat");
     h.params.values[ALIAS_PARAMETER] = GROUP_CHAT_ID;
@@ -301,7 +311,7 @@ describe("chat aliases on approval", () => {
     const reply = await h.decisions.fromCommand(command("/approve", request.id));
 
     expect(reply).toBe(COMMAND_REPLIES.approve(request, "chat-0500"));
-    expect(h.params.values["/centaur/chats/chat-0500"]).toBe(GROUP_CHAT_ID);
+    expect(h.params.values["/centaur/chats/telegram/chat-0500"]).toBe(GROUP_CHAT_ID);
   });
 
   it.each([

@@ -9,8 +9,9 @@ import {
   lookupAdminId,
 } from "./admin-channel.js";
 import { proposeChatAlias } from "./chat-aliases.js";
+import { scopedChatPrefix } from "./connection-paths.js";
 import type { ThreadMetadata } from "./ownership.js";
-import { CHATS_PREFIX, type ParameterStore } from "./parameters.js";
+import type { ParameterStore } from "./parameters.js";
 import type { Bot } from "./registry.js";
 
 export const REQUESTED_TEXT = "I've asked my admin for access. I'll let you know when they answer.";
@@ -78,7 +79,7 @@ export function createAccessRequester({
     const title = thread.isDM ? DM_TITLE : await chatTitle(thread);
     const alias =
       kind === "chat"
-        ? proposeChatAlias(await params.getByPath(CHATS_PREFIX), chatId, title)
+        ? proposeChatAlias(await params.getByPath(scopedChatPrefix(bot.platform)), chatId, title)
         : undefined;
     const request = await store.create({
       kind,

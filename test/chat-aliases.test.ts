@@ -23,9 +23,9 @@ describe("slugAlias", () => {
 
 describe("proposeChatAlias", () => {
   const known = {
-    "/centaur/chats/garden-club": "-1",
-    "/centaur/chats/garden-club-2": "-2",
-    "/centaur/chats/household": "-100500",
+    "/centaur/chats/telegram/garden-club": "-1",
+    "/centaur/chats/telegram/garden-club-2": "-2",
+    "/centaur/chats/telegram/household": "-100500",
   };
 
   it("numbers the alias past every taken suffix", () => {
@@ -45,29 +45,39 @@ describe("recordChatAlias", () => {
   it("creates the alias", async () => {
     const params = fakeParameterStore({});
 
-    expect(await recordChatAlias(params, "-3", "garden-club")).toBe("garden-club");
-    expect(params.values["/centaur/chats/garden-club"]).toBe("-3");
+    expect(await recordChatAlias(params, "telegram", "-3", "garden-club")).toBe("garden-club");
+    expect(params.values["/centaur/chats/telegram/garden-club"]).toBe("-3");
   });
 
   it("never replaces an alias for another chat", async () => {
     const params = fakeParameterStore({
-      "/centaur/chats/garden-club": "-1",
-      "/centaur/chats/garden-club-2": "-2",
+      "/centaur/chats/telegram/garden-club": "-1",
+      "/centaur/chats/telegram/garden-club-2": "-2",
     });
 
-    expect(await recordChatAlias(params, "-3", "garden-club")).toBe("garden-club-3");
+    expect(await recordChatAlias(params, "telegram", "-3", "garden-club")).toBe("garden-club-3");
     expect(params.values).toMatchObject({
-      "/centaur/chats/garden-club": "-1",
-      "/centaur/chats/garden-club-2": "-2",
-      "/centaur/chats/garden-club-3": "-3",
+      "/centaur/chats/telegram/garden-club": "-1",
+      "/centaur/chats/telegram/garden-club-2": "-2",
+      "/centaur/chats/telegram/garden-club-3": "-3",
     });
   });
 
   it("accepts an alias that already names the chat", async () => {
-    const params = fakeParameterStore({ "/centaur/chats/household": "-3" });
+    const params = fakeParameterStore({ "/centaur/chats/telegram/household": "-3" });
 
-    expect(await recordChatAlias(params, "-3", "household")).toBe("household");
-    expect(Object.keys(params.values)).toEqual(["/centaur/chats/household"]);
+    expect(await recordChatAlias(params, "telegram", "-3", "household")).toBe("household");
+    expect(Object.keys(params.values)).toEqual(["/centaur/chats/telegram/household"]);
+  });
+
+  it("scopes names to the platform", async () => {
+    const params = fakeParameterStore({ "/centaur/chats/slack/garden-club": "C1" });
+
+    expect(await recordChatAlias(params, "telegram", "-3", "garden-club")).toBe("garden-club");
+    expect(params.values).toMatchObject({
+      "/centaur/chats/slack/garden-club": "C1",
+      "/centaur/chats/telegram/garden-club": "-3",
+    });
   });
 
   it("gives up after too many conflicts", async () => {
@@ -75,6 +85,8 @@ describe("recordChatAlias", () => {
     params.putIfAbsent = async () => false;
     params.get = async () => "-1";
 
-    await expect(recordChatAlias(params, "-3", "a")).rejects.toThrow(/could not allocate/);
+    await expect(recordChatAlias(params, "telegram", "-3", "a")).rejects.toThrow(
+      /could not allocate/,
+    );
   });
 });

@@ -158,10 +158,12 @@ retire the source with `bot unbind` and `bot remove`.
 centaur bot adopt notes-slack notes --platform slack
 ```
 
-### `centaur chat list`
+### `centaur chat list <bot> [--platform <platform>]`
 
-Prints one line per chat alias, `name  id`, sorted by name, or `No chats registered.`. Aliases are
-folded into destinations in slice 11, which replaces this command with `centaur destination list`
+Prints one line per chat alias of the bot's connection (`chats/<platform>/<alias>`), `name  id`,
+sorted by name, or `No chats registered.`. `--platform` may be omitted when the bot has one
+connection (see [Connections](#connections)). Flat aliases are not listed. Aliases are folded into
+destinations in slice 11, which replaces this command with `centaur destination list`
 ([design](platforms-and-destinations.md)).
 
 ### `centaur admin set [--telegram <id>] [--slack <id>]`
@@ -213,8 +215,9 @@ Approves a chat or user for one connection of a bot without waiting for a reques
 `/centaur/bots/<bot>/platforms/<platform>/approved-chats/<id>` or `approved-users/<id>`. `--name`
 records a display name for `access list`. Telegram group IDs are negative; they are accepted as-is.
 
-Approving a chat also records a global chat alias, `/centaur/chats/<alias>`, and stores it on the
-approved entry. `--alias` names it (chats only); otherwise it is a slug of `--name` (lowercase
+Approving a chat also records a chat alias scoped to the connection's platform,
+`/centaur/chats/<platform>/<alias>`, and stores it on the approved entry. Name collisions are
+checked within that platform only. `--alias` names it (chats only); otherwise it is a slug of `--name` (lowercase
 `[a-z0-9-]`), or `chat-<last 4 digits of the ID>` without a name. A taken name gets a numeric
 suffix (`household-2`), an alias that already names the chat is reused, and an explicit `--alias`
 that names a different chat is refused. Existing aliases are never overwritten. Approving an approved chat again with a new `--alias` adds that alias and updates the entry,

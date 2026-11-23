@@ -44,9 +44,12 @@ platform is required`). `platform` together with `fromThreadId` is rejected. `li
 The destination chat comes from the request, so the poster never needs prompt names. Scheduled
 runs pass `destination`, the prompt's chat alias from the config (aliases are folded into
 destinations in slice 11; see [the design](platforms-and-destinations.md)). The poster reads its ID from
-`/centaur/chats/<destination>` and requires that chat to be approved for the bot and not blocked. An unknown alias, an unapproved chat or a blocked
-chat fails the request with an error that names the alias and, for an unapproved chat, the
-`centaur access approve <bot> chat <id>` command that fixes it. `/new` passes `fromThreadId`, the
+`/centaur/chats/<platform>/<destination>`, on the connection's platform, and requires that chat to
+be approved for that connection and not blocked. Aliases are scoped to a platform, so one name can
+mean a Telegram group and a Slack channel; the flat `/centaur/chats/<alias>` is not read, and an
+alias that exists only on another platform is unknown. An unknown alias, an unapproved chat or a
+blocked chat fails the request with an error that names the bot, the platform and the alias and, for
+an unapproved chat, the `centaur access approve <bot> chat <id>` command that fixes it. `/new` passes `fromThreadId`, the
 thread the command came from, and the new thread starts in that thread's chat, which must be an
 approved chat or a DM.
 
@@ -218,7 +221,7 @@ has `s3:PutObject` and `s3:ListBucket` on `attachments/*` only, and objects expi
 
 IAM for the function role: everything the receiver has. `register` writes only
 `/centaur/bots/*/repo`; the receiver's access-request decisions write the approved and blocked paths
-and create chat aliases under `/centaur/chats/*` (without overwriting)
+and create chat aliases under `/centaur/chats/<platform>/*` (without overwriting)
 (see [deploy.md](deploy.md#iam)). `start-thread` resolves access with the same resolver as the
 receiver (admin, approved and blocked chats). It needs
 `ssm:GetParametersByPath` on `/centaur/bots` and `/centaur/chats`, `ssm:GetParameter` on

@@ -20,7 +20,6 @@ export interface ParameterStore {
 }
 
 export const CHATS_PREFIX = `${PARAMETER_ROOT}/chats`;
-export const chatParameter = (name: string) => `${CHATS_PREFIX}/${name}`;
 export const FUNCTION_URL_PARAMETER = `${PARAMETER_ROOT}/function-url`;
 export const GITHUB_TOKEN_PARAMETER = `${PARAMETER_ROOT}/github/token`;
 

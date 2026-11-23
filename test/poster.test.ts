@@ -138,19 +138,25 @@ describe("poster start-thread", () => {
       "an unknown alias",
       { destination: "attic" },
       {},
-      /unknown chat alias "attic".*centaur access approve garden chat <id> --alias attic/,
+      /bot "garden" has no chat alias "attic" on telegram.*centaur access approve garden chat <id> --platform telegram --alias attic/,
+    ],
+    [
+      "a flat alias, which is not read",
+      { destination: "attic" },
+      { "/centaur/chats/attic": "-100500" },
+      /bot "garden" has no chat alias "attic" on telegram/,
+    ],
+    [
+      "an alias that exists only on another platform",
+      { destination: "notes-channel" },
+      {},
+      /bot "garden" has no chat alias "notes-channel" on telegram/,
     ],
     [
       "an alias whose chat is not approved",
       { destination: "attic" },
-      { "/centaur/chats/attic": "-100777" },
+      { "/centaur/chats/telegram/attic": "-100777" },
       /not approved for bot "garden".*centaur access approve garden chat -100777/,
-    ],
-    [
-      "an alias approved only for another bot",
-      { destination: "notes-channel" },
-      {},
-      /not approved for bot "garden"/,
     ],
     [
       "a blocked chat",

@@ -268,13 +268,39 @@ describe("github-token", () => {
 describe("chat list", () => {
   it("lists chat aliases sorted by name", async () => {
     const cli = createCliHarness();
-    await cli.run("chat", "list");
+    await cli.connect("garden", "telegram");
+    await cli.run("chat", "list", "garden");
     expect(cli.output.at(-1)).toBe("No chats registered.");
 
-    await cli.store.put("/centaur/chats/workshop", "-2", { secure: false });
-    await cli.store.put("/centaur/chats/household", "-1", { secure: false });
-    await cli.run("chat", "list");
+    await cli.store.put("/centaur/chats/telegram/workshop", "-2", { secure: false });
+    await cli.store.put("/centaur/chats/telegram/household", "-1", { secure: false });
+    await cli.run("chat", "list", "garden");
 
     expect(cli.output.at(-1)).toBe("household  -1\nworkshop  -2");
+  });
+
+  it("lists the aliases of the chosen connection only, ignoring the flat form", async () => {
+    const cli = createCliHarness();
+    await cli.connect("garden", "telegram");
+    await cli.connect("garden", "slack");
+    await cli.store.put("/centaur/chats/telegram/household", "-1", { secure: false });
+    await cli.store.put("/centaur/chats/slack/household", "C1", { secure: false });
+    await cli.store.put("/centaur/chats/legacy", "-9", { secure: false });
+
+    await cli.run("chat", "list", "garden", "--platform", "slack");
+    expect(cli.output.at(-1)).toBe("household  C1");
+    await cli.run("chat", "list", "garden", "--platform", "telegram");
+    expect(cli.output.at(-1)).toBe("household  -1");
+  });
+
+  it("asks for --platform with several connections and rejects an unknown bot", async () => {
+    const cli = createCliHarness();
+    await cli.connect("garden", "telegram");
+    await cli.connect("garden", "slack");
+
+    await expect(cli.run("chat", "list", "garden")).rejects.toThrow(
+      /several connections \(telegram, slack\); pass --platform/,
+    );
+    await expect(cli.run("chat", "list", "missing")).rejects.toThrow(/Unknown bot "missing"/);
   });
 });

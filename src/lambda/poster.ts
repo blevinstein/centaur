@@ -3,6 +3,7 @@ import { z } from "zod";
 import { alias, PLATFORMS, type Platform, threadPlatform } from "../config/index.js";
 import { createAccessResolver } from "./access.js";
 import type { AttachmentStore } from "./attachments.js";
+import { resolveChatAlias } from "./chat-aliases.js";
 import {
   createChatContext,
   listThreadsRequestSchema,
@@ -11,7 +12,7 @@ import {
 import type { McpPolicyReader } from "./mcp-policy.js";
 import type { OidcVerifier } from "./oidc.js";
 import { BOT_CREATED_STATE, type ThreadMetadata } from "./ownership.js";
-import { chatParameter, type ParameterStore } from "./parameters.js";
+import type { ParameterStore } from "./parameters.js";
 import { createPullRequests } from "./pull-requests.js";
 import { createRegister } from "./register.js";
 import { type Bot, botStatePrefix, requireBot, requireBound } from "./registry.js";
@@ -189,12 +190,7 @@ export async function createPoster(deps: PosterDeps) {
     target: { destination?: string | undefined; fromThreadId?: string | undefined },
   ) => {
     if (target.destination !== undefined) {
-      const chatId = await params.get(chatParameter(target.destination));
-      if (!chatId) {
-        throw new Error(
-          `unknown chat alias "${target.destination}"; approve the chat under that name with \`centaur access approve ${bot.name} chat <id> --alias ${target.destination}\``,
-        );
-      }
+      const chatId = await resolveChatAlias(params, bot, target.destination);
       await requireApprovedChat(bot, chatId, `"${target.destination}"`);
       return chatId;
     }

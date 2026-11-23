@@ -148,8 +148,8 @@ export async function posterSetup(
 ) {
   const params = fakeParameterStore({
     ...PARAMETERS,
-    "/centaur/chats/notes-channel": SLACK_CHANNEL_ID,
-    "/centaur/chats/workshop": WORKSHOP_CHAT_ID,
+    "/centaur/chats/slack/notes-channel": SLACK_CHANNEL_ID,
+    "/centaur/chats/telegram/workshop": WORKSHOP_CHAT_ID,
     ...APPROVALS,
     ...options.parameters,
   });

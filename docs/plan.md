@@ -297,8 +297,9 @@ users without touching SSM by hand: the bot asks them, and they answer from thei
 A chat request and a user request are separate: a new group needs its chat approved, and each
 person in it still needs approval to talk to the bot (DMs only need the user).
 
-**Chat aliases.** Approving a chat creates a global alias, `/centaur/chats/<alias>` = chat ID, which
-is what a prompt's `destination` names. The default is a slug of the chat's title (lowercase,
+**Chat aliases.** Approving a chat creates an alias scoped to the connection's platform,
+`/centaur/chats/<platform>/<alias>` = chat ID, which is what a prompt's `destination` names on that
+platform; collisions are handled per platform and the flat `/centaur/chats/<alias>` is not read. The default is a slug of the chat's title (lowercase,
 `[a-z0-9-]`, at most 40 characters), `-2`, `-3` and so on when the name is taken, and
 `chat-<last 4 digits of the ID>` when the title is unknown or has no Latin letters or digits; an
 existing alias that already names the chat is reused. The request stores the proposal and the admin
@@ -307,9 +308,9 @@ SSM `Overwrite: false` and takes the next free name on a conflict, so it can nev
 alias, and its role may write only `/centaur/chats/*`. `centaur access approve --alias` is the manual route; approving an approved chat again with a new
 `--alias` adds that alias and updates the entry (earlier aliases stay).
 
-When a scheduled run starts a thread, the poster resolves the prompt's alias through SSM and
-requires the chat to be approved for the bot and not blocked; a missing alias, an unapproved chat
-or a blocked chat fails with an error naming the alias and the `centaur access approve` command to
+When a scheduled run starts a thread, the poster resolves the prompt's alias on the connection's platform through SSM and
+requires the chat to be approved for that connection and not blocked; a missing alias, an unapproved chat
+or a blocked chat fails with an error naming the bot, platform and alias and the `centaur access approve` command to
 run. `/new` starts its thread in the originating thread's chat, which must be approved or a DM.
 
 **Admin channel.** `AdminChannel` (`src/lambda/admin-channel.ts`) has two jobs: send a request to
@@ -355,7 +356,7 @@ recovered by claiming again.
 | State table (TTL) | `access-request-message:<message id>` | Maps the admin DM to its request. |
 | State table (TTL) | `access-request-claim:<id>` | Makes a decision single-use. |
 | SSM | `bots/<bot>/platforms/<platform>/approved-chats/<chatId>`, `approved-users/<userId>` | Approved subjects (JSON: name, alias for chats, time). |
-| SSM | `chats/<alias>` | A chat alias and its ID; created by approvals, never overwritten by the Lambda. |
+| SSM | `chats/<platform>/<alias>` | A chat alias and its ID; created by approvals, never overwritten by the Lambda. |
 | SSM | `bots/<bot>/platforms/<platform>/blocked/<chat\|user>/<id>` | Blocked subjects (JSON: name, time). |
 | SSM | `admin/<platform>` | The admin's user ID. |
 | SSM | `admin-claim/<platform>` | The pending claim: bot, expiry, code hash. |
@@ -451,7 +452,7 @@ IDs and names are plain `String`.
 | `bots/<bot>/platforms/<platform>/blocked/<chat\|user>/<id>` | String (JSON) | access request denial; `centaur access block` |
 | `admin/<platform>` | String | `centaur admin set`; a successful admin claim |
 | `admin-claim/<platform>` | String (JSON) | `centaur admin claim`; deleted on use, failure limit or `--cancel` |
-| `chats/<alias>` | String | access request approval; `centaur access approve` |
+| `chats/<platform>/<alias>` | String | access request approval; `centaur access approve` |
 | `github/token` | SecureString | `centaur github-token set` |
 
 A connection is a bot's presence on one platform, addressed by the base path

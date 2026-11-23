@@ -17,7 +17,7 @@ import {
   SLACK_BOT,
 } from "./receiver-fixtures.js";
 
-const { "/centaur/chats/household": _household, ...ACCESS_PARAMETERS } = PARAMETERS;
+const { "/centaur/chats/telegram/household": _household, ...ACCESS_PARAMETERS } = PARAMETERS;
 
 export const ADMIN_ID = "5001";
 export const ADMIN_DM_MESSAGE_ID = "telegram:5001:900";

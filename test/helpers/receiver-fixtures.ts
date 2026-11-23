@@ -55,7 +55,7 @@ export const PARAMETERS: Record<string, string> = {
   ...connectionParameters(UNBOUND_BOT),
   [tokenParameter("partial", "slack")]: "t",
   [repoParameter("partial")]: "octo/partial",
-  "/centaur/chats/household": "-100500",
+  "/centaur/chats/telegram/household": "-100500",
 };
 
 export const GARDEN_SLACK_PARAMETERS = connectionParameters(GARDEN_SLACK_BOT);

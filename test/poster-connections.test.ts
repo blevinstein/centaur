@@ -13,7 +13,8 @@ import { GARDEN_SLACK_PARAMETERS } from "./helpers/receiver-fixtures.js";
 const TELEGRAM_THREAD = `telegram:${HOUSEHOLD_CHAT_ID}:${TOPIC_ID}`;
 const BOTH_CONNECTIONS = {
   ...GARDEN_SLACK_PARAMETERS,
-  "/centaur/chats/garden-channel": SLACK_CHANNEL_ID,
+  "/centaur/chats/slack/garden-channel": SLACK_CHANNEL_ID,
+  "/centaur/chats/slack/household": SLACK_CHANNEL_ID,
   [approvedChat("garden", SLACK_CHANNEL_ID, "slack")]: "{}",
 };
 const twoConnections = () =>
@@ -115,6 +116,25 @@ describe("poster start-thread connection", () => {
     expect(channelPost).toHaveBeenCalledWith("x");
     expect(telegram.createForumTopic).not.toHaveBeenCalled();
     expect(chatFor.mock.calls[0]?.[0]).toMatchObject({ platform: "slack", token: "xoxb-garden" });
+  });
+
+  it("resolves one alias name to each platform's own chat", async () => {
+    const { poster, telegram, channelPost, chatMock } = await twoConnections();
+
+    await poster({ ...start, destination: "household", platform: "telegram" });
+    await poster({ ...start, destination: "household", platform: "slack" });
+
+    expect(telegram.createForumTopic).toHaveBeenCalledWith("tg-token", HOUSEHOLD_CHAT_ID, "x");
+    expect(chatMock.channel).toHaveBeenCalledWith(`slack:${SLACK_CHANNEL_ID}`);
+    expect(channelPost).toHaveBeenCalledWith("x");
+  });
+
+  it("does not resolve another platform's alias", async () => {
+    const { poster } = await twoConnections();
+
+    await expect(
+      poster({ ...start, destination: "garden-channel", platform: "telegram" }),
+    ).rejects.toThrow('bot "garden" has no chat alias "garden-channel" on telegram');
   });
 
   it("derives the connection from fromThreadId", async () => {

@@ -242,14 +242,22 @@ describe("access request chat title and alias", () => {
 
   it("proposes a numeric suffix when the alias names another chat", async () => {
     const h = await accessHarness();
-    await h.params.put("/centaur/chats/garden-club", "-1");
+    await h.params.put("/centaur/chats/telegram/garden-club", "-1");
 
     expect(await request(h)).toMatchObject({ alias: "garden-club-2" });
   });
 
+  it("ignores aliases of other platforms and the flat form", async () => {
+    const h = await accessHarness();
+    await h.params.put("/centaur/chats/slack/garden-club", "C1");
+    await h.params.put("/centaur/chats/garden-club", "-1");
+
+    expect(await request(h)).toMatchObject({ alias: "garden-club" });
+  });
+
   it("proposes the alias that already names the chat", async () => {
     const h = await accessHarness();
-    await h.params.put("/centaur/chats/household", GROUP_CHAT_ID);
+    await h.params.put("/centaur/chats/telegram/household", GROUP_CHAT_ID);
 
     expect(await request(h)).toMatchObject({ alias: "household" });
   });

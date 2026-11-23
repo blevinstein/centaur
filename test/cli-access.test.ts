@@ -116,7 +116,7 @@ describe("access", () => {
 });
 
 describe("chat aliases on approval", () => {
-  const ALIAS = "/centaur/chats/garden-club";
+  const ALIAS = "/centaur/chats/telegram/garden-club";
 
   it("creates an alias from the name and records it on the approval", async () => {
     const cli = await harnessWithBot();
@@ -137,7 +137,7 @@ describe("chat aliases on approval", () => {
 
     await cli.run("access", "approve", "garden", "chat", "-100500", "--alias", "household");
 
-    expect(await cli.store.get("/centaur/chats/household")).toBe("-100500");
+    expect(await cli.store.get("/centaur/chats/telegram/household")).toBe("-100500");
   });
 
   it.each([
@@ -148,44 +148,84 @@ describe("chat aliases on approval", () => {
 
     await cli.run("access", "approve", "garden", "chat", "-100500", ...flags);
 
-    expect(await cli.store.get(`/centaur/chats/${alias}`)).toBe("-100500");
+    expect(await cli.store.get(`/centaur/chats/telegram/${alias}`)).toBe("-100500");
   });
 
   it("adds a numeric suffix when the derived alias names another chat", async () => {
     const cli = await harnessWithBot();
-    await cli.store.put("/centaur/chats/garden-club", "-1", { secure: false });
+    await cli.store.put("/centaur/chats/telegram/garden-club", "-1", { secure: false });
     await cli.run("access", "approve", "garden", "chat", "-100500", "--name", "Garden Club");
 
-    expect(await cli.store.get("/centaur/chats/garden-club-2")).toBe("-100500");
+    expect(await cli.store.get("/centaur/chats/telegram/garden-club-2")).toBe("-100500");
     expect(await cli.store.get(ALIAS)).toBe("-1");
   });
 
   it("reuses the alias that already names the chat", async () => {
     const cli = await harnessWithBot();
-    await cli.store.put("/centaur/chats/household", "-100500", { secure: false });
+    await cli.store.put("/centaur/chats/telegram/household", "-100500", { secure: false });
 
     await cli.run("access", "approve", "garden", "chat", "-100500", "--name", "Garden Club");
 
     expect(cli.store.names().filter((name) => name.startsWith("/centaur/chats/"))).toEqual([
-      "/centaur/chats/household",
+      "/centaur/chats/telegram/household",
     ]);
+  });
+
+  it("scopes aliases to the connection, so each platform reuses a name", async () => {
+    const cli = await harnessWithBot();
+    await cli.connect("garden", "slack");
+    await cli.store.put("/centaur/chats/telegram/household", "-1", { secure: false });
+
+    await cli.run(
+      "access",
+      "approve",
+      "garden",
+      "chat",
+      "C0123",
+      "--platform",
+      "slack",
+      "--alias",
+      "household",
+    );
+
+    expect(await cli.store.get("/centaur/chats/slack/household")).toBe("C0123");
+    expect(await cli.store.get("/centaur/chats/telegram/household")).toBe("-1");
+  });
+
+  it("does not read a flat alias when deriving or checking a name", async () => {
+    const cli = await harnessWithBot();
+    await cli.store.put("/centaur/chats/household", "-1", { secure: false });
+
+    await cli.run("access", "approve", "garden", "chat", "-100500", "--alias", "household");
+
+    expect(await cli.store.get("/centaur/chats/telegram/household")).toBe("-100500");
+    expect(await cli.store.get("/centaur/chats/household")).toBe("-1");
+  });
+
+  it("asks for --platform when approving on a bot with several connections", async () => {
+    const cli = await harnessWithBot();
+    await cli.connect("garden", "slack");
+
+    await expect(cli.run("access", "approve", "garden", "chat", "-100500")).rejects.toThrow(
+      /several connections \(telegram, slack\); pass --platform/,
+    );
   });
 
   it("refuses an explicit alias that names another chat, changing nothing", async () => {
     const cli = await harnessWithBot();
-    await cli.store.put("/centaur/chats/household", "-1", { secure: false });
+    await cli.store.put("/centaur/chats/telegram/household", "-1", { secure: false });
 
     await expect(
       cli.run("access", "approve", "garden", "chat", "-100500", "--alias", "household"),
     ).rejects.toThrow(/Alias "household" already names chat -1/);
-    expect(await cli.store.get("/centaur/chats/household")).toBe("-1");
+    expect(await cli.store.get("/centaur/chats/telegram/household")).toBe("-1");
     expect(await cli.store.get(approvedChat("-100500"))).toBeUndefined();
   });
 
   it.each(["foo_bar", "foo-bar", "a1"])("accepts the alias %s", async (name) => {
     const cli = await harnessWithBot();
     await cli.run("access", "approve", "garden", "chat", "-100500", "--alias", name);
-    expect(await cli.store.get(`/centaur/chats/${name}`)).toBe("-100500");
+    expect(await cli.store.get(`/centaur/chats/telegram/${name}`)).toBe("-100500");
   });
 
   it.each(["Bad Alias", "_foo", "-foo", "foo.bar", "Foo"])("rejects the alias %j", async (name) => {
@@ -209,7 +249,7 @@ describe("chat aliases on approval", () => {
 
     await cli.run("access", "approve", "garden", "chat", "-100500", "--alias", "household");
 
-    expect(await cli.store.get("/centaur/chats/household")).toBe("-100500");
+    expect(await cli.store.get("/centaur/chats/telegram/household")).toBe("-100500");
     expect(JSON.parse((await cli.store.get(approvedChat("-100500"))) ?? "")).toMatchObject({
       name: "Garden Club",
       alias: "household",
