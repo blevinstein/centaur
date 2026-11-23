@@ -1,5 +1,10 @@
 import type { StateAdapter } from "chat";
-import { formatIssues, parseCentaurConfig } from "../config/index.js";
+import {
+  declaredPlatforms,
+  formatIssues,
+  parseCentaurConfig,
+  platformSettings,
+} from "../config/index.js";
 import type { OidcVerifier } from "./oidc.js";
 import type { ParameterStore } from "./parameters.js";
 import { loadBotBinding, repoParameter, writeRegistryEntry } from "./registry.js";
@@ -32,15 +37,19 @@ export function createRegister({
     const { repository } = await oidc.verify(token);
     const parsed = parseCentaurConfig(configText);
     if (!parsed.ok) throw new Error(`invalid Centaur config:\n${formatIssues(parsed.issues)}`);
-    const { bot, platform, respond_to } = parsed.config;
+    const { bot } = parsed.config;
+    const declared = declaredPlatforms(parsed.config);
 
     const { secrets, repo: boundRepo } = await loadBotBinding(params, bot);
     if (!secrets) {
       throw new Error(`bot "${bot}" has no secrets in SSM; run "centaur bot add" first`);
     }
-    if (secrets.platform !== platform) {
-      throw new Error(`bot "${bot}" is a ${secrets.platform} bot, not ${platform}`);
+    const missing = declared.find((platform) => platform !== secrets.platform);
+    if (missing) {
+      throw new Error(`bot "${bot}" has no ${missing} connection; run "centaur bot add" first`);
     }
+    const { platform } = secrets;
+    const { respond_to } = platformSettings(parsed.config, platform);
     // The conditional create makes the first binding atomic: a concurrent registration that lost
     // the race re-reads the winner's repo and is refused like any other non-owner.
     const owner =

@@ -125,7 +125,7 @@ That's all that's needed for group use. Optionally, to DM a bot: open its link
 Repeat for each consumer repo, after the bot exists (Telegram above, Slack below).
 
 1. In the repo, add:
-   - `.centaur.yml`, or `.centaur/config.yml` for a repo with many files under `.centaur/` ([schema](config.md): bot, platform, `respond_to`, `handle`, context, model
+   - `.centaur.yml`, or `.centaur/config.yml` for a repo with many files under `.centaur/` ([schema](config.md): bot, `platforms` with per-platform `respond_to` and `handle`, context, model
      and cost-tuning fields, tool allowlist, persona, and a `destination` chat alias on each
      scheduled prompt); it holds no list of chats or users;
    - `.centaur/persona.md`, and any scheduled prompts under `.centaur/prompts/`;

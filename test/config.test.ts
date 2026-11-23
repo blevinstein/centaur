@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatIssues, parseCentaurConfig } from "../src/config/index.js";
+import {
+  declaredPlatforms,
+  formatIssues,
+  parseCentaurConfig,
+  platformSettings,
+  threadPlatform,
+} from "../src/config/index.js";
 import {
   DEFAULT_CHAT_CONTEXT,
   fullConfig,
@@ -9,6 +15,7 @@ import {
   remoteServerYaml,
   withExtra,
   withMcp,
+  withPlatforms,
 } from "./helpers/config-fixtures.js";
 
 describe("parseCentaurConfig", () => {
@@ -17,8 +24,7 @@ describe("parseCentaurConfig", () => {
       ok: true,
       config: {
         bot: "garden",
-        platform: "telegram",
-        respond_to: "mention",
+        platforms: { telegram: { respond_to: "mention" } },
         max_turns: 30,
         context: { default: "transcript", scheduled: "fresh" },
         provider: "anthropic",
@@ -56,9 +62,10 @@ describe("parseCentaurConfig", () => {
       ok: true,
       config: {
         bot: "garden",
-        platform: "telegram",
-        respond_to: "all",
-        handle: "garden_helper_bot",
+        platforms: {
+          telegram: { respond_to: "all", handle: "garden_helper_bot" },
+          slack: { respond_to: "mention" },
+        },
         effort: "low",
         max_turns: 12,
         max_budget_usd: 0.5,
@@ -79,12 +86,18 @@ describe("parseCentaurConfig", () => {
           "weekly-tasks": {
             file: ".centaur/prompts/weekly-tasks.md",
             context: "transcript",
-            destination: "household",
+            targets: [
+              { platform: "telegram", destination: "household" },
+              { platform: "slack", destination: "household" },
+            ],
           },
           seasonal: {
             file: ".centaur/prompts/season.md",
             context: "fresh",
-            destination: "workshop",
+            targets: [
+              { platform: "telegram", destination: "workshop" },
+              { platform: "slack", destination: "workshop-alerts" },
+            ],
           },
         },
       },
@@ -120,11 +133,63 @@ describe("parseCentaurConfig", () => {
 
   it("accepts respond_to all and prompts without any chat list", () => {
     expect(
-      parseCentaurConfig(withExtra("respond_to: all\nprompts: {weekly: {destination: household}}")),
+      parseCentaurConfig(
+        withPlatforms("{slack: {respond_to: all}}", "prompts: {weekly: {destination: household}}"),
+      ),
     ).toMatchObject({
       ok: true,
-      config: { respond_to: "all", prompts: { weekly: { destination: "household" } } },
+      config: {
+        platforms: { slack: { respond_to: "all" } },
+        prompts: { weekly: { targets: [{ platform: "slack", destination: "household" }] } },
+      },
     });
+  });
+
+  it("applies a string destination to the listed platforms only", () => {
+    expect(
+      parseCentaurConfig(
+        withPlatforms(
+          "{telegram: {}, slack: {}}",
+          "prompts: {weekly: {platforms: [slack], destination: household}}",
+        ),
+      ),
+    ).toMatchObject({
+      ok: true,
+      config: {
+        prompts: { weekly: { targets: [{ platform: "slack", destination: "household" }] } },
+      },
+    });
+  });
+
+  it("accepts a per-platform destination map for a subset of the declared platforms", () => {
+    expect(
+      parseCentaurConfig(
+        withPlatforms(
+          "{telegram: {}, slack: {}}",
+          "prompts: {weekly: {context: resume, destination: {telegram: household}}}",
+        ),
+      ),
+    ).toMatchObject({
+      ok: true,
+      config: {
+        prompts: {
+          weekly: { targets: [{ platform: "telegram", destination: "household" }] },
+        },
+      },
+    });
+  });
+
+  it("resolves platform settings and thread platforms", () => {
+    const result = parseCentaurConfig(fullConfig);
+    if (!result.ok) throw new Error(formatIssues(result.issues));
+    expect(platformSettings(result.config, "telegram")).toEqual({
+      respond_to: "all",
+      handle: "garden_helper_bot",
+    });
+    expect(declaredPlatforms(result.config)).toEqual(["telegram", "slack"]);
+    expect(threadPlatform("slack:C1:1.2")).toBe("slack");
+    expect(() => threadPlatform("irc:1")).toThrow(/no known platform/);
+    expect(() => platformSettings({ platforms: {} }, "slack")).toThrow(/does not declare/);
   });
 
   it("accepts instruction overrides as repo-relative paths only", () => {
@@ -191,10 +256,10 @@ describe("parseCentaurConfig", () => {
   });
 
   it("formats issues one per line with their paths", () => {
-    const result = parseCentaurConfig("bot: A\nplatform: irc");
+    const result = parseCentaurConfig("bot: A\nplatforms: {irc: {}}");
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(formatIssues(result.issues)).toMatch(/^bot: .*\nplatform: /);
+      expect(formatIssues(result.issues)).toMatch(/^bot: .*\nplatforms/);
     }
   });
 });

@@ -1,6 +1,7 @@
 import type { StateAdapter } from "chat";
 import { describe, expect, it } from "vitest";
-import { configText, ORPHAN_PARAMETERS, posterSetup } from "./helpers/poster-fixtures.js";
+import { registerConfigText } from "./helpers/config-fixtures.js";
+import { ORPHAN_PARAMETERS, posterSetup } from "./helpers/poster-fixtures.js";
 import { CONNECT_FAILURE, strictStates } from "./helpers/strict-state.js";
 
 const setup = async (options: Parameters<typeof posterSetup>[0] = {}, strict = strictStates()) => {
@@ -29,7 +30,7 @@ describe("poster state adapters are connected before direct use", () => {
     });
 
     await expect(
-      poster({ operation: "register", token: "jwt", config: configText() }),
+      poster({ operation: "register", token: "jwt", config: registerConfigText() }),
     ).resolves.toEqual({ bot: "sprout", repo: "octo/sprout" });
     expect(strict.connects("")).toBe(1);
   });

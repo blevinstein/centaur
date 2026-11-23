@@ -14,11 +14,16 @@ export {
   type ChatContextScope,
   type ContextPolicy,
   centaurConfigSchema,
+  declaredPlatforms,
   type McpServer,
   PLATFORMS,
   type Platform,
+  type PlatformSettings,
+  type PromptTarget,
+  platformSettings,
   type RespondTo,
   type SecretRef,
+  threadPlatform,
 } from "./schema.js";
 
 export interface ConfigIssue {

@@ -6,6 +6,8 @@ import {
   type CentaurConfig,
   type ContextPolicy,
   PROVIDER_SETTINGS,
+  platformSettings,
+  threadPlatform,
 } from "../config/index.js";
 import { CHAT_SERVER_NAME } from "../mcp/server-config.js";
 import { threadKey } from "../thread-key.js";
@@ -157,12 +159,16 @@ async function scheduledTurn(
 ): Promise<Turn> {
   const prompt = config.prompts[name];
   if (!prompt) throw new Error(`The Centaur config defines no prompt named "${name}"`);
+  const [target, ...others] = prompt.targets;
+  if (!target || others.length > 0) {
+    throw new Error(`Prompt "${name}" must have exactly one target`);
+  }
   const scheduledTask = await readFile(join(deps.workspace, prompt.file), "utf8");
   const targets = prTargetFlags(config, await existingTargets(deps, config));
   return {
     mode: "start-thread",
     policy: prompt.context,
-    start: { destination: prompt.destination },
+    start: { destination: target.destination },
     allowExisting: targets.allowExisting,
     prompt: buildPrompt({ scheduledTask, instructions, ...targets }),
   };
@@ -245,7 +251,8 @@ async function chatTurn(
     case "reply": {
       const resumeSessionId =
         plan.policy === "resume" ? await store.restoreSession(directory) : undefined;
-      const canStaySilent = config.respond_to === "all";
+      const settings = platformSettings(config, threadPlatform(threadId));
+      const canStaySilent = settings.respond_to === "all";
       const pendingIds = new Set(plan.pending.map((m) => m.id));
       const showHistory =
         plan.policy === "transcript" || (plan.policy === "resume" && !resumeSessionId);
@@ -266,7 +273,7 @@ async function chatTurn(
           ...targets,
           chatTools: chatToolsEnabled(config),
           instructions,
-          handle: config.handle,
+          handle: settings.handle,
           history,
           messages: plan.pending,
           attachmentPath,

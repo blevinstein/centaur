@@ -29,9 +29,9 @@ export const message = (id: string, text: string, overrides: Partial<ChatMessage
 export const botMessage = (id: string, text: string) =>
   message(id, text, { fromBot: true, userName: "sprout" });
 
-export const configText = (extra = "") => `
+export const configText = (extra = "", telegram = "{}") => `
 bot: sprout
-platform: telegram
+platforms: { telegram: ${telegram} }
 provider: anthropic
 model: sonnet
 allowed_tools: Read,Edit

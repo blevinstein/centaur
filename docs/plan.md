@@ -125,28 +125,29 @@ anyone. Configuration lives in three places:
 
 | What | Where | Example |
 |---|---|---|
-| Bot identity, platform, routing, and agent behavior | Each consumer repo's config (`.centaur.yml` or `.centaur/config.yml`) | `bot: garden`, `platform: telegram` |
+| Bot identity, platform, routing, and agent behavior | Each consumer repo's config (`.centaur.yml` or `.centaur/config.yml`) | `bot: garden`, `platforms: {telegram: {}}` |
 | Secrets, personal identifiers and access | SSM Parameter Store, managed with a CLI in this repo | Bot tokens, webhook secrets, the admin, approved and blocked chats and users, chat aliases |
 | Deployment parameters | CloudFormation parameter overrides, kept in the deployer's own private infra repo | GitHub owner for the OIDC trust policy, stack name |
 
 ```yaml
 # <repo>/.centaur.yml
 bot: garden                     # secrets live under /centaur/bots/garden/ in SSM
-platform: telegram              # telegram | slack
+platforms:
+  telegram:                      # telegram and/or slack
+    respond_to: mention         # mention | all
 context:
   default: transcript           # fresh | transcript | resume
   scheduled: fresh
 provider: anthropic            # anthropic | openrouter
 model: sonnet
 allowed_tools: "Read,Edit,Write,Glob,Grep,WebFetch,WebSearch"
-respond_to: mention             # mention | all
 persona: .centaur/persona.md    # tone, audience, what to ask humans for
 prompts:
   weekly-tasks:
     destination: household      # chat alias; the chat must be approved for the bot
 ```
 
-The remaining fields (`handle`, `effort`, `max_turns`, `max_budget_usd`, per-prompt `file` and
+The remaining fields (per-platform `handle`, per-prompt `platforms` and per-platform `destination`, `effort`, `max_turns`, `max_budget_usd`, per-prompt `file` and
 `context`) are in [config.md](config.md).
 
 Names in the config are aliases; the real IDs never appear in any repo, so a public consumer

@@ -215,7 +215,7 @@ describe("prepare", () => {
   ])("with respond_to %s, the schema allows ignoring: %s", async (respondTo, canIgnore) => {
     const { deps, root } = await setup(
       [message("1", "hi")],
-      configText(`respond_to: ${respondTo}`),
+      configText("", `{ respond_to: ${respondTo} }`),
     );
 
     const out = await prepare(deps());
@@ -251,7 +251,10 @@ describe("prepare", () => {
   it("never offers silence for scheduled turns", async () => {
     const { deps, root } = await setup(
       [],
-      configText("respond_to: all\nprompts: {weekly: {context: fresh, destination: household}}"),
+      configText(
+        "prompts: {weekly: {context: fresh, destination: household}}",
+        "{ respond_to: all }",
+      ),
     );
 
     const out = await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
@@ -708,7 +711,7 @@ describe("finish", () => {
   it("posts only the pull request link when the agent ignores the messages but changed files", async () => {
     const { deps, aws, executionFile, writeExecution, stateDir } = await setup(
       [message("1", "please fix")],
-      configText("respond_to: all"),
+      configText("", "{ respond_to: all }"),
     );
     await prepare(deps());
     await writeExecution({ structured_output: { ignore: true } });
@@ -732,7 +735,7 @@ describe("finish", () => {
   it("posts nothing when the agent ignores the messages, but advances the marker and saves the session", async () => {
     const { deps, aws, executionFile, writeExecution, stateDir } = await setup(
       [message("1", "lunch?")],
-      configText("respond_to: all\ncontext: {default: resume}"),
+      configText("context: {default: resume}", "{ respond_to: all }"),
     );
     await prepare(deps());
     await writeFile(join((await state(stateDir)).sessionDirectory, "s3.jsonl"), "data");
@@ -950,7 +953,11 @@ describe("finish with an existing pull request target", () => {
   });
 
   it("posts only the update link when the agent ignores the messages", async () => {
-    const { text } = await finished({ ignore: true }, updated(), configText("respond_to: all"));
+    const { text } = await finished(
+      { ignore: true },
+      updated(),
+      configText("", "{ respond_to: all }"),
+    );
 
     expect(text).toBe(`Updated pull request: ${URL}`);
   });

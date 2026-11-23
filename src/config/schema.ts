@@ -79,11 +79,60 @@ const MCP_TOOL_PREFIX = "mcp__";
 const mcpToolMatchesServer = (tool: string, server: string) =>
   tool === `${MCP_TOOL_PREFIX}${server}` || tool.startsWith(`${MCP_TOOL_PREFIX}${server}__`);
 
+const platformName = z.enum(PLATFORMS);
+
+const platformSettingsSchema = z.strictObject({
+  respond_to: z.enum(RESPOND_TO).default("mention"),
+  handle: z
+    .string()
+    .regex(/^[A-Za-z0-9_]{3,64}$/, "must be the bot's username without the @")
+    .optional(),
+});
+
+const platformsSchema = z
+  .partialRecord(platformName, platformSettingsSchema)
+  .refine((platforms) => Object.keys(platforms).length > 0, {
+    message: "must declare at least one platform (telegram or slack)",
+  });
+
 const promptSchema = z.strictObject({
   file: repoPath.optional(),
   context: contextPolicy.optional(),
-  destination: alias,
+  platforms: z.array(platformName).min(1).optional(),
+  destination: z.union([
+    alias,
+    z.partialRecord(platformName, alias).refine((names) => Object.keys(names).length > 0, {
+      message: "must name a destination for at least one platform",
+    }),
+  ]),
 });
+
+export interface PromptTarget {
+  platform: Platform;
+  destination: string;
+}
+
+type PromptInput = z.output<typeof promptSchema>;
+
+/** A string destination applies to the prompt's `platforms`, or to the only declared platform. */
+const promptTargets = (prompt: PromptInput, declared: Platform[]): PromptTarget[] => {
+  const { destination } = prompt;
+  if (typeof destination === "string") {
+    return (prompt.platforms ?? (declared.length === 1 ? declared : [])).map((platform) => ({
+      platform,
+      destination,
+    }));
+  }
+  return (Object.keys(destination) as Platform[]).map((platform) => ({
+    platform,
+    destination: destination[platform] as string,
+  }));
+};
+
+const LEGACY_PLATFORM_KEY_ERROR =
+  "is not supported: declare it under `platforms: { <platform>: { respond_to, handle } }`; run `centaur config migrate` to rewrite this file";
+
+const removedPlatformKey = z.never({ error: LEGACY_PLATFORM_KEY_ERROR }).optional();
 
 const instructionsSchema = z.strictObject({
   chat: repoPath.optional(),
@@ -102,20 +151,18 @@ const removedAccessKey = z
 export const centaurConfigSchema = z
   .strictObject({
     bot: alias,
-    platform: z.enum(PLATFORMS),
+    platforms: platformsSchema,
+    platform: removedPlatformKey,
+    respond_to: removedPlatformKey,
+    handle: removedPlatformKey,
     allow: removedAccessKey,
     chats: removedAccessKey,
-    respond_to: z.enum(RESPOND_TO).default("mention"),
     context: z
       .strictObject({
         default: contextPolicy.default("transcript"),
         scheduled: contextPolicy.default("fresh"),
       })
       .default({ default: "transcript", scheduled: "fresh" }),
-    handle: z
-      .string()
-      .regex(/^[A-Za-z0-9_]{3,64}$/, "must be the bot's username without the @")
-      .optional(),
     provider: z.enum(PROVIDERS),
     model: z.string().min(1),
     effort: z.enum(EFFORT_LEVELS).optional(),
@@ -168,6 +215,32 @@ export const centaurConfigSchema = z
     prompts: z.record(alias, promptSchema).default({}),
   })
   .superRefine((config, ctx) => {
+    const declared = declaredPlatforms(config);
+    for (const [name, prompt] of Object.entries(config.prompts)) {
+      const issue = (key: string, message: string) =>
+        ctx.addIssue({ code: "custom", path: ["prompts", name, key], message });
+      const targets = promptTargets(prompt, declared);
+      if (typeof prompt.destination === "string" && !prompt.platforms && declared.length > 1) {
+        issue(
+          "platforms",
+          `is required when the bot declares more than one platform (${declared.join(", ")}) and the destination is a name; list where it applies or give destination per platform`,
+        );
+      }
+      if (typeof prompt.destination !== "string" && prompt.platforms) {
+        issue("platforms", "must not be combined with a per-platform destination");
+      }
+      for (const { platform } of targets) {
+        if (!declared.includes(platform)) {
+          issue(
+            "destination",
+            `targets platform "${platform}", which is not declared in platforms`,
+          );
+        }
+      }
+      if ((prompt.context ?? config.context.scheduled) === "resume" && targets.length > 1) {
+        issue("context", "resume needs one target: a session belongs to one thread");
+      }
+    }
     const servers = Object.keys(config.mcp_servers);
     config.allowed_tools.forEach((tool, index) => {
       const builtIn = tool.startsWith(`${MCP_TOOL_PREFIX}${GITHUB_RESERVED_PREFIX}`);
@@ -201,18 +274,39 @@ export const centaurConfigSchema = z
         {
           file: prompt.file ?? `.centaur/prompts/${name}.md`,
           context: prompt.context ?? config.context.scheduled,
-          destination: prompt.destination,
+          targets: promptTargets(prompt, declaredPlatforms(config)),
         },
       ]),
     ),
   }));
 
 export type CentaurConfig = z.output<typeof centaurConfigSchema>;
+export type PlatformSettings = z.output<typeof platformSettingsSchema>;
 export type PullRequestsConfig = CentaurConfig["pull_requests"];
 export type ChatContextConfig = CentaurConfig["chat_context"];
 export type ChatContextScope = (typeof CHAT_CONTEXT_SCOPES)[number];
 export type Platform = (typeof PLATFORMS)[number];
 export type RespondTo = (typeof RESPOND_TO)[number];
 export type ContextPolicy = (typeof CONTEXT_POLICIES)[number];
+export const declaredPlatforms = (config: { platforms: Partial<Record<Platform, unknown>> }) =>
+  Object.keys(config.platforms) as Platform[];
+
+export function platformSettings(
+  config: Pick<CentaurConfig, "platforms">,
+  platform: Platform,
+): PlatformSettings {
+  const settings = config.platforms[platform];
+  if (!settings) throw new Error(`the Centaur config does not declare platform "${platform}"`);
+  return settings;
+}
+
+/** The platform of a thread ID, which the adapter prefixes (`telegram:<chat>`, `slack:<channel>:<ts>`). */
+export function threadPlatform(threadId: string): Platform {
+  const prefix = threadId.split(":", 1)[0];
+  const platform = PLATFORMS.find((candidate) => candidate === prefix);
+  if (!platform) throw new Error("thread ID has no known platform prefix");
+  return platform;
+}
+
 export type McpServer = CentaurConfig["mcp_servers"][string];
 export type SecretRef = z.output<typeof secretRef>;

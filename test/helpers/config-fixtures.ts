@@ -2,9 +2,27 @@ import { formatIssues, type McpServer, parseCentaurConfig } from "../../src/conf
 
 export const DEFAULT_CHAT_CONTEXT = { scope: "thread", max_threads: 20, max_messages: 50 };
 
+const BASE_FIELDS: Record<string, string | undefined> = {
+  bot: "a",
+  platforms: "{slack: {}}",
+  provider: "anthropic",
+  model: "sonnet",
+  allowed_tools: "Read",
+};
+
+export const yamlOf = (overrides: Record<string, string | undefined> = {}) =>
+  Object.entries({ ...BASE_FIELDS, ...overrides })
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join("\n");
+
+export const registerConfigText = (overrides: Record<string, string | undefined> = {}) =>
+  yamlOf({ bot: "sprout", platforms: "{telegram: {}}", allowed_tools: "Read", ...overrides });
+
 export const minimalConfig = `
 bot: garden
-platform: telegram
+platforms:
+  telegram: {}
 provider: anthropic
 model: sonnet
 allowed_tools: Read,Edit
@@ -12,12 +30,14 @@ allowed_tools: Read,Edit
 
 export const fullConfig = `
 bot: garden
-platform: telegram
-respond_to: all
+platforms:
+  telegram:
+    respond_to: all
+    handle: garden_helper_bot
+  slack: {}
 context:
   default: resume
   scheduled: fresh
-handle: garden_helper_bot
 provider: anthropic
 model: sonnet
 effort: low
@@ -28,20 +48,22 @@ persona: .centaur/persona.md
 prompts:
   weekly-tasks:
     context: transcript
+    platforms: [telegram, slack]
     destination: household
   seasonal:
     file: .centaur/prompts/season.md
-    destination: workshop
+    destination:
+      telegram: workshop
+      slack: workshop-alerts
 `;
 
-const BASE = "bot: a\nplatform: slack\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read";
-
-export const withExtra = (line: string) => `${BASE}\n${line}`;
-
-const MCP_BASE = "bot: a\nplatform: slack\nprovider: anthropic\nmodel: sonnet";
+export const withExtra = (line: string) => `${yamlOf()}\n${line}`;
 
 export const withMcp = (servers: string, tools: string) =>
-  `${MCP_BASE}\nmcp_servers:\n${servers}\nallowed_tools: [${tools}]`;
+  `${yamlOf({ allowed_tools: undefined })}\nmcp_servers:\n${servers}\nallowed_tools: [${tools}]`;
+
+export const withPlatforms = (platforms: string, extra = "") =>
+  `${yamlOf({ platforms })}\n${extra}`;
 
 export const remoteServerYaml = `  linear:
     url: https://mcp.linear.app/mcp
@@ -65,12 +87,79 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
   ["excessive max_turns", withExtra("max_turns: 500"), "max_turns", /./],
   ["negative max_budget_usd", withExtra("max_budget_usd: -1"), "max_budget_usd", /./],
   ["excessive max_budget_usd", withExtra("max_budget_usd: 5000"), "max_budget_usd", /./],
-  ["handle with an @", withExtra('handle: "@garden_bot"'), "handle", /without the @/],
+  [
+    "handle with an @",
+    yamlOf({ platforms: '{slack: {handle: "@garden_bot"}}' }),
+    "platforms.slack.handle",
+    /without the @/,
+  ],
   [
     "unknown respond_to value",
-    "bot: a\nplatform: slack\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\nrespond_to: some",
-    "respond_to",
+    yamlOf({ platforms: "{slack: {respond_to: some}}" }),
+    "platforms.slack.respond_to",
     /./,
+  ],
+  [
+    "an unknown per-platform key",
+    yamlOf({ platforms: "{slack: {other: 1}}" }),
+    "platforms.slack",
+    /unrecognized key/i,
+  ],
+  ["missing platforms", yamlOf({ platforms: undefined }), "platforms", /./],
+  ["empty platforms", yamlOf({ platforms: "{}" }), "platforms", /at least one platform/],
+  ...["platform: slack", "respond_to: all", "handle: garden_bot"].map(
+    (line) =>
+      [
+        `the legacy top-level ${line.split(":")[0]}`,
+        withExtra(line),
+        line.split(":")[0] as string,
+        /platforms: \{ <platform>: \{ respond_to, handle \} \}.*`centaur config migrate`/,
+      ] as [string, string, string, RegExp],
+  ),
+  [
+    "a string destination without platforms on a multi-platform bot",
+    withPlatforms("{telegram: {}, slack: {}}", "prompts: {weekly: {destination: household}}"),
+    "prompts.weekly.platforms",
+    /required when the bot declares more than one platform/,
+  ],
+  [
+    "platforms combined with a per-platform destination",
+    withPlatforms(
+      "{telegram: {}, slack: {}}",
+      "prompts: {weekly: {platforms: [slack], destination: {slack: a}}}",
+    ),
+    "prompts.weekly.platforms",
+    /must not be combined/,
+  ],
+  [
+    "a prompt platform that is not declared",
+    withPlatforms(
+      "{slack: {}}",
+      "prompts: {weekly: {platforms: [telegram], destination: household}}",
+    ),
+    "prompts.weekly.destination",
+    /"telegram", which is not declared/,
+  ],
+  [
+    "a destination map naming an undeclared platform",
+    withExtra("prompts: {weekly: {destination: {telegram: household}}}"),
+    "prompts.weekly.destination",
+    /"telegram", which is not declared/,
+  ],
+  [
+    "an empty destination map",
+    withExtra("prompts: {weekly: {destination: {}}}"),
+    "prompts.weekly.destination",
+    /at least one platform/,
+  ],
+  [
+    "resume with several targets",
+    withPlatforms(
+      "{telegram: {}, slack: {}}",
+      "prompts: {weekly: {context: resume, platforms: [telegram, slack], destination: household}}",
+    ),
+    "prompts.weekly.context",
+    /one target/,
   ],
   ...["allow: [x]", "chats: [h]", "allow: []", "chats: []"].map(
     (line) =>
@@ -112,64 +201,19 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
   ),
   ["empty document", "", "(root)", /expected object/i],
   ["malformed YAML", "bot: [unclosed", "(root)", /invalid YAML/],
-  [
-    "missing model",
-    "bot: a\nplatform: slack\nprovider: anthropic\nallowed_tools: Read",
-    "model",
-    /./,
-  ],
-  [
-    "missing provider",
-    "bot: a\nplatform: slack\nmodel: sonnet\nallowed_tools: Read",
-    "provider",
-    /./,
-  ],
-  [
-    "unknown provider",
-    withExtra("provider: bedrock").replace("provider: anthropic\n", ""),
-    "provider",
-    /./,
-  ],
-  [
-    "missing bot",
-    "platform: slack\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read",
-    "bot",
-    /./,
-  ],
-  [
-    "unknown platform",
-    "bot: a\nplatform: irc\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read",
-    "platform",
-    /./,
-  ],
-  [
-    "uppercase bot alias",
-    "bot: Garden\nplatform: slack\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read",
-    "bot",
-    /lowercase alias/,
-  ],
-  [
-    "bad context policy",
-    "bot: a\nplatform: slack\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\ncontext: {default: sticky}",
-    "context.default",
-    /./,
-  ],
-  [
-    "unknown key",
-    "bot: a\nplatform: slack\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\nextra: 1",
-    "(root)",
-    /unrecognized key/i,
-  ],
-  ["missing allowed_tools", "bot: a\nplatform: slack", "allowed_tools", /./],
-  [
-    "empty tool list",
-    'bot: a\nplatform: slack\nallowed_tools: " , "',
-    "allowed_tools",
-    /at least one tool/,
-  ],
+  ["missing model", yamlOf({ model: undefined }), "model", /./],
+  ["missing provider", yamlOf({ provider: undefined }), "provider", /./],
+  ["unknown provider", yamlOf({ provider: "bedrock" }), "provider", /./],
+  ["missing bot", yamlOf({ bot: undefined }), "bot", /./],
+  ["unknown platform", yamlOf({ platforms: "{irc: {}}" }), "platforms", /./],
+  ["uppercase bot alias", yamlOf({ bot: "Garden" }), "bot", /lowercase alias/],
+  ["bad context policy", withExtra("context: {default: sticky}"), "context.default", /./],
+  ["unknown key", withExtra("extra: 1"), "(root)", /unrecognized key/i],
+  ["missing allowed_tools", yamlOf({ allowed_tools: undefined }), "allowed_tools", /./],
+  ["empty tool list", yamlOf({ allowed_tools: '" , "' }), "allowed_tools", /at least one tool/],
   [
     "persona escaping the repo",
-    "bot: a\nplatform: slack\nprovider: anthropic\nmodel: sonnet\nallowed_tools: Read\npersona: ../secret.md",
+    withExtra("persona: ../secret.md"),
     "persona",
     /relative path inside the repo/,
   ],

@@ -4,7 +4,8 @@
 > SSM layout, config keys, poster fields, commands and CLI commands below are the accepted design,
 > and the code does not implement them. Existing data and configs are migrated once; the old forms
 > are not kept working (see [Decisions](#decisions) and [Migration](#migration)). Terms (receiver, poster, turn, state table, alias) are defined in
-> [plan.md](plan.md), [poster.md](poster.md) and [workflows.md](workflows.md).
+> [plan.md](plan.md), [poster.md](poster.md) and [workflows.md](workflows.md). Slice 1 (config schema and
+> readers) is implemented on `platforms/cutover`.
 
 Two items from [TODO.md](../TODO.md) are designed together because they change the same records:
 one bot present on several platforms, and named destinations that can point at a topic or thread

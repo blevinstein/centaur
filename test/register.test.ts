@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { readRegistryEntry } from "../src/lambda/registry.js";
+import { registerConfigText } from "./helpers/config-fixtures.js";
 import {
-  configText,
   FUNCTION_URL,
   ORPHAN_PARAMETERS,
   posterSetup,
@@ -10,7 +10,7 @@ import {
 
 const register = (
   poster: Awaited<ReturnType<typeof posterSetup>>["poster"],
-  config = configText(),
+  config = registerConfigText(),
 ) => poster({ operation: "register", token: "jwt", config });
 
 describe("register", () => {
@@ -50,7 +50,7 @@ describe("register", () => {
       },
     });
 
-    await register(poster, configText({ bot: "inbox", platform: "slack" }));
+    await register(poster, registerConfigText({ bot: "inbox", platforms: "{slack: {}}" }));
 
     expect(params.values["/centaur/bots/inbox/repo"]).toBe("octo/sprout");
     expect(telegram.setWebhook).not.toHaveBeenCalled();
@@ -62,17 +62,17 @@ describe("register", () => {
       const { poster, registryState } = await posterSetup({ parameters: ORPHAN_PARAMETERS });
       const [key, value] = line.split(": ") as [string, string];
 
-      await expect(register(poster, configText({ [key]: value }))).rejects.toThrow(
+      await expect(register(poster, registerConfigText({ [key]: value }))).rejects.toThrow(
         new RegExp(`${key}: .*admin approval.*centaur access`),
       );
       expect(await readRegistryEntry(registryState, "sprout")).toBeNull();
     },
   );
 
-  it("stores respond_to from the config in the registry entry", async () => {
+  it("stores the platform's respond_to from the config in the registry entry", async () => {
     const { poster, registryState } = await posterSetup({ parameters: ORPHAN_PARAMETERS });
 
-    await register(poster, configText({ respond_to: "all" }));
+    await register(poster, registerConfigText({ platforms: "{telegram: {respond_to: all}}" }));
 
     expect(await readRegistryEntry(registryState, "sprout")).toMatchObject({ respond_to: "all" });
   });
@@ -111,9 +111,14 @@ describe("register", () => {
       ["a bot with no secrets", { bot: "ghost" }, /no secrets in SSM/],
       ["an unknown bot", { bot: "nobody" }, /no secrets in SSM/],
       [
-        "a platform that differs from the stored one",
-        { platform: "slack" },
-        /telegram bot, not slack/,
+        "an extra declared platform with no connection",
+        { platforms: "{telegram: {}, slack: {}}" },
+        /no slack connection/,
+      ],
+      [
+        "a declared platform that differs from the stored one",
+        { platforms: "{slack: {}}" },
+        /no slack connection/,
       ],
     ])("%s", async (_name, overrides, message) => {
       const { poster, params, registryState, telegram } = await posterSetup({
@@ -121,7 +126,7 @@ describe("register", () => {
       });
       const before = { ...params.values };
 
-      await expect(register(poster, configText(overrides))).rejects.toThrow(message);
+      await expect(register(poster, registerConfigText(overrides))).rejects.toThrow(message);
 
       expect(params.values).toEqual(before);
       expect(await readRegistryEntry(registryState, overrides.bot ?? "sprout")).toEqual(
@@ -133,8 +138,8 @@ describe("register", () => {
     it("an invalid config, reporting every issue", async () => {
       const { poster, params } = await posterSetup({ parameters: ORPHAN_PARAMETERS });
 
-      await expect(register(poster, "bot: sprout\nplatform: irc")).rejects.toThrow(
-        /platform:.*\nprovider:.*\nmodel:.*\nallowed_tools:/,
+      await expect(register(poster, "bot: sprout\nplatforms: {irc: {}}")).rejects.toThrow(
+        /platforms.*\nprovider:.*\nmodel:.*\nallowed_tools:/,
       );
       expect(params.values["/centaur/bots/sprout/repo"]).toBeUndefined();
     });

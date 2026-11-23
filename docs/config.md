@@ -23,9 +23,11 @@ the config lives. The register workflow's `paths` filter lists both locations.
 
 ```yaml
 bot: garden
-platform: telegram
-respond_to: mention
-handle: garden_helper_bot      # the bot's @username; only used with respond_to: all
+platforms:
+  telegram:
+    respond_to: mention
+    handle: garden_helper_bot  # the bot's @username; only used with respond_to: all
+  slack: {}                    # a bot may be on several platforms; settings default as below
 context:
   default: transcript
   scheduled: fresh
@@ -46,7 +48,12 @@ instructions:               # all optional; each replaces the bundled guidance
 prompts:
   weekly-tasks:                 # file defaults to .centaur/prompts/weekly-tasks.md
     context: transcript         # overrides context.scheduled for this prompt
-    destination: household      # chat alias for the new thread (required)
+    platforms: [telegram, slack]  # where a string destination applies; required with 2+ platforms
+    destination: household      # a name on each listed platform (required)
+  frost-alert:
+    destination:                # or one name per platform; no `platforms` key then
+      telegram: household
+      slack: garden-alerts
 ```
 
 ## Fields
@@ -54,13 +61,11 @@ prompts:
 | Field | Required | Default | Meaning |
 |---|---|---|---|
 | `bot` | yes | | Bot alias; secrets live under `/centaur/bots/<bot>/` in SSM. |
-| `platform` | yes | | `telegram` or `slack`. |
-| `respond_to` | no | `mention` | Which messages the bot answers: `mention` (mentions, DMs, topics it created, and on Slack the rest of a thread it was mentioned in) or `all` (every message from an approved sender in any approved chat of the bot). See [plan.md](plan.md#routing-in-a-shared-telegram-group). |
+| `platforms` | yes | | The platforms the repo expects the bot to be on: a map from `telegram` or `slack` to per-platform settings, at least one. See [Platforms](#platforms). |
 | `context.default` | no | `transcript` | Policy for conversational threads: `fresh`, `transcript` or `resume`. |
 | `context.scheduled` | no | `fresh` | Policy for threads started by a scheduled prompt. |
 | `context.transcript_max_percent` | no | `25` | Planned, not implemented. Share of the model's context window the earlier transcript may fill, an integer from 1 to 100. See [Context](#context). |
 | `context.window_tokens` | no | | Planned, not implemented. The model's context window in tokens, overriding the lookup. |
-| `handle` | no | | The bot's platform username without `@`. With `respond_to: all` the prompt tells the agent people mention it as `@<handle>`. The workflow cannot learn it cheaply from the bot's identity, so it is configured. |
 | `provider` | yes | | API provider: `anthropic` or `openrouter`. Each maps to a base URL and API key secret name in `src/config/providers.ts` (`anthropic` uses the default endpoint); add a provider by adding an entry there. |
 | `model` | yes | | Model passed to the agent (`--model`). Always set explicitly; the CLI default is never relied on. |
 | `effort` | no | | Reasoning effort: `low`, `medium`, `high`, `xhigh` or `max` (`--effort`); unset uses the CLI's default. |
@@ -75,9 +80,29 @@ prompts:
 | `prompts` | no | `{}` | Scheduled prompts by name (see below). |
 
 Each prompt takes `file` (default `.centaur/prompts/<name>.md`), `context` (default
-`context.scheduled`) and `destination`: the chat alias where its scheduled run starts a thread. `destination` is required for
-every prompt. The file only checks its shape; the alias is resolved when the run starts (see
+`context.scheduled`), `destination` (required) and `platforms`; see [Prompts](#prompts). The
+parser only checks the shape; a destination name is resolved when the run starts (see
 [Access](#access)).
+
+## Platforms
+
+`platforms` maps each platform the bot is on to its settings, a strict object with two optional keys:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `respond_to` | `mention` | Which messages the bot answers: `mention` (mentions, DMs, topics it created, and on Slack the rest of a thread it was mentioned in) or `all` (every message from an approved sender in any approved chat of the bot on that platform). See [plan.md](plan.md#routing-in-a-shared-telegram-group). |
+| `handle` | | The bot's username on that platform without `@`. With `respond_to: all` the prompt tells the agent people mention it as `@<handle>`. The workflow cannot learn it cheaply from the bot's identity, so it is configured. |
+
+Everything else (`context`, `provider`, `model`, tools, MCP, `pull_requests`) is bot-wide. `register`
+fails if a declared platform has no secrets in SSM. A turn reads the settings of the platform in its
+thread ID's prefix (`telegram:...`, `slack:...`); a scheduled turn reads those of its target.
+
+The top-level `platform`, `respond_to` and `handle` are not accepted. Each fails with an error that
+names the replacement and points at `centaur config migrate`:
+
+```text
+platform: is not supported: declare it under `platforms: { <platform>: { respond_to, handle } }`; run `centaur config migrate` to rewrite this file
+```
 
 ## MCP servers
 
@@ -120,7 +145,7 @@ configured destination. Replies go to the originating thread.
 
 ## Responding to all messages
 
-With `respond_to: all`, every message from an approved sender in an approved chat (or a DM)
+With `respond_to: all` on a platform, every message from an approved sender in an approved chat (or a DM)
 starts a turn, and the agent decides whether to answer: its structured output is either `reply` or
 `ignore: true`, and an ignored turn posts nothing but still advances the last-processed marker and
 saves the session. The prompt tells the agent the messages were not necessarily addressed to it
@@ -161,7 +186,7 @@ Each turn is one `claude` run, so cost scales with model price, reasoning, and n
 | `allowed_tools` | Fewer tools mean a smaller prompt and fewer ways to wander. |
 | `context.default` | `fresh` sends only pending messages; `transcript` re-sends the thread each turn; `resume` reuses a saved session. |
 | `mcp_servers` | Each server adds its tool list to every turn's prompt; allow only the tools needed (`mcp__<name>__<tool>`). |
-| `respond_to` | `all` runs a turn for every message from an approved sender, even ones the agent then ignores. |
+| `platforms.<p>.respond_to` | `all` runs a turn for every message from an approved sender, even ones the agent then ignores. |
 
 Two ideas are not built: a separate cheaper model
 that only decides whether to reply (triage) would need a second agent run per message, which the
@@ -172,9 +197,23 @@ single `claude` invocation per turn cannot do; and a thinking-token budget has n
 
 `prompts` names the scheduled prompts a repo owns. The cron expression stays in the consumer's
 caller workflow (`schedule:`), which passes the prompt name to the shared workflow. Each
-entry has a required `destination`, an optional `file` (default `.centaur/prompts/<name>.md`) and
-an optional `context` policy. The parser resolves the file and context, so consumers see every prompt with a concrete `file` and
-`context` (the prompt's own, else `context.scheduled`).
+entry has a required `destination`, an optional `platforms`, an optional `file` (default
+`.centaur/prompts/<name>.md`) and an optional `context` policy.
+
+`destination` is a name or a map from platform to name:
+
+- A name applies on each platform in the prompt's `platforms`. `platforms` is required when the
+  bot declares more than one platform, so adding a second platform to a config makes
+  `centaur config check` point at each prompt that needs it instead of posting to a new place. With
+  one declared platform, `platforms` may be omitted.
+- A map (`destination: {telegram: household, slack: garden-alerts}`) names one destination per
+  platform and must not be combined with `platforms`.
+- Every platform used must be declared in `platforms`, and `context: resume` with more than one
+  target is an error: a session belongs to one thread.
+
+The parser resolves the file, context and targets, so consumers see every prompt with a concrete
+`file`, `context` and `targets` (a list of `{ platform, destination }`). The scheduled runner
+currently handles prompts with exactly one target.
 
 ## Pull request targets
 
@@ -207,7 +246,7 @@ result.config; // CentaurConfig, with defaults applied and allowed_tools as stri
 ```
 
 Failures return `{ ok: false, issues: [{ path, message }] }` with dotted paths such as
-`context.default` or `prompts.weekly.context` (`(root)` for document-level problems, including
+`context.default`, `platforms.slack.respond_to` or `prompts.weekly.context` (`(root)` for document-level problems, including
 invalid YAML). Parsing never throws on bad input.
 
 `centaur config check [path]` runs this parser from the command line; see [CLI](cli.md#centaur-config-check-path).
@@ -225,6 +264,8 @@ invalid YAML). Parsing never throws on bad input.
   first, and the two callers handle failure differently (reject registration vs fail the job).
 - **Cron stays in the workflow.** GitHub Actions only honors `schedule:` in workflow files, so
   duplicating cron in the config would drift. The config only describes what a prompt is.
+- **No legacy keys.** The parser accepts one schema; the old top-level `platform`, `respond_to` and
+  `handle` fail with a pointer to `centaur config migrate`, so there is no normalization layer.
 - **No allowlist in the repo.** Who may talk to the bot is the admin's decision, made from their
   phone, so it cannot be widened by a pull request. The repo only names where a scheduled prompt
   posts (`prompts.<name>.destination`), and that chat must still be approved.
