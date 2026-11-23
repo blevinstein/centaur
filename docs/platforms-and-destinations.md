@@ -310,7 +310,7 @@ thread, not with the destination, because it is the prompt's setting, not the ad
 
 **A scheduled run in a persistent thread** is a start-thread turn of a `thread: persistent` prompt
 whose target has a thread. `prepare` calls `resolve-destination`; with a thread and a policy other than `fresh` it reads the
-thread (transcript, bounded by [section 15](../TODO.md#15-bounded-transcript)), treats human
+thread (transcript, bounded by [section 15](../DONE.md#15-bounded-transcript)), treats human
 messages after the marker as history, advances the marker after the post and, for `resume`, restores
 and saves the session under that thread. A scheduled workflow gets a `resolve` job
 (the `resolve-schedule` action) that outputs the turn job's concurrency group. For a persistent

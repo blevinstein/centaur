@@ -127,6 +127,62 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
       and body.
 - [x] **[HUMAN APPROVAL]** Choose a license: MIT (`LICENSE`).
 
+## 9. Follow-ups
+
+- [x] Align alias naming: the CLI accepts aliases matching `[a-z0-9][a-z0-9-]*` but the config
+      schema's prompt `destination` allows underscores, so such an alias cannot be created with
+      `centaur access approve --alias`. Make the CLI and schema use one pattern (allowing `_` in
+      the CLI is the smaller change) and update `docs/cli.md` and `docs/config.md`.
+- [x] Close the first-registration race on `bots/<bot>/repo` with a conditional `PutParameter`.
+- [x] Add a routing test for `src/lambda/handler.ts`.
+- [x] Cache SSM reads in the receiver; each accepted message makes 1 to 3 SSM calls.
+- [x] CLI: clearer error when piped stdin has too few lines (`Missing value for <name>.`).
+- [x] Decide whether `destination` names are checked against SSM at register time. No (design
+      Decision 16): with create on first use a name can be unresolved at register, so `register`
+      checks only that each declared platform has a connection; names resolve when the run starts.
+- [x] Add `centaur config check` command wrapping `parseCentaurConfig`, and document it
+- [x] Switch the package manager from npm to yarn or pnpm (pick one; the maintainer's other
+      projects use yarn). Replace `package-lock.json` and update everything that calls npm:
+      `AGENTS.md`, `scripts/deploy.sh`, `.github/workflows/*.yml` and the setup-runtime composite
+      action (`npm ci && npm run build`), `.nvmrc`/Corepack pinning, the docs that say `npm run`,
+      and the `bin` and `deploy-prod` scripts. Verify lint, typecheck, tests, the Lambda bundle and
+      `actionlint` still pass.
+- [x] **[HUMAN APPROVAL]** Roll out `thread_key` in this order, since a workflow that uses it
+      against a receiver that doesn't send it yet puts all of a bot's threads in one concurrency
+      group and drops pending turns: (1) deploy the receiver (`yarn deploy-prod`), (2) update
+      `garden`'s `.github/workflows/centaur-message.yml` to use `thread_key` in its concurrency
+      group, (3) merge or close open `centaur/<bot>-<raw thread id>` PRs, and (4) confirm on a real
+      run that the raw `thread_id` doesn't show in the Actions UI or logs. The old `garden` branches
+      that carried the raw thread ID were deleted (next item).
+- [x] **[HUMAN APPROVAL]** Delete the old `garden` branches `centaur/garden-telegram--1003801969329`
+      and `centaur/garden-telegram--1003801969329-13`; their names carried the raw thread ID, which
+      the `thread_key` rollout otherwise removed. Deleted (tips 2818c5c and 798343b; related merged
+      PRs #9 and #8).
+- [x] Stop exposing thread IDs (Telegram chat and topic IDs) in the per-thread concurrency group
+      name and the `centaur/<bot>-<thread>` PR branch name; use a short hash. Needed before any
+      public consumer repo such as `garden`.
+- [x] Tag billable resources with `Business=Centaur` through stack-level tags in
+      `scripts/deploy.sh` (`BUSINESS_TAG` overrides the value); see
+      [docs/deploy.md](docs/deploy.md#cost-allocation-tag).
+- [x] Admin claim flow so the owner never looks up their own ID (`centaur admin claim <bot>`; see
+      [docs/plan.md](docs/plan.md#access-requests)).
+- [x] Rewrite `README.md` for public consumption; it is badly out of date (still says design
+      phase). Cover: what centaur is and the architecture in one picture, a short demo of a chat
+      exchange and the PR it produces, how a repo adopts it (the three files `.centaur.yml`,
+      persona and prompts, the caller workflow, the repo variables and secret), a quick start for
+      the maintainer (deploy, bot, admin claim, register), the safety model (admin approval, no
+      content in GitHub logs, cost caps), and links into `docs/`.
+- [x] Draft a logo: a centaur crossed with a cat (nodding to the GitHub Octocat). Produce a few
+      SVG concepts and a README header; the maintainer picks one. Don't reuse GitHub's Octocat
+      artwork directly: its usage guidelines restrict modification, so make an original
+      centaur-cat hybrid.
+- [x] Remove `npmPreapprovedPackages` (`@blevinstein/chat-state-dynamodb`) from `.yarnrc.yml`, no
+      earlier than 2026-11-22T06:10Z (24 hours after the 2026-11-21T06:09Z publish of 0.4.0, the
+      version `yarn.lock` pins; 0.3.0's gate clears sooner). The age gate
+      (`npmMinimalAgeGate`) protects against freshly published malicious versions, and the entry
+      exempts every future version of the package. `yarn.lock` pins the resolved version, so the
+      exemption is not needed to install it. Afterwards `yarn install --immutable` must still pass.
+
 ## 10. Decisions
 
 - [x] **[HUMAN APPROVAL]** Transcript size bound. Decided: the earlier transcript fills at most 25%
@@ -178,3 +234,36 @@ agent proposes a change, a human reviews it, and the agent revises it.
       403 and 404 so outages are visible.
 - [x] Consider filtering comment authors by `author_association` in comment-mode `prepare`, since it
       answers every human comment since the last marked one.
+
+## 15. Bounded transcript
+
+Design (decided 2026-11-24): the earlier transcript fills at most `context.transcript_max_chars`
+characters (default 100,000), newest first, with no tokenizer dependency and nothing sent to a
+vendor; older messages are reached through the chat context tools. See
+[docs/plan.md](docs/plan.md#context-management),
+[docs/workflows.md](docs/workflows.md#transcript-budget) and
+[docs/config.md](docs/config.md#context).
+
+- [x] Bounded transcript 1: no tokenizer dependency; dropped in favor of a character limit.
+- [x] Bounded transcript 2: schema key `context.transcript_max_chars` (positive integer, default
+      100,000) in `src/config/schema.ts`, with `docs/config.md` and the defaults in
+      `test/config.test.ts`. Done.
+- [x] Bounded transcript 3: `prepare` bounds the earlier transcript of chat and pull request
+      comment turns (`src/workflows/transcript-budget.ts`, `splitTextMaxChars` in
+      `src/workflows/split-text.ts`): newest-first fill, pending messages always shown in full,
+      an earlier message over half the budget cut with a marker, and an omission note in
+      `prompt.ts`. Pending messages and the marker come from the full transcript; no message text
+      is logged. Done.
+- [x] Bounded transcript 4: tests with helpers in `test/helpers/turn-fixtures.ts`: the splitter,
+      fill order, budget boundary, oversized message, pending messages and the marker, omission
+      note with and without the chat tools, pull request comment turn, and the config key. Done.
+- [x] Bounded transcript 5: the omission note names `read_thread` on `thread-0` with a `before`
+      cursor when `chat_tools.scope` is `chat`, and says the messages are unavailable otherwise.
+      Done.
+
+## Quality Improvements
+
+- [x] Bots across platforms and topic destinations: one bot with several platform connections, and
+      named destinations that point at a topic or thread. Design, alternatives and the Decisions:
+      [docs/platforms-and-destinations.md](docs/platforms-and-destinations.md); implementation is
+      tracked in section 16.
