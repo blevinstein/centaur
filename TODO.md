@@ -280,7 +280,7 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
 - [ ] Platforms 7: poster derives the connection from the thread ID; `start-thread` takes
       `platform` (optional on a single-connection bot). After 2 (and 5, same `registry.ts`).
 - [ ] Platforms 8: platform-scoped chat aliases (flat form not read) and the destination resolution
-      order. After 2, 7.
+      order; slice 11 folds aliases into destinations. After 2, 7.
 - [ ] **[HUMAN APPROVAL]** Cutover go decision: after a passed rehearsal (`bot export` and
       `bot migrate --dry-run` on production; the full sequence on a test bot) and slices 1 to 8
       done, approve the window (about 5 to 10 minutes of unanswered messages), then the
@@ -296,17 +296,22 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       `context`, `read` returns `policy`, ownership reads it. After 18.
 - [ ] Platforms 10: runner uses the stored policy and passes the prompt's `context` to
       `start-thread` (fixes thread policy storage for every prompt). After 9 is deployed.
-- [ ] Platforms 11: destination records, create on first use, topic recreation,
-      `resolve-destination`, IAM for `destinations/*`. After 8, 9, 18.
+- [ ] Platforms 11: replace aliases with destinations (design Decision 18, maintainer ruling
+      2026-11-23): widen the `chats/<platform>/<name>` value to a record (chat, optional topic,
+      stored policy), rename `chat-aliases.ts`, `resolveChatAlias`, `proposeChatAlias`,
+      `recordChatAlias` and `slugAlias` to destination names, one-lookup resolution, create on first
+      use, topic recreation, `resolve-destination`; no new IAM statement. Deploy gates unchanged.
+      Details pending maintainer review. After 8, 9, 18.
 - [ ] Platforms 12: Slack persistent thread destinations. After 11.
-- [ ] Platforms 13: admin-only `/destination <name>` (Telegram) and `!destination <name>` (Slack).
+- [ ] Platforms 13: admin-only `/destination <name>` (Telegram) and `!destination <name>` (Slack)
+      bind a topic to a destination name. After 11.
+- [ ] Platforms 14: `centaur destination set|list|remove`; removes `centaur chat list` (breaking).
       After 11.
-- [ ] Platforms 14: `centaur destination set|list|remove`. After 11.
 - [ ] Platforms 15: multi-target scheduled turns (turn state targets, fan-out in `finish`). After 10.
 - [ ] Platforms 16: persistent-thread scheduled turns (history, marker, session, `resolve` job and
       concurrency template). After 11, 15 and bounded transcript 3 (section 15).
 - [ ] Platforms 17: docs sweep (`onboarding.md`, `plan.md`, `config.md`, `cli.md`, `poster.md`,
-      README); mark the design doc as built.
+      README); remove the word "alias" everywhere; mark the design doc as built.
 - [ ] **[HUMAN APPROVAL]** Deploy the Lambda (`yarn deploy-prod`) after each of slices 9, 11, 12 and
       13 and confirm existing bots still answer and post, before the runner slices that call them
       (10, 15, 16) merge to `main`.

@@ -73,7 +73,9 @@ centaur bot unbind garden && centaur bot remove garden
 
 ### `centaur chat list`
 
-Prints one line per chat alias, `name  id`, sorted by name, or `No chats registered.`.
+Prints one line per chat alias, `name  id`, sorted by name, or `No chats registered.`. Aliases are
+folded into destinations in slice 11, which replaces this command with `centaur destination list`
+([design](platforms-and-destinations.md)).
 
 ### `centaur admin set [--telegram <id>] [--slack <id>]`
 

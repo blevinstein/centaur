@@ -28,7 +28,8 @@ the bot's posts land in the stored transcript the receiver and `read` use.
 ## `start-thread`
 
 The destination chat comes from the request, so the poster never needs prompt names. Scheduled
-runs pass `destination`, the prompt's chat alias from the config. The poster reads its ID from
+runs pass `destination`, the prompt's chat alias from the config (aliases are folded into
+destinations in slice 11; see [the design](platforms-and-destinations.md)). The poster reads its ID from
 `/centaur/chats/<destination>` and requires that chat to be approved for the bot and not blocked. An unknown alias, an unapproved chat or a blocked
 chat fails the request with an error that names the alias and, for an unapproved chat, the
 `centaur access approve <bot> chat <id>` command that fixes it. `/new` passes `fromThreadId`, the
