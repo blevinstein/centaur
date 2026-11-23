@@ -136,9 +136,9 @@ read them.
 
 ## This repo as a test consumer
 
-This repo is its own consumer, for end-to-end testing: `.centaur.yml` binds the `centaur-slack` Slack bot
-and the `centaur-*.yml` workflows use the actions locally (`uses: ./.github/actions/...`). Its agent
-is read-only (`Read,Glob,Grep`) and it uses `respond_to: mention`.
+This repo is its own consumer, for end-to-end testing: `.centaur/config.yml` binds the `centaur-slack` bot to Slack and Telegram
+and the `centaur-*.yml` workflows use the actions locally (`uses: ./.github/actions/...`). Its agent is
+read-write on the repo (`Read,Glob,Grep,Write,Edit` plus the read-only GitHub MCP tools), and it uses `respond_to: all` on both platforms. Its prompts target Slack only.
 
 Run **Actions > Centaur register** to bind the bot, or **Actions > Centaur hello** to start a thread
 from `.centaur/prompts/hello.md`. Messages sent to the bot dispatch `centaur-message` and are

@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { parseCentaurConfig } from "../src/config/index.js";
 import {
   checkMcpPolicy,
   describeServer,
@@ -21,6 +20,7 @@ import {
   permitForBot,
   untrustedServers,
 } from "./helpers/mcp-policy-fixtures.js";
+import { loadSelfConfig } from "./helpers/self-config.js";
 
 describe("isPinned", () => {
   it.each<[string, string[], boolean]>([
@@ -191,17 +191,15 @@ describe("validateMcpPolicy", () => {
   });
 });
 
-describe("this repo's .centaur/mcp-policy.cedar", () => {
+describe("this repo's .centaur/mcp-policy.cedar", async () => {
   const policy = readFileSync(".centaur/mcp-policy.cedar", "utf8");
-  const parsed = parseCentaurConfig(readFileSync(".centaur.yml", "utf8"));
-  if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
-  const { bot, mcp_servers } = parsed.config;
+  const { bot, mcp_servers } = await loadSelfConfig();
 
   it("validates against the schema", () => {
     expect(validateMcpPolicy(policy)).toEqual([]);
   });
 
-  it("permits the servers in .centaur.yml", () => {
+  it("permits the servers in the repo config", () => {
     expect(Object.keys(mcp_servers)).not.toEqual([]);
     expect(checkMcpPolicy(bot, mcp_servers, policy)).toEqual([]);
   });
@@ -231,11 +229,8 @@ describe("this repo's infra/mcp-policy.cedar", () => {
     expect(issues).toHaveLength(allowed ? 0 : 1);
   });
 
-  it("leaves this repo's own servers permitted", () => {
-    const parsed = parseCentaurConfig(readFileSync(".centaur.yml", "utf8"));
-    if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
-    expect(checkMcpPolicy(parsed.config.bot, parsed.config.mcp_servers, { global, repo })).toEqual(
-      [],
-    );
+  it("leaves this repo's own servers permitted", async () => {
+    const { bot, mcp_servers } = await loadSelfConfig();
+    expect(checkMcpPolicy(bot, mcp_servers, { global, repo })).toEqual([]);
   });
 });

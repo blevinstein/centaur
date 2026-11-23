@@ -2,6 +2,8 @@ bot: centaur-slack
 platforms:
   slack:
     respond_to: all
+  telegram:
+    respond_to: all
 context:
   default: transcript
 provider: anthropic
@@ -10,12 +12,16 @@ allowed_tools: "Read,Glob,Grep,Write,Edit,mcp__ghmcp__*"
 persona: .centaur/persona.md
 prompts:
   hello:
+    platforms: [slack]
     destination: centaur-test-slack
   pr-smoke:
+    platforms: [slack]
     destination: centaur-test-slack
   pr-update:
+    platforms: [slack]
     destination: centaur-test-slack
   mcp-smoke:
+    platforms: [slack]
     destination: centaur-test-slack
 mcp_servers:
   ghmcp:
