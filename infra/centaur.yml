@@ -292,6 +292,13 @@ Resources:
       Type: String
       Value: !GetAtt ReceiverFunctionUrl.FunctionUrl
 
+  StateTableParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /centaur/state-table
+      Type: String
+      Value: !Ref StateTable
+
   GitHubRole:
     Type: AWS::IAM::Role
     Properties:

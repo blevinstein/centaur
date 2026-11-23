@@ -115,10 +115,10 @@
 - `register` parses a consumer's config in the Lambda, and consumer workflows run these actions at
   `@main`. A config that uses a new or renamed key must not reach the default branch before the
   Lambda with that schema is deployed: deploy, then push, then check the `register` run.
-- To verify a live run: the DynamoDB state table is readable with the maintainer's AWS credentials
-  (keys under `bot:<bot>:`; every `start-thread` writes a `thread-meta` record); Slack channels are
-  readable with `conversations.history` and the bot token from SSM; Telegram has no history API.
-  Read only the bot's own recent posts, and never print tokens, chat IDs or other people's messages.
+- To verify a live run, use `centaur chat tail <bot>` (`docs/cli.md`): it reads the state table
+  (Telegram has no history API, so only the receiver's stored messages exist) or Slack's
+  `conversations.history` through the poster's reader and sender filter, and prints no IDs. Do not
+  scan the table or call Slack by hand. Never print tokens, chat IDs or other people's messages.
 - This repo is public: keep consumer repo names, chat and thread IDs and tokens out of docs,
   `TODO.md`, tests, fixtures and commits.
 - The Lambda bundle (`dist/lambda/index.mjs`) must not contain the MCP SDK or the chat server

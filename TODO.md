@@ -310,9 +310,9 @@ for detailed tracking.
       per-repo token and a reserved-concurrency cap on the function.
 - [ ] Better guides - basic response-only bot, adding scheduled actions
 - [ ] Support for centaur in a sub-folder? What would need to change? Explore and plan
-- [ ] `centaur chat tail <bot> [--platform <platform>] [--minutes <n>]`: a read-only CLI command
+- [x] `centaur chat tail <bot> [--platform <platform>] [--minutes <n>]`: a read-only CLI command
       that lists a bot's recent messages from the state table through the poster's reader and
-      sender filter, so verifying a live run needs no ad hoc scans or Slack API calls
+      sender filter, so verifying a live run needs no ad hoc scans or Slack API calls. Done.
 - [ ] **[HUMAN APPROVAL]** A read-only IAM role for inspection, limited to `GetItem`/`Query`/`Scan`
       on the state table and `ssm:Get*` on `/centaur/bots/*`, so agents stop using the
       maintainer's broad IAM user (a CloudFormation change, validated with `yarn lint:cfn`)

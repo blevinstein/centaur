@@ -19,8 +19,12 @@ export interface ParameterStore {
   delete(name: string): Promise<void>;
 }
 
+/** The read half of the store, which bot and access lookups need. */
+export type ReadableParameters = Pick<ParameterStore, "get" | "getByPath">;
+
 export const CHATS_PREFIX = `${PARAMETER_ROOT}/chats`;
 export const FUNCTION_URL_PARAMETER = `${PARAMETER_ROOT}/function-url`;
+export const STATE_TABLE_PARAMETER = `${PARAMETER_ROOT}/state-table`;
 export const GITHUB_TOKEN_PARAMETER = `${PARAMETER_ROOT}/github/token`;
 
 export function createSsmParameterStore(client = new SSMClient({})): ParameterStore {

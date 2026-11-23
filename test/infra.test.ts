@@ -8,6 +8,7 @@ import {
   HISTORY_MAX_MESSAGES_LIMIT,
   HISTORY_TTL_DAYS_LIMIT,
 } from "../src/lambda/history-window.js";
+import { STATE_TABLE_PARAMETER } from "../src/lambda/parameters.js";
 
 interface Statement {
   Action: string | string[];
@@ -113,6 +114,13 @@ describe("the state table", () => {
     expect(StateTable.Properties.TimeToLiveSpecification).toEqual({
       AttributeName: TTL_ATTRIBUTE,
       Enabled: true,
+    });
+  });
+
+  it("publishes its name, not its ARN, as the SSM parameter the CLI reads", () => {
+    expect(template.Resources.StateTableParameter).toEqual({
+      Type: "AWS::SSM::Parameter",
+      Properties: { Name: STATE_TABLE_PARAMETER, Type: "String", Value: "StateTable" },
     });
   });
 

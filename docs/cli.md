@@ -216,6 +216,39 @@ centaur access approve garden chat <chat id> --name "Garden Club"   # destinatio
 centaur access list garden
 ```
 
+### `centaur chat tail <bot> [--platform <platform>] [--minutes <n>] [--limit <n>] [--text] [--table <name>]`
+
+Read-only. Lists a connection's recent messages, oldest first, through the poster's `read-channel`
+reader and sender filter ([poster.md](poster.md#list-threads-and-read-channel)): only enrolled users
+and the bot's own posts are shown, other bots and unenrolled senders never are, and there is no flag
+to change that. It reads only the connection's approved chats.
+
+- Telegram has no history API, so the messages come from the receiver's stored lists in the state
+  table (the newest `HistoryMaxMessages` per chat, expiring `HistoryTtlDays` after the latest one).
+- Slack stores nothing; the command calls `conversations.history` with the connection's token from
+  SSM, which is never printed. A Slack API error prints its code only.
+- `--minutes` (default 60) bounds the age and `--limit` (default 30, at most 200) the count, newest
+  kept.
+- The state table is `--table`, else `CENTAUR_STATE_TABLE`, else the SSM parameter
+  `/centaur/state-table` the stack publishes (present after the next `yarn deploy-prod`; until then
+  pass `--table` or set the variable).
+
+Each line is the UTC time, platform, author (`bot` or `user`), a 12-hex thread key (the hash that names
+PR branches, so no chat, thread, channel or user ID is printed), the attachment count and the length
+in characters. `--text` appends the text with newlines collapsed, clipped to 120 characters. A summary
+line follows: messages shown, messages the sender filter dropped, the oldest message time examined,
+and whether the window was exhausted (nothing older left to see).
+
+```
+time (UTC)            platform  author  thread        files  chars
+2026-01-02T03:30:00Z  telegram  user    1a2b3c4d5e6f  0      11
+2026-01-02T03:40:00Z  telegram  bot     1a2b3c4d5e6f  0      2
+2 shown, 1 dropped by the sender filter; oldest examined 2026-01-02T03:30:00.000Z; window exhausted.
+```
+
+The AWS credentials need `ssm:GetParametersByPath` and `ssm:GetParameter` on `/centaur/*` (with KMS
+decrypt) and read access to the state table.
+
 ### `centaur github-token set`
 
 Stores the GitHub token the receiver uses to dispatch workflows as the `SecureString`

@@ -1,6 +1,6 @@
 import { type AccessKind, adminParameter, subjectIdOf } from "./access-entries.js";
 import { approvedPrefix, blockedPrefix } from "./connection-paths.js";
-import type { ParameterStore } from "./parameters.js";
+import type { ReadableParameters } from "./parameters.js";
 import type { Bot } from "./registry.js";
 import { cachedFor } from "./ttl-cache.js";
 
@@ -16,7 +16,7 @@ export interface Access {
 export type AccessResolver = () => Promise<Access>;
 export type CachedAccessResolver = AccessResolver & { invalidate(): void };
 
-const idsUnder = async (params: ParameterStore, prefix: string) =>
+const idsUnder = async (params: ReadableParameters, prefix: string) =>
   new Set(Object.keys(await params.getByPath(prefix)).map(subjectIdOf));
 
 const without = (ids: Set<string>, blocked: Set<string>) =>
@@ -24,7 +24,7 @@ const without = (ids: Set<string>, blocked: Set<string>) =>
 
 export function createAccessResolver(
   bot: Bot,
-  params: ParameterStore,
+  params: ReadableParameters,
   ttlMs = ACCESS_CACHE_TTL_MS,
 ): CachedAccessResolver {
   const approved = (kind: AccessKind) =>

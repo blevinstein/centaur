@@ -78,6 +78,10 @@ A function's environment can't reference its own function URL (the URL resource 
 function). The template instead publishes the URL as the SSM parameter `/centaur/function-url`,
 which the poster reads at cold start to build webhook URLs; there is no `FUNCTION_URL` variable.
 
+The template also publishes the state table's name (not its ARN) as `/centaur/state-table`, which
+`centaur chat tail` reads when neither `--table` nor `CENTAUR_STATE_TABLE` is given. Unlike
+`/centaur/function-url` it exists whether or not the Lambda is deployed.
+
 ## IAM
 
 The function role gets the state table policy (`GetItem`, `PutItem`, `UpdateItem`, `DeleteItem`,

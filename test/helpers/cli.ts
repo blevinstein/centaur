@@ -9,12 +9,20 @@ import {
   scopedChatParameter,
 } from "../../src/lambda/connection-paths.js";
 import { parseDestination } from "../../src/lambda/destinations.js";
+import { STATE_TABLE_PARAMETER } from "../../src/lambda/parameters.js";
+import {
+  fakeChatAccess,
+  seedTailBot,
+  TAIL_TABLE,
+  type TailAccessOptions,
+} from "./chat-tail-fixtures.js";
 import { FakeParameterStore } from "./fake-parameter-store.js";
 
 export function createCliHarness(
   secrets: Record<string, string> = {},
   telegram: CliContext["telegram"] = { getMe: async () => ({ username: "garden_bot" }) },
   store = new FakeParameterStore(),
+  chatAccess: CliContext["chatAccess"] = fakeChatAccess().access,
 ) {
   const output: string[] = [];
   const readSecrets: SecretReader = async (names) =>
@@ -22,6 +30,7 @@ export function createCliHarness(
   const program = buildProgram({
     store,
     telegram,
+    chatAccess,
     readSecrets,
     log: (message) => output.push(message),
   });
@@ -45,3 +54,17 @@ export function createCliHarness(
 }
 
 export type CliHarness = ReturnType<typeof createCliHarness>;
+
+/** A harness with the bot `garden` connected on each platform and a scripted chat for `chat tail`. */
+export async function createTailHarness(
+  platforms: Platform[],
+  { parameterTable = TAIL_TABLE, ...options }: TailAccessOptions = {},
+) {
+  const fake = fakeChatAccess(options);
+  const cli = createCliHarness({}, undefined, undefined, fake.access);
+  if (parameterTable) {
+    await cli.store.put(STATE_TABLE_PARAMETER, parameterTable, { secure: false });
+  }
+  for (const platform of platforms) await seedTailBot(cli.store, platform);
+  return { ...cli, fake };
+}

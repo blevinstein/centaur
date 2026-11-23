@@ -8,7 +8,7 @@ import {
   WEBHOOK_SECRET_KEY,
 } from "./connection-paths.js";
 import type { OidcVerifier } from "./oidc.js";
-import type { ParameterStore } from "./parameters.js";
+import type { ReadableParameters } from "./parameters.js";
 
 export { repoParameter };
 
@@ -31,12 +31,12 @@ export interface RegistryEntry {
 export const registryKey = (bot: string) => `registry:${bot}`;
 export const botStatePrefix = (bot: string) => `bot:${bot}:`;
 
-export const isBoundTo = async (params: ParameterStore, bot: string, repository: string) =>
+export const isBoundTo = async (params: ReadableParameters, bot: string, repository: string) =>
   (await params.get(repoParameter(bot))) === repository;
 
 /** Verifies the OIDC token and requires the bot to be bound to its repository. */
 export async function requireBound(
-  params: ParameterStore,
+  params: ReadableParameters,
   oidc: OidcVerifier,
   token: string,
   bot: string,
@@ -92,7 +92,7 @@ function pick(secrets: BotSecrets[], platform?: Platform) {
   return secrets.length === 1 ? secrets[0] : undefined;
 }
 
-async function readBots(params: ParameterStore, path: string, logger?: LoadOptions["logger"]) {
+async function readBots(params: ReadableParameters, path: string, logger?: LoadOptions["logger"]) {
   const bots = new Map<string, { repo?: string; secrets: BotSecrets[] }>();
   for (const [name, record] of groupByBot(await params.getByPath(path))) {
     const secrets = secretsOf(name, record);
@@ -107,7 +107,7 @@ async function readBots(params: ParameterStore, path: string, logger?: LoadOptio
 
 /** One connection view for every connection of every bound bot. */
 export async function loadBots(
-  params: ParameterStore,
+  params: ReadableParameters,
   logger?: LoadOptions["logger"],
 ): Promise<Bot[]> {
   const bots = await readBots(params, BOTS_ROOT, logger);
@@ -117,7 +117,7 @@ export async function loadBots(
 }
 
 export async function loadBot(
-  params: ParameterStore,
+  params: ReadableParameters,
   name: string,
   { platform, logger }: LoadOptions = {},
 ): Promise<Bot | undefined> {
@@ -127,7 +127,7 @@ export async function loadBot(
 }
 
 export async function loadBotBinding(
-  params: ParameterStore,
+  params: ReadableParameters,
   name: string,
   { platform, logger }: LoadOptions = {},
 ): Promise<{ secrets: BotSecrets | undefined; repo: string | undefined }> {
@@ -168,7 +168,7 @@ export async function writeRegistryEntry(
 
 /** The bot's connection on `platform` (or its only one); fails naming the bot and what is missing. */
 export async function requireBot(
-  params: ParameterStore,
+  params: ReadableParameters,
   name: string,
   options: LoadOptions = {},
 ): Promise<Bot> {

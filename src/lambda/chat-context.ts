@@ -86,16 +86,16 @@ export type ChannelMessage = z.infer<typeof channelMessageSchema>;
 export type ListThreadsResult = z.infer<typeof listThreadsResultSchema>;
 export type ReadChannelResult = z.infer<typeof readChannelResultSchema>;
 
-type Visible = (message: Message) => boolean;
+export type Visible = (message: Message) => boolean;
 
-interface ChannelQuery {
+export interface ChannelQuery {
   chat: PosterChat;
   channelId: string;
   visible: Visible;
   limit: number;
 }
 
-interface Scan {
+export interface Scan {
   oldest: Date | undefined;
   exhausted: boolean;
 }
@@ -111,7 +111,7 @@ interface ChannelReader {
 }
 
 /** Messages from the bot itself and enrolled users; other bots only when the caller opts in. */
-const visibleTo =
+export const visibleTo =
   (access: Access, includeBots: boolean): Visible =>
   ({ author }) => {
     if (author.isMe) return true;
@@ -125,7 +125,7 @@ const observe = (scan: Scan, { metadata }: Message) => {
   if (!scan.oldest || metadata.dateSent < scan.oldest) scan.oldest = metadata.dateSent;
 };
 
-const toScanned = ({ oldest, exhausted }: Scan): Scanned => ({
+export const toScanned = ({ oldest, exhausted }: Scan): Scanned => ({
   oldest: oldest?.toISOString() ?? null,
   exhausted,
 });
@@ -253,6 +253,10 @@ const READERS: Record<Platform, ChannelReader> = {
     },
   },
 };
+
+/** The messages of one channel the poster's `read-channel` would read, through the query's filter. */
+export const readChannelMessages = (platform: Platform, query: ChannelQuery) =>
+  READERS[platform].messages(query);
 
 export interface ChatContextDeps {
   params: ParameterStore;
