@@ -15,7 +15,7 @@
   or **[HUMAN APPROVAL]** (an agent prepares it, the maintainer approves before it lands: decisions,
   merges, changes that deploy to CloudFormation). When work stalls on one, add it to `TODO.md` with
   the label and what it unblocks; don't do or skip it silently.
-- [TODONE.md](TODONE.md) holds completed sections: move a section there, whole, once every item in it is
+- [DONE.md](DONE.md) holds completed sections: move a section there, whole, once every item in it is
   checked; never move individual items.
 
 ## Development

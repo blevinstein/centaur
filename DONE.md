@@ -1,4 +1,4 @@
-# TODONE
+# DONE
 
 Completed sections, moved from [TODO.md](TODO.md) once every item in them was checked. Section numbers match TODO.md.
 

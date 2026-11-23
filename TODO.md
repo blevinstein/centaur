@@ -16,7 +16,7 @@ them:
 
 Unlabeled items are free for an agent to complete.
 
-A section moves to [TODONE.md](TODONE.md) once every item in it is checked; whole sections only.
+A section moves to [DONE.md](DONE.md) once every item in it is checked; whole sections only.
 
 ## 9. Follow-ups
 
@@ -270,7 +270,7 @@ discussion before implementation. If a task has many subtasks, break it out into
 for detailed tracking.
 
 - [ ] Move not-yet-implemented docs into a proposals/ subdir to separate from already-implemented.
-- [x] Create a TODONE.md file, and move sections of fully-completed TODO items into TODONE.
+- [x] Create a DONE.md file, and move sections of fully-completed TODO items into DONE.
 - [ ] Setup .centaur config for ~/dev/finance repo - monarch integration, consider using ledger for
       selected transactions (or link to gsheets), weekly transaction review and liquidity check
       (knows which credit card balances are paid from which bank accounts), quarterly investment/
