@@ -345,9 +345,12 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
 - [ ] Live checks on the test bot (slice 19). Verified 2026-11-24: Telegram deleted-topic and
       not-a-forum strings, a closed topic accepting admin-bot posts (no reopen needed), Slack
       `channel_not_found` and `not_in_channel`, and a reply under a deleted Slack parent succeeding
-      silently (see [docs/poster.md](docs/poster.md)). Remaining: the end-to-end two-platform
-      persistent run (needs the persistent-thread runner slice), the `TOPIC_CLOSED` text for a bot
-      without topic rights, and `is_archived` for a bot that is a member of an archived channel.
+      silently (see [docs/poster.md](docs/poster.md)). Also verified 2026-11-24: a persistent
+      Telegram prompt (`hello-telegram`) bound its thread on the first run, and the second run
+      reused it (one `thread-meta` record refreshed, no new thread, destination record unchanged).
+      Remaining: a persistent run on Slack (no prompt here uses it yet), the `TOPIC_CLOSED` text for
+      a bot without topic rights, and `is_archived` for a bot that is a member of an archived
+      channel.
 - [x] Platforms 21: config simplification (design Decision 19, maintainer ruling 2026-11-23): remove
       the prompt-level `platforms` selector; a string `destination` is valid only for a bot with one
       platform, a bot with several uses `destination: { <platform>: <name> }`. Updates
