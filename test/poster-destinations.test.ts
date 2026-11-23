@@ -1,21 +1,35 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  boundNotes,
   boundWeekly,
   destinationAt,
   destinationPoster,
   GARDEN_SLACK_CHANNEL_PARAMETERS,
+  holdNextChannelPost,
   NOT_A_FORUM_ERROR,
+  NOTES_PARAMETER,
+  RECREATED_SLACK_THREAD,
   RECREATED_TOPIC,
   RECREATED_TOPIC_ID,
+  SLACK_ARCHIVED_ERROR,
+  SLACK_PARENT_GONE_ERROR,
+  START_NOTES,
+  START_NOTES_PERSISTENT,
   START_WEEKLY,
   START_WEEKLY_PERSISTENT,
+  slackDestinationPoster,
   soloBotParameters,
   TELEGRAM_TOPIC,
   TOPIC_CLOSED_ERROR,
   TOPIC_GONE_ERROR,
   WEEKLY_PARAMETER,
 } from "./helpers/destination-fixtures.js";
-import { HOUSEHOLD_CHAT_ID, SLACK_CHANNEL_ID, TOPIC_ID } from "./helpers/poster-fixtures.js";
+import {
+  HOUSEHOLD_CHAT_ID,
+  SLACK_CHANNEL_ID,
+  SLACK_POST_THREAD_ID,
+  TOPIC_ID,
+} from "./helpers/poster-fixtures.js";
 
 const START_SOLO = { ...START_WEEKLY, bot: "solo", destination: "attic" } as const;
 
@@ -208,26 +222,119 @@ describe("thread: persistent", () => {
     expect(params.values[WEEKLY_PARAMETER]).toBe(HOUSEHOLD_CHAT_ID);
   });
 
-  it("is not supported on Slack yet", async () => {
-    const { poster, channelPost } = await destinationPoster();
-
-    await expect(
-      poster({
-        operation: "start-thread",
-        bot: "notes",
-        destination: "notes-channel",
-        text: "x",
-        thread: "persistent",
-      }),
-    ).rejects.toThrow("a persistent thread is not supported on slack yet");
-    expect(channelPost).not.toHaveBeenCalled();
-  });
-
   it("refuses a destination whose bound thread another bot owns", async () => {
     const { poster, thread } = await destinationPoster({ weekly: boundWeekly({ bot: "sprout" }) });
 
     await expect(poster(START_WEEKLY_PERSISTENT)).rejects.toThrow(/owned by bot "sprout"/);
     expect(thread.post).not.toHaveBeenCalled();
+  });
+});
+
+describe("thread: persistent on Slack", () => {
+  it("posts a top-level message, binds its thread and reuses it on the next run", async () => {
+    const { poster, channelPost, thread, notes, threadMetaOf } = await slackDestinationPoster();
+
+    const first = await poster({ ...START_NOTES_PERSISTENT, context: "resume" });
+
+    expect(first).toEqual({ threadId: SLACK_POST_THREAD_ID });
+    expect(channelPost).toHaveBeenCalledExactlyOnceWith("x");
+    expect(notes()).toMatchObject({
+      chatId: SLACK_CHANNEL_ID,
+      threadId: SLACK_POST_THREAD_ID,
+      bot: "notes",
+      context: "resume",
+    });
+    expect(await threadMetaOf("notes").read(SLACK_POST_THREAD_ID)).toMatchObject({
+      destination: "notes-channel",
+    });
+
+    const second = await poster({ ...START_NOTES_PERSISTENT, text: "again" });
+
+    expect(second).toEqual({ threadId: SLACK_POST_THREAD_ID });
+    expect(channelPost).toHaveBeenCalledOnce();
+    expect(thread.post).toHaveBeenCalledExactlyOnceWith("again");
+  });
+
+  it.each([
+    ["parent message", SLACK_PARENT_GONE_ERROR],
+    ["thread", "An API error occurred: thread_not_found"],
+  ])("recreates the thread when its %s is gone and updates the record", async (_name, error) => {
+    const { poster, channelPost, thread, notes, threadMetaOf } = await slackDestinationPoster(
+      boundNotes(),
+    );
+    thread.post.mockRejectedValueOnce(new Error(error));
+    channelPost.mockResolvedValueOnce({ id: "sent-3", threadId: RECREATED_SLACK_THREAD });
+
+    const result = await poster(START_NOTES_PERSISTENT);
+
+    expect(result).toEqual({ threadId: RECREATED_SLACK_THREAD });
+    expect(notes().threadId).toBe(RECREATED_SLACK_THREAD);
+    expect(await threadMetaOf("notes").read(RECREATED_SLACK_THREAD)).toMatchObject({
+      destination: "notes-channel",
+    });
+  });
+
+  it.each([
+    ["an archived channel", SLACK_ARCHIVED_ERROR],
+    ["an inaccessible channel", "An API error occurred: channel_not_found"],
+  ])("names the destination for %s and keeps the record", async (_name, error) => {
+    const bound = boundNotes();
+    const { poster, channelPost, thread, params } = await slackDestinationPoster(bound);
+    thread.post.mockRejectedValueOnce(new Error(error));
+
+    await expect(poster(START_NOTES_PERSISTENT)).rejects.toThrow(
+      'destination "notes-channel" is in a channel that is archived or not accessible to the bot',
+    );
+    expect(channelPost).not.toHaveBeenCalled();
+    expect(params.values[NOTES_PARAMETER]).toBe(bound);
+  });
+
+  it("names the destination when the first post hits an archived channel, binding nothing", async () => {
+    const { poster, channelPost, params } = await slackDestinationPoster();
+    channelPost.mockRejectedValueOnce(new Error(SLACK_ARCHIVED_ERROR));
+
+    await expect(poster(START_NOTES_PERSISTENT)).rejects.toThrow(
+      'destination "notes-channel" is in a channel that is archived',
+    );
+    expect(params.values[NOTES_PARAMETER]).toBe(SLACK_CHANNEL_ID);
+  });
+
+  it("fails on any other posting error and leaves the record alone", async () => {
+    const bound = boundNotes();
+    const { poster, channelPost, thread, params } = await slackDestinationPoster(bound);
+    thread.post.mockRejectedValueOnce(new Error("An API error occurred: fatal_error"));
+
+    await expect(poster(START_NOTES_PERSISTENT)).rejects.toThrow("fatal_error");
+    expect(channelPost).not.toHaveBeenCalled();
+    expect(params.values[NOTES_PARAMETER]).toBe(bound);
+  });
+
+  it("opens a fresh thread per run for `new` and leaves the bound one", async () => {
+    const bound = boundNotes();
+    const { poster, channelPost, thread, params } = await slackDestinationPoster(bound);
+
+    const result = await poster(START_NOTES);
+
+    expect(result).toEqual({ threadId: SLACK_POST_THREAD_ID });
+    expect(channelPost).toHaveBeenCalledExactlyOnceWith("x");
+    expect(thread.post).not.toHaveBeenCalled();
+    expect(params.values[NOTES_PARAMETER]).toBe(bound);
+  });
+
+  it("lets only one of two racing runs set up the destination", async () => {
+    const { poster, channelPost, notes } = await slackDestinationPoster();
+    const release = holdNextChannelPost(channelPost);
+
+    const first = poster(START_NOTES_PERSISTENT);
+    await vi.waitFor(() => expect(channelPost).toHaveBeenCalledOnce());
+    await expect(poster(START_NOTES_PERSISTENT)).rejects.toThrow(
+      'destination "notes-channel" is being set up by another run',
+    );
+    release();
+
+    expect(await first).toEqual({ threadId: SLACK_POST_THREAD_ID });
+    expect(channelPost).toHaveBeenCalledOnce();
+    expect(notes().threadId).toBe(SLACK_POST_THREAD_ID);
   });
 });
 

@@ -146,3 +146,6 @@
   raw chat ID there.
 - A new `TelegramApi` method also needs adding to `fakeTelegram` in
   `test/helpers/poster-fixtures.ts`.
+- Per-platform thread behavior lives in `THREAD_PLATFORMS` (`src/lambda/thread-starter.ts`); a new
+  platform adds an entry there instead of branching inline. Build thread IDs with `buildThreadId`
+  (`src/config`), never by string.

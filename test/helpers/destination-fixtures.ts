@@ -1,3 +1,4 @@
+import type { Mock } from "vitest";
 import type { Platform } from "../../src/config/index.js";
 import { approvedParameter, scopedChatParameter } from "../../src/lambda/connection-paths.js";
 import {
@@ -14,6 +15,7 @@ import {
   HOUSEHOLD_CHAT_ID,
   posterSetup,
   SLACK_CHANNEL_ID,
+  SLACK_POST_THREAD_ID,
   TOPIC_ID,
 } from "./poster-fixtures.js";
 import { connectionParameters, GARDEN_SLACK_PARAMETERS } from "./receiver-fixtures.js";
@@ -98,3 +100,44 @@ export const GARDEN_SLACK_CHANNEL_PARAMETERS = {
   [scopedChatParameter("slack", "garden-channel")]: SLACK_CHANNEL_ID,
   [approvedParameter("garden", "slack", "chat", SLACK_CHANNEL_ID)]: "{}",
 };
+
+export const NOTES_PARAMETER = scopedChatParameter("slack", "notes-channel");
+export const SLACK_ARCHIVED_ERROR = "An API error occurred: is_archived";
+export const SLACK_PARENT_GONE_ERROR = "An API error occurred: message_not_found";
+export const RECREATED_SLACK_THREAD = `slack:${SLACK_CHANNEL_ID}:1700000001.000200`;
+
+export const START_NOTES = {
+  operation: "start-thread",
+  bot: "notes",
+  destination: "notes-channel",
+  text: "x",
+} as const;
+export const START_NOTES_PERSISTENT = { ...START_NOTES, thread: "persistent" } as const;
+
+export const boundNotes = (overrides: Partial<DestinationFields> = {}) =>
+  encodeDestination({
+    chatId: SLACK_CHANNEL_ID,
+    threadId: SLACK_POST_THREAD_ID,
+    bot: "notes",
+    ...overrides,
+  });
+
+/** A poster whose Slack `notes-channel` destination holds `notes`, with accessors for its record. */
+export async function slackDestinationPoster(notes: string = SLACK_CHANNEL_ID) {
+  const setup = await destinationPoster({ parameters: { [NOTES_PARAMETER]: notes } });
+  return { ...setup, notes: () => destinationAt(setup.params, "slack", "notes-channel") };
+}
+
+/** Holds the next Slack channel post until `release` is called, once it has started. */
+export function holdNextChannelPost(
+  channelPost: Mock<() => Promise<{ id: string; threadId: string }>>,
+) {
+  let release = () => {};
+  channelPost.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        release = () => resolve({ id: "sent-2", threadId: SLACK_POST_THREAD_ID });
+      }),
+  );
+  return () => release();
+}

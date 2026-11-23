@@ -314,7 +314,8 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       rejects `persistent` with a clear error until slice 16 lands; no new IAM statement. Deploy
       gates unchanged. Details approved 2026-11-23. After 8, 9, 18 (and 21, same schema file).
       Done.
-- [ ] Platforms 12: Slack persistent thread destinations (`thread: persistent` on Slack). After 11.
+- [x] Platforms 12: Slack persistent thread destinations (`thread: persistent` on Slack). After 11.
+      Done.
 - [x] Platforms 13: dropped (design Decision 20, maintainer ruling 2026-11-24): `centaur
       destination set` binds an existing topic, so the in-chat handlers would add admin-auth
       receiver code for a rare need.

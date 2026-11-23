@@ -7,8 +7,8 @@
 > [plan.md](plan.md), [poster.md](poster.md) and [workflows.md](workflows.md). Slice 1 (config schema and
 > readers) and slice 8 (platform-scoped chat aliases) are implemented on `platforms/cutover`. Slice 11 (destinations: the
 > record store at `chats/<platform>/<name>`, create on first use, `resolve-destination`, `start-thread`'s
-> `thread`, Telegram persistent threads and topic recreation) is built; Slack persistent threads, the
-> `centaur destination` CLI and the runner use of `thread` are not, and the
+> `thread`, Telegram persistent threads and topic recreation) is built, as are Slack persistent threads
+> (slice 12) and the `centaur destination` CLI (slice 14); the runner use of `thread` is not built, and the
 > schema rejects `thread: persistent` until slice 16.
 
 Two items from [TODO.md](../TODO.md) are designed together because they change the same records:

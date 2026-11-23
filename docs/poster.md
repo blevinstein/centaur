@@ -76,7 +76,7 @@ record:
 | Field | Meaning |
 |---|---|
 | `chatId` | The chat or channel ID, in the platform's own form. |
-| `threadId` | Optional. The persistent thread (`telegram:<chat>:<topic>`), bound by a `persistent` run. |
+| `threadId` | Optional. The persistent thread (`telegram:<chat>:<topic>` or `slack:<channel>:<ts>`), bound by a `persistent` run. |
 | `bot` | Set with `threadId`: the bot that owns the thread. Another bot resolving the name fails with `destination "<name>" on <platform> is bound to a thread owned by bot "<owner>", not "<bot>"`. |
 | `context` | The context policy of the prompt that last posted into `threadId`, mirrored from `thread-meta`. |
 | `name`, `at` | Display name and time of the last change. |
@@ -97,13 +97,22 @@ thread in the destination's chat and never reuses or changes a bound thread. `pe
   a state lock on the name while it does this, so concurrent runs share one thread.
 - writes `thread-meta` for the thread with `destination` set, so the record never expires, and
   rewrites the stored policy and the record's `context` on every run.
-- **Telegram** only for now. On a bound topic, a "thread not found" error from Telegram (a deleted
+- **Telegram.** On a bound topic, a "thread not found" error from Telegram (a deleted
   topic) opens a new topic and overwrites the record; a "topic closed" error first calls
   `reopenForumTopic` and falls back to a new topic when that fails. The new topic starts with no
   transcript. A chat that is not a forum fails with `destination "<name>" is a chat without forum
   topics, so it cannot hold a thread`, and binds nothing. Any other posting error is returned and
   leaves the record alone. The exact Bot API error strings still need a live check.
-- **Slack** fails with `a persistent thread is not supported on slack yet`; `new` works as before.
+- **Slack.** With no bound thread, the poster posts the message as a top-level post in the
+  record's channel; that post's `ts` is the thread (`slack:<channel>:<ts>`, built by the adapter),
+  which is bound to the record. Later runs reply into it. A `message_not_found` or
+  `thread_not_found` error from Slack (the thread is gone) opens a new top-level post and overwrites
+  the record; the new thread starts with no transcript. Slack has no closed threads. An
+  `is_archived`, `channel_not_found` or `not_in_channel` error fails with `destination "<name>" is in
+  a channel that is archived or not accessible to the bot`, binds nothing and keeps the record. Any
+  other posting error is returned and leaves the record alone. A DM channel works like any other
+  channel. `new` opens a fresh top-level post per run, as before. The exact Slack error names still
+  need a live check.
 
 The config schema rejects `thread: persistent` for now (`persistent is not supported yet`), so
 scheduled runs send `new` until the runner posts into persistent threads.

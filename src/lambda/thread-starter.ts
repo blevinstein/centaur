@@ -1,5 +1,5 @@
 import type { StateAdapter } from "chat";
-import { type Platform, type ThreadMode, threadPlatform } from "../config/index.js";
+import { buildThreadId, type Platform, type ThreadMode, threadPlatform } from "../config/index.js";
 import { createAccessResolver } from "./access.js";
 import {
   createDestinationOnFirstUse,
@@ -17,9 +17,6 @@ import type { ThreadMetaStore } from "./thread-meta.js";
 
 export const TOPIC_NAME_MAX = 128;
 const LOCK_TTL_MS = 30_000;
-const TOPIC_GONE = /thread not found/i;
-const TOPIC_CLOSED = /topic[_ ]closed/i;
-const NOT_A_FORUM = /not a forum/i;
 
 export interface StartThreadRequest {
   bot: string;
@@ -51,18 +48,53 @@ type ThreadOpener = (
   telegram: TelegramApi,
 ) => Promise<OpenedThread>;
 
-const THREAD_OPENERS: Record<Platform, ThreadOpener> = {
-  telegram: async (bot, _chat, { chatId, title }, telegram) => ({
-    threadId: `telegram:${chatId}:${await telegram.createForumTopic(bot.token, chatId, title)}`,
-    posted: false,
-  }),
-  slack: async (_bot, chat, { chatId, text }) => ({
-    threadId: (await chat.channel(`slack:${chatId}`).post(text)).threadId,
-    posted: true,
-  }),
-};
+/** What a platform contributes to opening and reusing a thread; posting into one is shared. */
+interface ThreadPlatform {
+  open: ThreadOpener;
+  /** Matches the error of posting into a bound thread that no longer exists. */
+  gone: RegExp;
+  /** Matches an error of the chat itself, which no thread can work around. */
+  chatProblem: { pattern: RegExp; message: (label: string) => string };
+  /** Reopens a bound thread that was closed; absent when the platform has no closed threads. */
+  reopen?: {
+    closed: RegExp;
+    run: (bot: Bot, telegram: TelegramApi, chatId: string, threadId: string) => Promise<void>;
+  };
+}
 
-const PERSISTENT_PLATFORMS: Platform[] = ["telegram"];
+const THREAD_PLATFORMS: Record<Platform, ThreadPlatform> = {
+  telegram: {
+    open: async (bot, _chat, { chatId, title }, telegram) => ({
+      threadId: buildThreadId(
+        "telegram",
+        chatId,
+        String(await telegram.createForumTopic(bot.token, chatId, title)),
+      ),
+      posted: false,
+    }),
+    gone: /thread not found/i,
+    chatProblem: {
+      pattern: /not a forum/i,
+      message: (label) => `${label} is a chat without forum topics, so it cannot hold a thread`,
+    },
+    reopen: {
+      closed: /topic[_ ]closed/i,
+      run: (bot, telegram, chatId, threadId) =>
+        telegram.reopenForumTopic(bot.token, chatId, topicOf(threadId)),
+    },
+  },
+  slack: {
+    open: async (_bot, chat, { chatId, text }) => ({
+      threadId: (await chat.channel(`slack:${chatId}`).post(text)).threadId,
+      posted: true,
+    }),
+    gone: /message_not_found|thread_not_found/i,
+    chatProblem: {
+      pattern: /is_archived|channel_not_found|not_in_channel/i,
+      message: (label) => `${label} is in a channel that is archived or not accessible to the bot`,
+    },
+  },
+};
 
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -115,38 +147,38 @@ export function createThreadStarter({
       return opened.threadId;
     };
 
+    const platform = THREAD_PLATFORMS[bot.platform];
+
+    const explainChatProblem = (error: unknown, label: string) =>
+      platform.chatProblem.pattern.test(reasonOf(error))
+        ? new Error(platform.chatProblem.message(label))
+        : error;
+
     const open = async (chatId: string, label: string, destination?: string) => {
       try {
         return await deliver(
-          await THREAD_OPENERS[bot.platform](
-            bot,
-            chat,
-            { chatId, text: request.text, title },
-            telegram,
-          ),
+          await platform.open(bot, chat, { chatId, text: request.text, title }, telegram),
           destination,
         );
       } catch (error) {
-        if (NOT_A_FORUM.test(reasonOf(error))) {
-          throw new Error(`${label} is a chat without forum topics, so it cannot hold a thread`);
-        }
-        throw error;
+        throw explainChatProblem(error, label);
       }
     };
 
-    /** Posts into the bound topic; undefined when it is gone (or closed and cannot be reopened). */
-    const redeliver = async (name: string, threadId: string, chatId: string) => {
+    /** Posts into the bound thread; undefined when it is gone (or closed and cannot be reopened). */
+    const redeliver = async (name: string, label: string, threadId: string, chatId: string) => {
       const post = () => deliver({ threadId, posted: false }, name);
       try {
         return await post();
       } catch (error) {
-        if (TOPIC_CLOSED.test(reasonOf(error))) {
+        const reason = reasonOf(error);
+        if (platform.reopen?.closed.test(reason)) {
           try {
-            await telegram.reopenForumTopic(bot.token, chatId, topicOf(threadId));
+            await platform.reopen.run(bot, telegram, chatId, threadId);
             return await post();
           } catch {}
-        } else if (!TOPIC_GONE.test(reasonOf(error))) {
-          throw error;
+        } else if (!platform.gone.test(reason)) {
+          throw explainChatProblem(error, label);
         }
         return undefined;
       }
@@ -167,15 +199,12 @@ export function createThreadStarter({
       return { threadId: await open(chatId, label) };
     }
 
-    if (!PERSISTENT_PLATFORMS.includes(bot.platform)) {
-      throw new Error(`a persistent thread is not supported on ${bot.platform} yet`);
-    }
     const lock = await state.acquireLock(`destination:${bot.platform}:${name}`, LOCK_TTL_MS);
     if (!lock) throw new Error(`${label} is being set up by another run; try again shortly`);
     try {
       const record = await locate(bot, name);
       const reused = record.threadId
-        ? await redeliver(name, record.threadId, record.chatId)
+        ? await redeliver(name, label, record.threadId, record.chatId)
         : undefined;
       const threadId = reused ?? (await open(record.chatId, label, name));
       if (threadId !== record.threadId || record.context !== request.context) {
