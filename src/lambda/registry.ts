@@ -165,3 +165,22 @@ export async function writeRegistryEntry(
 ): Promise<void> {
   await state.set(registryKey(bot), entry);
 }
+
+/** The bot's connection on `platform` (or its only one); fails naming the bot and what is missing. */
+export async function requireBot(
+  params: ParameterStore,
+  name: string,
+  options: LoadOptions = {},
+): Promise<Bot> {
+  const bot = await loadBot(params, name, options);
+  if (bot) return bot;
+  const found = (await readBots(params, botPath(name))).get(name);
+  const platforms = found?.secrets.map((connection) => connection.platform) ?? [];
+  if (!found?.repo || platforms.length === 0) throw new Error(`unknown or unbound bot "${name}"`);
+  if (options.platform) {
+    throw new Error(`bot "${name}" has no connection on platform "${options.platform}"`);
+  }
+  throw new Error(
+    `bot "${name}" has several connections (${platforms.join(", ")}); platform is required`,
+  );
+}

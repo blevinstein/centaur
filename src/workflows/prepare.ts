@@ -5,6 +5,7 @@ import {
   alias,
   type CentaurConfig,
   type ContextPolicy,
+  type Platform,
   PROVIDER_SETTINGS,
   platformSettings,
   threadPlatform,
@@ -51,7 +52,7 @@ const NEW_THREAD_OPENING = "Fresh thread. What would you like to do?";
 
 const dispatchPayload = z.object({ bot: alias, thread_id: z.string().min(1) });
 
-export type StartTarget = { destination: string } | { fromThreadId: string };
+export type StartTarget = { destination: string; platform: Platform } | { fromThreadId: string };
 
 export interface TurnState {
   mode: "reply" | "start-thread" | "comment";
@@ -168,7 +169,7 @@ async function scheduledTurn(
   return {
     mode: "start-thread",
     policy: prompt.context,
-    start: { destination: target.destination },
+    start: { destination: target.destination, platform: target.platform },
     allowExisting: targets.allowExisting,
     prompt: buildPrompt({ scheduledTask, instructions, ...targets }),
   };

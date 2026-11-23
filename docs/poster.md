@@ -12,7 +12,7 @@ to a repo (a connection's secrets under `bots/<bot>/platforms/<platform>/` plus 
 | `operation` | Fields | Result |
 |---|---|---|
 | `post` | `bot`, `threadId`, `text` | `{ messageId }` |
-| `start-thread` | `bot`, `text`, optional `title`, exactly one of `destination` (chat alias) or `fromThreadId` | `{ threadId }` |
+| `start-thread` | `bot`, `text`, optional `title`, exactly one of `destination` (chat alias, with `platform`: required when the bot has several connections) or `fromThreadId` (implies the platform; `platform` is rejected with it) | `{ threadId }` |
 | `read` | `token` (GitHub OIDC JWT), `bot`, `threadId`, optional `visibleOnly` | `{ messages: [{ id, userId, userName, fromBot, text, attachments, sentAt }] }`, oldest first; `attachments` are the S3 keys of the message's stored images (see [Attachments](#attachments)); with `visibleOnly: true` the poster drops messages from senders who are not enrolled and from other bots, the same filter as `list-threads` and `read-channel`, and the thread's chat must be approved and not blocked. Without it every stored message is returned, as `prepare` needs for the dispatched thread |
 | `unreact` | `bot`, `threadId`, `messageIds` (1 to 50) | `{ results: [{ messageId, removed }] }` |
 | `list-threads` | `token` (GitHub OIDC JWT), `bot`, `chatId`, `threadId` (the dispatched thread), optional `limit` (default 20, max 50), optional `includeBots` | `{ threads: [{ threadId, title, lastActivity, messageCount, participants, snippet }], scanned }`, most recent first |
@@ -24,6 +24,20 @@ to a repo (a connection's secrets under `bots/<bot>/platforms/<platform>/` plus 
 
 All thread operations go through the bot's own Chat instance and state prefix (`bot:<bot>:`), so
 the bot's posts land in the stored transcript the receiver and `read` use.
+
+## Choosing the connection
+
+A bot has one connection per platform it declares. Operations that take a `threadId` (`post`,
+`read`, `unreact`, `list-threads`, `read-channel`) use the connection of the thread ID's platform
+prefix, so one bot serves its Telegram and Slack threads each with that connection's token and
+adapter. A bot with no connection on that platform fails with `bot "<bot>" has no connection on
+platform "<platform>"`, and an ID with no known platform prefix is rejected.
+
+`start-thread` with `fromThreadId` uses the connection of that thread's platform. With
+`destination` it takes `platform` (`telegram` or `slack`); the field is optional when the bot has
+exactly one connection and required otherwise (`bot "<bot>" has several connections (...);
+platform is required`). `platform` together with `fromThreadId` is rejected. `link-pull-request` and
+`resolve-pull-request` store and read records only and open no connection.
 
 ## `start-thread`
 

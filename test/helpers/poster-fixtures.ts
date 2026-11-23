@@ -6,7 +6,7 @@ import type { Platform } from "../../src/config/index.js";
 import { approvedParameter, blockedParameter } from "../../src/lambda/connection-paths.js";
 import { GITHUB_OIDC_ISSUER, type OidcVerifier } from "../../src/lambda/oidc.js";
 import type { ThreadMetadata } from "../../src/lambda/ownership.js";
-import { createPoster, type PosterChat } from "../../src/lambda/poster.js";
+import { createPoster, type PosterChat, type PosterDeps } from "../../src/lambda/poster.js";
 import type { TelegramApi } from "../../src/lambda/telegram.js";
 import {
   connectionParameters,
@@ -104,10 +104,23 @@ export function fakePosterChat(transcript: unknown[] = []) {
     })(),
   };
   const channelPost = vi.fn(async () => ({ id: "sent-2", threadId: SLACK_POST_THREAD_ID }));
+  const listThreads = vi.fn(async () => ({ threads: [], nextCursor: undefined }));
+  const fetchChannelMessages = vi.fn(async () => ({ messages: [], nextCursor: undefined }));
   const chat = {
     initialize: vi.fn(async () => {}),
-    thread: vi.fn(() => thread),
-    channel: vi.fn(() => ({ post: channelPost })),
+    thread: vi.fn((id: string) => {
+      const [platform, chatId] = id.split(":");
+      if ((platform === "telegram" || platform === "slack") && id !== thread.id) {
+        thread.id = id;
+        thread.channelId = `${platform}:${chatId}`;
+      }
+      return thread;
+    }),
+    channel: vi.fn(() => ({
+      post: channelPost,
+      adapter: { name: "fake", listThreads, fetchChannelMessages },
+      messages: (async function* () {})(),
+    })),
   };
   return {
     chat: chat as unknown as PosterChat,
@@ -116,6 +129,8 @@ export function fakePosterChat(transcript: unknown[] = []) {
     removeReaction,
     rehydrateAttachment,
     channelPost,
+    listThreads,
+    fetchChannelMessages,
     state,
   };
 }
@@ -150,7 +165,7 @@ export async function posterSetup(
     options.createState ??
       ((prefix: string) => (prefix === "" ? registryState : createMemoryState())),
   );
-  const chatFor = vi.fn(() => posting.chat);
+  const chatFor = vi.fn<PosterDeps["chatFor"]>(() => posting.chat);
   const attachments = fakeAttachments(options.attachments);
   const poster = await createPoster({
     params,

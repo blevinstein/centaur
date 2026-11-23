@@ -257,7 +257,7 @@ const READERS: Record<Platform, ChannelReader> = {
 export interface ChatContextDeps {
   params: ParameterStore;
   oidc: OidcVerifier;
-  openChat: (bot: string) => Promise<{ bot: Bot; chat: PosterChat }>;
+  openThreadChat: (bot: string, threadId: string) => Promise<{ bot: Bot; chat: PosterChat }>;
   requireApprovedChat: (bot: Bot, chatId: string) => Promise<Access>;
   logger: Pick<Logger, "warn">;
 }
@@ -265,7 +265,7 @@ export interface ChatContextDeps {
 export function createChatContext({
   params,
   oidc,
-  openChat,
+  openThreadChat,
   requireApprovedChat,
   logger,
 }: ChatContextDeps) {
@@ -276,7 +276,7 @@ export function createChatContext({
     run: (reader: ChannelReader, query: ChannelQuery) => Promise<T>,
   ) => {
     await requireBound(params, oidc, request.token, request.bot);
-    const { bot, chat } = await openChat(request.bot);
+    const { bot, chat } = await openThreadChat(request.bot, request.threadId);
     const access = await requireApprovedChat(bot, request.chatId);
     const channelId = `${bot.platform}:${request.chatId}`;
     if (chat.thread(request.threadId).channelId !== channelId) {
@@ -305,7 +305,7 @@ export function createChatContext({
   return {
     /** The sender filter of the chat tools, for a thread whose chat the bot is approved for. */
     async visibleInThread(botName: string, threadId: string): Promise<Visible> {
-      const { bot, chat } = await openChat(botName);
+      const { bot, chat } = await openThreadChat(botName, threadId);
       const channelId = chat.thread(threadId).channelId;
       const access = await requireApprovedChat(bot, channelId.slice(bot.platform.length + 1));
       return visibleTo(access, false);

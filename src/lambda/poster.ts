@@ -1,6 +1,6 @@
 import { type Adapter, type Chat, emoji, type Logger, type Message, type StateAdapter } from "chat";
 import { z } from "zod";
-import { alias, type Platform } from "../config/index.js";
+import { alias, PLATFORMS, type Platform, threadPlatform } from "../config/index.js";
 import { createAccessResolver } from "./access.js";
 import type { AttachmentStore } from "./attachments.js";
 import {
@@ -14,7 +14,7 @@ import { BOT_CREATED_STATE, type ThreadMetadata } from "./ownership.js";
 import { chatParameter, type ParameterStore } from "./parameters.js";
 import { createPullRequests } from "./pull-requests.js";
 import { createRegister } from "./register.js";
-import { type Bot, botStatePrefix, loadBot, requireBound } from "./registry.js";
+import { type Bot, botStatePrefix, requireBot, requireBound } from "./registry.js";
 import { connectState } from "./state.js";
 import type { TelegramApi } from "./telegram.js";
 import { firstLine } from "./text.js";
@@ -35,6 +35,8 @@ export const posterRequestSchema = z.discriminatedUnion("operation", [
       text,
       title: z.string().min(1).max(TOPIC_NAME_MAX).optional(),
       destination: alias.optional(),
+      /** Selects the connection of a `destination`; optional on a single-connection bot. */
+      platform: z.enum(PLATFORMS).optional(),
       fromThreadId: threadId.optional(),
     })
     .refine(
@@ -42,7 +44,10 @@ export const posterRequestSchema = z.discriminatedUnion("operation", [
       {
         message: "start-thread needs exactly one of destination and fromThreadId",
       },
-    ),
+    )
+    .refine((request) => request.fromThreadId === undefined || request.platform === undefined, {
+      message: "start-thread takes platform only with destination; fromThreadId implies it",
+    }),
   z.strictObject({
     operation: z.literal("read"),
     token: z.string().min(1),
@@ -147,13 +152,15 @@ export async function createPoster(deps: PosterDeps) {
     oidc: deps.oidc,
   });
 
-  const openChat = async (botName: string) => {
-    const bot = await loadBot(params, botName, { logger });
-    if (!bot) throw new Error(`unknown or unbound bot "${botName}"`);
+  const openChat = async (botName: string, platform?: Platform) => {
+    const bot = await requireBot(params, botName, { logger, ...(platform ? { platform } : {}) });
     const chat = chatFor(bot, await stateFor(botStatePrefix(bot.name)));
     await chat.initialize();
     return { bot, chat };
   };
+
+  const openThreadChat = (botName: string, threadId: string) =>
+    openChat(botName, threadPlatform(threadId));
 
   const requireApprovedChat = async (bot: Bot, chatId: string, name = chatId) => {
     const access = await createAccessResolver(bot, params)();
@@ -171,7 +178,7 @@ export async function createPoster(deps: PosterDeps) {
   const chatContext = createChatContext({
     params,
     oidc: deps.oidc,
-    openChat,
+    openThreadChat,
     requireApprovedChat,
     logger,
   });
@@ -213,12 +220,17 @@ export async function createPoster(deps: PosterDeps) {
       case "read-channel":
         return chatContext.readChannel(request);
       case "post": {
-        const { chat } = await openChat(request.bot);
+        const { chat } = await openThreadChat(request.bot, request.threadId);
         const sent = await chat.thread(request.threadId).post(request.text);
         return { messageId: sent.id };
       }
       case "start-thread": {
-        const { bot, chat } = await openChat(request.bot);
+        const { bot, chat } = await openChat(
+          request.bot,
+          request.fromThreadId === undefined
+            ? request.platform
+            : threadPlatform(request.fromThreadId),
+        );
         const opened = await THREAD_OPENERS[bot.platform](
           bot,
           chat,
@@ -236,7 +248,7 @@ export async function createPoster(deps: PosterDeps) {
       }
       case "read": {
         await requireBound(params, deps.oidc, request.token, request.bot);
-        const { chat } = await openChat(request.bot);
+        const { chat } = await openThreadChat(request.bot, request.threadId);
         const visible = request.visibleOnly
           ? await chatContext.visibleInThread(request.bot, request.threadId)
           : undefined;
@@ -278,7 +290,7 @@ export async function createPoster(deps: PosterDeps) {
         return { messages };
       }
       case "unreact": {
-        const { bot, chat } = await openChat(request.bot);
+        const { bot, chat } = await openThreadChat(request.bot, request.threadId);
         const thread = chat.thread(request.threadId);
         const results = [];
         for (const messageId of request.messageIds) {

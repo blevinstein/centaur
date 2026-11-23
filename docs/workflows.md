@@ -214,7 +214,7 @@ Commands: `register`, `resolve`, `prepare`, `pr-details`, `finish`, `notify-fail
    title as both commit message and title.
 4. `finish` takes the reply from the action's execution file, appends the pull request link, posts
    it (`post`, or `start-thread` for scheduled prompts and `/new`; `prepare` records the target in
-   the turn state: the prompt's `destination` alias, which the poster resolves to a chat approved for the bot, or the originating thread for `/new`), advances the marker and saves the
+   the turn state: the prompt's `destination` alias with its target `platform`, which the poster resolves to a chat approved for the bot, or the originating thread for `/new`), advances the marker and saves the
    session for `resume` threads. When the agent returned `ignore: true` nothing is posted unless a
    pull request was opened or updated, in which case only its link is posted;  the marker and session are still saved.
    The link reads `Pull request: <url>`, or `Updated pull request: <url>` when `push-existing`
