@@ -11,7 +11,15 @@ export interface ParameterStore {
   get(name: string): Promise<string | undefined>;
   put(name: string, value: string, options: { secure: boolean }): Promise<void>;
   listNames(prefix: string): Promise<string[]>;
+  /** Every parameter under the prefix, decrypted, with its type. */
+  getByPath(prefix: string): Promise<StoredParameter[]>;
   delete(names: string[]): Promise<void>;
+}
+
+export interface StoredParameter {
+  name: string;
+  value: string;
+  secure: boolean;
 }
 
 const DELETE_BATCH_SIZE = 10;
@@ -43,18 +51,32 @@ export class SsmParameterStore implements ParameterStore {
   }
 
   async listNames(prefix: string): Promise<string[]> {
-    const names: string[] = [];
+    const parameters = await this.fetchByPath(prefix, false);
+    return parameters.map(({ name }) => name);
+  }
+
+  getByPath(prefix: string): Promise<StoredParameter[]> {
+    return this.fetchByPath(prefix, true);
+  }
+
+  private async fetchByPath(prefix: string, decrypt: boolean): Promise<StoredParameter[]> {
+    const found: StoredParameter[] = [];
     let nextToken: string | undefined;
     do {
       const page = await this.client.send(
-        new GetParametersByPathCommand({ Path: prefix, Recursive: true, NextToken: nextToken }),
+        new GetParametersByPathCommand({
+          Path: prefix,
+          Recursive: true,
+          WithDecryption: decrypt,
+          NextToken: nextToken,
+        }),
       );
-      for (const parameter of page.Parameters ?? []) {
-        if (parameter.Name) names.push(parameter.Name);
+      for (const { Name, Value, Type } of page.Parameters ?? []) {
+        if (Name) found.push({ name: Name, value: Value ?? "", secure: Type === "SecureString" });
       }
       nextToken = page.NextToken;
     } while (nextToken);
-    return names;
+    return found;
   }
 
   async delete(names: string[]): Promise<void> {

@@ -1,6 +1,6 @@
 import { PLATFORMS, type Platform } from "../config/index.js";
 import type { AccessKind } from "./access-entries.js";
-import { PARAMETER_ROOT } from "./parameters.js";
+import { CHATS_PREFIX, PARAMETER_ROOT } from "./parameters.js";
 
 export const BOTS_ROOT = `${PARAMETER_ROOT}/bots`;
 
@@ -22,6 +22,10 @@ export const connectionPath = (bot: string, platform: Platform) =>
   `${botPath(bot)}/platforms/${platform}`;
 export const connectionParameter = (bot: string, platform: Platform, key: string) =>
   `${connectionPath(bot, platform)}/${key}`;
+
+/** A chat alias scoped to one platform. */
+export const scopedChatParameter = (platform: Platform, alias: string) =>
+  `${CHATS_PREFIX}/${platform}/${alias}`;
 
 export const tokenParameter = (bot: string, platform: Platform) =>
   connectionParameter(bot, platform, "token");

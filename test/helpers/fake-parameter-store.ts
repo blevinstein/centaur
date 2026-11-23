@@ -15,6 +15,12 @@ export class FakeParameterStore implements ParameterStore {
     return [...this.entries.keys()].filter((name) => name.startsWith(prefix));
   }
 
+  async getByPath(prefix: string) {
+    return [...this.entries]
+      .filter(([name]) => name.startsWith(prefix))
+      .map(([name, { value, secure }]) => ({ name, value, secure }));
+  }
+
   async delete(names: string[]) {
     for (const name of names) this.entries.delete(name);
   }

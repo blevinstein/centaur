@@ -8,8 +8,8 @@ import { FakeParameterStore } from "./fake-parameter-store.js";
 export function createCliHarness(
   secrets: Record<string, string> = {},
   telegram: CliContext["telegram"] = { getMe: async () => ({ username: "garden_bot" }) },
+  store = new FakeParameterStore(),
 ) {
-  const store = new FakeParameterStore();
   const output: string[] = [];
   const readSecrets: SecretReader = async (names) =>
     Object.fromEntries(names.map((name) => [name, secrets[name] ?? ""]));

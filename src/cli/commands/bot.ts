@@ -17,6 +17,7 @@ import {
   parsePlatform,
   selectConnection,
 } from "../registry.js";
+import { registerBotMigrationCommands } from "./bot-migration.js";
 
 const WEBHOOK_SECRET_BYTES = 32;
 
@@ -115,4 +116,6 @@ export function registerBotCommands(program: Command, context: CliContext): void
       await context.store.delete([repoParameter(name)]);
       context.log(`Unbound bot "${name}" from ${repo}.`);
     });
+
+  registerBotMigrationCommands(bot, context);
 }
