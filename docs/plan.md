@@ -125,7 +125,7 @@ actions. The full files are in [workflows.md](workflows.md#consumer-workflows). 
 prompt's workflow also has `workflow_dispatch`, which doubles as a setup check.
 
 A scheduled run starts a **new thread** (a new Telegram topic, or a new top-level Slack message)
-in the prompt's `destination` chat (an alias that must resolve to a chat approved for the bot) with a `fresh` context, and replies to it continue as normal conversation.
+in the prompt's `destination` chat (an alias that must resolve to a chat approved for the bot) with a `fresh` context, and replies to it continue as normal conversation. A prompt whose `destination` map has several entries runs one agent turn and posts its reply to every target, each in its own new thread.
 
 ### Configuration
 

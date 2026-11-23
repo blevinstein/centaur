@@ -3,7 +3,7 @@ import { z } from "zod";
 import { threadKey } from "../thread-key.js";
 import type { PosterClient, ThreadStore } from "./aws.js";
 import { cleanBody, cleanTitle } from "./clean-text.js";
-import type { TurnState } from "./prepare.js";
+import type { StartTarget, TurnState } from "./prepare.js";
 import { pullRequestDetails } from "./pull-request.js";
 import type { PullRequestWriter } from "./pull-request-comments.js";
 import { clearReactions } from "./reactions.js";
@@ -93,25 +93,51 @@ export interface FinishDeps {
   storeFor: (bot: string, threadId: string) => ThreadStore;
 }
 
+interface Delivery {
+  /** Threads the reply reached, in target order; the first is the primary thread. */
+  threadIds: string[];
+  /** Targets that did not receive the reply, described without any message text. */
+  failed: string[];
+}
+
+const describeTarget = (state: TurnState, target: StartTarget) =>
+  "destination" in target
+    ? `${state.bot}/${target.platform}/${target.destination}`
+    : `${state.bot}/new thread`;
+
+/** Starts a thread per target, attempting every one even when an earlier one fails. */
 async function deliver(
   poster: PosterClient,
   state: TurnState,
   text: string,
   title: string | undefined,
-) {
+): Promise<Delivery> {
   if (state.mode === "reply" && state.threadId) {
     await poster.call({ operation: "post", bot: state.bot, threadId: state.threadId, text });
-    return state.threadId;
+    return { threadIds: [state.threadId], failed: [] };
   }
-  if (!state.start) throw new Error("the turn names no chat to start a thread in");
-  const started = await poster.call<{ threadId: string }>({
-    operation: "start-thread",
-    bot: state.bot,
-    text,
-    ...state.start,
-    ...(title ? { title } : {}),
-  });
-  return started.threadId;
+  if (!state.start?.length) throw new Error("the turn names no chat to start a thread in");
+  const delivery: Delivery = { threadIds: [], failed: [] };
+  for (const target of state.start) {
+    try {
+      const started = await poster.call<{ threadId: string }>({
+        operation: "start-thread",
+        bot: state.bot,
+        text,
+        ...target,
+        ...(title ? { title } : {}),
+      });
+      delivery.threadIds.push(started.threadId);
+    } catch (error) {
+      if (state.start.length === 1) throw error;
+      const described = describeTarget(state, target);
+      console.warn(
+        `::warning::could not post to ${described} (${(error as Error).constructor.name})`,
+      );
+      delivery.failed.push(described);
+    }
+  }
+  return delivery;
 }
 
 async function deliverReply(
@@ -134,7 +160,7 @@ async function deliverReply(
     .join("\n\n");
   if (text) return deliver(deps.poster, state, text, result.title);
   if (!state.threadId) throw new Error("the agent can only stay silent in an existing thread");
-  return state.threadId;
+  return { threadIds: [state.threadId], failed: [] };
 }
 
 /** Best-effort: leaves the title and body of the updated pull request alone. */
@@ -308,28 +334,41 @@ export async function finish(deps: FinishDeps) {
     state,
     extractResult(await readFile(deps.executionFile, "utf8")),
   );
-  let threadId: string;
+  let delivery: Delivery;
   let link = deps.pullRequestLink;
   if (deps.comment) {
     const answered = await finishComment(deps, deps.comment, state, result);
-    threadId = answered.threadId;
+    delivery = { threadIds: [answered.threadId], failed: [] };
     link = link && { ...link, number: answered.pullRequest };
     if (link && answered.opened !== undefined) {
-      await linkPullRequest(deps.poster, { ...link, number: answered.opened }, state.bot, threadId);
+      await linkPullRequest(
+        deps.poster,
+        { ...link, number: answered.opened },
+        state.bot,
+        answered.threadId,
+      );
     }
   } else {
     if (deps.updatedPullRequest) {
       await commentOnUpdatedPullRequest(deps.updatedPullRequest, state, result);
       link = link && { ...link, number: undefined };
     }
-    threadId = await deliverReply(deps, state, result);
+    delivery = await deliverReply(deps, state, result);
   }
-  await linkPullRequest(deps.poster, link, state.bot, threadId);
 
-  const store = deps.storeFor(state.bot, threadId);
-  if (state.marker) await store.writeMarker(state.marker);
-  if (state.policy === "resume" && result.sessionId) {
-    await store.saveSession(state.sessionDirectory, result.sessionId);
+  const [threadId] = delivery.threadIds;
+  if (threadId) {
+    await linkPullRequest(deps.poster, link, state.bot, threadId);
+    const store = deps.storeFor(state.bot, threadId);
+    if (state.marker) await store.writeMarker(state.marker);
+    if (state.policy === "resume" && result.sessionId) {
+      await store.saveSession(state.sessionDirectory, result.sessionId);
+    }
+  }
+  if (delivery.failed.length > 0) {
+    throw new Error(
+      `the reply reached ${delivery.threadIds.length} of ${delivery.threadIds.length + delivery.failed.length} targets; failed: ${delivery.failed.join(", ")}`,
+    );
   }
   await clearReactions(deps.poster, state.source);
 }

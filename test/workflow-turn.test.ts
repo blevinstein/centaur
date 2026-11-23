@@ -21,7 +21,7 @@ import {
   WORKSPACE_PERMIT_FILES,
 } from "./helpers/mcp-policy-fixtures.js";
 import { candidatePr, targetSetup } from "./helpers/pr-target-fixtures.js";
-import { setup } from "./helpers/turn-fixtures.js";
+import { FAN_OUT_CONFIG, runFanOut, setup } from "./helpers/turn-fixtures.js";
 import {
   botMessage,
   configText,
@@ -423,7 +423,7 @@ describe("prepare", () => {
     expect(aws.requests.at(-1)).toMatchObject({ operation: "post", text: "Started a new thread." });
     expect(await state(stateDir)).toMatchObject({
       mode: "start-thread",
-      start: { fromThreadId: THREAD },
+      start: [{ fromThreadId: THREAD }],
     });
     expect(await prompt(root)).toContain("tomatoes");
   });
@@ -468,7 +468,7 @@ describe("prepare", () => {
     expect(await state(stateDir)).toMatchObject({
       mode: "start-thread",
       policy: "resume",
-      start: { destination: "household" },
+      start: [{ destination: "household", platform: "telegram" }],
     });
   });
 
@@ -480,7 +480,9 @@ describe("prepare", () => {
 
     await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
 
-    expect(await state(stateDir)).toMatchObject({ start: { destination: "workshop" } });
+    expect(await state(stateDir)).toMatchObject({
+      start: [{ destination: "workshop", platform: "telegram" }],
+    });
   });
 
   it.each([
@@ -652,6 +654,88 @@ describe("finish", () => {
       threadId: "telegram:-100:99",
       pullRequest: 8,
     });
+  });
+
+  describe("a scheduled prompt with several targets", () => {
+    it("records every target in the turn state", async () => {
+      const { stateDir, deps } = await setup([], FAN_OUT_CONFIG);
+      await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
+      expect((await state(stateDir)).start).toEqual([
+        { destination: "household", platform: "telegram" },
+        { destination: "garden", platform: "slack" },
+      ]);
+    });
+
+    it("posts the one reply to every target and links the first target's thread", async () => {
+      const { aws, finishing } = await runFanOut();
+      await finishing;
+      expect(aws.requests.map((r) => r.operation)).toEqual([
+        "start-thread",
+        "start-thread",
+        "link-pull-request",
+      ]);
+      expect(aws.requests.slice(0, 2)).toEqual([
+        {
+          operation: "start-thread",
+          bot: "sprout",
+          text: "Tasks",
+          destination: "household",
+          platform: "telegram",
+          title: "Week",
+        },
+        {
+          operation: "start-thread",
+          bot: "sprout",
+          text: "Tasks",
+          destination: "garden",
+          platform: "slack",
+          title: "Week",
+        },
+      ]);
+      expect(aws.requests[2]).toMatchObject({ threadId: "telegram:thread", pullRequest: 8 });
+    });
+
+    it("still posts the other targets when one fails, then fails the step without message text", async () => {
+      const { aws, finishing } = await runFanOut(["telegram"]);
+      const error = await finishing.then(
+        () => undefined,
+        (e: Error) => e,
+      );
+      expect(error?.message).toBe(
+        "the reply reached 1 of 2 targets; failed: sprout/telegram/household",
+      );
+      expect(error?.message).not.toContain("Tasks");
+      expect(aws.requests.map((r) => r.operation)).toEqual([
+        "start-thread",
+        "start-thread",
+        "link-pull-request",
+      ]);
+      expect(aws.requests.at(-1)).toMatchObject({ threadId: "slack:thread" });
+    });
+
+    it("fails the step when every target fails", async () => {
+      const { aws, finishing } = await runFanOut(["telegram", "slack"]);
+      await expect(finishing).rejects.toThrow(/0 of 2 targets/);
+      expect(aws.requests.map((r) => r.operation)).toEqual(["start-thread", "start-thread"]);
+    });
+  });
+
+  it("rethrows the poster's own error when the only target fails", async () => {
+    const { deps, aws, executionFile, writeExecution, stateDir } = await setup(
+      [],
+      configText("prompts: {weekly: {destination: household}}"),
+      {},
+      ".centaur.yml",
+      () => {
+        throw new Error("no chat alias household; run centaur access approve");
+      },
+    );
+    await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
+    await writeExecution({ structured_output: { reply: "Tasks" } });
+
+    await expect(
+      finish({ stateDir, executionFile, poster: aws.poster, storeFor: aws.storeFor }),
+    ).rejects.toThrow("poster start-thread failed (Error)");
   });
 
   it("makes no link call without a pull request", async () => {

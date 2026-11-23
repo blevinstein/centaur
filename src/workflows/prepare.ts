@@ -62,7 +62,8 @@ export interface TurnState {
   /** The inline comment thread (root comment ID) the reply belongs in, when there is just one. */
   replyTo?: number;
   promptName?: string;
-  start?: StartTarget;
+  /** Where `finish` starts threads for the one reply, in order; the first is the primary thread. */
+  start?: StartTarget[];
   policy: ContextPolicy;
   marker?: string;
   source?: ReactionSource;
@@ -116,7 +117,7 @@ interface Turn {
   branch?: string;
   pullRequest?: number;
   replyTo?: number;
-  start?: StartTarget;
+  start?: StartTarget[];
   policy: ContextPolicy;
   marker?: string;
   source?: ReactionSource;
@@ -160,16 +161,12 @@ async function scheduledTurn(
 ): Promise<Turn> {
   const prompt = config.prompts[name];
   if (!prompt) throw new Error(`The Centaur config defines no prompt named "${name}"`);
-  const [target, ...others] = prompt.targets;
-  if (!target || others.length > 0) {
-    throw new Error(`Prompt "${name}" must have exactly one target`);
-  }
   const scheduledTask = await readFile(join(deps.workspace, prompt.file), "utf8");
   const targets = prTargetFlags(config, await existingTargets(deps, config));
   return {
     mode: "start-thread",
     policy: prompt.context,
-    start: { destination: target.destination, platform: target.platform },
+    start: prompt.targets,
     allowExisting: targets.allowExisting,
     prompt: buildPrompt({ scheduledTask, instructions, ...targets }),
   };
@@ -238,7 +235,7 @@ async function chatTurn(
       return {
         mode: "start-thread",
         policy: config.context.default,
-        start: { fromThreadId: threadId },
+        start: [{ fromThreadId: threadId }],
         source,
         allowExisting: targets.allowExisting,
         prompt: buildPrompt({

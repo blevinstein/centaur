@@ -213,8 +213,8 @@ Commands: `register`, `resolve`, `prepare`, `pr-details`, `finish`, `notify-fail
    `create-pull-request` opens (or updates) `centaur/<bot>-<thread>` when files changed, using the
    title as both commit message and title.
 4. `finish` takes the reply from the action's execution file, appends the pull request link, posts
-   it (`post`, or `start-thread` for scheduled prompts and `/new`; `prepare` records the target in
-   the turn state: the prompt's `destination` alias with its target `platform`, which the poster resolves to a chat approved for the bot, or the originating thread for `/new`), advances the marker and saves the
+   it (`post`, or `start-thread` for scheduled prompts and `/new`; `prepare` records the targets in
+   the turn state: one `destination` alias with its `platform` per target of the prompt, which the poster resolves to a chat approved for the bot, or the originating thread for `/new`), advances the marker and saves the
    session for `resume` threads. When the agent returned `ignore: true` nothing is posted unless a
    pull request was opened or updated, in which case only its link is posted;  the marker and session are still saved.
    The link reads `Pull request: <url>`, or `Updated pull request: <url>` when `push-existing`
@@ -223,8 +223,18 @@ Commands: `register`, `resolve`, `prepare`, `pr-details`, `finish`, `notify-fail
    agent's choice fell back, the note adds `Could not update #N (<reason>); opened the usual pull
    request instead.`, with the reason code from `plan-pr` or `push-existing`; it is omitted when no
    pull request was opened.
+   A scheduled prompt with several targets still runs one agent turn: `finish` starts a thread
+   per target, in the order of the prompt's `destination` map, and posts the same reply (with the
+   same title and pull request link) to each. The first thread that received the reply is the
+   primary thread: it takes the pull request link, the marker and the saved session (a `resume`
+   prompt has exactly one target, so the session is never shared). Every target is attempted even
+   when an earlier one fails; each failure is logged as a warning naming the bot, platform and
+   destination only. Once the others are posted and the primary thread's bookkeeping is done,
+   `finish` fails the step, listing the targets that did not receive the reply, so
+   `notify-failure` runs (a prompt with one target, and `/new`, rethrow the poster's own error instead, unchanged); if every target failed there is no primary thread and nothing else is
+   saved. Re-running the job posts to every target again, including those that already received it.
    When `create-pull-request` produced a pull request, `finish` also links it to the thread it
-   replied in (for scheduled prompts, the thread just started) with the poster's
+   replied in (for scheduled prompts, the primary thread) with the poster's
    `link-pull-request`, authenticated by the same OIDC token as `register`; a failure is a warning
    and never fails the turn.
    Last, it removes the 👀 reaction (`unreact`) from every message the turn processed, so a message
@@ -250,7 +260,8 @@ name>` for scheduled prompts) and the body is the footer alone.
 ### Turn state
 
 Every field of the turn state steers a trusted step, so none of it lives in the workspace, where
-the agent could rewrite it: `mode`, `bot`, `threadId`, `pullRequest`, `replyTo`, `start` and
+the agent could rewrite it: `mode`, `bot`, `threadId`, `pullRequest`, `replyTo`, `start` (a list: one entry per target of a scheduled prompt, or the single
+`fromThreadId` of `/new`) and
 `source` pick where `finish` posts and which messages lose their reaction; `marker`, `policy` and
 `sessionDirectory` decide what is saved for the next turn; `promptName` and `bot` appear in the
 pull request footer. `prepare` writes the file to `<RUNNER_TEMP>/centaur-turn/state.json`

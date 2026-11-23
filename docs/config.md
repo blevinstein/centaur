@@ -213,8 +213,8 @@ entry has a required `destination`, an optional `file` (default
   than one target is an error: a session belongs to one thread.
 
 The parser resolves the file, context and targets, so consumers see every prompt with a concrete
-`file`, `context` and `targets` (a list of `{ platform, destination }`). The scheduled runner
-currently handles prompts with exactly one target.
+`file`, `context` and `targets` (a list of `{ platform, destination }`). A prompt with several
+targets runs one agent turn and posts the same reply to each; see [workflows.md](workflows.md#turn-state).
 
 ## Pull request targets
 
