@@ -2,7 +2,7 @@
 
 > **Status: decisions accepted (2026-11-22); step 1 (the `scanned` range in poster results) is
 > implemented, the rest is not built.** See the [Implementation plan](#implementation-plan). It
-> extends [chat-context.md](chat-context.md), which keeps search out of scope, and feeds the bounded transcript work (TODO section 15). Terms (poster,
+> extends [chat-context.md](chat-context.md), which keeps search out of scope, and feeds the bounded transcript ([workflows.md](workflows.md#transcript-budget)). Terms (poster,
 > receiver, turn, state table) are defined in [plan.md](plan.md), [poster.md](poster.md) and
 > [workflows.md](workflows.md).
 

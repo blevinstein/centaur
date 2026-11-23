@@ -15,11 +15,16 @@ change as a pull request you review. No always-on server.
   [`claude-code-action`](https://github.com/anthropics/claude-code-action) can do.
 - **Reviewed changes.** File changes arrive as pull requests. You approve them, or answer in PR
   comments and let the agent revise.
+- **Several platforms.** One bot can serve Telegram and Slack from the same repo, persona and
+  config, each platform with its own admin, approvals and settings.
 - **Scheduled actions** (optional). A cron-triggered prompt lets the agent reach out on its own
-  ("it is time to prune the tomatoes").
+  ("it is time to prune the tomatoes"). It posts to named destinations, one thread per run or one
+  persistent thread, on one platform or several.
+- **Chat tools** (optional). The agent can read other threads of the same chat, and long threads
+  keep their transcript within a character budget instead of growing without bound.
 
 Status: built and validated live on Telegram (deploy, registration, replies, scheduled topics,
-`respond_to: all`). Slack is implemented but has not been exercised end to end.
+`respond_to: all`, persistent threads). Slack is implemented but has not been exercised end to end.
 
 ## Demo
 
@@ -45,23 +50,34 @@ You review and merge the pull request; the next turn sees the new note.
    yarn build && npm link   # installs the `centaur` CLI
    ```
 
-2. **Add a `.centaur.yml` to each repo**, with a persona and caller workflows. Set its Actions
-   variables with `scripts/set-repo-vars.sh` (reads them from the stack) and add the API key secret. Push it to the default branch to register the bot, then
-   claim admin with `centaur admin claim <bot>`
+2. **Create each comms channel and store its token**: a Telegram bot (via @BotFather) and group,
+   and/or a Slack app and channel. Run `centaur bot add <bot> --platform <telegram|slack>` once per
+   platform; the bot is created with the first and gains each further platform as a connection
+   ([docs/onboarding.md](docs/onboarding.md)).
+
+3. **Add a `.centaur.yml` to each repo**, with a persona and caller workflows. Set its Actions
+   variables with `scripts/set-repo-vars.sh` (reads them from the stack) and add the API key secret.
+   Push it to the default branch to register the bot
    ([docs/onboarding.md](docs/onboarding.md#adding-a-repo), [config reference](docs/config.md)):
 
    ```yaml
    bot: garden
-   platform: telegram
+   platforms:
+     telegram: {}
+     slack: {}          # optional: the same bot on a second platform
    persona: .centaur/persona.md
    ```
 
-3. **Create each comms channel**: a Telegram bot (via @BotFather) and group, or a Slack app and
-   channel, then store the token with `centaur bot add`. Mention the bot and approve the access
-   request it DMs you ([docs/onboarding.md](docs/onboarding.md)).
+4. **Claim the admin and approve chats.** Run `centaur admin claim <bot>` (per platform) and follow
+   its instructions, then mention the bot in a chat and react 👍 to the access request it DMs you
+   ([docs/onboarding.md](docs/onboarding.md#claiming-the-admin)).
 
-4. **Optional: add scheduled actions**, a prompt file plus a `schedule:` workflow
-   ([docs/workflows.md](docs/workflows.md#consumer-workflows)).
+5. **Optional: add scheduled actions**, a prompt file plus a `schedule:` workflow
+   ([docs/workflows.md](docs/workflows.md#consumer-workflows)). A prompt's `destination` names where
+   it posts; approving a chat creates one, and `centaur destination set <bot> <name> --chat <id>
+   [--topic <id>]` binds a name to another chat or to an existing topic or thread
+   ([docs/onboarding.md](docs/onboarding.md#binding-a-destination)). Add `thread: persistent` to keep
+   one thread per destination.
 
 ## Why it stays cheap and safe
 
@@ -116,6 +132,8 @@ Lambda to post the reply. Details: [docs/plan.md](docs/plan.md).
 - [docs/plan.md](docs/plan.md): architecture, components, security, access requests, SSM layout.
 - [docs/poster.md](docs/poster.md): the Lambda operations workflows invoke.
 - [docs/mcp.md](docs/mcp.md): MCP servers and operator policy.
+- [docs/platforms-and-destinations.md](docs/platforms-and-destinations.md): design of several platforms
+  per bot and destinations.
 - [docs/research.md](docs/research.md): requirements and options considered.
 
 Development: see [AGENTS.md](AGENTS.md). Tasks: [TODO.md](TODO.md). Licensed under the

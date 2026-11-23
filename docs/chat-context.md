@@ -163,7 +163,7 @@ content is not for public artifacts. The chat's name is not included: no source 
 messages are, so a message in another thread that says "ignore your instructions" has the same
 standing as one in this thread. Per `AGENTS.md`, anything the code parses stays in `prompt.ts`.
 
-The tools are also how the agent will reach messages the
+The tools are also how the agent reaches messages the
 [transcript budget](workflows.md#transcript-budget) leaves out of a long thread: `read_thread` on
 `thread-0` with a `before` cursor, which the omission note names. Without the tools
 (`scope: thread`) omitted messages are unreachable and the note says so.

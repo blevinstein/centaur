@@ -149,3 +149,14 @@
 - Per-platform thread behavior lives in `THREAD_PLATFORMS` (`src/lambda/thread-starter.ts`); a new
   platform adds an entry there instead of branching inline. Build thread IDs with `buildThreadId`
   (`src/config`), never by string.
+- The earlier transcript is bounded by `context.transcript_max_chars`
+  (`src/workflows/transcript-budget.ts`). A prompt-building path that shows history goes through
+  `earlierTranscript` in `prepare.ts` and passes `omitted` to `buildPrompt`.
+- A `thread: persistent` prompt's `start` targets carry `thread: persistent` (set in `prepare`) and
+  `finish` spreads each target into `start-thread`; a `new` prompt never sends `thread`, so the
+  runner stays compatible with an older Lambda.
+- `markerThreadId` in the turn state records the thread the history was read from; `finish` writes
+  the marker only when the primary thread is that thread.
+- A scheduled workflow's concurrency group comes from `resolve-schedule`
+  (`src/workflows/schedule-group.ts`). A change to its key must update the template in
+  `docs/workflows.md` and `.github/workflows/centaur-hello.yml`.

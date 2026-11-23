@@ -4,8 +4,8 @@ Design of the system as built. The config and file snippets here are examples; t
 pages ([config](config.md), [cli](cli.md), [poster](poster.md), [workflows](workflows.md)) are
 authoritative for fields, flags and operations.
 Responding to pull request comments is designed in [pr-comments.md](pr-comments.md). Several
-platforms per bot and persistent topic destinations are designed (accepted, not built) in
-[platforms-and-destinations.md](platforms-and-destinations.md).
+platforms per bot and named destinations with persistent threads are built; the design and its
+Decisions are in [platforms-and-destinations.md](platforms-and-destinations.md).
 
 ## Architecture
 
@@ -83,7 +83,8 @@ in the diagram because it's invoked over IAM, not a public URL.
 
 Invoked by the workflow (`aws lambda invoke`, using a role assumed via GitHub OIDC; no stored AWS
 keys). Operations: `post` (bot, thread ID, text), `start-thread` (a `destination` name, with an optional `thread` of `new` or `persistent`, or the
-originating thread, with an optional title), `resolve-destination`, `read`, `unreact`, `register`, and
+originating thread, with an optional title), `resolve-destination`, `read`, `list-threads` and
+`read-channel` (the [chat context tools](chat-context.md)), `unreact`, `register`, and
 `link-pull-request`, `resolve-pull-request` and `get-mcp-policy` (the global MCP policy bundled with
 the Lambda, or null). Posting
 through the SDK means the bot's own messages are recorded in state, so the transcript stays
@@ -362,7 +363,7 @@ recovered by claiming again.
 | State table (TTL) | `access-subject:<kind>:<id>` | One pending slot per subject. |
 | State table (TTL) | `access-request-message:<message id>` | Maps the admin DM to its request. |
 | State table (TTL) | `access-request-claim:<id>` | Makes a decision single-use. |
-| SSM | `bots/<bot>/platforms/<platform>/approved-chats/<chatId>`, `approved-users/<userId>` | Approved subjects (JSON: name, destination name for chats, time). |
+| SSM | `bots/<bot>/platforms/<platform>/approved-chats/<chatId>`, `approved-users/<userId>` | Approved subjects (JSON: name, destination name for chats, time). The destination name is stored under the key `alias`, as is the proposal in a pending request; the key name is historical and is not renamed. |
 | SSM | `chats/<platform>/<name>` | A destination: a chat ID or a JSON record with an optional bound thread; created by approvals, never overwritten by approvals. |
 | SSM | `bots/<bot>/platforms/<platform>/blocked/<chat\|user>/<id>` | Blocked subjects (JSON: name, time). |
 | SSM | `admin/<platform>` | The admin's user ID. |
@@ -386,7 +387,7 @@ case-insensitive, and checked for uniqueness when created.
 **Security.** A decision needs the admin's user ID, taken from the platform's signed webhook, on the
 DM message that holds the request, in a direct message. Anyone else's reaction is ignored and
 logged by ID. Requests are single-use and idempotent, so a second reaction or command changes
-nothing. The Lambda role can write only the approved and blocked paths, `admin/*` (for a claim), and delete
+nothing. The Lambda role can write only the approved and blocked paths, `chats/*` (destinations), `admin/*` (for a claim), and delete
 only `admin-claim/*`. The admin DM contains
 names and IDs but never message content.
 
@@ -421,7 +422,7 @@ files.
 
 ## Decisions and open questions
 
-Open items are tracked in [TODO.md](../TODO.md#10-decisions) and its backlog.
+Open items are tracked in [DONE.md](../DONE.md#10-decisions) and the [TODO.md](../TODO.md) backlog.
 
 1. **State backend (decided).** A DynamoDB `StateAdapter` (19 methods, pay-per-request, stays in
    AWS), provided by the published `@blevinstein/chat-state-dynamodb` package (an adapter we wrote was

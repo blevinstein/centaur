@@ -106,6 +106,10 @@ the four trees above is rejected.
 
 ### `centaur bot migrate [--dry-run] [--prune] [--alias-platform <alias>=<platform>] [--drop-alias <alias>]`
 
+The migration tooling (`bot migrate`, `config migrate` and `bot adopt`) is single-use and is removed
+after the soak; this is the one place the old term "alias" survives, in the `--alias-platform` and
+`--drop-alias` flags and the flat `chats/<alias>` layout they read.
+
 One-shot move from the flat SSM layout to the nested one (see the
 [migration plan](platforms-and-destinations.md#migration)). It reads each bot's flat `platform`,
 `token`, `webhook-secret`, `signing-secret`, `approved-chats/<id>`, `approved-users/<id>` and
@@ -149,7 +153,7 @@ Copies one connection of the `source` bot (its secrets and its approved and bloc
 the existing `target` bot, verifying each copy, for example to fold a Slack-only bot into the main
 bot. The source connection is picked like any `--platform`. Refuses if the target is unknown or
 already has a connection on that platform, or if source and target are the same bot. The source is
-left untouched, and chat aliases need no copy because they are shared per platform. State, sessions
+left untouched, and destinations need no copy because they are shared per platform. State, sessions
 and branches are not copied: threads of the source start fresh under the target, so merge or close
 their open pull requests first, then point the platform's webhook or event URL at the target and
 retire the source with `bot unbind` and `bot remove`.
@@ -180,8 +184,8 @@ Flat names are not listed.
 
 Deletes the destination and refuses if there is none.
 
-**Breaking change.** `centaur chat list` and `centaur access approve --alias` are removed: use
-`destination list` and `destination set`. Approving a chat still creates its thread-less
+`centaur chat list` and `centaur access approve --alias` no longer exist: use `destination list`
+and `destination set`. Approving a chat still creates its thread-less
 destination, named from `--name`.
 
 ### `centaur admin set [--telegram <id>] [--slack <id>]`
@@ -255,14 +259,14 @@ access again.
 ### `centaur access list <bot> [--platform <platform>]`
 
 Prints, for one connection, each approved and blocked entry as `state  kind  id  name  time`, followed by
-`alias=<name>` for an approved chat that has one, or `Nothing approved or blocked for "<bot>".`.
+`alias=<name>` (the stored key of the destination name) for an approved chat that has one, or `Nothing approved or blocked for "<bot>".`.
 
 Changes take effect within about 30 seconds (the receiver's cache).
 
 ```sh
 centaur admin set --telegram 111222333
 centaur access approve garden user 444555666 --name "Pat"
-centaur access approve garden chat -1001234567890 --name "Garden Club"   # destination: garden-club
+centaur access approve garden chat <chat id> --name "Garden Club"   # destination: garden-club
 centaur access list garden
 ```
 
@@ -281,12 +285,13 @@ CENTAUR_BOT_GITHUB_TOKEN=ghp_xxx centaur github-token set
 
 Deletes `/centaur/github/token`. Refuses if no token is stored.
 
-### `centaur config check [path]`
+### `centaur config check [path] [--global-policy <path>]`
 
 Validates a config file (default: `.centaur.yml` or `.centaur/config.yml` in the current directory) with the same parser
 the receiver and workflows use, and prints `<path> is valid.` or every issue with its dotted path.
-It runs offline: no SSM access or AWS credentials are needed. It does not check that aliases in
-`chats` resolve to anything in SSM. Exits 1 if the file is missing, is not valid YAML, or fails
+With `mcp_servers` it also checks them against the local `.centaur/mcp-policy.cedar`, and
+`--global-policy` adds the deployer's `infra/mcp-policy.cedar` ([mcp.md](mcp.md#operator-policy)).
+It runs offline: no SSM access or AWS credentials are needed. It does not check that destination names resolve to anything in SSM. Exits 1 if the file is missing, is not valid YAML, or fails
 the schema; see [Parsing](config.md#parsing).
 
 ```sh

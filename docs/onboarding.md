@@ -2,7 +2,11 @@
 
 Setup flows by role: the maintainer (once for the stack, once per bot and repo) and household
 members (almost nothing). The Telegram flow and a consumer in this repo were validated in a live
-run; steps marked **validate** are still untested.
+run; the Slack steps are not yet verified end to end ([Still unverified](#still-unverified)).
+
+One bot can be on several platforms. Create it on its first platform ([Telegram](#telegram-household-repos)
+or [Slack](#slack-personal-projects)), then [add the other platform](#adding-a-platform-to-a-bot).
+Each platform is a separate connection with its own secrets, admin, approvals and destinations.
 
 ## Maintainer: deploy the stack (once)
 
@@ -62,7 +66,7 @@ Access request k7m2qx
 Bot: garden
 Kind: chat
 Requester: Pat Example (111222333)
-Chat: Household (-1001234567890)
+Chat: Household (<chat id>)
 Destination: household
 React 👍 to approve, or 👎 to deny and block.
 Or reply /approve k7m2qx or /deny k7m2qx.
@@ -85,11 +89,14 @@ Without an admin for the bot's platform, unknown chats are ignored and unknown u
 you aren't enrolled to talk to me." (a bot with `respond_to: all` ignores unenrolled people in the
 group silently); the user ID is logged either way.
 
-There is no allowlist in the config; access is only what you approve. Manual alternative, no
-request needed: if you already know an ID, approve it for one bot with `centaur access approve
-garden chat <id> --name "Household"` (a supergroup's ID is negative, `-100...`; the destination is named from `--name`; `centaur destination set` binds other names) or `centaur access approve garden user <id>`. The receiver logs the IDs of unknown chats
-and users, so you can read them from its logs. `centaur access list garden` shows what has been
-approved or blocked, and `centaur access revoke|block|unblock` undo it.
+There is no allowlist in the config; access is only what you approve. Fallback, no request
+needed: if you already know an ID, approve it for one connection with `centaur access approve garden
+chat <id> --name "Household"` (a supergroup's ID is negative, `-100...`; the destination is named
+from `--name`) or `centaur access approve garden user <id>`. Add `--platform <platform>` when the
+bot has several connections. The receiver logs the IDs of unknown chats and users, so you can read
+them from its logs. `centaur access list garden` shows what has been approved or blocked, and
+`centaur access revoke|block|unblock` undo it. Approvals belong to one connection: approving a chat
+on Telegram says nothing about Slack.
 
 ### Household member (non-technical): once
 
@@ -180,12 +187,12 @@ Each bot, and so each repo, gets its own Slack app, mirroring Telegram.
    (`xoxb-...`).
 3. Store both: `centaur bot add <bot> --platform slack` prompts for `token` (the bot token), then
    `signing-secret` ([secret inputs](cli.md#supplying-secrets)).
-4. Set `platform: slack` in the repo's config, push to register, and invite the bot to its
-   channel (`/invite @<bot>`).
-5. Become the admin: run `centaur admin claim <bot>` and DM the bot `claim <code>` with the code
-   it prints. Later chats and users are admitted by [access
-   request](#enrolling-chats-and-people); `centaur access approve <bot> user <id>` is the manual
-   alternative.
+4. Declare `platforms: { slack: {} }` in the repo's config, push to register, and invite the bot to
+   its channel (`/invite @<bot>`).
+5. Become the admin: run `centaur admin claim <bot>` (add `--platform slack` when the bot has
+   several connections) and DM the bot `claim <code>` with the code it prints. Later chats and users
+   are admitted by [access request](#enrolling-chats-and-people); `centaur access approve <bot> user
+   <id>` is the fallback.
 
 The manifest requests only what the receiver uses: message and mention events plus the matching
 `*:history` and `*:read` scopes, `chat:write`, `reactions:write` for the 👀 progress reaction,
@@ -206,6 +213,89 @@ bot token and read the `x-oauth-scopes` response header (every Web API response 
 Slack decisions are reactions only; there is no `/approve` text fallback on Slack. Slack intercepts
 a message starting with `/`, so `/new`, `/resume` and `/transcript` (see
 [Day-to-day use](#day-to-day-use)) are unverified on Slack.
+
+## Adding a platform to a bot
+
+A bot keeps one repo, config and persona and gains a connection per platform. Each step has its own
+revert.
+
+1. Store the secrets: `centaur bot add garden --platform slack` (Slack prompts for the bot token,
+   then the signing secret; Telegram for the token and generates the webhook secret). The existing
+   connections are untouched.
+2. Declare the platform in the repo's config and merge it, so `register` runs:
+
+   ```yaml
+   platforms:
+     telegram: { respond_to: mention }
+     slack: {}
+   ```
+
+   Each scheduled prompt's string `destination` becomes a per-platform map, as `centaur config
+   check` says: `destination: { telegram: household, slack: garden-alerts }`. A prompt with a
+   one-entry map posts to that platform only; several entries post the same reply to each.
+   `register` fails if a declared platform has no secrets in SSM.
+3. For Slack, create the app from the manifest ([Slack](#slack-personal-projects)) with the event
+   URL `<function URL>/slack/<bot>`. A Telegram connection needs no step: `register` sets its
+   webhook to `<function URL>/telegram/<bot>`.
+4. Force a cold start (deploy, or any function configuration update): the receiver loads its
+   connections once per container, so only a new container serves the new one.
+5. [Claim the admin](#claiming-the-admin) for that platform if none exists, invite the bot to a
+   channel and mention it; approve the chat and user as in [Enrolling chats and
+   people](#enrolling-chats-and-people).
+
+Revert: `centaur bot remove garden --platform slack` and revert the config. To fold a separate
+Slack-only bot into the main bot instead, use `centaur bot adopt <source> <bot> --platform slack`
+([cli.md](cli.md#centaur-bot-adopt-source-target---platform-platform)); merge or close the source's
+open pull requests first, since its threads start fresh under the target.
+
+## Claiming the admin
+
+The admin is one user ID per platform, shared by every bot on that platform, so claim once per
+platform. `centaur admin claim <bot> --platform <platform>` prints a one-time code (valid 15
+minutes). On Telegram it is a link: open it and tap **Start**. On Slack, DM the bot `claim <code>`.
+The first sender becomes the admin for that platform, and `centaur admin show` lists them. See
+[the design](plan.md#bootstrapping-the-first-admin).
+
+## Binding a destination
+
+A scheduled prompt's `destination` is a name. Approving a chat creates one for it (named from the
+chat's title); a name that holds nothing is created on first use when the connection has exactly one
+approved chat. To name another chat, or to bind an **existing** Telegram topic or Slack thread so a
+prompt posts there:
+
+```sh
+centaur destination set garden weekly --platform telegram --chat <chat id> --topic <topic id>
+centaur destination set garden alerts --platform slack --chat <chat id> --topic <thread timestamp>
+centaur destination list garden
+```
+
+- **Telegram:** the Bot API cannot list topics, so find the IDs in a message link from the topic
+  (right-click a message > Copy Message Link): `t.me/c/<chat>/<topic>/<message>`. The chat ID is
+  `-100` followed by `<chat>`, and `<topic>` is the topic ID.
+- **Slack:** `--chat` is the channel ID and `--topic` the thread's parent message timestamp
+  (the message's permalink ends in `p<ts without the dot>`; the timestamp is that number with a dot
+  before the last six digits).
+- Without `--topic` the name is bound to the chat alone. `set` only writes the record; the chat must
+  still be approved for the connection (it warns when it is not). `centaur destination remove`
+  deletes a name.
+
+### Persistent threads
+
+By default a scheduled prompt opens a new thread on every run. Set `thread: persistent` on a prompt
+to post every run into the destination's one thread (the run sees that thread's earlier messages):
+
+```yaml
+prompts:
+  weekly-plan:
+    destination: { telegram: weekly-plan }
+    thread: persistent
+```
+
+The thread is the one bound with `destination set --topic`, or one created and bound on the first
+run. The Lambda that understands `thread` must be deployed before the config merges (`yarn
+deploy-prod`, then the config), because a config on an older Lambda fails the prompt. A deleted
+Telegram topic is recreated on the next run and starts without the old transcript; see
+[poster.md](poster.md#destinations).
 
 ## Still unverified
 

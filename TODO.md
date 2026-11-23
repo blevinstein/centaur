@@ -323,8 +323,8 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
 - [x] Platforms 16: `thread: persistent` scheduled turns (the runner passes the prompt's `thread`;
       history, marker, session, `resolve` job and concurrency template); the schema stops rejecting
       `persistent`. After 11, 15 and bounded transcript 3 (section 15). Done.
-- [ ] Platforms 17: docs sweep (`onboarding.md`, `plan.md`, `config.md`, `cli.md`, `poster.md`,
-      README); remove the word "alias" everywhere; mark the design doc as built.
+- [x] Platforms 17: docs sweep (`onboarding.md`, `plan.md`, `config.md`, `cli.md`, `poster.md`,
+      README); remove the word "alias" everywhere; mark the design doc as built. Done.
 - [ ] **[HUMAN APPROVAL]** Deploy the Lambda (`yarn deploy-prod`) after each of slices 9, 11, 12 and
       13 and confirm existing bots still answer and post, before the runner slices that call them
       (10, 15, 16) merge to `main`.

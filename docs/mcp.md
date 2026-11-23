@@ -29,7 +29,7 @@ per-turn files under `.centaur-turn/`, so the config file fits the existing flow
 
 ```yaml
 mcp_servers:
-  linear:                        # name: alias, becomes the tool prefix mcp__linear__*
+  linear:                        # the name becomes the tool prefix mcp__linear__*
     url: https://mcp.linear.app/mcp
     headers:
       Authorization: { secret: LINEAR_API_KEY, prefix: "Bearer " }
@@ -57,7 +57,7 @@ Values in `env` and `headers` are either a plain string or `{ secret: NAME, pref
 
 In `src/config/schema.ts` this is a `z.record(serverName, z.union([remoteServer, localServer]))`
 under `mcp_servers`, defaulting to `{}`. The two shapes are `z.strictObject`s, so a server giving
-both `url` and `command`, or neither, fails. `serverName` is the existing `alias` further refined to
+both `url` and `command`, or neither, fails. `serverName` is the shared lowercase-name check, further refined to
 reject `__` (it is the separator in tool names) and names that start with `github` (reserved for the
 action's built-in servers, which a same-named entry would silently replace). `secretRef` is
 `z.strictObject({ secret: z.string().regex(...), prefix: z.string().optional() })`.
