@@ -32,6 +32,8 @@ oauth_config:
       - mpim:read
       - reactions:read
       - reactions:write
+      # Opt-in Slack-native search of public channels (assistant.search.context).
+      - search:read.public
       - users:read
 
 settings:

@@ -208,10 +208,10 @@ older page.
   (`src/thread-key.ts`), written by the receiver when it dispatches. The poster reads it by the
   verified bot and the dispatched thread (not a caller-supplied key), so a turn can only use the
   token of its own thread. Overwrite on every new message; never return it in a response.
-- **Manifest scopes** in `docs/slack-app-manifest.yml`: `search:read.public` (plus
-  `search:read.users` only if result enrichment needs it). No `search:read.private`, `.im`, `.mpim`
-  or user-token scope. Existing installs must re-authorize after the manifest changes; the opt-in
-  config key stays off until they do.
+- **Manifest scopes** in `docs/slack-app-manifest.yml`: `search:read.public` only (see
+  [Slack search requirements](#slack-search-requirements)). No `search:read.private`, `.im`,
+  `.mpim`, `.files`, `.users` or user-token scope. Existing installs must re-authorize after the
+  manifest changes; the opt-in config key stays off until they do.
 - **Token lifetime and degradation.** The lifetime is undocumented on the API page (unverified). The
   poster treats an absent, expired or rejected token as "search unavailable": it returns a result
   that says so (not an error and not an empty match list), and the MCP tool tells the agent to
@@ -222,11 +222,57 @@ older page.
   context messages, which pass the same enrolled-sender filter and length clip as other reads. Never
   log the query, token or results.
 
+## Slack search requirements
+
+Read from the raw Slack docs on 2026-11-22:
+[assistant.search.context](https://docs.slack.dev/reference/methods/assistant.search.context),
+[Real-time Search API guide](https://docs.slack.dev/apis/web-api/real-time-search-api),
+[app manifest reference](https://docs.slack.dev/reference/app-manifest),
+[installing with OAuth](https://docs.slack.dev/authentication/installing-with-oauth).
+
+- **Bot scopes.** Method page: "Bot token: search:read.files search:read.public
+  search:read.users". Guide: "Your app must contain at least the search:read.public scope and can
+  optionally contain any of the scopes following that". So `search:read.public` alone is the
+  minimum, and the manifest adds only it. The `.private`, `.mpim` and `.im` scopes are user-token
+  only, and `.files` and `.users` are optional, so none is needed.
+- **Public-only.** `channel_types` "Default: public_channel". Searching from a public channel
+  "will only return results from public channels"; from a private channel or MPDM it also returns
+  that conversation, so the poster must pass `public_channel` and drop other channels' results.
+  `search:read.public` covers "all public channel messages" in the workspace, not only channels the
+  bot has joined, so the one-chat restriction is ours (Decision 6).
+- **`action_token`.** "All API calls made using a bot token require an action_token." It arrives in
+  `app_mention` ("when the app is mentioned"), and in `message.im`, `message.mpim`,
+  `message.groups` and `message.channels` (the last "when the app is mentioned"); in a DM no
+  mention is needed. "The app must be subscribed to at least one of these events." The manifest
+  already subscribes to all of them, so no event change is needed. Lifetime: not documented; the
+  error `invalid_action_token` reads "not valid, has expired, or was not issued to the app".
+- **Availability.** The guide says RTS "is available for directory-published apps and internal
+  apps only" and that guests cannot use it. The method page calls it usable "with an app using AI
+  features" ([/ai](https://docs.slack.dev/ai/)); it does not say which manifest feature that
+  means. `features.agent_view` (`assistant_view` is legacy) turns the Messages tab into an agent
+  conversation view, which would change how the bot's DMs look, so the manifest does not add it.
+- **Applying a scope change.** Installing again is additive: "each installation can result in
+  additive scopes" assigned "to the token". Every response carries an `x-oauth-scopes` header
+  listing the calling token's scopes.
+- **Data terms.** "You must not store or copy any of the data retrieved from this API."
+
+Open questions for the maintainer:
+
+1. Does `assistant.search.context` work with a bot token without `features.agent_view`? If not,
+   adding it changes the Messages tab for existing features. Unverified; test with only the scope
+   first.
+2. The no-store rule: the agent's turn reads results into the model context and the workflow
+   transcript. Confirm that is acceptable, and that results are never persisted (state table,
+   PR text, artifacts).
+
 ## What could not be verified
 
 - Slack limits for a single-workspace app on a real install; the lifetime of an `action_token`;
-  whether Slack puts it in the event bodies the receiver gets; whether a personal workspace has the
-  AI features `assistant.search.context` requires.
+  whether Slack puts it in the event bodies the receiver gets (the docs say it does for the events
+  above, but this has not been seen on a real event); whether a personal workspace has the AI
+  features `assistant.search.context` requires; whether `search:read.public` suffices without an
+  agent view; whether the bot token string is unchanged after a reinstall (the OAuth doc implies
+  it, since scopes are added to the token).
 - Current Voyage AI pricing and OpenSearch Serverless minimum cost (not fetched).
 - Real chat sizes; the figures above are estimates.
 - Cost of `appendToList` on a list of thousands of rows (the adapter queries the whole list to

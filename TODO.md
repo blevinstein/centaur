@@ -148,6 +148,9 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
         table with a TTL, poster `search-chat`, MCP `search_chat`, manifest scopes). Settle the
         design questions in the doc first.
   - [x] Chat search 5: the stored-history window, tracked in the next item.
+  - [ ] **[HUMAN ACTION]** Chat search 4a: when slice 4 is about to be built (not before; least
+        privilege), add `search:read.public` to the installed Slack app and reinstall it, as in
+        `docs/slack-app-manifest.yml` and [onboarding](docs/onboarding.md#slack-personal-projects).
   - [ ] **[HUMAN ACTION]** Chat search 6: verify on a real install (Slack rate limits,
         `action_token` lifetime and presence in events, AI features in the workspace, Telegram
         window cost).

@@ -196,6 +196,14 @@ The manifest requests only what the receiver uses: message and mention events pl
 and access requests need, and disables the Home tab. Interactivity and slash commands are not used, so none are
 registered.
 
+`search:read.public` is optional: only the opt-in Slack search ([chat-search.md](chat-search.md))
+uses it, and it is the only search scope the manifest requests. To change the scopes of an
+installed app, add the scope under **OAuth & Permissions** (or update the manifest in the app
+settings), then reinstall the app to the workspace; Slack adds scopes to the existing token on a
+reinstall, so the bot token should stay valid (unverified here; if Slack issues a new one, update
+it with `centaur bot add`). To see which scopes the installed token has, call `auth.test` with the
+bot token and read the `x-oauth-scopes` response header (every Web API response carries it).
+
 Slack decisions are reactions only; there is no `/approve` text fallback on Slack. Slack intercepts
 a message starting with `/`, so `/new`, `/resume` and `/transcript` (see
 [Day-to-day use](#day-to-day-use)) are unverified on Slack.
