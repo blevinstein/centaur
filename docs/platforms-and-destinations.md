@@ -1,8 +1,9 @@
 # Bots across platforms and topic destinations (design)
 
-> **Status: proposal.** Nothing described here exists in the code. The SSM layout, config keys,
-> poster fields, commands and CLI commands below are all proposed, and every decision is open until
-> the maintainer approves it. Terms (receiver, poster, turn, state table, alias) are defined in
+> **Status: Decisions accepted, nothing built yet.** Nothing described here exists in the code. The
+> SSM layout, config keys, poster fields, commands and CLI commands below are the accepted design,
+> and the code does not implement them. Existing data and configs are migrated once; the old forms
+> are not kept working (see [Decisions](#decisions) and [Migration](#migration)). Terms (receiver, poster, turn, state table, alias) are defined in
 > [plan.md](plan.md), [poster.md](poster.md) and [workflows.md](workflows.md).
 
 Two items from [TODO.md](../TODO.md) are designed together because they change the same records:
@@ -27,8 +28,8 @@ Goals:
    Slack channel.
 3. Named destinations that hold a chat and an optional topic or thread, so a recurring prompt keeps
    one persistent thread; the thread keeps the prompt's context policy for replies.
-4. Existing bots and configs keep working with no change, and moving to the new model is stepwise
-   and reversible.
+4. Existing bots and configs are migrated once to the new model, with a backup and a short planned
+   outage; the old layout and keys are not read afterwards.
 
 Non-goals: two connections to the same platform for one bot (two Slack workspaces), one agent turn
 that spans threads of different platforms as one conversation, and any change to who may talk to the
@@ -81,14 +82,13 @@ Nested under the bot; the repo binding stays at the bot level.
 | `chats/<platform>/<alias>` | String | access request approval; `centaur access approve` |
 | `admin/<platform>`, `admin-claim/<platform>`, `github/token` | | unchanged |
 
-The legacy flat layout (`bots/<bot>/platform`, `token`, `webhook-secret`, `signing-secret`,
-`approved-chats/...`, `approved-users/...`, `blocked/...`) is still read. The loader treats it as the
-bot's connection for the platform named in `bots/<bot>/platform`. When both layouts define a
-connection for the same platform the nested one wins. A bot may mix them (a legacy Telegram
-connection plus a nested Slack one), so existing single-platform bots need no data migration.
+The previous flat layout (`bots/<bot>/platform`, `token`, `webhook-secret`, `signing-secret`,
+`approved-chats/...`, `approved-users/...`, `blocked/...`) is not read. `centaur bot migrate` copies
+it to the nested paths once (see [Migration](#migration)); a bot with only flat parameters has no
+connection and is not served.
 
-A connection is addressed by a base path (`bots/<bot>` for legacy, `bots/<bot>/platforms/<platform>`
-for nested), and every per-connection key hangs off it. The code keeps the existing `Bot` shape as
+A connection is addressed by its base path `bots/<bot>/platforms/<platform>`, and every
+per-connection key hangs off it. The code keeps the existing `Bot` shape as
 the **connection view** (`name`, `platform`, `repo`, `token`, `webhookSecret`): `loadBots` returns one
 per connection, so the access resolver, access requests, admin claims, ownership and message handler
 keep taking a single-platform `Bot` and change little.
@@ -102,8 +102,9 @@ Destination record (JSON):
 | `name`, `at` | Display name and time of the last change, as in access entries. |
 
 Chat aliases become platform-scoped for new approvals (`chats/<platform>/<alias>`), so `household` can
-name a Telegram group and a Slack channel without the `-2` suffix. A flat `chats/<alias>` is still
-read for any connection, and the existing "chat is approved for this connection" check rejects an
+name a Telegram group and a Slack channel without the `-2` suffix. The flat `chats/<alias>` is not
+read; migration copies each to `chats/<platform>/<alias>`, taking the platform from the bots whose
+approved chats contain the alias's chat ID. The existing "chat is approved for this connection" check rejects an
 alias that points at another platform's chat. The Lambda role's `chats/*` wildcard already covers the
 nested path.
 
@@ -116,7 +117,7 @@ the destination path needs its own `ssm:PutParameter` statement
 
 | Key (prefix `bot:<bot>:`) | Content |
 |---|---|
-| `registry:<bot>` (empty prefix, unchanged name) | `{ platforms: { <platform>: { respond_to } } }`. An old entry `{ respond_to }` is read as the entry for the bot's only connection. |
+| `registry:<bot>` (empty prefix, unchanged name) | `{ platforms: { <platform>: { respond_to } } }`. An old entry `{ respond_to }` is not read: the bot counts as unregistered until `register` rewrites the entry. The CLI has no state-table access, so migration cannot do it. |
 | `thread-meta:<threadId>` | `{ context?, destination? }`: the thread's stored context policy and, for a persistent destination thread, its name. TTL 90 days refreshed on read; none for destination threads. |
 | Everything else (dedupe, subscriptions, `thread-state:`, access requests, transcripts) | Unchanged. |
 
@@ -174,8 +175,7 @@ prompts:
 
 - `platforms` is a map from `telegram`/`slack` to `{respond_to?, handle?}` (strict). Its keys are the
   connections the repo expects; `register` fails if one has no secrets in SSM, and the receiver
-  serves a connection only while the registry entry lists it (a registry entry from before this
-  change serves every connection of the bot).
+  serves a connection only while the registry entry lists it.
 - Per-platform settings are exactly today's platform-bound ones: `respond_to` (default `mention`) and
   `handle`. Everything else (`context`, `provider`, `model`, tools, MCP, `pull_requests`) stays
   bot-wide.
@@ -190,13 +190,15 @@ prompts:
 - A prompt with more than one target and `context: resume` is a config error: a session belongs to
   one thread.
 
-**Backwards compatibility.** The legacy form (top-level `platform`, `respond_to`, `handle`, string
-`destination`) stays valid forever and is normalized by the parser into
-`platforms: { <platform>: { respond_to, handle } }`, so consumers of the parsed config see one shape.
-Mixing `platforms` with a top-level `platform`, `respond_to` or `handle` is an error. `garden` and
-`centaur-hello` need no edit. A consumer that adopts `platforms` needs the deployed Lambda to accept
-it first (see [Rollout order](#rollout-order)); an old Lambda rejects the unknown key at `register`
-and changes nothing.
+**No legacy keys.** The parser accepts only this schema. The old top-level `platform`, `respond_to`
+and `handle` are rejected with an error that names the replacement
+(`platforms: { <platform>: { respond_to, handle } }`) and points at `centaur config migrate`, which
+rewrites a config file in place (comments kept). A string `destination` stays valid (it is a name,
+and needs `platforms` on the prompt only when the bot declares several platforms), so the rewrite
+touches only those three keys. Every consumer repo (`garden`, `centaur-hello`, the self-consumer and
+any other repo bound in `bots/*/repo`) is rewritten once during the cutover; see
+[Migration](#migration). Because the Lambda and the runner share the parser, a consumer config in the
+old form fails `register` and `prepare` until it is rewritten.
 
 ## Routes, receiver, poster and workflows
 
@@ -214,10 +216,12 @@ stored.
 **`register`.** Reads the declared platforms, requires a connection with secrets for each, binds
 `bots/<bot>/repo` as today (the conditional create is unchanged), writes the registry entry with a
 per-platform `respond_to`, and calls `setWebhook` for a Telegram connection. A declared platform
-without secrets fails the whole registration before any write.
+without secrets fails the whole registration before any write. Re-registering every bot is a step of
+the cutover, because it is the only writer of the new registry entry.
 
 **Poster.** `post`, `read` and `unreact` derive the connection from the thread ID's prefix.
-`start-thread` gains `platform` (required with `destination`; derived from `fromThreadId`) and
+`start-thread` gains `platform` (derived from `fromThreadId`; with `destination` it is required when
+the bot has several connections and defaults to the only one otherwise, like `--platform` on the CLI) and
 `context` (the policy to store on the thread). `loadBot(params, name, platform)` replaces
 `loadBot(params, name)`. `read` also returns `policy`, the thread's stored policy or `null`. New
 read-only `resolve-destination` (`bot`, `platform`, `name`) returns `{ threadId, chatId }` or
@@ -250,10 +254,12 @@ completeness, with an optional field first so an old runner ignores it.
 
 **Rollout order.** The thread-key rollout showed that a runner using a field against a receiver that
 does not send it breaks turns. Here the hazards run both ways: the Lambda must understand the new
-config and poster fields before any consumer or runner uses them, and consumers run the actions from
-`@main`, so merging runner code is the rollout. Slices are therefore marked Lambda or runner, and
-every runner slice that calls a new poster field or operation merges only after the Lambda with it is
-deployed. Lambda changes are written to accept both old and new input.
+poster fields before any runner uses them, and consumers run the actions from `@main`, so merging
+runner code is the rollout. Slices are therefore marked Lambda or runner, and every runner slice that
+calls a new poster field or operation merges only after the Lambda with it is deployed. Poster
+requests tolerate the previous runner's missing optional fields (for example `platform` on a
+single-connection bot), but data and configs have one form only; the slices that change them go live
+together in the [cutover](#migration).
 
 ## Destinations
 
@@ -321,46 +327,103 @@ chosen.
 
 ## Migration
 
-Existing single-platform bots need no data migration. The loader reads the legacy layout, the parser
-accepts the legacy config, routes and payloads are unchanged. Steps are in order, each reversible:
+Old and new code cannot both read the data, so the move is a one-shot cutover with a planned outage
+for a single-owner setup, not a staged rollout. Three things change together: the SSM records and
+chat aliases (read by the Lambda), the registry entry in the state table (read by the receiver,
+written only by `register`) and each consumer's `.centaur.yml` (parsed by `register` and by the
+runner, which consumers run from `@main`).
 
-1. **Build and deploy the tolerant Lambda** (slices below through the poster and receiver).
-   **[HUMAN APPROVAL]** `yarn deploy-prod`. Afterwards confirm a normal message turn and a scheduled
-   run on each existing bot still work. Revert: redeploy the previous version; nothing was written.
-2. **Merge the runner slices** (multi-target, persistent thread) only after step 1, as in the
-   thread-key rollout.
-3. **Optional per bot: move to the nested layout.** `centaur bot migrate <bot> --dry-run` lists the
-   copies, then `centaur bot migrate <bot>` copies each flat parameter to its nested path (secrets
-   by value, never printed) and leaves the flat ones in place. The nested connection now wins.
-   Revert: `centaur bot migrate <bot> --revert` copies the nested access entries back to the flat
-   paths and deletes the nested ones (so approvals made after the move survive). The old flat
-   parameters are deleted only by `--cleanup`, after a soak.
-4. **Add a platform to a bot.** `centaur bot add <bot> --platform slack` stores the Slack token and
-   signing secret nested under the existing bot (no `bots/<bot>/platform` write). Set the Slack
-   app's event URL to `<function URL>/slack/<bot>`, add `platforms: {telegram: ..., slack: ...}` to
-   the repo's config (prompts need `platforms` or a map, as `centaur config check` says) and merge
-   it so `register` runs. Force a cold start (deploy, or any function configuration update). Claim
-   the Slack admin (`centaur admin claim <bot> --platform slack`) if none exists, and invite the bot.
+### Options
+
+| Option | Outage | Cost |
+|---|---|---|
+| **One-shot cutover with a backup (recommended)** | One window of about 5 to 10 minutes in which inbound messages are not answered. | No legacy code. Needs a quiet moment and a rehearsal. |
+| Cutover shim: the Lambda reads both layouts and registry shapes, and the parser accepts both config forms, for one release, then a follow-up slice removes them | None. Deploy, migrate and consumer PRs can happen in any order and days apart. | Builds, tests and later deletes exactly the legacy readers the maintainer chose not to keep, and needs a second deploy to remove them. Not worth it for a window this small. |
+
+A shim would only matter with many consumers or a bot that must not go quiet. With one owner and a
+few consumer repos, the brief outage is accepted. If the rehearsal shows the window is longer than
+about 15 minutes, revisit.
+
+### Cutover sequence (slice 18)
+
+Before the window, with no outage:
+
+1. **Rehearse.** Run `centaur bot export` and `centaur bot migrate --dry-run` against production
+   (read-only), and the full sequence below against a test bot. The dry run lists every copy and any
+   chat alias whose platform cannot be inferred.
+2. **Prepare.** List the consumers from `bots/*/repo`, and open one pull request per consumer that
+   runs `centaur config migrate` on its config, unmerged. Pick a moment with no scheduled prompt due
+   and no turn in flight, and tell the bots' chats.
+3. **Back up.** `centaur bot export` writes every bot's parameters (secrets included) and the chat
+   aliases to a local file with mode 0600 outside any repo. It is the restore source for
+   `centaur bot restore`.
+4. **Copy.** `centaur bot migrate` copies each flat parameter and alias to the nested paths and
+   verifies each copy; the flat ones stay in place. The running old Lambda ignores the nested copies,
+   so nothing changes yet.
+
+The window:
+
+5. **[HUMAN APPROVAL] Go.** The maintainer says go.
+6. **Deploy** the Lambda from `platforms/cutover` (`yarn deploy-prod`; the window starts). The
+   receiver now reads only nested connections, and every registry entry still has the old shape, so
+   no bot is served.
+7. **Copy again** (`centaur bot migrate`) to pick up approvals the old Lambda wrote after step 4. It
+   only adds entries missing from the nested layout.
+8. **Merge** `platforms/cutover` to `main` (the runner is live; an old-form config now fails with the
+   migration error, which is harmless while nothing is dispatched), then merge each consumer pull
+   request. Each merge to a default branch runs `register`, which writes the new registry entry and
+   sets the Telegram webhook, and the window ends bot by bot. A consumer whose register run does not
+   start is started with `workflow_dispatch`.
+9. **Smoke test:** send a message to each bot, `workflow_dispatch` one scheduled prompt per consumer,
+   and check a chat alias resolves.
+
+What fails during the window (steps 6 to 8): inbound messages are ignored, not queued, so they must
+be resent; a turn that was already dispatched can still finish against the new Lambda but may fail
+on a flat alias; scheduled runs and PR comment turns that start in the window fail at `register`'s or
+`prepare`'s config error. A run that started on the old runner and the new Lambda keeps working for
+single-platform bots, because `start-thread` takes the only connection when `platform` is absent.
+
+**Rollback.** Until step 8 starts, redeploy the previous Lambda: the flat parameters and old
+registry entries are untouched, so it serves again immediately. After step 8, revert the merge to
+`main` and each consumer's rewrite, redeploy the previous Lambda, and run `register` for each
+consumer to rewrite the old registry entry. `centaur bot restore` repopulates SSM from the export
+only if parameters were damaged. Approvals and aliases created in the nested layout after step 6 are
+lost on rollback (re-approve them). Rollback takes about as long as the window.
+
+**After the soak** (a week of normal use): **[HUMAN APPROVAL]** to run `centaur bot migrate --prune`,
+which deletes the flat parameters and flat chat aliases, and delete the export file. The code
+rejects the old forms from step 6 on, so the soak copies exist only for the rollback.
+
+### After the cutover
+
+Each step below is independent and has its own revert.
+
+1. **Add a platform to a bot.** `centaur bot add <bot> --platform slack` stores the Slack token and
+   signing secret nested under the existing bot. Set the Slack app's event URL to
+   `<function URL>/slack/<bot>`, add `platforms: {telegram: ..., slack: ...}` to the repo's config
+   (prompts need `platforms` or a map, as `centaur config check` says) and merge it so `register`
+   runs. Force a cold start (deploy, or any function configuration update). Claim the Slack admin
+   (`centaur admin claim <bot> --platform slack`) if none exists, and invite the bot.
    Revert: `centaur bot remove <bot> --platform slack`, revert the config.
-5. **Fold an existing Slack-only bot into the main bot** (`garden-slack` into `garden`, if that
-   pair exists; see [unknowns](#what-could-not-be-determined-from-the-code)).
+2. **Fold an existing Slack-only bot into the main bot** (`garden-slack` into `garden`, if that pair
+   exists; see [unknowns](#what-could-not-be-determined-from-the-code)).
    `centaur bot adopt garden-slack garden` copies the Slack secrets, approved and blocked entries
    and chat aliases into `garden`'s nested Slack connection, leaving `garden-slack` untouched.
-   Before the cutover, merge or close open `centaur/garden-slack-<key>` pull requests: old Slack
+   Before the move, merge or close open `centaur/garden-slack-<key>` pull requests: old Slack
    threads live under the old bot name (`bot:garden-slack:` state, `sessions/garden-slack/`), so
    they get new thread keys and no earlier transcript under `garden`, and the old branches would
    not be found. Then change the Slack app's event URL to `/slack/garden`
    (**[HUMAN ACTION]**: Slack re-verifies it; point it back to revert) and send a test message.
    After a soak, **[HUMAN APPROVAL]** to `centaur bot unbind garden-slack`, `centaur bot remove
    garden-slack` and retire its config.
-6. **Adopt persistent destinations** per prompt: set the prompt's `destination` to a new name (for
+3. **Adopt persistent destinations** per prompt: set the prompt's `destination` to a new name (for
    an existing chat alias, bind it instead with `/destination`), run it with `workflow_dispatch`,
    and check the topic. Revert: point `destination` back at the chat alias; delete the record with
    `centaur destination remove`.
 
-Human steps: approving the Decisions, the deploys, the Slack app edits and secrets (a Slack app and
-its secrets only the maintainer can create), the admin claim in each new connection, test messages to
-the live bots, and the final removal of an old bot.
+Human steps: the cutover go decision and prune, the deploys, the Slack app edits and secrets (a Slack
+app and its secrets only the maintainer can create), the admin claim in each new connection, test
+messages to the live bots, and the final removal of an old bot.
 
 ## Alternatives considered
 
@@ -373,22 +436,30 @@ the live bots, and the final removal of an old bot.
 
 ## Decisions
 
-Recommendations in bold; each needs the maintainer's approval before building.
+Accepted on 2026-11-22, as recommended, with one amendment: there is no backwards compatibility.
+The maintainer approved the nested SSM layout and chose to migrate existing data and configs once
+instead of keeping the old forms working. So the code never reads the flat SSM layout, a flat chat
+alias, an old registry entry or the legacy top-level config keys; old config keys fail with an error
+that points at `centaur config migrate`. "Configs" covers both the bots' SSM records and state-table
+keys and the consumer `.centaur.yml` files. Decisions that relied on compatibility are amended below.
 
-1. **SSM layout: nested connections** under `bots/<bot>/platforms/<platform>/`, with the legacy flat
-   layout read-through and mixing allowed. Alternatives above.
+1. **SSM layout: nested connections** under `bots/<bot>/platforms/<platform>/`. Only the nested
+   layout is read and there is no mixing; `centaur bot migrate` copies the flat layout once.
+   Alternatives above.
 2. **Receiver: one `Chat` per connection**, sharing `bot:<bot>:`.
 3. **One state prefix per bot**, shared by connections (keeps `garden`'s history), rather than a
-   prefix per connection.
-4. **Config shape: a `platforms` map**, legacy top-level keys accepted forever and normalized;
-   mixing them is an error.
+   prefix per connection. State keys other than `registry:<bot>` are unchanged, so they need no
+   migration.
+4. **Config shape: a `platforms` map only.** The legacy top-level `platform`, `respond_to` and
+   `handle` are rejected, with an error naming `centaur config migrate`; there is no normalization.
 5. **Prompt destination: a name or a per-platform map**, with `platforms` required when more than one
    platform is declared. The alternative, fan out to every declared platform, would make adding
    Slack change where existing prompts post. `resume` with several targets is rejected.
 6. **Fan-out: one turn, one reply posted to every target**; a failed target fails the run after the
    others post; the pull request links to the first target.
 7. **Destinations are named per connection** (`destinations/<name>`), with chat aliases as chat-level
-   destinations and platform-scoped aliases for new approvals.
+   destinations. Aliases are platform-scoped (`chats/<platform>/<alias>`) for every alias; the flat
+   form is migrated and then not read.
 8. **Create on first use only when the connection has exactly one approved group chat.** Otherwise an
    error names the commands. A name that resolves to an alias keeps its new-thread-per-run behavior,
    so persistence is chosen by using a new name, not by a config flag.
@@ -404,9 +475,10 @@ Recommendations in bold; each needs the maintainer's approval before building.
 13. **Slack binding by text (`!destination <name>`)**, not a registered slash command. Revisit if
     section 12 chooses slash commands.
 14. **Merging a Slack-only bot into the main bot starts old Slack threads fresh**: no copy of state,
-    sessions or branches; open pull requests are merged or closed first.
-15. **Undeclared connections are not served** once the registry entry lists platforms; an old entry
-    serves every connection.
+    sessions or branches; open pull requests are merged or closed first. `centaur bot adopt` stays
+    for this (it writes only the nested layout); it is not a compatibility tool.
+15. **Undeclared connections are not served**: the receiver serves the platforms in the registry
+    entry. An entry without `platforms` (the old shape) serves nothing until `register` rewrites it.
 16. **Section 9's open item** ("check `destination` aliases against SSM at register time"):
     **no**. With create-on-first-use a destination name can be legitimately unresolved at register;
     `register` checks only that each declared platform has a connection.
@@ -414,37 +486,59 @@ Recommendations in bold; each needs the maintainer's approval before building.
     after bounded transcript 3, because a weekly thread's transcript grows without bound. The
     earlier slices have no such dependency.
 
+### Open after amendment
+
+No accepted Decision became contradictory. Three things the amendment leaves open, each with a
+recommendation, tracked as **[HUMAN APPROVAL]** in [TODO.md](../TODO.md#16-platforms-and-destinations):
+
+- **The registry entry cannot be migrated by the CLI** (it lives in the state table, which the CLI
+  cannot reach). Recommendation: `register` rewrites it, so re-registering every bot is a cutover
+  step, and the bots stay silent from the Lambda deploy until it runs.
+- **A flat chat alias whose platform cannot be inferred** (no bot's approved chats contain its chat
+  ID). Recommendation: `bot migrate --dry-run` lists these; the maintainer assigns each with
+  `--alias-platform <alias>=<platform>` or drops it.
+- **The set of consumer repos.** Recommendation: enumerate them from `bots/*/repo` in SSM and rewrite
+  each with `centaur config migrate`; a consumer not bound to any bot is out of scope.
+
 ## Implementation plan
 
-Each slice lands with tests and docs and is independently mergeable. "Lambda" slices change what is
-deployed with `yarn deploy-prod` and accept old and new input. "Runner" slices change the actions
-and `prepare`/`finish`, and merge after the Lambda slices they call are deployed. Slices that share
-a file are listed and must be serialized; the others can run in parallel.
+"Lambda" slices change what is deployed with `yarn deploy-prod`; "runner" slices change the actions
+and `prepare`/`finish` and are live as soon as they merge to `main`. Because data and configs have
+one form, slices 1 to 8 are not independently mergeable: they are built as stacked pull requests
+into the branch `platforms/cutover`, each with tests and docs, and go live together in slice 18.
+Slices 9 to 17 branch from `main` after slice 18, are independently mergeable, and a runner slice
+merges only after the Lambda it calls is deployed. Slices that share a file are listed and must be
+serialized; the others can run in parallel.
 
 | # | Slice | Kind | Likely files | After |
 |---|---|---|---|---|
-| 1 | Config schema: `platforms` map, legacy normalization, destination string or map, prompt `platforms`, errors; readers (`register.ts`, `prepare.ts`) take per-platform settings | Both | `src/config/schema.ts`, `src/config/index.ts`, `src/lambda/register.ts`, `src/workflows/prepare.ts`, `test/config.test.ts`, `test/helpers/config-fixtures.ts`, `docs/config.md` | none |
-| 2 | Connection model and loader: nested and legacy layouts, connection view, per-connection path helpers | Lambda | `src/lambda/registry.ts`, `parameters.ts`, `access-entries.ts`, `access.ts`, `test/helpers/receiver-fixtures.ts`, `poster-fixtures.ts` | none (parallel with 1) |
+| 1 | Config schema: `platforms` map only, legacy top-level keys rejected with a pointer to `config migrate`, destination string or map, prompt `platforms`, errors; readers (`register.ts`, `prepare.ts`) take per-platform settings | Both | `src/config/schema.ts`, `src/config/index.ts`, `src/lambda/register.ts`, `src/workflows/prepare.ts`, `test/config.test.ts`, `test/helpers/config-fixtures.ts`, `docs/config.md` | none |
+| 2 | Connection model and loader: nested layout only, connection view, per-connection path helpers | Lambda | `src/lambda/registry.ts`, `parameters.ts`, `access-entries.ts`, `access.ts`, `test/helpers/receiver-fixtures.ts`, `poster-fixtures.ts` | none (parallel with 1) |
 | 3 | CLI connections: `bot add` onto an existing bot, `bot list`, `bot remove --platform`, `--platform` on `access` and `admin claim`, `chat list` for scoped aliases | CLI | `src/cli/commands/bot.ts`, `access.ts`, `admin.ts`, `src/cli/registry.ts`, `docs/cli.md` | 2 |
-| 4 | CLI `bot migrate` (with `--dry-run`, `--revert`, `--cleanup`) and `bot adopt` | CLI | `src/cli/commands/bot.ts`, `docs/cli.md` | 3 (same files) |
-| 5 | Registry entry per platform and `register` over declared platforms | Lambda | `src/lambda/register.ts`, `registry.ts`, `docs/poster.md` | 1, 2 |
+| 4 | CLI migration tools: `bot export` and `bot restore` (backup of every bot's SSM parameters and chat aliases), `bot migrate` (`--dry-run`, copy and verify, `--prune` for the flat parameters after the soak, `--alias-platform`), `config migrate` (rewrites a config file, keeping comments), and `bot adopt` (Decision 14) | CLI | `src/cli/commands/bot.ts`, new `src/cli/commands/config.ts`, `docs/cli.md` | 3 (same files), 1 for `config migrate` |
+| 5 | Registry entry per platform and `register` over declared platforms; an old-shape entry serves nothing | Lambda | `src/lambda/register.ts`, `registry.ts`, `docs/poster.md` | 1, 2 |
 | 6 | Receiver: one `Chat` per connection, per-platform `respond_to` | Lambda | `src/lambda/receiver.ts`, `chat.ts`, `message-handler.ts`, `test/receiver*.test.ts`, `docs/plan.md` | 2, 5 |
-| 7 | Poster derives the connection from the thread ID; `start-thread` takes `platform` | Lambda | `src/lambda/poster.ts`, `registry.ts`, `docs/poster.md` | 2 (after 5, same `registry.ts`) |
-| 8 | Platform-scoped chat aliases and the resolution order | Lambda, CLI | `src/lambda/chat-aliases.ts`, `access-decisions.ts`, `poster.ts`, `src/cli/chat-aliases.ts`, `commands/access.ts`, docs | 2, 7 |
-| 9 | `thread-meta` record: `start-thread` stores `context`, `read` returns `policy`, ownership reads it | Lambda | new `src/lambda/thread-meta.ts`, `poster.ts`, `ownership.ts`, `message-handler.ts`, `docs/poster.md`, `docs/workflows.md` | 7 |
+| 7 | Poster derives the connection from the thread ID; `start-thread` takes `platform` (optional on a single-connection bot) | Lambda | `src/lambda/poster.ts`, `registry.ts`, `docs/poster.md` | 2 (after 5, same `registry.ts`) |
+| 8 | Platform-scoped chat aliases (flat form not read) and the resolution order | Lambda, CLI | `src/lambda/chat-aliases.ts`, `access-decisions.ts`, `poster.ts`, `src/cli/chat-aliases.ts`, `commands/access.ts`, docs | 2, 7 |
+| 9 | `thread-meta` record: `start-thread` stores `context`, `read` returns `policy`, ownership reads it | Lambda | new `src/lambda/thread-meta.ts`, `poster.ts`, `ownership.ts`, `message-handler.ts`, `docs/poster.md`, `docs/workflows.md` | 18 |
 | 10 | Runner reads the stored policy; scheduled runs pass `context` to `start-thread`: closes the thread-policy gap for every prompt | Runner | `src/workflows/prepare.ts`, `finish.ts`, `transcript.ts`, `docs/workflows.md`, `docs/plan.md` | 9 deployed |
-| 11 | Destination records, resolution order, create on first use, recreate (Telegram), `resolve-destination`, IAM | Lambda | new `src/lambda/destinations.ts`, `poster.ts`, `telegram.ts`, `infra/centaur.yml`, `test/infra.test.ts`, `docs/poster.md`, `docs/deploy.md` | 7, 8, 9 |
+| 11 | Destination records, resolution order, create on first use, recreate (Telegram), `resolve-destination`, IAM | Lambda | new `src/lambda/destinations.ts`, `poster.ts`, `telegram.ts`, `infra/centaur.yml`, `test/infra.test.ts`, `docs/poster.md`, `docs/deploy.md` | 8, 9, 18 |
 | 12 | Slack persistent thread and Slack post-into-thread | Lambda | `src/lambda/destinations.ts`, `poster.ts` | 11 |
-| 13 | `/destination` and Slack `!destination` handlers | Lambda | new `src/lambda/destination-command.ts`, `admin-handlers.ts`, `chat.ts`, `message-handler.ts` | 11 (after 6, same `chat.ts`) |
+| 13 | `/destination` and Slack `!destination` handlers | Lambda | new `src/lambda/destination-command.ts`, `admin-handlers.ts`, `chat.ts`, `message-handler.ts` | 11 |
 | 14 | `centaur destination set\|list\|remove` | CLI | new `src/cli/commands/destination.ts`, `program.ts`, `docs/cli.md` | 11 (parallel with 13) |
-| 15 | Multi-target scheduled turns: targets in the turn state, fan-out in `finish`, per-platform settings in `prepare` | Runner | `src/workflows/prepare.ts`, `turn-state.ts`, `finish.ts`, `cli.ts`, `docs/workflows.md`, `docs/plan.md` | 1, 7, 10 |
+| 15 | Multi-target scheduled turns: targets in the turn state, fan-out in `finish`, per-platform settings in `prepare` | Runner | `src/workflows/prepare.ts`, `turn-state.ts`, `finish.ts`, `cli.ts`, `docs/workflows.md`, `docs/plan.md` | 10 |
 | 16 | Persistent-thread scheduled turns: history, marker and session under the destination thread, `resolve` job and concurrency template | Runner | `src/workflows/prepare.ts`, `finish.ts`, `docs/workflows.md`, the self-consumer workflow | 11, 15, bounded transcript 3 |
 | 17 | Docs sweep: `onboarding.md` (add a platform, bind a topic), `plan.md` SSM layout, receiver and access sections, `config.md`, `cli.md`, `poster.md`, README; mark this doc as built | Docs | `docs/*.md`, `README.md` | all |
-| 18 | Live checks on the test bot: two platforms on one bot, a persistent topic and Slack thread, deleted and closed topic error strings | Human | | 12, 16 |
+| 18 | Cutover: the runbook in [Migration](#migration), run once by the maintainer after a rehearsal | Human | | 1 to 8 |
+| 19 | Live checks on the test bot: two platforms on one bot, a persistent topic and Slack thread, deleted and closed topic error strings | Human | | 12, 16 |
 
-Parallel groups: {1, 2}; then {3, 5}; then {6, 7}; then {8, 9}; then {4, 11}; then {10, 12, 13, 14}; then 15, 16, 17 in order.
-Deploy gates: after 2, 5, 6, 7 (a behavior-neutral deploy to verify existing bots); after 8, 9, 11
-(before runner slices 10, 15 and 16 merge).
+Parallel groups: {1, 2}; then {3, 5}; then {4, 6, 7}; then 8; then 18; then {9}; then {10, 11}; then
+{12, 13, 14, 15}; then 16, 17, 19.
+Deploy gates: (a) nothing from slices 1 to 8 reaches `main` or a deploy before the cutover go
+decision and a passed rehearsal (`bot export` and `bot migrate --dry-run` against production,
+`bot migrate` and a deploy-and-register against a test bot); (b) the cutover deploys the Lambda from
+`platforms/cutover` before that branch merges to `main`; (c) after the cutover, each Lambda slice (9,
+11, 12, 13) is deployed and checked before the runner slices that call it (10, 15, 16) merge.
 
 ## What could not be determined from the code
 

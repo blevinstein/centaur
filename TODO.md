@@ -211,50 +211,70 @@ through the chat context tools. See [docs/plan.md](docs/plan.md#context-manageme
 
 ## 16. Platforms and destinations
 
-Design (proposal): [docs/platforms-and-destinations.md](docs/platforms-and-destinations.md). Slice
-order, files and dependencies are in its implementation plan; Lambda slices accept old and new
-input, and runner slices merge only after the Lambda they call is deployed.
+Design (Decisions accepted 2026-11-22, nothing built):
+[docs/platforms-and-destinations.md](docs/platforms-and-destinations.md). There is no backwards
+compatibility: slices 1 to 8 are stacked into the branch `platforms/cutover` and go live together in
+the one-shot cutover (slice 18, runbook in the design doc's Migration section). Slices 9 to 17
+branch from `main` after it; a runner slice merges only after the Lambda it calls is deployed.
 
-- [ ] **[HUMAN APPROVAL]** Accept or amend the Decisions in the design doc before building.
-- [ ] Platforms 1: config schema (`platforms` map, legacy normalization, prompt `destination` as a
-      name or per-platform map, prompt `platforms`); readers take per-platform settings.
-- [ ] Platforms 2: connection model and loader (nested and legacy SSM layouts, connection view).
+- [x] Accept the Decisions in the design doc (2026-11-22): nested SSM layout approved, existing data
+      and consumer configs migrated once instead of kept compatible, everything else as recommended.
+- [ ] **[HUMAN APPROVAL]** Approve the three recommendations under "Open after amendment" in the
+      design doc: `register` rewrites the registry entry (so every bot is silent from the Lambda
+      deploy until re-registered), `--alias-platform` for chat aliases whose platform cannot be
+      inferred, and consumers enumerated from `bots/*/repo`.
+- [ ] Platforms 1: config schema (`platforms` map only, legacy top-level keys rejected with a pointer
+      to `config migrate`, prompt `destination` as a name or per-platform map, prompt `platforms`);
+      readers take per-platform settings.
+- [ ] Platforms 2: connection model and loader (nested SSM layout only, connection view).
 - [ ] Platforms 3: CLI connections (`bot add` onto an existing bot, `--platform` on `access` and
       `admin claim`, `bot list`, `bot remove --platform`). After 2.
-- [ ] Platforms 4: CLI `bot migrate` (`--dry-run`, `--revert`, `--cleanup`) and `bot adopt`. After 3.
-- [ ] Platforms 5: per-platform registry entry and `register` over declared platforms. After 1, 2.
+- [ ] Platforms 4: CLI migration tools: `bot export` and `bot restore`, `bot migrate` (`--dry-run`,
+      `--prune`, `--alias-platform`), `config migrate`, and `bot adopt`. After 3 (and 1).
+- [ ] Platforms 5: per-platform registry entry and `register` over declared platforms; an old-shape
+      entry serves nothing. After 1, 2.
 - [ ] Platforms 6: receiver builds one `Chat` per connection; per-platform `respond_to`. After 2, 5.
 - [ ] Platforms 7: poster derives the connection from the thread ID; `start-thread` takes
-      `platform`. After 2 (and 5, same `registry.ts`).
-- [ ] Platforms 8: platform-scoped chat aliases and the destination resolution order. After 2, 7.
+      `platform` (optional on a single-connection bot). After 2 (and 5, same `registry.ts`).
+- [ ] Platforms 8: platform-scoped chat aliases (flat form not read) and the destination resolution
+      order. After 2, 7.
+- [ ] **[HUMAN APPROVAL]** Cutover go decision: after a passed rehearsal (`bot export` and
+      `bot migrate --dry-run` on production; the full sequence on a test bot) and slices 1 to 8
+      done, approve the window (about 5 to 10 minutes of unanswered messages), then the
+      `yarn deploy-prod` of the Lambda from `platforms/cutover`.
+- [ ] **[HUMAN ACTION]** Platforms 18, the cutover, in the design doc's order: `bot export`,
+      `bot migrate`, deploy, `bot migrate` again, merge `platforms/cutover` and each consumer's
+      `config migrate` pull request (each merge runs `register`), smoke-test every bot and one
+      scheduled prompt per consumer. Rollback: redeploy the previous Lambda, revert the merges and
+      re-register.
+- [ ] **[HUMAN APPROVAL]** After a week's soak, `centaur bot migrate --prune` (deletes the flat
+      parameters and aliases) and delete the export file.
 - [ ] Platforms 9: `thread-meta` record stores a thread's context policy; `start-thread` accepts
-      `context`, `read` returns `policy`, ownership reads it. After 7.
+      `context`, `read` returns `policy`, ownership reads it. After 18.
 - [ ] Platforms 10: runner uses the stored policy and passes the prompt's `context` to
       `start-thread` (fixes thread policy storage for every prompt). After 9 is deployed.
 - [ ] Platforms 11: destination records, create on first use, topic recreation,
-      `resolve-destination`, IAM for `destinations/*`. After 7, 8, 9.
+      `resolve-destination`, IAM for `destinations/*`. After 8, 9, 18.
 - [ ] Platforms 12: Slack persistent thread destinations. After 11.
 - [ ] Platforms 13: admin-only `/destination <name>` (Telegram) and `!destination <name>` (Slack).
-      After 11 and 6.
+      After 11.
 - [ ] Platforms 14: `centaur destination set|list|remove`. After 11.
-- [ ] Platforms 15: multi-target scheduled turns (turn state targets, fan-out in `finish`). After 1,
-      7, 10.
+- [ ] Platforms 15: multi-target scheduled turns (turn state targets, fan-out in `finish`). After 10.
 - [ ] Platforms 16: persistent-thread scheduled turns (history, marker, session, `resolve` job and
       concurrency template). After 11, 15 and bounded transcript 3 (section 15).
 - [ ] Platforms 17: docs sweep (`onboarding.md`, `plan.md`, `config.md`, `cli.md`, `poster.md`,
       README); mark the design doc as built.
-- [ ] **[HUMAN APPROVAL]** Deploy the Lambda (`yarn deploy-prod`) after slices 2, 5, 6 and 7 and
-      confirm existing bots still answer and post; deploy again after 8, 9 and 11 before the runner
-      slices (10, 15, 16) merge to `main`.
-- [ ] **[HUMAN ACTION]** Migrate per bot as in the design doc's Migration section: optional
-      `centaur bot migrate`, `centaur bot add <bot> --platform slack`, a Slack app event URL change,
-      `centaur admin claim <bot> --platform slack`, and a test message on each live bot. If
-      `garden-slack` exists, fold it in with `centaur bot adopt` and merge or close its open
-      `centaur/garden-slack-*` pull requests first.
+- [ ] **[HUMAN APPROVAL]** Deploy the Lambda (`yarn deploy-prod`) after each of slices 9, 11, 12 and
+      13 and confirm existing bots still answer and post, before the runner slices that call them
+      (10, 15, 16) merge to `main`.
+- [ ] **[HUMAN ACTION]** Per bot, after the cutover as in the design doc: `centaur bot add <bot>
+      --platform slack`, a Slack app event URL change, `centaur admin claim <bot> --platform slack`
+      and a test message on each live bot. If `garden-slack` exists, fold it in with
+      `centaur bot adopt` and merge or close its open `centaur/garden-slack-*` pull requests first.
 - [ ] **[HUMAN APPROVAL]** After a soak, unbind and remove the old Slack-only bot and its config.
-- [ ] **[HUMAN ACTION]** Live checks on the test bot: two platforms on one bot, a persistent topic
-      and Slack thread, and the error text for a deleted and a closed Telegram topic (confirm the
-      recreate and reopen rules).
+- [ ] **[HUMAN ACTION]** Live checks on the test bot (slice 19): two platforms on one bot, a
+      persistent topic and Slack thread, and the error text for a deleted and a closed Telegram
+      topic (confirm the recreate and reopen rules).
 
 ## Quality Improvements
 
