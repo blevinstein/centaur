@@ -24,11 +24,24 @@ describe("this repo's Centaur config", () => {
     expect((await loadSelfConfig()).chat_tools.scope).toBe("chat");
   });
 
-  it("targets exactly one Slack destination per prompt", async () => {
+  it("posts hello and mcp-smoke to Slack and Telegram, the PR prompts to Slack only", async () => {
     const { prompts } = await loadSelfConfig();
-    expect(Object.keys(prompts).sort()).toEqual(["hello", "mcp-smoke", "pr-smoke", "pr-update"]);
-    for (const prompt of Object.values(prompts)) {
-      expect(prompt.targets).toEqual([{ platform: "slack", destination: "centaur-test-slack" }]);
+    expect(Object.keys(prompts).sort()).toEqual([
+      "hello",
+      "hello-telegram",
+      "mcp-smoke",
+      "pr-smoke",
+      "pr-update",
+    ]);
+    expect(prompts["hello-telegram"]?.file).toBe(".centaur/prompts/hello.md");
+    const slack = { platform: "slack", destination: "centaur-test-slack" };
+    const telegram = { platform: "telegram", destination: "centaur-test" };
+    for (const name of ["hello", "mcp-smoke"]) {
+      expect(prompts[name]?.targets).toEqual([slack, telegram]);
+    }
+    expect(prompts["hello-telegram"]?.targets).toEqual([telegram]);
+    for (const name of ["pr-smoke", "pr-update"]) {
+      expect(prompts[name]?.targets).toEqual([slack]);
     }
   });
 });

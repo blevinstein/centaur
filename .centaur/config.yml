@@ -14,13 +14,16 @@ allowed_tools: "Read,Glob,Grep,Write,Edit,mcp__ghmcp__*"
 persona: .centaur/persona.md
 prompts:
   hello:
-    destination: { slack: centaur-test-slack }
+    destination: { slack: centaur-test-slack, telegram: centaur-test }
+  hello-telegram:
+    file: .centaur/prompts/hello.md
+    destination: { telegram: centaur-test }
   pr-smoke:
     destination: { slack: centaur-test-slack }
   pr-update:
     destination: { slack: centaur-test-slack }
   mcp-smoke:
-    destination: { slack: centaur-test-slack }
+    destination: { slack: centaur-test-slack, telegram: centaur-test }
 mcp_servers:
   ghmcp:
     url: https://api.githubcopilot.com/mcp/readonly

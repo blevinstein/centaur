@@ -138,7 +138,7 @@ read them.
 
 This repo is its own consumer, for end-to-end testing: `.centaur/config.yml` binds the `centaur-slack` bot to Slack and Telegram
 and the `centaur-*.yml` workflows use the actions locally (`uses: ./.github/actions/...`). Its agent is
-read-write on the repo (`Read,Glob,Grep,Write,Edit` plus the read-only GitHub MCP tools), and it uses `respond_to: all` on both platforms. Its prompts target Slack only.
+read-write on the repo (`Read,Glob,Grep,Write,Edit` plus the read-only GitHub MCP tools), and it uses `respond_to: all` on both platforms. Its `hello` and `mcp-smoke` prompts post to Slack and Telegram, `hello-telegram` (the `hello` text) to Telegram only, and the pull-request prompts (`pr-smoke`, `pr-update`) post to Slack only, since a PR attaches to one thread.
 
 Run **Actions > Centaur register** to bind the bot, or **Actions > Centaur hello** to start a thread
 from `.centaur/prompts/hello.md`. Messages sent to the bot dispatch `centaur-message` and are
