@@ -1,6 +1,12 @@
 import { type Adapter, type Chat, emoji, type Logger, type Message, type StateAdapter } from "chat";
 import { z } from "zod";
-import { alias, PLATFORMS, type Platform, threadPlatform } from "../config/index.js";
+import {
+  alias,
+  CONTEXT_POLICIES,
+  PLATFORMS,
+  type Platform,
+  threadPlatform,
+} from "../config/index.js";
 import { createAccessResolver } from "./access.js";
 import type { AttachmentStore } from "./attachments.js";
 import { resolveChatAlias } from "./chat-aliases.js";
@@ -19,6 +25,7 @@ import { type Bot, botStatePrefix, requireBot, requireBound } from "./registry.j
 import { connectState } from "./state.js";
 import type { TelegramApi } from "./telegram.js";
 import { firstLine } from "./text.js";
+import { createThreadMeta } from "./thread-meta.js";
 
 const TOPIC_NAME_MAX = 128;
 export const UNREACT_MAX_MESSAGES = 50;
@@ -39,6 +46,8 @@ export const posterRequestSchema = z.discriminatedUnion("operation", [
       /** Selects the connection of a `destination`; optional on a single-connection bot. */
       platform: z.enum(PLATFORMS).optional(),
       fromThreadId: threadId.optional(),
+      /** The prompt's context policy, stored on the new thread for its replies. */
+      context: z.enum(CONTEXT_POLICIES).optional(),
     })
     .refine(
       (request) => (request.destination === undefined) !== (request.fromThreadId === undefined),
@@ -155,9 +164,10 @@ export async function createPoster(deps: PosterDeps) {
 
   const openChat = async (botName: string, platform?: Platform) => {
     const bot = await requireBot(params, botName, { logger, ...(platform ? { platform } : {}) });
-    const chat = chatFor(bot, await stateFor(botStatePrefix(bot.name)));
+    const botState = await stateFor(botStatePrefix(bot.name));
+    const chat = chatFor(bot, botState);
     await chat.initialize();
-    return { bot, chat };
+    return { bot, chat, threadMeta: createThreadMeta(botState) };
   };
 
   const openThreadChat = (botName: string, threadId: string) =>
@@ -221,7 +231,7 @@ export async function createPoster(deps: PosterDeps) {
         return { messageId: sent.id };
       }
       case "start-thread": {
-        const { bot, chat } = await openChat(
+        const { bot, chat, threadMeta } = await openChat(
           request.bot,
           request.fromThreadId === undefined
             ? request.platform
@@ -239,12 +249,16 @@ export async function createPoster(deps: PosterDeps) {
         );
         const thread = chat.thread(opened.threadId);
         await thread.setState(BOT_CREATED_STATE);
+        await threadMeta.write(opened.threadId, {
+          setBy: "start-thread",
+          context: request.context,
+        });
         if (!opened.posted) await thread.post(request.text);
         return { threadId: opened.threadId };
       }
       case "read": {
         await requireBound(params, deps.oidc, request.token, request.bot);
-        const { chat } = await openThreadChat(request.bot, request.threadId);
+        const { chat, threadMeta } = await openThreadChat(request.bot, request.threadId);
         const visible = request.visibleOnly
           ? await chatContext.visibleInThread(request.bot, request.threadId)
           : undefined;
@@ -283,7 +297,8 @@ export async function createPoster(deps: PosterDeps) {
             sentAt: message.metadata.dateSent.toISOString(),
           });
         }
-        return { messages };
+        const policy = (await threadMeta.read(request.threadId))?.context;
+        return { messages, ...(policy ? { policy } : {}) };
       }
       case "unreact": {
         const { bot, chat } = await openThreadChat(request.bot, request.threadId);

@@ -1,5 +1,6 @@
 import type { Message, Thread } from "chat";
 import type { Platform, RespondTo } from "../config/index.js";
+import type { ThreadMetaStore } from "./thread-meta.js";
 
 export interface ThreadMetadata extends Record<string, unknown> {
   createdByBot?: boolean;
@@ -19,11 +20,13 @@ export async function ownsMessage(
   thread: Thread<ThreadMetadata>,
   message: Message,
   respondTo: RespondTo,
+  threadMeta: Pick<ThreadMetaStore, "read">,
 ): Promise<boolean> {
   if (respondTo === "all") return !message.author.isMe && message.author.isBot !== true;
   if (isAddressed(thread, message)) return true;
   const state = await thread.state;
-  return state?.createdByBot === true || state?.addressedByUser === true;
+  if (state?.createdByBot === true || state?.addressedByUser === true) return true;
+  return (await threadMeta.read(thread.id)) !== undefined;
 }
 
 export async function rememberAddressed(

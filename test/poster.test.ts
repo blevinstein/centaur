@@ -11,6 +11,7 @@ import {
   WORKSHOP_CHAT_ID,
 } from "./helpers/poster-fixtures.js";
 import { fakeMessage, fakeThread } from "./helpers/receiver-fixtures.js";
+import { noThreadMeta } from "./helpers/thread-meta-fixtures.js";
 
 const GARDEN_THREAD = `telegram:${HOUSEHOLD_CHAT_ID}:${TOPIC_ID}`;
 const READ_GARDEN = {
@@ -91,7 +92,9 @@ describe("poster start-thread", () => {
       thread.post.mock.invocationCallOrder[0] as number,
     );
     const owned = fakeThread({ state });
-    await expect(ownsMessage(owned.thread, fakeMessage(), "mention")).resolves.toBe(true);
+    await expect(ownsMessage(owned.thread, fakeMessage(), "mention", noThreadMeta())).resolves.toBe(
+      true,
+    );
   });
 
   it("names the topic after the first line of the text by default", async () => {

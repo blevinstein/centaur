@@ -240,7 +240,7 @@ the cutover, because it is the only writer of the new registry entry.
 the bot has several connections and defaults to the only one otherwise, like `--platform` on the CLI) and
 `context` (the policy to store on the thread) and, from slice 11, `thread` (`new` or `persistent`,
 default `new`). `loadBot(params, name, platform)` replaces
-`loadBot(params, name)`. `read` also returns `policy`, the thread's stored policy or `null`. New
+`loadBot(params, name)`. `read` also returns `policy`, the thread's stored policy, absent when none is stored. New
 read-only `resolve-destination` (`bot`, `platform`, `name`) returns `{ threadId, chatId }` or
 `{ found: false }` without creating anything, for the runner. Strict schemas still reject unknown
 keys.

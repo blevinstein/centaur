@@ -198,8 +198,11 @@ Each thread has a context policy.
   own `context` for scheduled runs).
 - In-chat overrides: `/new` (start a new thread), `/resume` and `/transcript` (switch the
   current thread's policy). Telegram slash commands aren't an SDK feature, so these are parsed
-  from message text. The thread's policy is not stored: each turn takes the latest `/resume` or
-  `/transcript` in the thread, else the default (see [workflows.md](workflows.md#context-policies)).
+  from message text. Each turn takes the latest `/resume` or `/transcript` in the thread, else the
+  default (see [workflows.md](workflows.md#context-policies)).
+- `start-thread` stores the prompt's `context` in the thread's `thread-meta` state record
+  (`thread-meta:<threadId>` under the bot's prefix; 90-day expiry refreshed on every read), and
+  `read` returns it as `policy`. Runners do not consume it yet.
 - **Transcript budget (planned, not implemented).** The transcript fills at most
   `context.transcript_max_percent` (default 25) of the model's context window, newest messages
   first. The rest of the window is for the persona, the instructions, the repo, tool results and
@@ -220,7 +223,9 @@ One household supergroup with topics enabled holds every household bot as an adm
 receive **all** group messages, so each bot must decide what's addressed to it:
 
 1. A message in a topic that the bot created belongs to that bot. The poster records this by
-   setting `createdByBot: true` in the thread's state when it creates the topic.
+   setting `createdByBot: true` in the thread's state when it creates the topic, and writes a
+   `thread-meta` record (below) that also marks the thread as the bot's once the 30-day thread state
+   has expired.
 2. A mention of `@<bot>` anywhere (e.g. in the General topic) belongs to that bot. The bot answers
    by creating a new topic for the conversation, or replies in place for quick questions.
 3. On Slack, a mention that passes the access checks also marks its thread (`addressedByUser` in

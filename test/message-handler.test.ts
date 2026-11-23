@@ -7,6 +7,7 @@ import {
   createMessageHandler,
   REFUSAL_TEXT,
 } from "../src/lambda/message-handler.js";
+import type { ThreadMetaStore } from "../src/lambda/thread-meta.js";
 import { threadKey } from "../src/thread-key.js";
 import {
   accessFor,
@@ -20,8 +21,13 @@ import {
   MESSAGE_TEXT,
   STRANGER_USER_ID,
 } from "./helpers/receiver-fixtures.js";
+import { memoryThreadMeta, noThreadMeta } from "./helpers/thread-meta-fixtures.js";
 
-function setup(access = accessFor(), respondTo: RespondTo | null = "mention") {
+function setup(
+  access = accessFor(),
+  respondTo: RespondTo | null = "mention",
+  threadMeta: Pick<ThreadMetaStore, "read"> = noThreadMeta(),
+) {
   const claimAdmin = vi.fn<AdminClaimer>(async () => "claimed");
   const dispatcher = fakeDispatcher();
   const logger = fakeLogger();
@@ -35,6 +41,7 @@ function setup(access = accessFor(), respondTo: RespondTo | null = "mention") {
     claimAdmin,
     resolveRespondTo: async () => respondTo ?? undefined,
     dispatcher,
+    threadMeta,
     logger,
   });
   return { handle, dispatcher, logger, access, requestAccess, claimAdmin, attachments };
@@ -50,6 +57,26 @@ describe("message handler", () => {
     expect(addReaction).not.toHaveBeenCalled();
     expect(dispatcher.dispatch).not.toHaveBeenCalled();
   });
+  it("accepts an unaddressed reply in a thread whose thread-meta record exists after the thread state expired", async () => {
+    const threadMeta = await memoryThreadMeta();
+    const { thread } = fakeThread();
+    await threadMeta.write(thread.id, { setBy: "start-thread", context: "resume" });
+    const { handle, dispatcher } = setup(accessFor(), "mention", threadMeta);
+
+    await handle(thread, fakeMessage({ isMention: false }));
+
+    expect(dispatcher.dispatch).toHaveBeenCalledOnce();
+  });
+
+  it("ignores an unaddressed message in a thread with no thread-meta record or state", async () => {
+    const { handle, dispatcher } = setup();
+    const { thread } = fakeThread();
+
+    await handle(thread, fakeMessage({ isMention: false }));
+
+    expect(dispatcher.dispatch).not.toHaveBeenCalled();
+  });
+
   it("reacts then dispatches IDs only for an allowed sender mentioning the bot", async () => {
     const { handle, dispatcher } = setup();
     const { thread, addReaction } = fakeThread();

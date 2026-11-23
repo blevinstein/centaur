@@ -16,6 +16,7 @@ import { createMessageHandler } from "./message-handler.js";
 import type { ThreadMetadata } from "./ownership.js";
 import type { ParameterStore } from "./parameters.js";
 import { type Bot, readPlatformSettings } from "./registry.js";
+import { createThreadMeta } from "./thread-meta.js";
 
 const ADAPTER_FACTORIES: Record<Platform, (bot: Bot) => Adapter> = {
   telegram: (bot) =>
@@ -91,6 +92,7 @@ export function createBotChat({
     resolveRespondTo: async () =>
       (await readPlatformSettings(registryState, bot, logger))?.respond_to,
     dispatcher,
+    threadMeta: createThreadMeta(botState),
     logger,
   });
   registerAdminHandlers(

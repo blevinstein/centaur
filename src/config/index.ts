@@ -12,6 +12,7 @@ export {
   CHAT_TOOLS_SCOPES,
   type ChatToolsConfig,
   type ChatToolsScope,
+  CONTEXT_POLICIES,
   type ContextPolicy,
   centaurConfigSchema,
   declaredPlatforms,

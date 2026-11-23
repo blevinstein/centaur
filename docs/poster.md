@@ -12,8 +12,8 @@ to a repo (a connection's secrets under `bots/<bot>/platforms/<platform>/` plus 
 | `operation` | Fields | Result |
 |---|---|---|
 | `post` | `bot`, `threadId`, `text` | `{ messageId }` |
-| `start-thread` | `bot`, `text`, optional `title`, exactly one of `destination` (chat alias, with `platform`: required when the bot has several connections) or `fromThreadId` (implies the platform; `platform` is rejected with it) | `{ threadId }` |
-| `read` | `token` (GitHub OIDC JWT), `bot`, `threadId`, optional `visibleOnly` | `{ messages: [{ id, userId, userName, fromBot, text, attachments, sentAt }] }`, oldest first; `attachments` are the S3 keys of the message's stored images (see [Attachments](#attachments)); with `visibleOnly: true` the poster drops messages from senders who are not enrolled and from other bots, the same filter as `list-threads` and `read-channel`, and the thread's chat must be approved and not blocked. Without it every stored message is returned, as `prepare` needs for the dispatched thread |
+| `start-thread` | `bot`, `text`, optional `title`, optional `context` (`fresh`, `transcript` or `resume`: the policy stored on the new thread), exactly one of `destination` (chat alias, with `platform`: required when the bot has several connections) or `fromThreadId` (implies the platform; `platform` is rejected with it) | `{ threadId }` |
+| `read` | `token` (GitHub OIDC JWT), `bot`, `threadId`, optional `visibleOnly` | `{ messages: [{ id, userId, userName, fromBot, text, attachments, sentAt }], policy? }`, oldest first; `policy` is the context policy stored on the thread by `start-thread`, absent when none is stored (reading refreshes its expiry); `attachments` are the S3 keys of the message's stored images (see [Attachments](#attachments)); with `visibleOnly: true` the poster drops messages from senders who are not enrolled and from other bots, the same filter as `list-threads` and `read-channel`, and the thread's chat must be approved and not blocked. Without it every stored message is returned, as `prepare` needs for the dispatched thread |
 | `unreact` | `bot`, `threadId`, `messageIds` (1 to 50) | `{ results: [{ messageId, removed }] }` |
 | `list-threads` | `token` (GitHub OIDC JWT), `bot`, `chatId`, `threadId` (the dispatched thread), optional `limit` (default 20, max 50), optional `includeBots` | `{ threads: [{ threadId, title, lastActivity, messageCount, participants, snippet }], scanned }`, most recent first |
 | `read-channel` | `token` (GitHub OIDC JWT), `bot`, `chatId`, `threadId` (the dispatched thread), optional `limit` (default 50, max 200), optional `before` (ISO 8601 instant), optional `includeBots` | `{ messages: [{ id, threadId, userId, userName, fromBot, text, attachments, sentAt }], scanned }`, newest first; `attachments` is always empty |
@@ -60,7 +60,12 @@ approved chat or a DM.
   ignored. Thread ID is the new message's thread.
 
 The thread is marked `createdByBot` (`BOT_CREATED_STATE` in `src/lambda/ownership.ts`) so the
-receiver's ownership rule accepts human replies in it.
+receiver's ownership rule accepts human replies in it. It also gets a `thread-meta:<threadId>`
+record in the bot's state (`src/lambda/thread-meta.ts`) holding the optional `context`, who set it
+(`start-thread`) and when. The record expires after 90 days, refreshed whenever it is read (by
+`read` and by the ownership rule), and the ownership rule accepts a reply in any thread that still
+has one, which outlives the 30-day thread state. A request without `context` still writes the
+record, with no policy.
 
 ## `unreact`
 

@@ -8,6 +8,7 @@ import type { AttachmentStore } from "./attachments.js";
 import type { RepositoryDispatcher } from "./github.js";
 import { isAddressed, ownsMessage, rememberAddressed, type ThreadMetadata } from "./ownership.js";
 import type { Bot } from "./registry.js";
+import type { ThreadMetaStore } from "./thread-meta.js";
 
 export const DISPATCH_EVENT_TYPE = "centaur-message";
 export const REFUSAL_TEXT = "Sorry, you aren't enrolled to talk to me.";
@@ -23,6 +24,8 @@ export interface MessageHandlerDeps {
   /** Undefined when the connection is not registered; the message is then ignored. */
   resolveRespondTo: () => Promise<RespondTo | undefined>;
   dispatcher: RepositoryDispatcher;
+  /** Threads the bot started keep their record beyond the Chat SDK thread-state expiry. */
+  threadMeta: Pick<ThreadMetaStore, "read">;
   logger: Pick<Logger, "info" | "warn" | "error">;
 }
 
@@ -34,6 +37,7 @@ export function createMessageHandler({
   claimAdmin,
   resolveRespondTo,
   dispatcher,
+  threadMeta,
   logger,
 }: MessageHandlerDeps) {
   const where = { bot: bot.name, platform: bot.platform };
@@ -48,7 +52,7 @@ export function createMessageHandler({
     }
 
     const respondTo = await resolveRespondTo();
-    if (!respondTo || !(await ownsMessage(thread, message, respondTo))) return;
+    if (!respondTo || !(await ownsMessage(thread, message, respondTo, threadMeta))) return;
 
     const refusable = respondTo === "mention" || isAddressed(thread, message);
 
