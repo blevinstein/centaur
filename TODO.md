@@ -160,10 +160,11 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
       messages (N+1 items read; two queries at 5000). At 1 KB per message and two lists per
       message that is about N/2 read units, roughly $0.000006 / $0.00003 / $0.0003 per message at
       100 / 500 / 5000 on-demand (estimate). Recommended: 500 messages, 7 days.
-- [ ] **[HUMAN APPROVAL]** Raise the deployed stored-history window to the recommended 500
+- [x] **[HUMAN APPROVAL]** Raise the deployed stored-history window to the recommended 500
       messages (`HistoryMaxMessages=500`, `HistoryTtlDays` stays 7): a CloudFormation parameter
-      change, deployed with `scripts/deploy.sh ... HistoryMaxMessages=500`. Unblocks chat search and
-      `list-threads` seeing more than the newest 100 messages of a Telegram chat.
+      change. Approved and deployed 2026-11-22; `HistoryMaxMessages` is set in the private
+      `parameters-prod.json`, so later deploys keep it. Unblocks chat search and `list-threads`
+      seeing more than the newest 100 messages of a Telegram chat.
 
 ## 12. Slack support
 
