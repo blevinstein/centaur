@@ -380,3 +380,12 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
 - [ ] Poster MCP tool for mid-turn questions and progress messages (builds on the MCP server
       config in [docs/mcp.md](docs/mcp.md)). It would let a long turn ask the thread a question or
       report progress before it finishes.
+- [ ] Redact slash-command text in the Chat SDK error logs. When a slash command handler throws
+      (for example the admin claim command, whose argument is a one-time claim code) or the SDK
+      logs an error, the command text can appear in the Lambda's error logs; found live when an
+      admin claim code showed up in an error log. Find where the SDK logs the failing event (the
+      logger passed to `createBotChat`/`createChat` in `src/lambda/chat.ts` and
+      `src/lambda/handler.ts`) and wrap it to redact slash-command text, arguments and any `text`
+      field of command payloads before it is written. Add a test with a command carrying a
+      claim-code-shaped argument, and check the admin-claim flow is unaffected. Protects one-time
+      claim codes and command arguments in CloudWatch logs.
