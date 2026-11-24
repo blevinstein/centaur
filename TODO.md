@@ -45,10 +45,9 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
       **[HUMAN ACTION]** Deploy the stack (`yarn deploy-prod`) so the poster serves `get-mcp-policy`;
       until then every turn and registration with `mcp_servers` fails closed. Then confirm a turn
       with `mcp_servers` still passes and an unpinned local server is denied.
-- [ ] **Approval-required** MCP servers: design accepted, all recommendations:
-      [docs/mcp-approval.md](docs/mcp-approval.md).
-      Slices, in the order and with the dependencies of its
-      [implementation plan](docs/mcp-approval.md#implementation-plan):
+- [ ] **Approval-required** MCP servers: implemented except the live check; design:
+      [docs/mcp-approval.md](docs/mcp-approval.md) (code in its
+      [implementation map](docs/mcp-approval.md#implementation-map)). Slices:
   - [x] Approval 1: Cedar `context.approved`, two-pass `authorize`, fingerprint helper,
         `checkMcpPolicy` returning `{ issues, approvals }`, and the `config check` / `register`
         notices. No dependencies.
@@ -60,8 +59,17 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
   - [x] Approval 4: `prepare` wiring (one `mcp-approvals` call per turn) and prompt lines. Needs 1 and 3.
   - [x] Approval 5: `suspend_for` field and the `finish` suspend. Needs 4.
   - [x] Approval 6: `centaur mcp approvals` list and `revoke`. Needs 2.
-  - [ ] Approval 7: docs fold-in and the live check. Needs 1 to 6. **[HUMAN ACTION]** run the live
-        check against a remote server in the bot's real chat.
+  - [ ] **[HUMAN ACTION]** Approval live check: after `yarn deploy-prod` (the receiver, poster and
+        IAM changes are undeployed), put a remote MCP server behind a `when { context.approved }`
+        policy and run, in the bot's real chat: a turn that is told the server is awaiting approval
+        and answers without it; a turn where the agent returns suspend_for, ends, 👍 on the admin
+        DM, the resumed turn answers the original request; a 👎 (denied, answers without it, no new
+        question for 7 days); `centaur mcp approvals` lists it and `centaur mcp revoke` removes it;
+        editing the server URL asks a new question; the DM and the job log show no message text,
+        thread ID or chat ID.
+- [ ] Offer to redo the original request after an approval when the agent answered without
+      suspending (store the request and re-ask on approval; today the receiver only posts that the
+      server is available and the user asks again)
 - [ ] Explore a way to update the MCP policy by adding entries to an allowlist, with some level of
       generalization (for example allow a server by name, by URL or host pattern, or a tool within
       it) instead of editing the Cedar files by hand. Open questions to settle first: who may add an
@@ -358,8 +366,10 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       [docs/mcp-tool-policy.md](docs/mcp-tool-policy.md). A first cut with tests, not yet hardened,
       is on the branch [`proposal/mcp-tool-policy-first-cut`](https://github.com/blevinstein/centaur/tree/proposal/mcp-tool-policy-first-cut). Needs a live experiment first (**[HUMAN ACTION]** to approve
       the `experiment/*` run).
-- [ ] Plan for long-running agent turns (>15 mins) which will hit lambda function runtime limits.
-      This may happen if we are using MCP tools etc which take a while to respond.
+- [ ] Plan for long-running agent turns (>15 mins). Turns run on the runner, so the real limits are
+      the job's `timeout-minutes` and cost, not a Lambda limit. This may happen if we are using MCP
+      tools etc which take a while to respond. Approval waits are handled by suspend and resume
+      ([docs/mcp-approval.md](docs/mcp-approval.md#suspend-and-resume)).
 - [ ] Decision model: a cheap model that decides whether to reply to unaddressed messages in
       `respond_to: all` chats before the main agent runs (see
       https://docs.venice.ai/guides/features/decisions for the pattern). Preferably in the receiver,

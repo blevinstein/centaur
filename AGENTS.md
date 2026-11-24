@@ -182,3 +182,5 @@
   one `mcp-approvals` call per turn, never polled, a failure meaning `pending`. A new turn path that
   builds `mcp.json` or `--allowedTools` must take the servers from `withoutServers`, and a turn
   with a thread sets `approvalThread` so the request can be raised.
+- A value `finish` reads from the turn state must be written by `prepare`; `FinishDeps` additions
+  stay optional so existing finish tests keep passing.

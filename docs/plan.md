@@ -305,9 +305,9 @@ person in it still needs approval to talk to the bot (DMs only need the user).
 request: `subjectId` is `<name>:<fingerprint>`, plus a length-limited `summary`, the `threadId` and
 `messageId` of the triggering message, and `suspended`. The DM names the bot, repository, server and
 summary, never message content, and `/deny` does not block anything. Only the admin decides, once
-(the claim). Approval writes the SSM parameter `bots/<bot>/mcp-approvals/<name>/<fingerprint>` (JSON:
+(the claim); a request expires after 7 days. Approval writes the SSM parameter `bots/<bot>/mcp-approvals/<name>/<fingerprint>` (JSON:
 time and approver user ID; presence means approved) and posts "approved" in the originating thread;
-denial writes the state-table record `mcp-denied:<name>:<fingerprint>` (TTL, like requests) and posts
+denial writes the state-table record `mcp-denied:<name>:<fingerprint>` (7-day TTL, like every request) and posts
 "denied". When `suspended`, either decision then sends a `centaur-message` `repository_dispatch` with
 the original `{bot, thread_id, thread_key, message_id}`; if the dispatch fails the claim is released so
 the decision can be retried.

@@ -188,16 +188,20 @@ read them.
 
 ## Approval-required MCP servers
 
-When the operator policy makes a server approval-required, `prepare` (chat, scheduled and pull request
-comment turns alike) calls the poster `mcp-approvals` once with the thread and the triggering message,
-then starts the turn with the approved servers only. The prompt gets one `MCP server approvals`
-section: servers awaiting the admin (with their tools) and servers the admin denied. Nothing is
-polled: a later decision is used by the next turn. See [mcp.md](mcp.md#operator-policy) and
-[mcp-approval.md](mcp-approval.md).
+When the [operator policy](mcp.md#operator-policy) makes a server approval-required, `prepare` calls
+the poster [`mcp-approvals`](poster.md#mcp-approvals) once per turn and starts the turn with the
+approved servers only; `pending` and `denied` servers are dropped from `mcp.json` and from
+`--allowedTools` (including `mcp__<name>__*` entries). A poster failure counts as `pending`. Nothing
+is polled: a decision that arrives later is used by the next turn. A turn with a thread (chat,
+`/new`, pull request comment turns and persistent scheduled prompts) can raise the request; a
+scheduled prompt without a persistent thread only reads stored decisions.
 
-A chat turn in an existing thread (not a scheduled prompt or a pull request comment turn) whose
-poster answer left servers pending may also return `suspend_for`, an array of up to 20 server names;
-the schema offers the field, and the prompt one sentence about it, only then. `prepare` records the
+The prompt gets one `# MCP server approvals` section: the servers awaiting the admin, with their
+tools, and a line for each server the admin denied ("answer without it").
+
+A chat turn that replies in an existing thread, and whose poster answer left servers pending, also
+gets one sentence telling the agent it may return `suspend_for`, an array of up to 20 server names,
+instead of working around the absence; the schema offers the field only then. `prepare` records the
 pending servers (names, fingerprints, summaries) and the thread in the turn state, and `finish`
 honors only entries in that record, so a name that is not pending, or any `suspend_for` on a turn
 that cannot suspend, is ignored. A valid `suspend_for` posts the reply and clears the reactions as
@@ -205,7 +209,8 @@ usual and saves the session, but leaves the last-processed marker where it was a
 `mcp-approvals` with `suspend: true` for the named servers; the decision then re-dispatches the
 thread. If that call fails, `finish` logs the error type only and ends as an ordinary turn,
 advancing the marker so the thread is not left replaying messages that no decision will resume.
-`finish` needs the OIDC token for that call, which the turn action already provides.
+`finish` needs the OIDC token for that call, which the turn action already provides. The design,
+including the races, is in [mcp-approval.md](mcp-approval.md#suspend-and-resume).
 
 ## This repo as a test consumer
 

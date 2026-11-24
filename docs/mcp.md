@@ -275,41 +275,37 @@ Check a config and its policy locally with `centaur config check [path]`. That c
 local `.centaur/mcp-policy.cedar` next to the config, which is convenient for editing but is not what
 enforcement uses. Add `--global-policy infra/mcp-policy.cedar` to check against the global layer too.
 
-**Approval.** The request also carries `context.approved` (a Bool). Every policy is evaluated twice
-per server, with `approved` false and then true, and the pair gives the outcome:
-
-| Matching policies | `approved=false` | `approved=true` | Outcome |
-|---|---|---|---|
-| any `forbid`, in either layer, at either evaluation | deny | deny | **deny**: `forbidden by policy ...` |
-| a `permit` that does not mention `context.approved` | allow | allow | **allow** |
-| only `permit ... when { context.approved }` | deny | allow | **approval required** |
-| no `permit` | deny | deny | **deny**: `not permitted by any policy` |
-| allow at false, deny at true (stricter on approval) | allow | deny | **deny**: the true evaluation is a ceiling |
-
-An approval-required server passes `register`, `prepare` and `centaur config check`, which report it
-as a notice (`::notice::` in the run, `Notice:` in the CLI) naming its approval key,
-`<name>:<fingerprint>`: the first 16 hex of the SHA-256 of the canonical JSON of the server's
-transport, url, command, args, env and headers (plain values and secret names, never secret values)
-and the `allowed_tools` entries naming it. The key comes only from `mcpApprovalKey`
-(`src/config/mcp-fingerprint.ts`). Because a `forbid` denies both evaluations, approval never lifts a
-ceiling. A typical global default lets any server the ceiling allows through once the admin approves
-it:
+**Approval by the admin.** A policy that says `permit(...) when { context.approved }` allows a server
+only once the bot's admin has approved that server. Without a `context.approved` condition a permit
+allows the server outright, and a `forbid` always wins: approval never lifts a ceiling. A typical
+global default lets any server the ceiling allows through once the admin approves it:
 
 ```cedar
 permit(principal, action == Action::"UseServer", resource) when { context.approved };
 ```
 
-Policies that never mention `context` behave as before. How the admin is asked and the decision
-stored is designed in [mcp-approval.md](mcp-approval.md).
+`centaur config check`, `register` and `prepare` accept such a server and print a notice naming its
+approval key, `<name>:<fingerprint>`. The outcome table, the fingerprint and the design are in
+[mcp-approval.md](mcp-approval.md).
 
-`prepare` asks the poster `mcp-approvals` once per turn for all approval-required servers, with a one-line
-summary of each (transport, host or command and args, secret names, allowed tools; never values), and
-uses the answer as is. `approved` servers run; `pending` and `denied` servers are dropped from
-`mcp.json` and from `--allowedTools` (including `mcp__<name>__*` entries), and the prompt names them.
-A poster failure counts as `pending`, so the turn runs without them. A decision that arrives later is
-seen by the next turn. A scheduled prompt without a persistent thread has no thread to raise a request in, so it calls
-`mcp-approvals` without one: the call only reads stored decisions, so such a prompt uses a server the
-admin already approved but cannot request one.
+What happens at a turn:
+
+- The first turn that uses an unapproved server sends the admin a direct message with the bot,
+  repository, server and a one-line summary (transport, host or command, secret names, allowed tools;
+  never values or message text). The turn runs without the server, and the agent is told it is
+  awaiting approval; if it cannot do the request without it, it can suspend the turn, which resumes
+  after the decision ([workflows.md](workflows.md#approval-required-mcp-servers)).
+- The admin reacts 👍 to approve or 👎 to deny, or sends `/approve <id>` or `/deny <id>` where the
+  platform supports it. The request expires after 7 days.
+- An approval persists for that bot and server definition until revoked. A denial lasts 7 days and
+  the bot does not ask again meanwhile.
+- `centaur mcp approvals <bot>` lists the approvals and `centaur mcp revoke <bot> <name>` removes them
+  ([cli.md](cli.md#centaur-mcp-approvals-bot)); the server is asked about again the next time a turn
+  uses it.
+- Editing the server's definition (its URL, command, arguments, env or header entries, or the
+  `allowed_tools` entries naming it) asks again, because the approval belongs to the definition.
+  Removing the `when { context.approved }` permit makes the policy deny the server, and the turn
+  fails like for any denied server.
 
 ## Out of scope
 
