@@ -13,6 +13,11 @@ import {
   type ReadChannelResult,
   readChannelResultSchema,
 } from "../lambda/chat-context.js";
+import {
+  type McpApprovalsRequest,
+  type McpApprovalsResult,
+  mcpApprovalsResultSchema,
+} from "../lambda/mcp-approvals.js";
 import type { PosterRequest } from "../lambda/poster.js";
 import type { ChatMessage } from "./transcript.js";
 
@@ -32,6 +37,7 @@ export interface PosterClient {
   call<T = unknown>(request: PosterRequest): Promise<T>;
   listThreads(request: Omit<ListThreadsRequest, "operation">): Promise<ListThreadsResult>;
   readChannel(request: Omit<ReadChannelRequest, "operation">): Promise<ReadChannelResult>;
+  mcpApprovals(request: Omit<McpApprovalsRequest, "operation">): Promise<McpApprovalsResult>;
 }
 
 /**
@@ -86,6 +92,11 @@ export function createPosterClient(functionName: string, exec: Exec = execComman
     async readChannel(request) {
       return readChannelResultSchema.parse(
         await client.call({ operation: "read-channel", ...request }),
+      );
+    },
+    async mcpApprovals(request) {
+      return mcpApprovalsResultSchema.parse(
+        await client.call({ operation: "mcp-approvals", ...request }),
       );
     },
   };

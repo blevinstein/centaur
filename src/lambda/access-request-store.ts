@@ -70,6 +70,22 @@ export function createAccessRequestStore(
     claimSubject: (kind: RequestKind, subjectId: string) =>
       state.setIfNotExists(subjectKey(kind, subjectId), true, ttlMs),
 
+    /** Points the subject's pending slot at its request so the request can be found by subject. */
+    linkSubject: (request: AccessRequest) =>
+      state.set(subjectKey(request.kind, request.subjectId), request.id, ttlMs),
+
+    /** Merges `fields` into the pending `mcp` request of the subject; false when none is pending. */
+    async updatePending(subjectId: string, fields: Partial<AccessRequest>) {
+      const id = await state.get<string>(subjectKey("mcp", subjectId));
+      const request =
+        typeof id === "string" ? await state.get<AccessRequest>(requestKey(id)) : null;
+      if (!request) return false;
+      const remaining = ttlMs - (Date.now() - Date.parse(request.createdAt));
+      if (remaining <= 0) return false;
+      await state.set(requestKey(request.id), { ...request, ...fields }, remaining);
+      return true;
+    },
+
     async releaseSubject(kind: RequestKind, subjectId: string) {
       await state.delete(subjectKey(kind, subjectId));
       await state.delete(noticeKey(kind, subjectId));

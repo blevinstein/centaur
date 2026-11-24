@@ -166,3 +166,10 @@
   `chat.channel(id).messages` never reads the stored list. A change to a history reader needs a test
   on the real `Chat` and DynamoDB state (`realTelegramChat`, `test/helpers/real-chat-fixtures.ts`),
   because the scripted chats in other tests hide this.
+- A new access request kind goes through `createRequestRaiser` (`src/lambda/access-requests.ts`) and
+  the `appliers` map in `src/lambda/access-decisions.ts`.
+- In a fresh worktree also run `python3 -m venv .venv && .venv/bin/pip install -r
+  requirements-dev.txt` before `yarn lint:cfn`.
+- The poster's `mcp-approvals` (`src/lambda/mcp-approvals.ts`) reads decisions only through
+  `mcpApprovalParameter`, the store's `isDenied` and `createMcpApprovalRequester`, and an error is
+  thrown, never answered as `approved`.

@@ -55,7 +55,7 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
   - [x] Approval 2: the `mcp` access-request kind, decisions by reaction and `/approve` / `/deny`, the
         SSM record, the `mcp-denied` TTL record, IAM, and the re-dispatch when `suspended`. No
         dependencies (parallel with 1). **[HUMAN APPROVAL]** deploy of the Lambda and IAM change.
-  - [ ] Approval 3: poster `mcp-approvals` operation and `docs/poster.md`. Needs 2.
+  - [x] Approval 3: poster `mcp-approvals` operation and `docs/poster.md`. Needs 2.
         **[HUMAN APPROVAL]** deploy of the Lambda change.
   - [ ] Approval 4: `prepare` wiring, the synchronous window, prompt lines and the `mcp_approval`
         config key. Needs 1 and 3.

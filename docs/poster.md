@@ -22,6 +22,7 @@ to a repo (a connection's secrets under `bots/<bot>/platforms/<platform>/` plus 
 | `register` | `token` (GitHub OIDC JWT), `config` (the config file's text) | `{ bot, repo }` |
 | `link-pull-request` | `token` (GitHub OIDC JWT), `bot`, `threadId`, `pullRequest` (number) | `{ linked: true }` |
 | `resolve-pull-request` | `token` (GitHub OIDC JWT), `pullRequest` (number), optional `withThreadId` (boolean) | `{ found: false }` or `{ found: true, bot, threadKey }`, plus `threadId` only when `withThreadId` is true |
+| `mcp-approvals` | `token` (GitHub OIDC JWT), `bot`, `threadId`, `messageId`, `servers`: `[{ name, fingerprint, summary }]` (1 to 20; `summary` at most 2000 characters), optional `suspend` (boolean) | `{ servers: { <name>: "approved" \| "pending" \| "denied" } }` |
 
 All thread operations go through the bot's own Chat instance and state prefix (`bot:<bot>:`), so
 the bot's posts land in the stored transcript the receiver and `read` use.
@@ -240,6 +241,17 @@ GitHub-visible place. The thread key is what outputs and concurrency groups use.
 After a comment turn, `finish` calls `link-pull-request` again for the same pull request and
 thread, which restarts the TTL.
 
+## `mcp-approvals`
+
+Reads the admin's decision for each MCP server definition, identified by `<name>:<fingerprint>` (`summary` is shown to the admin and only length-limited). The repository comes from the verified OIDC claim and must be the bot's bound repository. For each server, in order:
+
+1. The SSM record `bots/<bot>/mcp-approvals/<name>/<fingerprint>` exists: `approved`.
+2. The `mcp-denied` state record exists (7 days): `denied`.
+3. Otherwise the shared request raiser opens one request to the platform admin (one pending request per definition, 10 new requests per bot per hour, 7-day expiry) and the result is `pending`. A request over the hourly limit or one that could not be delivered is also `pending`.
+4. A bot with no admin on its platform gets `denied`, no record is created, and the Lambda logs a warning with the bot and platform.
+
+Reads are idempotent, so the runner can poll during its synchronous window: a repeated read neither creates a second request nor sends a second DM. `suspend: true` marks the pending request `suspended` and records `threadId` and `messageId` on it, so the decision re-dispatches that thread; a read without `suspend` never sets or clears the flag. An error reading SSM or state fails the invocation; the client treats a failed call as `pending`, never `approved`.
+
 ## Security model
 
 `read` also takes a `token` and requires the bot to be bound to the caller's repository, so a repo
@@ -250,7 +262,7 @@ allows to invoke the function. In a self-hosted deployment the operator owns the
 role's trust policy is limited to `repo:<owner>/*`, and the operator controls every repo under that
 owner, so any repo under the owner can act as any bot by design. The operations that act for a
 repository (`register`, `link-pull-request`, `resolve-pull-request`, `read`, `list-threads`,
-`read-channel`) take it from the verified OIDC
+`read-channel`, `mcp-approvals`) take it from the verified OIDC
 claim instead.
 
 This is accepted for self-hosted use. A hosted multi-tenant deployment would need a per-repo token

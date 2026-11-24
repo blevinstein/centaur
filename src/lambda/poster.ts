@@ -16,6 +16,7 @@ import {
   listThreadsRequestSchema,
   readChannelRequestSchema,
 } from "./chat-context.js";
+import { createMcpApprovals, mcpApprovalsRequestSchema } from "./mcp-approvals.js";
 import type { McpPolicyReader } from "./mcp-policy.js";
 import type { OidcVerifier } from "./oidc.js";
 import type { ThreadMetadata } from "./ownership.js";
@@ -100,6 +101,7 @@ export const posterRequestSchema = z.discriminatedUnion("operation", [
     pullRequest,
     withThreadId: z.boolean().optional(),
   }),
+  mcpApprovalsRequestSchema,
   listThreadsRequestSchema,
   readChannelRequestSchema,
 ]);
@@ -108,7 +110,7 @@ export type PosterRequest = z.input<typeof posterRequestSchema>;
 
 export type PosterChat = Pick<
   Chat<Record<string, Adapter>, ThreadMetadata>,
-  "initialize" | "thread" | "channel" | "history" | "thread" | "channel"
+  "initialize" | "thread" | "channel" | "history" | "openDM"
 >;
 
 export interface PosterDeps {
@@ -120,7 +122,7 @@ export interface PosterDeps {
   oidc: OidcVerifier;
   globalMcpPolicy: McpPolicyReader;
   functionUrl: string;
-  logger: Pick<Logger, "warn">;
+  logger: Pick<Logger, "info" | "warn" | "error">;
 }
 
 export async function createPoster(deps: PosterDeps) {
@@ -187,6 +189,16 @@ export async function createPoster(deps: PosterDeps) {
     logger,
   });
 
+  const mcpApprovals = createMcpApprovals({
+    params,
+    oidc: deps.oidc,
+    open: async (botName, threadId) => {
+      const { bot, chat, state } = await openThreadChat(botName, threadId);
+      return { bot, messenger: chat, state };
+    },
+    logger,
+  });
+
   const threadStarter = createThreadStarter({
     params,
     logger,
@@ -207,6 +219,8 @@ export async function createPoster(deps: PosterDeps) {
         return pullRequests.link(request);
       case "resolve-pull-request":
         return pullRequests.resolve(request);
+      case "mcp-approvals":
+        return mcpApprovals(request);
       case "list-threads":
         return chatContext.listThreads(request);
       case "read-channel":

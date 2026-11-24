@@ -80,6 +80,7 @@ function createRequestRaiser({
     const { fields, lines } = await describe();
     const request = await store.create({ kind, subjectId, ...fields });
     await store.recordRequest();
+    await store.linkSubject(request);
 
     const denyVerb = kind === "mcp" ? "deny" : "deny and block";
     const text = [

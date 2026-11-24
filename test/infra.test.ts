@@ -52,6 +52,12 @@ describe("the Lambda role's parameter permissions", () => {
     expect(resourcesFor("ssm:PutParameter").some(covers)).toBe(true);
   });
 
+  it("can read an MCP approval record", () => {
+    const name = "/centaur/bots/garden/mcp-approvals/linear/0123456789abcdef";
+    const covers = (pattern: string) => new RegExp(`^${pattern.replace(/\*/g, ".*")}$`).test(name);
+    expect(resourcesFor("ssm:GetParameter").some(covers)).toBe(true);
+  });
+
   it("can read chat aliases individually and by path", () => {
     expect(resourcesFor("ssm:GetParameter")).toContain("/centaur/chats/*");
     expect(resourcesFor("ssm:GetParametersByPath")).toEqual(

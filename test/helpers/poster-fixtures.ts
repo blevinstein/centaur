@@ -114,8 +114,10 @@ export function fakePosterChat(transcript: unknown[] = []) {
   const fetchChannelMessages = vi.fn(async () => ({ messages: [], nextCursor: undefined }));
   const appendHistory = vi.fn(async () => {});
   const collectHistory = vi.fn(async function* (): AsyncGenerator<unknown> {});
+  const adminPost = vi.fn(async (_message: { raw: string }) => ({ id: "dm-1" }));
   const chat = {
     initialize: vi.fn(async () => {}),
+    openDM: vi.fn(async (_userId: string) => ({ post: adminPost })),
     history: { thread: { append: appendHistory, collect: collectHistory } },
     thread: vi.fn((id: string) => {
       const [platform, chatId] = id.split(":");
@@ -140,6 +142,7 @@ export function fakePosterChat(transcript: unknown[] = []) {
     removeReaction,
     rehydrateAttachment,
     appendHistory,
+    adminPost,
     channelPost,
     listThreads,
     fetchChannelMessages,
@@ -174,7 +177,7 @@ export async function posterSetup(
   const telegram = fakeTelegram();
   const oidc = fakeOidc(options.repository);
   const posting = fakePosterChat(options.transcript);
-  const logger = { warn: vi.fn() };
+  const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const createState = vi.fn(
     options.createState ??
       ((prefix: string) => (prefix === "" ? registryState : createMemoryState())),
