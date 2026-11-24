@@ -31,8 +31,8 @@ export function registerApproversCommands(program: Command, context: CliContext)
       const { platform, admin, names } = await connection(bot, options);
       const lines = await Promise.all(
         names.map(async (name) => {
-          const { at } = decodeEntry((await context.store.get(name)) ?? "");
-          return `${subjectIdOf(name)}  ${at}`;
+          const { at, approver } = decodeEntry((await context.store.get(name)) ?? "");
+          return `${subjectIdOf(name)}  ${at}  added by ${approver ?? "the CLI"}`;
         }),
       );
       context.log(

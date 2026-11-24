@@ -3,7 +3,7 @@ import { MAX_APPROVERS } from "../src/lambda/approvers.js";
 import { approverPath, createApproverHarness, createCliHarness } from "./helpers/cli.js";
 
 describe("approvers add", () => {
-  it("writes an entry with the time", async () => {
+  it("writes an entry with the time and no approver", async () => {
     const cli = await createApproverHarness();
 
     await cli.run("approvers", "add", "garden", "6001");
@@ -106,15 +106,15 @@ describe("approvers list", () => {
     expect(cli.output.at(-1)).toMatch(/The admin \(none\) is always an approver\.$/);
   });
 
-  it("lists each approver in order with its time", async () => {
+  it("lists each approver in order with its time and who added it", async () => {
     const cli = await createApproverHarness();
     await cli.run("approvers", "add", "garden", "6002");
-    await cli.addApprover("garden", "telegram", "6001");
+    await cli.addApprover("garden", "telegram", "6001", "5001");
 
     await cli.run("approvers", "list", "garden");
 
     expect(cli.output.at(-1)).toMatch(
-      /^6001 {2}unknown\n6002 {2}\d{4}-.*\nThe admin \(5001\) is always an approver\.$/,
+      /^6001 {2}2026-01-02T03:04:05\.000Z {2}added by 5001\n6002 {2}\d{4}-\S+ {2}added by the CLI\nThe admin \(5001\) is always an approver\.$/,
     );
   });
 });

@@ -248,9 +248,10 @@ decide MCP approvals. Each entry is `/centaur/bots/<bot>/platforms/<platform>/ap
 approver on one connection grants nothing on another. All three take `--platform` like `access`; changes
 apply to the next decision.
 
-- `list <bot>` prints `user id  added-at`, or `No approvers for "<bot>" on <platform>.`, then the admin
-  (`none` if unclaimed), who is always an approver.
-- `add <bot> <user id>` writes an entry holding the time. It refuses when the platform has no admin (the
+- `list <bot>` prints `user id  added-at  added by <approver id>`, or `No approvers for "<bot>" on <platform>.`, then the admin
+  (`none` if unclaimed), who is always an approver. The approver ID is the user who authorized the entry in
+  chat (the admin's decision); an entry written by `add` has no approver ID and shows `added by the CLI`.
+- `add <bot> <user id>` writes an entry holding the time and no approver ID. It refuses when the platform has no admin (the
   set has no effect without one), for the admin's own ID, and when the connection already has 10
   approvers. Adding an existing approver changes nothing.
 - `remove <bot> <user id>` deletes the entry and errors, deleting nothing, if there is none.
@@ -259,7 +260,7 @@ apply to the next decision.
 $ centaur approvers add garden <user id>
 Added approver <user id> for bot "garden".
 $ centaur approvers list garden
-<user id>  2026-01-02T03:04:05.000Z
+<user id>  2026-01-02T03:04:05.000Z  added by the CLI
 The admin (<admin id>) is always an approver.
 $ centaur approvers remove garden <user id>
 Removed approver <user id> for bot "garden".

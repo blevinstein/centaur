@@ -8,7 +8,7 @@ audit record and the `approverId` log field. Slice 2 (fan-out) is built: `recipi
 recipient for `mcp` requests and the channel-keyed message link. Slice 3 is built: the `approver`
 request kind, `request` and `leave` (`src/lambda/approver-commands.ts`); it needs the Lambda and IAM
 deploy. Slice 5 (the CLI, `centaur approvers`) is built; it writes entries without the `approver`
-field the entry codec now has. Not built: admin commands (4), access requests (6) and the docs
+field by design, and `list` shows that field (`added by <id>`, or `added by the CLI` without it). Not built: admin commands (4), access requests (6) and the docs
 fold-in (7). The [Decisions](#decisions) are the design. Terms (admin channel, access request, claim) are
 defined in [plan.md](plan.md#access-requests); the request kind that motivates this is in
 [mcp-approval.md](mcp-approval.md).

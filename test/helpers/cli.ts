@@ -48,8 +48,12 @@ export function createCliHarness(
     approveChat: (bot: string, platform: Platform, chatId: string) =>
       store.put(approvedParameter(bot, platform, "chat", chatId), "{}", { secure: false }),
     /** Writes an approver entry directly, as an approved chat request would. */
-    addApprover: (bot: string, platform: Platform, userId: string) =>
-      store.put(approverParameter(bot, platform, userId), "{}", { secure: false }),
+    addApprover: (bot: string, platform: Platform, userId: string, approver?: string) =>
+      store.put(
+        approverParameter(bot, platform, userId),
+        approver ? JSON.stringify({ approver, at: "2026-01-02T03:04:05.000Z" }) : "{}",
+        { secure: false },
+      ),
     /** Records an MCP server approval directly, as the poster does on an admin decision. */
     approveMcp: (bot: string, name: string, fingerprint: string, at = "2026-01-02T03:04:05.000Z") =>
       store.put(
