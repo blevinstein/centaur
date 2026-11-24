@@ -332,6 +332,20 @@ centaur config check path/to/.centaur.yml
 centaur config check path/to/.centaur/config.yml
 ```
 
+### `centaur repo vars [--stack <name>] [--repo <owner/repo>] [--org <org>] [--dry-run]`
+
+Sets the five `CENTAUR_*` Actions variables the shared workflows read ([workflows.md](workflows.md#variables-and-secrets))
+from the deployed CloudFormation stack (default name `centaur`). Without `--repo` or `--org` it
+sets them on the GitHub repository of the current directory; `--org` sets them organization-wide for
+all repositories. `--dry-run` prints `NAME=value` lines without setting anything. It needs the
+`aws` and `gh` CLIs, logged in, and does not touch SSM. Exits 1 if the stack cannot be described or
+is not a Centaur stack, or if no repository can be detected.
+
+```sh
+cd ~/dev/garden && centaur repo vars
+centaur repo vars --org acme --dry-run
+```
+
 ## Supplying secrets
 
 For each secret the CLI needs, in order:

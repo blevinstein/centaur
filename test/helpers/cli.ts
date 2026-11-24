@@ -25,6 +25,7 @@ export function createCliHarness(
   telegram: CliContext["telegram"] = { getMe: async () => ({ username: "garden_bot" }) },
   store = new FakeParameterStore(),
   chatAccess: CliContext["chatAccess"] = fakeChatAccess().access,
+  exec: CliContext["exec"] = async () => "",
 ) {
   const output: string[] = [];
   const readSecrets: SecretReader = async (names) =>
@@ -34,6 +35,7 @@ export function createCliHarness(
     telegram,
     chatAccess,
     readSecrets,
+    exec,
     log: (message) => output.push(message),
   });
   return {

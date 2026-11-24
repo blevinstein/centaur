@@ -224,8 +224,8 @@ answered by **Centaur message**.
 
 ## Variables and secrets
 
-Set as repository or organization **variables**. `scripts/set-repo-vars.sh --stack centaur
-(--repo OWNER/REPO | --org ORG)` reads them from the stack and sets them with `gh` (`--dry-run`
+Set as repository or organization **variables**. `centaur repo vars` (run in the repo, or with
+`--repo OWNER/REPO` / `--org ORG`) reads them from the stack and sets them with `gh` (`--dry-run`
 prints them instead):
 
 | Variable | Value |

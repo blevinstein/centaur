@@ -56,7 +56,7 @@ You review and merge the pull request; the next turn sees the new note.
    ([docs/onboarding.md](docs/onboarding.md)).
 
 3. **Add a `.centaur.yml` to each repo**, with a persona and caller workflows. Set its Actions
-   variables with `scripts/set-repo-vars.sh` (reads them from the stack) and add the API key secret.
+   variables by running `centaur repo vars` in the repo (reads them from the stack) and add the API key secret.
    Push it to the default branch to register the bot
    ([docs/onboarding.md](docs/onboarding.md#adding-a-repo), [config reference](docs/config.md)):
 

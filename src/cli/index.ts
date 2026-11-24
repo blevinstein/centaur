@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { CommanderError } from "commander";
 import { createTelegramApi } from "../lambda/telegram.js";
+import { execCommand } from "../workflows/aws.js";
 import { createChatAccess } from "./chat-access.js";
 import { SsmParameterStore } from "./parameter-store.js";
 import { buildProgram } from "./program.js";
@@ -12,6 +13,7 @@ const program = buildProgram({
   telegram: createTelegramApi(),
   chatAccess: createChatAccess(),
   readSecrets: readSecretsFromEnvOrInput,
+  exec: execCommand,
   log: console.log,
 });
 
