@@ -45,7 +45,7 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
       **[HUMAN ACTION]** Deploy the stack (`yarn deploy-prod`) so the poster serves `get-mcp-policy`;
       until then every turn and registration with `mcp_servers` fails closed. Then confirm a turn
       with `mcp_servers` still passes and an unpinned local server is denied.
-- [ ] **Approval-required** MCP servers: implemented except the live check; design:
+- [x] **Approval-required** MCP servers: implemented and checked live (2026-11-24); design:
       [docs/mcp-approval.md](docs/mcp-approval.md) (code in its
       [implementation map](docs/mcp-approval.md#implementation-map)). Slices:
   - [x] Approval 1: Cedar `context.approved`, two-pass `authorize`, fingerprint helper,
@@ -59,14 +59,19 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
   - [x] Approval 4: `prepare` wiring (one `mcp-approvals` call per turn) and prompt lines. Needs 1 and 3.
   - [x] Approval 5: `suspend_for` field and the `finish` suspend. Needs 4.
   - [x] Approval 6: `centaur mcp approvals` list and `revoke`. Needs 2.
-  - [ ] **[HUMAN ACTION]** Approval live check: after `yarn deploy-prod` (the receiver, poster and
-        IAM changes are undeployed), put a remote MCP server behind a `when { context.approved }`
-        policy and run, in the bot's real chat: a turn that is told the server is awaiting approval
-        and answers without it; a turn where the agent returns suspend_for, ends, 👍 on the admin
-        DM, the resumed turn answers the original request; a 👎 (denied, answers without it, no new
-        question for 7 days); `centaur mcp approvals` lists it and `centaur mcp revoke` removes it;
-        editing the server URL asks a new question; the DM and the job log show no message text,
-        thread ID or chat ID.
+  - [x] **[HUMAN ACTION]** Approval live check, done on this repo's read-only GitHub server behind
+        a `when { context.approved }` permit. Verified: the policy flags the server and `prepare`
+        drops it until approved; a chat turn raises the request and the admin gets the DM; a 👍
+        records the approval and the server is then used by a chat turn and by a scheduled prompt;
+        a turn that suspends posts its reply and the admin's later decision resumes it, including a
+        decision that lands before the suspend call; the status shows as a reaction instead of a
+        post; `centaur mcp approvals` lists the approval and `centaur mcp revoke` removes it, after
+        which the server is asked about again; run logs show no message text, thread ID, chat ID or
+        token. The live check found and fixed six bugs (thread-less read on a multi-platform bot, a
+        reply-less suspend, a stale pending slot, a decision before the suspend call, the poster's
+        eager GitHub token read, and a shallow checkout). Not run live: a 👎 denial (it blocks the
+        server for 7 days) and an edit of the server definition asking a new question; both are
+        covered by tests.
 - [ ] Offer to redo the original request after an approval when the agent answered without
       suspending (store the request and re-ask on approval; today the receiver only posts that the
       server is available and the user asks again)
@@ -93,6 +98,10 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
         Needs 1. Optional and open: nothing else depends on it.
   - [x] Approvers 7: fold the design's docs table (section 9) into plan, mcp-approval, cli and
         deploy. Needs 1 to 5.
+  - [ ] **[HUMAN ACTION]** Approvers live check: a second account sends the bot `approver request`
+        in a direct message, the admin approves it, and `centaur approvers list` shows them; the
+        admin tries `approver add` by Telegram reply and by Slack mention, and the approver can
+        decide an MCP request and then `approver leave`. Not run yet: it needs a second account.
 - [ ] Explore a way to update the MCP policy by adding entries to an allowlist, with some level of
       generalization (for example allow a server by name, by URL or host pattern, or a tool within
       it) instead of editing the Cedar files by hand. Open questions to settle first: who may add an
