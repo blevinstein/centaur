@@ -58,7 +58,7 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
   - [x] Approval 3: poster `mcp-approvals` operation and `docs/poster.md`. Needs 2.
         **[HUMAN APPROVAL]** deploy of the Lambda change.
   - [x] Approval 4: `prepare` wiring (one `mcp-approvals` call per turn) and prompt lines. Needs 1 and 3.
-  - [ ] Approval 5: `suspend_for` field and the `finish` suspend. Needs 4.
+  - [x] Approval 5: `suspend_for` field and the `finish` suspend. Needs 4.
   - [x] Approval 6: `centaur mcp approvals` list and `revoke`. Needs 2.
   - [ ] Approval 7: docs fold-in and the live check. Needs 1 to 6. **[HUMAN ACTION]** run the live
         check against a remote server in the bot's real chat.

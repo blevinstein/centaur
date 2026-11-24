@@ -126,7 +126,8 @@ Suspending is only for **chat turns**. It does not apply to:
 every `resume` thread) and **does not advance the last-processed marker**, then calls the poster
 `mcp-approvals` with `suspend: true` for the named servers. The job ends and the thread's concurrency
 group is free, so later messages run normally (and see the same pending messages, still without the
-server).
+server). The marker stays only if the `suspend: true` call succeeds; if it fails, `finish` advances
+it as for any turn, because no decision will resume the thread.
 
 **Pending record.** Extends the access request (`kind: "mcp"`, state table, TTL 7 days like every
 request):

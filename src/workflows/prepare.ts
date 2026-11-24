@@ -25,6 +25,7 @@ import {
   approvalThread,
   askApprovals,
   NO_DROPPED,
+  type SuspendableServers,
   withoutServers,
 } from "./mcp-approval.js";
 import { buildChatServerConfig, buildMcpConfig } from "./mcp-config.js";
@@ -88,6 +89,8 @@ export interface TurnState {
   /** The thread `marker` was read from; `finish` stores it only when that thread is the primary one. */
   markerThreadId?: string;
   source?: ReactionSource;
+  /** Pending servers the agent may suspend the turn for; absent when the turn never suspends. */
+  suspend?: SuspendableServers;
   sessionDirectory: string;
 }
 
@@ -510,10 +513,12 @@ export function buildClaudeArgs(input: {
   canStaySilent: boolean;
   mode: TurnState["mode"];
   allowExisting: boolean;
+  suspendable?: string[] | undefined;
   chatTools?: boolean | undefined;
   mcpConfig?: string | undefined;
 }) {
   const { config, persona, resumeSessionId, canStaySilent, mode, allowExisting, mcpConfig } = input;
+  const suspendable = input.suspendable ?? [];
   const allowNewPr = config.pull_requests.comment_new;
   const readRule = config.allowed_tools.includes("Read") ? [] : [`Read(./${TURN_DIR}/**)`];
   const chatRule = input.chatTools ? [`mcp__${CHAT_SERVER_NAME}__*`] : [];
@@ -524,7 +529,7 @@ export function buildClaudeArgs(input: {
     `--allowedTools "${tools}"`,
     `--max-turns ${config.max_turns}`,
     ...(config.max_budget_usd ? [`--max-budget-usd ${config.max_budget_usd}`] : []),
-    `--json-schema '${JSON.stringify(replySchema({ canStaySilent, mode, allowNewPr, allowExisting }))}'`,
+    `--json-schema '${JSON.stringify(replySchema({ canStaySilent, mode, allowNewPr, allowExisting, suspendable }))}'`,
     ...(mcpConfig ? [`--mcp-config ${mcpConfig}`] : []),
     ...(persona ? [`--append-system-prompt-file ${persona}`] : []),
     ...(resumeSessionId ? [`--resume ${resumeSessionId}`] : []),
@@ -564,11 +569,15 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
       ? await commentTurn(deps, deps.comment, config, instructions, directory)
       : await chatTurn(deps, config, instructions, directory);
   if (!turn) return skipped;
-  const { dropped, notice } =
+  const { dropped, notice, pendingServers } =
     approvals.length > 0
       ? await askApprovals(deps, config, approvals, turn.approvalThread)
       : NO_DROPPED;
   const kept = withoutServers(dropped, mcp.config.mcpServers, config.allowed_tools);
+  const suspend: SuspendableServers | undefined =
+    turn.mode === "reply" && turn.approvalThread && pendingServers.length > 0
+      ? { thread: turn.approvalThread, servers: pendingServers }
+      : undefined;
 
   const state: TurnState = {
     mode: turn.mode,
@@ -583,11 +592,12 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     ...(turn.marker ? { marker: turn.marker } : {}),
     ...(turn.markerThreadId ? { markerThreadId: turn.markerThreadId } : {}),
     ...(turn.source ? { source: turn.source } : {}),
+    ...(suspend ? { suspend } : {}),
   };
   await mkdir(join(deps.workspace, TURN_DIR), { recursive: true });
   await writeFile(
     join(deps.workspace, PROMPT_FILE),
-    [turn.prompt, mcpApprovalSection(notice)].filter(Boolean).join("\n\n"),
+    [turn.prompt, mcpApprovalSection(notice, suspend !== undefined)].filter(Boolean).join("\n\n"),
   );
   await writeTurnState(deps.stateDir, state);
   const chatTools = Boolean(turn.threadId) && chatToolsEnabled(config);
@@ -631,6 +641,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
       canStaySilent: turn.canStaySilent === true,
       mode: turn.mode,
       allowExisting: turn.allowExisting,
+      suspendable: suspend?.servers.map(({ name }) => name),
       chatTools,
       mcpConfig: hasMcpServers ? MCP_CONFIG_FILE : undefined,
     }),

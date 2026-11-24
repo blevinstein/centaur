@@ -195,6 +195,18 @@ section: servers awaiting the admin (with their tools) and servers the admin den
 polled: a later decision is used by the next turn. See [mcp.md](mcp.md#operator-policy) and
 [mcp-approval.md](mcp-approval.md).
 
+A chat turn in an existing thread (not a scheduled prompt or a pull request comment turn) whose
+poster answer left servers pending may also return `suspend_for`, an array of up to 20 server names;
+the schema offers the field, and the prompt one sentence about it, only then. `prepare` records the
+pending servers (names, fingerprints, summaries) and the thread in the turn state, and `finish`
+honors only entries in that record, so a name that is not pending, or any `suspend_for` on a turn
+that cannot suspend, is ignored. A valid `suspend_for` posts the reply and clears the reactions as
+usual and saves the session, but leaves the last-processed marker where it was and calls
+`mcp-approvals` with `suspend: true` for the named servers; the decision then re-dispatches the
+thread. If that call fails, `finish` logs the error type only and ends as an ordinary turn,
+advancing the marker so the thread is not left replaying messages that no decision will resume.
+`finish` needs the OIDC token for that call, which the turn action already provides.
+
 ## This repo as a test consumer
 
 This repo is its own consumer, for end-to-end testing: `.centaur/config.yml` binds the `centaur-slack` bot to Slack and Telegram
@@ -262,7 +274,7 @@ Commands: `register`, `resolve`, `resolve-schedule`, `prepare`, `pr-details`, `f
    the repo's `instructions` overrides in the config, read from the checkout like the persona)
    followed by fixed text in `prompt.ts`: the untrusted-input warning and the structured-output
    fields the workflow parses (`reply`, `ignore`, `pr_title`, ...), which a repo cannot override.
-   It outputs the `claude_args` (model and tuning flags, `--allowedTools`, `--json-schema` requiring `reply` (or, for `respond_to: all` threads, `reply` or `ignore: true`; optionally `pr_title`, `pr_body`, and the `pr_action` or `existing_pr_number` target field when enabled), persona
+   It outputs the `claude_args` (model and tuning flags, `--allowedTools`, `--json-schema` requiring `reply` (or, for `respond_to: all` threads, `reply` or `ignore: true`; optionally `pr_title`, `pr_body`, and the `pr_action` or `existing_pr_number` target field when enabled, `suspend_for` when approval-required servers are pending), persona
    via `--append-system-prompt-file`, `--resume <id>`). When there is nothing to do (everything
    processed, or only a `/resume` or `/transcript` command, which is acknowledged in the thread),
    the remaining steps are skipped.

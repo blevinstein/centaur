@@ -1,3 +1,4 @@
+import { MCP_APPROVAL_SERVERS_MAX } from "../lambda/mcp-approvals.js";
 import { fence } from "./clean-text.js";
 import { DEFAULT_INSTRUCTIONS, type Instructions } from "./instructions.js";
 import type { McpApprovalNotice } from "./mcp-approval.js";
@@ -153,6 +154,8 @@ export interface ReplySchemaOptions {
   mode: TurnState["mode"];
   allowNewPr: boolean;
   allowExisting: boolean;
+  /** Pending MCP servers the agent may suspend for; the field is offered only when non-empty. */
+  suspendable?: string[] | undefined;
 }
 
 export const replySchema = ({
@@ -160,6 +163,7 @@ export const replySchema = ({
   mode,
   allowNewPr,
   allowExisting,
+  suspendable = [],
 }: ReplySchemaOptions) => ({
   type: "object",
   properties: {
@@ -172,19 +176,37 @@ export const replySchema = ({
     ...(mode !== "comment" && allowExisting
       ? { existing_pr_number: { type: "integer", minimum: 1 } }
       : {}),
+    ...(suspendable.length > 0
+      ? {
+          suspend_for: {
+            type: "array",
+            items: { enum: suspendable },
+            uniqueItems: true,
+            maxItems: MCP_APPROVAL_SERVERS_MAX,
+          },
+        }
+      : {}),
   },
   required: canStaySilent ? [] : ["reply"],
   additionalProperties: false,
 });
 
-/** What the agent is told about approval-required MCP servers that are not running this turn. */
-export function mcpApprovalSection({ pending, denied }: McpApprovalNotice) {
+const SUSPEND_CONTRACT = `If you cannot complete the request without one of these servers, return "suspend_for" with the server name(s) instead of working around the absence.`;
+
+/**
+ * What the agent is told about approval-required MCP servers that are not running this turn;
+ * `canSuspend` adds the `suspend_for` instruction.
+ */
+export function mcpApprovalSection({ pending, denied }: McpApprovalNotice, canSuspend: boolean) {
   const lines = [
     ...(pending.length > 0
       ? [
-          `MCP servers awaiting admin approval and unavailable this turn: ${pending
-            .map(({ name, tools }) => `${name} (tools: ${tools.join(", ")})`)
-            .join("; ")}.`,
+          [
+            `MCP servers awaiting admin approval and unavailable this turn: ${pending
+              .map(({ name, tools }) => `${name} (tools: ${tools.join(", ")})`)
+              .join("; ")}.`,
+            ...(canSuspend ? [SUSPEND_CONTRACT] : []),
+          ].join(" "),
         ]
       : []),
     ...denied.map((name) => `MCP server ${name} was denied by the admin; answer without it.`),

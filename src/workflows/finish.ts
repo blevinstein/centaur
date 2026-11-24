@@ -1,8 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
+import { MCP_APPROVAL_SERVERS_MAX } from "../lambda/mcp-approvals.js";
 import { threadKey } from "../thread-key.js";
 import type { PosterClient, ThreadStore } from "./aws.js";
 import { cleanBody, cleanTitle } from "./clean-text.js";
+import { approvalsRequest } from "./mcp-approval.js";
 import type { StartTarget, TurnState } from "./prepare.js";
 import { pullRequestDetails } from "./pull-request.js";
 import type { PullRequestWriter } from "./pull-request-comments.js";
@@ -25,6 +27,7 @@ const resultMessage = z.object({
       pr_body: z.string().optional(),
       pr_action: z.enum(["update", "new"]).optional(),
       existing_pr_number: z.number().int().positive().optional(),
+      suspend_for: z.array(z.string()).max(MCP_APPROVAL_SERVERS_MAX).optional(),
     })
     .refine((output) => (output.reply !== undefined) !== (output.ignore === true)),
 });
@@ -41,6 +44,7 @@ export function extractResult(executionFileText: string) {
     prBody: parsed.data.structured_output.pr_body,
     prAction: parsed.data.structured_output.pr_action,
     existingPr: parsed.data.structured_output.existing_pr_number,
+    suspendFor: parsed.data.structured_output.suspend_for,
     sessionId: parsed.data.session_id,
   };
 }
@@ -89,6 +93,8 @@ export interface FinishDeps {
   executionFile: string;
   pullRequestUrl?: string | undefined;
   pullRequestLink?: PullRequestLink | undefined;
+  /** OIDC token for the poster calls that act for the repository; without it a turn cannot suspend. */
+  fetchToken?: (() => Promise<string>) | undefined;
   poster: PosterClient;
   storeFor: (bot: string, threadId: string) => ThreadStore;
 }
@@ -329,6 +335,35 @@ function ignoreMisplacedTargets(state: TurnState, result: ReturnType<typeof extr
   return comment ? { ...result, existingPr: undefined } : { ...result, prAction: undefined };
 }
 
+/**
+ * Marks the requests of the servers the agent suspended for. Only servers that were pending when
+ * the turn started count; anything else in `suspend_for` is ignored. Returns whether the thread is
+ * suspended; a failed call is logged without text or IDs, and the turn ends as an ordinary one.
+ */
+async function suspendForApprovals(
+  deps: FinishDeps,
+  state: TurnState,
+  result: ReturnType<typeof extractResult>,
+) {
+  const { suspend } = state;
+  const servers = suspend?.servers.filter(({ name }) => result.suspendFor?.includes(name)) ?? [];
+  if (!suspend || !deps.fetchToken || servers.length === 0) return false;
+  try {
+    await deps.poster.mcpApprovals(
+      approvalsRequest(
+        { token: await deps.fetchToken(), bot: state.bot, servers, suspend: true },
+        suspend.thread,
+      ),
+    );
+    return true;
+  } catch (error) {
+    console.warn(
+      `::warning::could not suspend the thread for MCP server approval (${(error as Error).name})`,
+    );
+    return false;
+  }
+}
+
 export async function finish(deps: FinishDeps) {
   const state = await readTurnState(deps.stateDir);
   const result = ignoreMisplacedTargets(
@@ -361,7 +396,8 @@ export async function finish(deps: FinishDeps) {
   if (threadId) {
     await linkPullRequest(deps.poster, link, state.bot, threadId);
     const store = deps.storeFor(state.bot, threadId);
-    if (state.marker && (state.markerThreadId ?? threadId) === threadId) {
+    const suspended = await suspendForApprovals(deps, state, result);
+    if (!suspended && state.marker && (state.markerThreadId ?? threadId) === threadId) {
       await store.writeMarker(state.marker);
     }
     if (state.policy === "resume" && result.sessionId) {

@@ -1,11 +1,14 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { vi } from "vitest";
 import type { McpApprovalStatus } from "../../src/lambda/mcp-approvals.js";
 import type { PosterClient } from "../../src/workflows/aws.js";
-import { MCP_CONFIG_FILE, type PrepareDeps } from "../../src/workflows/prepare.js";
+import { type FinishDeps, finish } from "../../src/workflows/finish.js";
+import { MCP_CONFIG_FILE, type PrepareDeps, prepare } from "../../src/workflows/prepare.js";
+import { readTurnState } from "../../src/workflows/turn-state.js";
 import { fakePolicyGitHub, PERMIT_WHEN_APPROVED } from "./mcp-policy-fixtures.js";
-import { configText } from "./workflow-fixtures.js";
+import type { setup } from "./turn-fixtures.js";
+import { configText, THREAD_PREFIX } from "./workflow-fixtures.js";
 
 export const LINEAR_SECRET = "lin_secret_value";
 export const APPROVAL_ENV = { LINEAR_API_KEY: LINEAR_SECRET };
@@ -63,3 +66,31 @@ export const readMcpServers = async (root: string): Promise<string[] | undefined
 
 export const allowedToolsOf = (claudeArgs: string) =>
   /--allowedTools "([^"]*)"/.exec(claudeArgs)?.[1]?.split(",") ?? [];
+
+/**
+ * Runs `prepare` for a chat turn whose servers `asked` answers, then `finish` with the agent's
+ * `structuredOutput`; `asked` sees the prepare call first and the suspend call second.
+ */
+export async function finishAfterApprovalTurn(
+  run: Awaited<ReturnType<typeof setup>>,
+  asked: PosterClient["mcpApprovals"],
+  structuredOutput: object,
+  finishDeps: Partial<FinishDeps> = {},
+) {
+  await prepare(approvalDeps(run, asked));
+  await writeFile(join((await readTurnState(run.stateDir)).sessionDirectory, "s1.jsonl"), "data");
+  await run.writeExecution({ session_id: "s1", structured_output: structuredOutput });
+  await finish({
+    stateDir: run.stateDir,
+    executionFile: run.executionFile,
+    poster: posterAnswering(run.aws.poster, asked),
+    storeFor: run.aws.storeFor,
+    fetchToken: async () => "jwt",
+    ...finishDeps,
+  });
+}
+
+export const RESUME_CONTEXT = "context: {default: resume}";
+
+export const lastProcessed = (aws: { objects: Map<string, string> }) =>
+  aws.objects.get(`${THREAD_PREFIX}last-processed`);

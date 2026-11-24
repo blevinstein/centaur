@@ -102,6 +102,12 @@ const commentPullRequest = () => {
 
 const oidcFetcher = () => oidcTokenFetcher(process.env, env("CENTAUR_OIDC_AUDIENCE"));
 
+const maskedToken = async () => {
+  const token = await oidcFetcher()();
+  maskValue(token);
+  return token;
+};
+
 const commentDeps = () => {
   const pullRequest = commentPullRequest();
   if (!pullRequest) return undefined;
@@ -166,11 +172,7 @@ program.command("prepare").action(async () => {
     promptName: process.env.PROMPT_NAME || undefined,
     clientPayload: await clientPayload(),
     poster: poster(),
-    fetchToken: async () => {
-      const token = await oidcFetcher()();
-      maskValue(token);
-      return token;
-    },
+    fetchToken: maskedToken,
     attachments: attachments(),
     storeFor,
   });
@@ -265,6 +267,7 @@ program.command("finish").action(async () => {
       fetchToken: () => oidcFetcher()(),
       mask: maskValue,
     },
+    fetchToken: maskedToken,
     poster: poster(),
     storeFor,
   });
