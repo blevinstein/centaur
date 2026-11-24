@@ -352,6 +352,10 @@ Some of these are items that can be implemented in a single task; others require
 discussion before implementation. If a task has many subtasks, break it out into its own section
 for detailed tracking.
 
+- [ ] **[HUMAN APPROVAL]** Accept the decisions in [docs/skills-rules.md](docs/skills-rules.md):
+      built-in `centaur-*` skills installed into the runner's user skills directory, consumer
+      skills only from the trusted checkout, a `skills` config key. Unblocks the implementation and
+      the live skill-loading check.
 - [ ] Move not-yet-implemented docs into a proposals/ subdir to separate from already-implemented.
 - [x] Create a DONE.md file, and move sections of fully-completed TODO items into DONE.
 - [ ] Setup .centaur config for ~/dev/finances repo - monarch integration, consider using ledger for
