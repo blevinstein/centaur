@@ -16,6 +16,7 @@ import {
   listThreadsRequestSchema,
   readChannelRequestSchema,
 } from "./chat-context.js";
+import type { RepositoryDispatcher } from "./github.js";
 import { createMcpApprovals, mcpApprovalsRequestSchema } from "./mcp-approvals.js";
 import type { McpPolicyReader } from "./mcp-policy.js";
 import type { OidcVerifier } from "./oidc.js";
@@ -120,6 +121,7 @@ export interface PosterDeps {
   attachments: AttachmentStore;
   telegram: TelegramApi;
   oidc: OidcVerifier;
+  dispatcher: RepositoryDispatcher;
   globalMcpPolicy: McpPolicyReader;
   functionUrl: string;
   logger: Pick<Logger, "info" | "warn" | "error">;
@@ -197,6 +199,7 @@ export async function createPoster(deps: PosterDeps) {
       return { bot, messenger: chat, state };
     },
     openBotState: (botName) => stateFor(botStatePrefix(botName)),
+    dispatcher: deps.dispatcher,
     logger,
   });
 

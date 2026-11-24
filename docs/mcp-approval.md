@@ -162,6 +162,7 @@ server was approved or denied.
 
 | Case | Behavior |
 |---|---|
+| The decision lands before the turn's suspend call (a fast reaction while the turn runs, or between the call's request and its mark) | The decision handler saw no suspended request and dispatched nothing, so the poster's `suspend` call re-dispatches the thread itself when it finds the approval or denial: once per call however many servers were decided, with the others resuming or suspending again on their own decisions. If the handler also dispatched, the second resume turn finds nothing pending and exits as every empty turn does. A failed dispatch fails the call; `finish` logs it and ends the turn as an ordinary one, so the thread is not stuck. |
 | Double approval, reaction plus `/approve` | The existing claim makes the decision single-use; one dispatch. |
 | Thread moved on: a later message ran a turn before the decision | That turn already handled the pending messages (without the server) and advanced the marker. The resume turn finds nothing pending and exits as every empty turn does; the receiver's "approved, ask again" post tells the user the server is available. |
 | Approved, then revoked before the turn | `prepare` reads the record: the server is dropped and pending again, and the prompt says so. The decision released the pending slot, so the next turn asks the admin again. `suspend_for` is ignored for servers that were not pending, so a turn cannot loop. |

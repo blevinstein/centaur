@@ -5,6 +5,8 @@ import { createAccessRequestStore } from "./access-request-store.js";
 import { createMcpApprovalRequester } from "./access-requests.js";
 import { ADMIN_CHANNELS, type DirectMessenger } from "./admin-channel.js";
 import { mcpApprovalParameter } from "./connection-paths.js";
+import type { RepositoryDispatcher } from "./github.js";
+import { dispatchMessage } from "./message-handler.js";
 import type { OidcVerifier } from "./oidc.js";
 import type { ParameterStore } from "./parameters.js";
 import { type Bot, requireBound } from "./registry.js";
@@ -58,6 +60,7 @@ export interface McpApprovalsDeps {
   ) => Promise<{ bot: Bot; messenger: DirectMessenger; state: StateAdapter }>;
   /** The bot's state without a thread or a platform, for reads that never ask. */
   openBotState: (botName: string) => Promise<StateAdapter>;
+  dispatcher: RepositoryDispatcher;
   logger: Pick<Logger, "info" | "warn" | "error">;
 }
 
@@ -66,8 +69,22 @@ export interface McpApprovalsDeps {
  * request to the admin (raised once per definition). Without a thread the call is read-only: it
  * never asks, and answers `pending` where it would have. Failures throw, so the caller never reads
  * an error as an approval.
+ *
+ * A `suspend` call hands the wake-up to the decision handler, which re-dispatches the thread when
+ * it decides a request marked suspended. A decision that landed before the mark (already in when
+ * the call reads, or recorded while the call marks the request) is invisible to that handler, so
+ * the call re-dispatches the thread itself, once however many servers were decided. A decision
+ * the handler also dispatched for yields a second resume turn, which finds nothing pending and
+ * exits like any empty turn. A failed dispatch throws.
  */
-export function createMcpApprovals({ params, oidc, open, openBotState, logger }: McpApprovalsDeps) {
+export function createMcpApprovals({
+  params,
+  oidc,
+  open,
+  openBotState,
+  dispatcher,
+  logger,
+}: McpApprovalsDeps) {
   return async (request: McpApprovalsRequest): Promise<McpApprovalsResult> => {
     await requireBound(params, oidc, request.token, request.bot);
     const { threadId, messageId, suspend } = request;
@@ -87,17 +104,30 @@ export function createMcpApprovals({ params, oidc, open, openBotState, logger }:
         logger,
       });
 
-    const statusOf = async (
+    const decisionOf = async (
       server: McpApprovalsRequest["servers"][number],
-    ): Promise<McpApprovalStatus> => {
-      const subjectId = `${server.name}:${server.fingerprint}`;
+    ): Promise<McpApprovalStatus | undefined> => {
       if (
         (await params.get(mcpApprovalParameter(request.bot, server.name, server.fingerprint))) !==
         undefined
       ) {
         return "approved";
       }
-      if (await store.isDenied("mcp", subjectId)) return "denied";
+      return (await store.isDenied("mcp", `${server.name}:${server.fingerprint}`))
+        ? "denied"
+        : undefined;
+    };
+
+    let resume = false;
+    const statusOf = async (
+      server: McpApprovalsRequest["servers"][number],
+    ): Promise<McpApprovalStatus> => {
+      const subjectId = `${server.name}:${server.fingerprint}`;
+      const decided = await decisionOf(server);
+      if (decided) {
+        resume ||= Boolean(suspend);
+        return decided;
+      }
       if (!thread || !requestApproval) return "pending";
       const outcome = await requestApproval({
         ...server,
@@ -118,12 +148,20 @@ export function createMcpApprovals({ params, oidc, open, openBotState, logger }:
           messageId: thread.messageId,
           suspended: true,
         });
+        const late = await decisionOf(server);
+        if (late) {
+          resume = true;
+          return late;
+        }
       }
       return "pending";
     };
 
     const servers: Record<string, McpApprovalStatus> = {};
     for (const server of request.servers) servers[server.name] = await statusOf(server);
+    if (resume && thread) {
+      await dispatchMessage(dispatcher, thread.bot, thread.threadId, thread.messageId);
+    }
     return { servers };
   };
 }

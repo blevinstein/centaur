@@ -11,6 +11,7 @@ import type { TelegramApi } from "../../src/lambda/telegram.js";
 import {
   connectionParameters,
   fakeAttachments,
+  fakeDispatcher,
   fakeParameterStore,
   PARAMETERS,
   REGISTERED_ENTRY,
@@ -184,6 +185,7 @@ export async function posterSetup(
   );
   const chatFor = vi.fn<PosterDeps["chatFor"]>(() => options.chat ?? posting.chat);
   const attachments = fakeAttachments(options.attachments);
+  const dispatcher = fakeDispatcher();
   const poster = await createPoster({
     params,
     createState,
@@ -191,6 +193,7 @@ export async function posterSetup(
     attachments,
     telegram,
     oidc,
+    dispatcher,
     globalMcpPolicy: async () => options.globalMcpPolicy,
     functionUrl: FUNCTION_URL,
     logger,
@@ -202,6 +205,7 @@ export async function posterSetup(
     registryState,
     telegram,
     oidc,
+    dispatcher,
     chatFor,
     createState,
     attachments,

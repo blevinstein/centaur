@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   createReceiver: vi.fn(),
   createPoster: vi.fn(),
   createState: vi.fn(),
+  createDispatcher: vi.fn(),
 }));
 
 vi.mock("../src/lambda/parameters.js", async (importOriginal) => ({
@@ -22,7 +23,9 @@ vi.mock("../src/lambda/attachments.js", () => ({
   createS3ObjectStore: () => ({}),
   createAttachmentStore: () => ({}),
 }));
-vi.mock("../src/lambda/github.js", () => ({ createGitHubDispatcher: () => ({}) }));
+vi.mock("../src/lambda/github.js", () => ({
+  createGitHubDispatcher: (token: string) => mocks.createDispatcher(token),
+}));
 vi.mock("../src/lambda/telegram.js", () => ({ createTelegramApi: () => ({}) }));
 vi.mock("../src/lambda/oidc.js", () => ({ createGitHubOidcVerifier: () => ({}) }));
 vi.mock("../src/lambda/chat.js", () => ({ createChat: () => ({}) }));
@@ -45,6 +48,7 @@ describe("lambda handler routing", () => {
       async () => new Response("ok", { headers: { "content-type": "text/plain" } }),
     );
     mocks.createReceiver.mockResolvedValue(mocks.receive);
+    mocks.createDispatcher.mockReturnValue({ dispatch: vi.fn(async () => {}) });
     mocks.post.mockResolvedValue({ ok: true });
     mocks.createPoster.mockReturnValue(mocks.post);
     mocks.createState.mockImplementation(() => ({
@@ -98,6 +102,48 @@ describe("lambda handler routing", () => {
     );
     mocks.params = handlerParams({ [GITHUB_TOKEN_PARAMETER]: "token" });
     expect(await handler(functionUrlEvent())).toMatchObject({ statusCode: 200 });
+  });
+
+  describe("the poster's dispatcher", () => {
+    type PosterDispatcher = { dispatch: (...args: string[]) => Promise<void> };
+    const dispatch = async (handler: Awaited<ReturnType<typeof importFreshHandler>>) => {
+      await handler({ operation: "post" });
+      const [deps] = mocks.createPoster.mock.calls[0] as [{ dispatcher: PosterDispatcher }];
+      await deps.dispatcher.dispatch("octo/garden", "event");
+    };
+
+    it("builds and serves operations without reading the token", async () => {
+      mocks.params = handlerParams({ [FUNCTION_URL_PARAMETER]: "https://fn.example" });
+      const handler = await importFreshHandler();
+
+      expect(await handler({ operation: "post" })).toEqual({ ok: true });
+      expect(mocks.createDispatcher).not.toHaveBeenCalled();
+    });
+
+    it("builds the dispatcher on the first dispatch and reuses it", async () => {
+      const handler = await importFreshHandler();
+
+      await dispatch(handler);
+      await dispatch(handler);
+
+      expect(mocks.createDispatcher).toHaveBeenCalledExactlyOnceWith("token");
+    });
+
+    it("rejects when the token read fails and retries on the next dispatch", async () => {
+      mocks.params = handlerParams({ [FUNCTION_URL_PARAMETER]: "https://fn.example" });
+      const handler = await importFreshHandler();
+
+      await expect(dispatch(handler)).rejects.toThrow(
+        `missing SSM parameter ${GITHUB_TOKEN_PARAMETER}`,
+      );
+      (mocks.params as ReturnType<typeof handlerParams>).entries.set(GITHUB_TOKEN_PARAMETER, {
+        value: "token",
+        secure: false,
+      });
+      await dispatch(handler);
+
+      expect(mocks.createDispatcher).toHaveBeenCalledExactlyOnceWith("token");
+    });
   });
 
   it("rejects poster operations when the function URL parameter is missing", async () => {

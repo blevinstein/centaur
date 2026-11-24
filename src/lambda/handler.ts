@@ -6,7 +6,7 @@ import { createAttachmentStore, createS3ObjectStore } from "./attachments.js";
 import { createCachedParameterStore } from "./cached-parameters.js";
 import { createChat } from "./chat.js";
 import { readFailureNoticeIntervalMs } from "./dispatch-failure-notice.js";
-import { createGitHubDispatcher } from "./github.js";
+import { createGitHubDispatcher, type RepositoryDispatcher } from "./github.js";
 import { readHistoryWindow } from "./history-window.js";
 import { wrapHandler } from "./http.js";
 import { readBundledMcpPolicy } from "./mcp-policy.js";
@@ -15,6 +15,7 @@ import {
   createSsmParameterStore,
   FUNCTION_URL_PARAMETER,
   GITHUB_TOKEN_PARAMETER,
+  type ParameterStore,
 } from "./parameters.js";
 import { createPoster } from "./poster.js";
 import { createReceiver } from "./receiver.js";
@@ -47,16 +48,26 @@ const stateCreator = (tableName: string) => {
 const buildAttachments = () =>
   createAttachmentStore(createS3ObjectStore(requiredEnv("SESSION_BUCKET_NAME")));
 
-async function buildReceiver() {
-  const params = createSsmParameterStore();
+async function buildDispatcher(params: ParameterStore) {
   const token = await params.get(GITHUB_TOKEN_PARAMETER);
   if (!token) throw new Error(`missing SSM parameter ${GITHUB_TOKEN_PARAMETER}`);
+  return createGitHubDispatcher(token);
+}
+
+/** Reads the token on the first dispatch, so a poster that never resumes a thread never needs it. */
+function lazyDispatcher(params: ParameterStore): RepositoryDispatcher {
+  const dispatcher = memoizeAsync(() => buildDispatcher(params));
+  return { dispatch: async (...args) => (await dispatcher()).dispatch(...args) };
+}
+
+async function buildReceiver() {
+  const params = createSsmParameterStore();
   const tableName = requiredEnv("STATE_TABLE_NAME");
   return createReceiver({
     params: createCachedParameterStore(params),
     createState: stateCreator(tableName),
     attachments: buildAttachments(),
-    dispatcher: createGitHubDispatcher(token),
+    dispatcher: await buildDispatcher(params),
     logger,
     history: readHistoryWindow(),
     failureNoticeIntervalMs: readFailureNoticeIntervalMs(),
@@ -75,6 +86,7 @@ async function buildPoster() {
     chatFor: (bot, botState) => createChat({ bot, botState, logger, history }),
     attachments: buildAttachments(),
     telegram: createTelegramApi(),
+    dispatcher: lazyDispatcher(params),
     oidc: createGitHubOidcVerifier({
       owner: requiredEnv("GITHUB_OWNER"),
       audience: requiredEnv("OIDC_AUDIENCE"),
