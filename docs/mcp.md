@@ -177,8 +177,10 @@ Mitigations, in order of recommendation:
 3. Remote servers only by default: reject `command` servers unless the policy permits specific
    commands. Remote servers cannot run code on the runner.
 4. Pinned packages: when `command` is allowed, require `npx`/`uvx` arguments to carry an exact
-   version (`pkg@1.4.2`) and reject `@latest` or unpinned names, so a registry publish cannot change
-   what runs. Container images by digest if `docker` is ever allowed.
+   registry version (`pkg@1.4.2`) or a git URL at a full 40-hex commit SHA, and reject `@latest` or
+   unpinned names, so a registry publish cannot change what runs. A commit SHA pins the content
+   itself; the repo policy still chooses which commands and sources are allowed (see
+   [Operator policy](#operator-policy)). Container images by digest if `docker` is ever allowed.
 5. Surface changes: `register` (which runs on merge to the default branch) lists the configured
    servers in its job summary so additions are visible after the fact.
 
@@ -237,10 +239,26 @@ fetches a policy.
 | `transport` | `"remote"` | `"stdio"` |
 | `host`, `url` | URL hostname and full URL | `""` |
 | `command`, `args` (set of strings) | `""`, empty | the command and its arguments |
-| `pinned` (bool) | `false` | the first argument not starting with `-` ends in an exact version, such as `pkg@1.4.2` or `pkg==1.4.2` (not `@latest`, a range or a bare name) |
+| `pinned` (bool) | `false` | the first argument not starting with `-` is an exact registry version, such as `pkg@1.4.2` or `pkg==1.4.2`, or a git URL at a full 40-hex commit SHA (see below) |
 
 A server is allowed when some `permit` matches and no `forbid` does. Policy templates are not
 supported.
+
+**Pinned git sources.** The git forms that count as `pinned` are
+`git+https://<host>/<path>@<sha>` (optionally followed by `#egg=<name>` or `#subdirectory=<dir>`),
+`git+https://<host>/<path>#<sha>` and `github:<owner>/<repo>#<sha>`, where `<sha>` is 40 hex digits
+in either case. These are not pinned: a short or 41-digit SHA, a branch or tag, no ref, `git+ssh://`
+or plain `git+http://`, credentials in the URL, and anything after the SHA (`~1`, `^`, `:path`).
+A commit SHA pins the content, but `pinned` says nothing about the host or repository, so the repo
+policy names the source it permits:
+
+```cedar
+permit(principal, action == Action::"UseServer", resource)
+  when {
+    resource.transport == "stdio" && resource.command == "uvx" && resource.pinned &&
+    resource.args.contains("git+https://github.com/example-org/example-mcp-server@0123456789abcdef0123456789abcdef01234567")
+  };
+```
 
 This repo's own policy permits only the read-only endpoints of the remote GitHub MCP server:
 
@@ -264,6 +282,27 @@ permit(principal == Bot::"garden", action == Action::"UseServer", resource)
 
 forbid(principal, action, resource) when { resource.host like "*.untrusted.example" };
 ```
+
+**Allow any pinned local server.** The global file permits nothing by itself, so a repo needs a
+permit in its own `.centaur/mcp-policy.cedar` to enable a server: one of these, or a narrower permit
+naming a command or an exact argument. With a decision by the admin or an approver (the global
+`context.approved` default is under Approval by the admin, below):
+
+```cedar
+permit(principal, action == Action::"UseServer", resource)
+  when { resource.transport == "stdio" && resource.pinned && context.approved };
+```
+
+Each server definition is approved once; editing it, including a new commit SHA, asks again. Without
+a human decision:
+
+```cedar
+permit(principal, action == Action::"UseServer", resource)
+  when { resource.transport == "stdio" && resource.pinned };
+```
+
+This lets any pinned third-party code in the repo's reviewed config run with the job's secrets in
+its environment, so prefer the first variant.
 
 **Protect the file.** Require review on `.centaur/mcp-policy.cedar` with a `CODEOWNERS` entry or a
 repository ruleset, since anyone who can merge a change to it can permit any server.

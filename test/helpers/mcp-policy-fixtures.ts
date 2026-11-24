@@ -43,6 +43,30 @@ export const untrustedServers = mcpServersFrom(
 export const npxServers = (pkg: string) =>
   mcpServersFrom(`  docs:\n    command: npx\n    args: ["-y", "${pkg}"]\n`);
 
+export const COMMIT_SHA = "0123456789abcdef0123456789abcdef01234567";
+
+export const GIT_REPO_URL = "git+https://github.com/example-org/example-mcp-server";
+
+export const PERMIT_UVX = `permit(principal, action == Action::"UseServer", resource)
+  when { resource.transport == "stdio" && resource.command == "uvx" };`;
+
+export const PERMIT_UVX_GIT_SOURCE = `permit(principal, action == Action::"UseServer", resource)
+  when {
+    resource.transport == "stdio" && resource.command == "uvx" && resource.pinned &&
+    resource.args.contains("--from") && resource.args.contains("${GIT_REPO_URL}@${COMMIT_SHA}")
+  };`;
+
+export const PERMIT_ANY_PINNED_APPROVED = `permit(principal, action == Action::"UseServer", resource)
+  when { resource.transport == "stdio" && resource.pinned && context.approved };`;
+
+export const PERMIT_ANY_PINNED = `permit(principal, action == Action::"UseServer", resource)
+  when { resource.transport == "stdio" && resource.pinned };`;
+
+export const uvxGitServers = (source: string) =>
+  mcpServersFrom(
+    `  git-mcp:\n    command: uvx\n    args: ["--from", "${source}", "example-entrypoint"]\n`,
+  );
+
 export const GITHUB_SERVER_CONFIG = {
   mcp_servers: `{ghmcp: {url: "https://${GITHUB_HOST}/mcp/"}}`,
   allowed_tools: '"Read, mcp__ghmcp__*"',

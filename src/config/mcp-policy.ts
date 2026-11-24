@@ -11,11 +11,20 @@ import type { McpServer } from "./schema.js";
 
 const EXACT_VERSION = /(?:@|==)\d+\.\d+\.\d+(?:[-+][\w.+-]+)?$/;
 
+const COMMIT_SHA = "[0-9a-f]{40}";
+const URL_SEGMENT = "[\\w~-][\\w.~-]*";
+const GIT_HTTPS_URL = `git\\+https://[\\w-]+(?:\\.[\\w-]+)*(?::\\d+)?(?:/${URL_SEGMENT})+`;
+const PIP_FRAGMENT = "(?:#(?:egg|subdirectory)=[\\w./-]+)?";
+const COMMIT_PINNED_GIT = new RegExp(
+  `^(?:${GIT_HTTPS_URL}@${COMMIT_SHA}${PIP_FRAGMENT}|${GIT_HTTPS_URL}#${COMMIT_SHA}|github:${URL_SEGMENT}/${URL_SEGMENT}#${COMMIT_SHA})$`,
+  "i",
+);
+
 const messagesOf = (errors: DetailedError[]) => errors.map((error) => error.message);
 
 export const isPinned = (args: string[]) => {
   const target = args.find((arg) => !arg.startsWith("-"));
-  return target !== undefined && EXACT_VERSION.test(target);
+  return target !== undefined && (EXACT_VERSION.test(target) || COMMIT_PINNED_GIT.test(target));
 };
 
 export function describeServer(server: McpServer) {

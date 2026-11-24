@@ -70,6 +70,14 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
 - [ ] Offer to redo the original request after an approval when the agent answered without
       suspending (store the request and re-ask on approval; today the receiver only posts that the
       server is available and the user asks again)
+- [ ] Harden `isPinned` (`src/config/mcp-policy.ts`) against flags that take a value. It takes the
+      first argument not starting with `-` as the package, so in `uvx --with pkg==1.0.0 other-pkg`
+      the pinned-looking `--with` value hides the unpinned `other-pkg`, and in `uvx --python 3.12
+      pkg==1.0` the version `3.12` is taken as the package (a false negative). For `uvx`, the
+      target is the `--from` value when present, else the first positional argument; for `npx`, the
+      package after its flags. Design first: which flags take a value per command, and fail closed
+      (not pinned) on an unknown flag. A config change reviewed on the default branch is the only
+      way to exploit it today, so it is defense in depth on the global ceiling.
 - [ ] Approvers: a group broader than the platform admin who can decide MCP approvals (and possibly
       access requests), authorized by the admin. Design and recommendations:
       [docs/approvers.md](docs/approvers.md); **[HUMAN APPROVAL]** accept or amend its Decisions

@@ -12,22 +12,29 @@ import {
 import {
   ALLOWED,
   APPROVAL_REQUIRED,
+  COMMIT_SHA,
   docsSearchServer,
   FORBID_ALL,
   FORBID_UNLESS_GITHUB,
   FORBID_UNTRUSTED,
   FORBID_WHEN_NOT_APPROVED,
+  GIT_REPO_URL,
   githubServer,
   githubServers,
   npxServers,
   outcomeOf,
+  PERMIT_ANY_PINNED,
+  PERMIT_ANY_PINNED_APPROVED,
   PERMIT_ANY_REMOTE,
   PERMIT_GITHUB,
   PERMIT_PINNED_NPX,
+  PERMIT_UVX,
+  PERMIT_UVX_GIT_SOURCE,
   PERMIT_WHEN_APPROVED,
   PERMIT_WHEN_NOT_APPROVED,
   permitForBot,
   untrustedServers,
+  uvxGitServers,
 } from "./helpers/mcp-policy-fixtures.js";
 import { loadSelfConfig } from "./helpers/self-config.js";
 
@@ -46,6 +53,35 @@ describe("isPinned", () => {
     ["a pinned argument after the package", ["pkg", "other@1.4.2"], false],
   ])("%s", (_name, args, expected) => {
     expect(isPinned(args)).toBe(expected);
+  });
+
+  it.each<[string, string, boolean]>([
+    ["a git URL at a full commit SHA", `${GIT_REPO_URL}@${COMMIT_SHA}`, true],
+    ["an egg fragment", `${GIT_REPO_URL}@${COMMIT_SHA}#egg=name`, true],
+    ["a subdirectory fragment", `${GIT_REPO_URL}@${COMMIT_SHA}#subdirectory=x`, true],
+    ["an upper-case SHA", `${GIT_REPO_URL}@${COMMIT_SHA.toUpperCase()}`, true],
+    ["an npm github shorthand", `github:example-org/example-mcp-server#${COMMIT_SHA}`, true],
+    ["an npm git URL committish", `git+https://example.org/path/repo#${COMMIT_SHA}`, true],
+    ["a host with a port", `git+https://example.org:8443/o/r@${COMMIT_SHA}`, true],
+    ["a 39-digit SHA", `${GIT_REPO_URL}@${COMMIT_SHA.slice(1)}`, false],
+    ["a 41-digit SHA", `${GIT_REPO_URL}@${COMMIT_SHA}0`, false],
+    ["a short SHA", `${GIT_REPO_URL}@${COMMIT_SHA.slice(0, 7)}`, false],
+    ["a branch", `${GIT_REPO_URL}@main`, false],
+    ["a tag", `${GIT_REPO_URL}@v1.2.3`, false],
+    ["latest", `${GIT_REPO_URL}@latest`, false],
+    ["an npm branch", "github:example-org/example-mcp-server#main", false],
+    ["no ref", GIT_REPO_URL, false],
+    ["ssh", `git+ssh://git@github.com/o/r@${COMMIT_SHA}`, false],
+    ["plain http", `git+http://github.com/o/r@${COMMIT_SHA}`, false],
+    ["user and token credentials", `git+https://user:token@github.com/o/r@${COMMIT_SHA}`, false],
+    ["a token credential", `git+https://token@github.com/o/r@${COMMIT_SHA}`, false],
+    ["a parent revision", `${GIT_REPO_URL}@${COMMIT_SHA}~1`, false],
+    ["a caret revision", `${GIT_REPO_URL}@${COMMIT_SHA}^`, false],
+    ["a path after the ref", `${GIT_REPO_URL}@${COMMIT_SHA}:path`, false],
+    ["an unknown fragment", `${GIT_REPO_URL}@${COMMIT_SHA}#sha=abc`, false],
+    ["path traversal", `git+https://github.com/../o/r@${COMMIT_SHA}`, false],
+  ])("git source: %s", (_name, source, expected) => {
+    expect(isPinned(["--from", source, "example-entrypoint"])).toBe(expected);
   });
 });
 
@@ -236,6 +272,40 @@ describe("this repo's infra/mcp-policy.cedar", () => {
       repo: `${PERMIT_ANY_REMOTE}\n${PERMIT_PINNED_NPX}`,
     });
     expect(issues).toHaveLength(allowed ? 0 : 1);
+  });
+
+  it.each<[string, string, string, boolean]>([
+    ["a commit-pinned git source", `${GIT_REPO_URL}@${COMMIT_SHA}`, PERMIT_UVX, true],
+    ["a branch git source", `${GIT_REPO_URL}@main`, PERMIT_UVX, false],
+    [
+      "a commit-pinned source named by the repo policy",
+      `${GIT_REPO_URL}@${COMMIT_SHA}`,
+      PERMIT_UVX_GIT_SOURCE,
+      true,
+    ],
+    [
+      "a different commit under a policy naming one",
+      `${GIT_REPO_URL}@${"a".repeat(40)}`,
+      PERMIT_UVX_GIT_SOURCE,
+      false,
+    ],
+  ])("as a ceiling for uvx: %s", (_name, source, repo, allowed) => {
+    const issues = checkMcpPolicy("garden", uvxGitServers(source), { global, repo });
+    expect(issues).toHaveLength(allowed ? 0 : 1);
+    if (!allowed && repo === PERMIT_UVX) expect(issues[0]?.message).toMatch(/forbidden by policy/);
+  });
+
+  it.each<[string, string, string, string]>([
+    ["with admin approval", PERMIT_ANY_PINNED_APPROVED, "@" + COMMIT_SHA, APPROVAL_REQUIRED],
+    ["with admin approval", PERMIT_ANY_PINNED_APPROVED, "@main", "forbidden by policy global.0"],
+    ["without a human decision", PERMIT_ANY_PINNED, "@" + COMMIT_SHA, ALLOWED],
+    ["without a human decision", PERMIT_ANY_PINNED, "@main", "forbidden by policy global.0"],
+  ])("allow-any-pinned-local-server %s at %s", (_name, repo, ref, expected) => {
+    const result = evaluateMcpPolicy("garden", uvxGitServers(`${GIT_REPO_URL}${ref}`), {
+      global,
+      repo,
+    });
+    expect(outcomeOf(result)).toBe(expected);
   });
 
   it("leaves this repo's own servers permitted", async () => {
