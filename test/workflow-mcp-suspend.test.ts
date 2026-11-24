@@ -264,7 +264,7 @@ describe("the suspend_for prompt sentence and schema", () => {
 
   it("bounds the field to the pending servers and the poster's server limit", () => {
     const schema = replySchema(schemaOptions({ suspendable: ["linear", "docs"] }));
-    expect(schema.properties.suspend_for).toEqual({
+    expect(schema.properties.suspend_for).toMatchObject({
       type: "array",
       items: { enum: ["linear", "docs"] },
       uniqueItems: true,

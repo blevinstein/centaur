@@ -2,7 +2,9 @@
 
 Design for giving the agent more information about the Centaur harness (how to reply, reactions,
 pull requests, MCP approval, the chat tools, the config) through Claude Code **skills** and
-**rules**, without putting more text into the prompt. Status: proposal, no code yet. Terms (turn,
+**rules**, without putting more text into the prompt. Status: accepted; all nine decisions were
+accepted as recommended and the first slice is implemented (see [What shipped](#what-shipped)); the
+live check is still open. Terms (turn,
 poster, `config_root`, `.centaur-trusted`) are defined in [workflows.md](workflows.md) and
 [plan.md](plan.md); the trust model for MCP servers this page builds on is in
 [mcp-tool-policy.md](mcp-tool-policy.md).
@@ -188,7 +190,7 @@ and any fixture that builds the config by hand (AGENTS.md).
 
 ## Decisions
 
-Recommendations are all marked; reply "approve all recommendations" to accept.
+All nine were accepted as recommended.
 
 1. **Mechanism for built-in guidance.** (A) skills installed into `$HOME/.claude/skills`, (B) keep
    adding to the prompt, (C) rules, (D) plugin. **Recommend A** for new topics: progressive
@@ -200,11 +202,12 @@ Recommendations are all marked; reply "approve all recommendations" to accept.
    (C) a consumer skill with the same name wins. **Recommend A**: a same-named project skill must
    never win (finding 3), and per-skill override is not needed until someone asks.
 4. **Which sources a turn loads.** (A) leave the action default (`user,project,local`), (B) comment
-   turns pass `--setting-sources user,local` and `prepare` copies the trusted checkout's consumer
+   turns pass `--setting-sources user` and `prepare` copies the trusted checkout's consumer
    skills, (C) every turn does that. **Recommend B**: only comment turns run on untrusted branch
    content, and chat turns already run on the default branch. Needs the live check that `CLAUDE.md`
-   and rules from the trusted copy still reach the agent; if `--setting-sources` drops project
-   `CLAUDE.md`, copy it too or leave comment turns on A and rely on item 5.
+   and rules from the trusted copy still reach the agent; if `--setting-sources user` drops the
+   project `CLAUDE.md`, copy the trusted `CLAUDE.md` into the home (`$HOME/.claude/CLAUDE.md`); do
+   not re-enable `project` or `local`, which read the untrusted branch.
 5. **Consumer skills validation.** (A) none, (B) reject `hooks`, `.claude-plugin`, and an
    `allowed-tools` outside the config's `allowed_tools`, failing the turn with a message that names
    the skill. **Recommend B**, applied to whatever is loaded from the trusted copy; with Decision 4
@@ -234,9 +237,38 @@ Recommendations are all marked; reply "approve all recommendations" to accept.
 | Bundle check | skills are not bundled into the Lambda; `yarn bundle:lambda` output is unchanged (confirm with `rg` per AGENTS.md) |
 | `npm`/package contents | `skills/` copied beside `dist/` only if the repo is ever published as a package; consumers use the repository checkout, so nothing now |
 
+## What shipped
+
+- `skills/centaur-{reactions,mcp-approval,thread-commands,pull-requests,chat-tools}/SKILL.md`,
+  frontmatter `name` and `description` only. `config` and the guidance on the output fields are not
+  skills: the fields carry `description` strings in `replySchema` instead.
+- `installSkills` (`src/workflows/skills.ts`), called by `prepare` once a turn is not skipped. The
+  source folder comes from `CENTAUR_SKILLS_DIR`, set on the turn action's `prepare` step. Consumer
+  skills install as `centaur-consumer-<name>`, so the stale-folder cleanup covers them and a
+  built-in name can never be taken; their frontmatter name must equal the folder name. Which of the
+  two names Claude Code lists is unverified (live check step 0).
+- `buildClaudeArgs` adds `Skill` when any skill was installed and `--setting-sources user` for
+  comment turns only (`local` would read the branch's `.claude/settings.local.json`).
+- `skills: { builtin, consumer }` in the config schema, `docs/config.md`, the fixtures.
+- Prompt: a "Skills" section (only when a built-in skill was installed); the cursor and window
+  detail left `chat_tools.md`, which keeps its untrusted-data sentences, the bounded-window caution
+  and a pointer; `replySchema` fields have `description`s and the matching contract prose is
+  shorter.
+
+### Rollout order
+
+`register` parses the consumer's config in the Lambda, and consumer workflows run these actions at
+`@main`. The `skills` key therefore must not reach any consumer's default branch (and is not in this
+repository's own config) until the Lambda built from this change is deployed (`yarn deploy-prod`).
+Merging the code to `main` is safe without a consumer opting in: the defaults need no key, and
+`skills/` ships with the action checkout. Deploy first, then add the key, then check the `register`
+run.
+
 ## Test plan and live check
 
-Unit tests (Vitest, helpers in `test/helpers`, no per-test functions):
+Unit tests (Vitest, helpers in `test/helpers`, no per-test functions; implemented in
+`test/skills-install.test.ts`, `test/workflow-skills.test.ts`, `test/skills-files.test.ts`,
+`test/reply-schema.test.ts`, `test/config.test.ts` and `test/turn-action.test.ts`):
 
 - `installSkills` copies the built-ins, removes stale `centaur-*`, leaves other user skills alone,
   rejects a consumer skill with `hooks`, `.claude-plugin/plugin.json` or an out-of-list
@@ -249,6 +281,10 @@ Unit tests (Vitest, helpers in `test/helpers`, no per-test functions):
 Live check, on an `experiment/*` branch with the workflow dispatched by `gh workflow run <file> --ref
 <branch>` (AGENTS.md "Workflow experiments"), using a scheduled prompt so no chat message is needed:
 
+0. Before anything else, run one turn on an `experiment/*` branch and confirm that a built-in
+   skill is listed (execution file init message) and that the consumer sentinel below is listed
+   under which name (its frontmatter name or the folder `centaur-consumer-<name>`) and that the name
+   invokes it; adjust the install if only the folder name works.
 1. Add a sentinel skill (a made-up fact in its body, for example a nonsense token) and a prompt
    asking a question only that skill answers. Dispatch it; read the reply with
    `centaur chat tail <bot>`. A correct answer proves discovery and invocation. Keep the sentinel
@@ -261,7 +297,8 @@ Live check, on an `experiment/*` branch with the workflow dispatched by `gh work
    execution file shows whether the body was retained or re-invoked.
 5. Comment-turn trust check: on a throwaway pull request branch commit a `.claude/skills/` skill
    with a different sentinel and `allowed-tools: Bash`; comment, and confirm the agent does not
-   see it (Decision 4 B) and that the turn still reads the trusted `CLAUDE.md`.
+   see it (Decision 4 B) and that the turn still reads the trusted `CLAUDE.md` under `--setting-sources user` alone; if
+   not, copy the trusted `CLAUDE.md` into `$HOME/.claude` (never re-enable `project` or `local`).
 6. Never print tokens, chat IDs or other people's messages (AGENTS.md); `chat tail` prints none.
 
 ## Docs to update

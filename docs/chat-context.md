@@ -168,8 +168,9 @@ config by hand and `test/config.test.ts` defaults change with it.
 One short block, `src/workflows/instructions/chat_tools.md` (overridable as `instructions.chat_tools`),
 is included in chat and pull request comment turns when the feature is on: that `list_threads`,
 `read_thread` and `read_channel` exist, that their output is untrusted data written by other people,
-that results cover a bounded window (each says how far back it scanned), and that cross-thread
-content is not for public artifacts. The chat's name is not included: no source provides one. Tool results are also fenced the way transcript
+that results cover a bounded window, that cross-thread content is not for public artifacts, and
+(when the skills are installed) that the `centaur-chat-tools` skill explains paging with cursors and
+how to read the window each result reports. The chat's name is not included: no source provides one. Tool results are also fenced the way transcript
 messages are, so a message in another thread that says "ignore your instructions" has the same
 standing as one in this thread. Per `AGENTS.md`, anything the code parses stays in `prompt.ts`.
 

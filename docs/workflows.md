@@ -270,6 +270,31 @@ composite actions cannot read secrets.
 
 Commands: `register`, `resolve`, `resolve-schedule`, `prepare`, `pr-details`, `finish`, `notify-failure`.
 
+## Skills
+
+`prepare` installs agent skills into the runner's user skills directory before it builds
+`claude_args` (`installSkills`, `src/workflows/skills.ts`), unless `skills` in the config turns them
+off ([config.md](config.md)):
+
+- **Built-in.** The repository's `skills/centaur-*/SKILL.md` (path from the `CENTAUR_SKILLS_DIR`
+  environment variable that the turn action sets to `<action>/../../../skills`) are copied to
+  `$HOME/.claude/skills/centaur-*` after removing every stale `centaur-*` folder there. A personal
+  skill outranks a project skill of the same name, so a pull request branch cannot shadow one. The
+  prompt gains a short "Skills" section pointing at them.
+- **Consumer.** Skills from `.claude/skills` of the trusted checkout (`config_root`, so the default
+  branch for a pull request comment turn) are copied as `centaur-consumer-<name>`. A skill whose
+  folder name starts with `centaur-`, whose frontmatter `name` differs from its folder, that sets
+  `hooks`, contains `.claude-plugin` or a symbolic link, or whose `allowed-tools` names a tool outside
+  the config's `allowed_tools` fails the turn with a message naming the skill.
+- `Skill` is added to `--allowedTools` when any skill was installed.
+- A comment turn also passes `--setting-sources user`, so the pull request branch's
+  `.claude/skills`, `.claude/settings.json`, rules and `CLAUDE.md` are not loaded; a chat turn keeps
+  the action's default sources. The trusted `CLAUDE.md` may not reach a comment turn under `user`
+  alone (live check); if it does not, copy it into `$HOME/.claude`, never re-enable `project` or
+  `local`.
+
+See [skills-rules.md](skills-rules.md) for the design and the live check.
+
 ## Agent turn
 
 1. `prepare` reads the config, reads the thread from the poster (`read`), determines the

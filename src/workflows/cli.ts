@@ -167,6 +167,7 @@ program.command("prepare").action(async () => {
     stateDir: turnStateDir(),
     configRoot: process.env.CENTAUR_CONFIG_ROOT || undefined,
     home: homedir(),
+    skillsDir: process.env.CENTAUR_SKILLS_DIR || undefined,
     runId: env("GITHUB_RUN_ID"),
     env: process.env,
     promptName: process.env.PROMPT_NAME || undefined,

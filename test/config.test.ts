@@ -38,9 +38,21 @@ describe("parseCentaurConfig", () => {
           comment_authors: ["OWNER", "MEMBER", "COLLABORATOR"],
         },
         chat_tools: DEFAULT_CHAT_TOOLS,
+        skills: { builtin: true, consumer: true },
         mcp_servers: {},
         prompts: {},
       },
+    });
+  });
+
+  it("parses the skills block over its defaults", () => {
+    expect(parseCentaurConfig(withExtra("skills: {consumer: false}"))).toMatchObject({
+      ok: true,
+      config: { skills: { builtin: true, consumer: false } },
+    });
+    expect(parseCentaurConfig(withExtra("skills: {builtin: false}"))).toMatchObject({
+      ok: true,
+      config: { skills: { builtin: false, consumer: true } },
     });
   });
 
@@ -81,6 +93,7 @@ describe("parseCentaurConfig", () => {
           comment_authors: ["OWNER", "MEMBER", "COLLABORATOR"],
         },
         chat_tools: DEFAULT_CHAT_TOOLS,
+        skills: { builtin: true, consumer: true },
         mcp_servers: {},
         prompts: {
           "weekly-tasks": {

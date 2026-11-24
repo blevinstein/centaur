@@ -36,6 +36,7 @@ import {
   mcpApprovalSection,
   type PullRequestCandidate,
   replySchema,
+  skillsSection,
 } from "./prompt.js";
 import {
   type PullRequestReader,
@@ -45,6 +46,7 @@ import {
   truncateDiff,
 } from "./pull-request-comments.js";
 import { clearReactions, type ReactionSource } from "./reactions.js";
+import { installSkills } from "./skills.js";
 import {
   type AttachmentPath,
   type ChatMessage,
@@ -62,6 +64,13 @@ export const MCP_CONFIG_FILE = `${TURN_DIR}/mcp.json`;
 export const ATTACHMENT_DIR = `${TURN_DIR}/attachments`;
 export const MAX_PROMPT_IMAGES = 10;
 
+/**
+ * A comment turn's workspace is the untrusted pull request branch, so only the user source
+ * (`$HOME/.claude`) loads; the project and local sources, which read the workspace's
+ * `.claude/settings*.json`, skills and rules, do not.
+ */
+const COMMENT_SETTING_SOURCES = "--setting-sources user";
+const CONSUMER_SKILLS_DIR = ".claude/skills";
 const NEW_THREAD_ACK = "Started a new thread.";
 const NEW_THREAD_OPENING = "Fresh thread. What would you like to do?";
 
@@ -118,6 +127,8 @@ export interface PrepareDeps {
   /** Directory holding the Centaur config, the instructions and the persona. Defaults to `workspace`. */
   configRoot?: string | undefined;
   home: string;
+  /** The repository's `skills/` folder; without it no built-in skill is installed. */
+  skillsDir?: string | undefined;
   runId: string;
   env: Record<string, string | undefined>;
   promptName?: string | undefined;
@@ -522,6 +533,8 @@ export function buildClaudeArgs(input: {
   allowExisting: boolean;
   suspendable?: string[] | undefined;
   chatTools?: boolean | undefined;
+  /** Some skill is installed, so the `Skill` tool is allowed. */
+  skills?: boolean | undefined;
   mcpConfig?: string | undefined;
 }) {
   const { config, persona, resumeSessionId, canStaySilent, mode, allowExisting, mcpConfig } = input;
@@ -529,11 +542,13 @@ export function buildClaudeArgs(input: {
   const allowNewPr = config.pull_requests.comment_new;
   const readRule = config.allowed_tools.includes("Read") ? [] : [`Read(./${TURN_DIR}/**)`];
   const chatRule = input.chatTools ? [`mcp__${CHAT_SERVER_NAME}__*`] : [];
-  const tools = [...config.allowed_tools, ...readRule, ...chatRule].join(",");
+  const skillRule = input.skills ? ["Skill"] : [];
+  const tools = [...config.allowed_tools, ...readRule, ...chatRule, ...skillRule].join(",");
   return [
     `--model ${config.model}`,
     ...(config.effort ? [`--effort ${config.effort}`] : []),
     `--allowedTools "${tools}"`,
+    ...(mode === "comment" ? [COMMENT_SETTING_SOURCES] : []),
     `--max-turns ${config.max_turns}`,
     ...(config.max_budget_usd ? [`--max-budget-usd ${config.max_budget_usd}`] : []),
     `--json-schema '${JSON.stringify(replySchema({ canStaySilent, mode, allowNewPr, allowExisting, suspendable }))}'`,
@@ -576,6 +591,12 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
       ? await commentTurn(deps, deps.comment, config, instructions, directory)
       : await chatTurn(deps, config, instructions, directory);
   if (!turn) return skipped;
+  const skills = await installSkills({
+    home: deps.home,
+    sourceDir: config.skills.builtin ? deps.skillsDir : undefined,
+    consumerDir: config.skills.consumer ? join(configRoot, CONSUMER_SKILLS_DIR) : undefined,
+    allowedTools: config.allowed_tools,
+  });
   const { dropped, notice, pendingServers } =
     approvals.length > 0
       ? await askApprovals(deps, config, approvals, turn.approvalThread)
@@ -605,7 +626,13 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   await mkdir(join(deps.workspace, TURN_DIR), { recursive: true });
   await writeFile(
     join(deps.workspace, PROMPT_FILE),
-    [turn.prompt, mcpApprovalSection(notice, suspend !== undefined)].filter(Boolean).join("\n\n"),
+    [
+      turn.prompt,
+      skillsSection(skills.builtin.length > 0),
+      mcpApprovalSection(notice, suspend !== undefined),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
   );
   await writeTurnState(deps.stateDir, state);
   const chatTools = Boolean(turn.threadId) && chatToolsEnabled(config);
@@ -651,6 +678,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
       allowExisting: turn.allowExisting,
       suspendable: suspend?.servers.map(({ name }) => name),
       chatTools,
+      skills: skills.builtin.length + skills.consumer.length > 0,
       mcpConfig: hasMcpServers ? MCP_CONFIG_FILE : undefined,
     }),
   };

@@ -343,16 +343,38 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       on a record with no thread creates and binds one; `thread` applies to every fan-out target;
       `persistent` rejected by the schema until slice 16).
 
+## 17. Agent skills
+
+Design and decisions: [docs/skills-rules.md](docs/skills-rules.md).
+
+- [x] **[HUMAN APPROVAL]** Accept the decisions in [docs/skills-rules.md](docs/skills-rules.md):
+      all nine accepted as recommended.
+- [x] Built-in skills `skills/centaur-{reactions,mcp-approval,thread-commands,pull-requests,chat-tools}`,
+      each statement checked against the code.
+- [x] `installSkills` (`src/workflows/skills.ts`), the `CENTAUR_SKILLS_DIR` env on the turn action,
+      consumer skill validation from the trusted checkout.
+- [x] `skills: { builtin, consumer }` config key, `Skill` in `--allowedTools`, comment turns pass
+      `--setting-sources user`.
+- [x] `description` strings on the `replySchema` fields, a "Skills" prompt section, the chat tools
+      detail moved out of `chat_tools.md`.
+- [ ] **[HUMAN APPROVAL]** Deploy the Lambda that knows the `skills` key (`yarn deploy-prod`) before
+      any consumer's default branch sets `skills`; then check the `register` run. Consumers that do
+      not set the key need no change.
+- [ ] **[HUMAN ACTION]** Run the live check on an `experiment/*` branch after the push (plan in
+      [docs/skills-rules.md](docs/skills-rules.md#test-plan-and-live-check)): a sentinel skill (a
+      made-up fact in its body, not committed to the final tree) and a prompt only it answers, read
+      with `centaur chat tail <bot>`; the execution file shows a `Skill` call, the listing size and
+      whether `Skill` must be in `--allowedTools`; then the resume check (is the invoked body
+      retained?), the comment-turn trust check (a branch-committed `.claude/skills` skill with
+      `allowed-tools: Bash` is not visible and the trusted `CLAUDE.md` still is), and which name a
+      consumer skill is listed under. Record the findings in `docs/skills-rules.md`.
+
 ## Needs triage
 
 Some of these are items that can be implemented in a single task; others require planning and
 discussion before implementation. If a task has many subtasks, break it out into its own section
 for detailed tracking.
 
-- [ ] **[HUMAN APPROVAL]** Accept the decisions in [docs/skills-rules.md](docs/skills-rules.md):
-      built-in `centaur-*` skills installed into the runner's user skills directory, consumer
-      skills only from the trusted checkout, a `skills` config key. Unblocks the implementation and
-      the live skill-loading check.
 - [ ] Move not-yet-implemented docs into a proposals/ subdir to separate from already-implemented.
 - [x] Create a DONE.md file, and move sections of fully-completed TODO items into DONE.
 - [ ] Setup .centaur config for ~/dev/finances repo - monarch integration, consider using ledger for
@@ -363,7 +385,6 @@ for detailed tracking.
       responding to recruiter emails, looking for consulting opportunities, etc
 - [ ] Centaur-provided prompt instructions explaining harness quirks etc
 - [ ] Merge harness instructions with agents.md and situational prompt
-- [ ] Add support for skills and rules
 - [ ] Consider adding email support, think about SMTP complexity
 - [ ] Execution modes (current mode with PR approval, alternative mode with agent pushing directly,
       prompts should explain mode clearly to the agent)

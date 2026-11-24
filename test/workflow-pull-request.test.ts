@@ -109,7 +109,7 @@ describe("replySchema", () => {
     ],
   ] as const)("adds the %s target field only when enabled", (mode, flags, field, expected) => {
     const schema = replySchema(schemaOptions({ mode, ...flags }));
-    expect(schema.properties).toHaveProperty(field, expected);
+    expect(schema.properties[field]).toMatchObject(expected);
     expect(schema.additionalProperties).toBe(false);
     expect(replySchema(schemaOptions({ mode })).properties).not.toHaveProperty(field);
   });

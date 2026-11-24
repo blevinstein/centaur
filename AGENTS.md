@@ -205,3 +205,12 @@
 - `isPinned(command, args)` (`src/config/mcp-policy.ts`) is the only place the launched package is decided,
   from per-command flag tables (`UVX_FLAGS`, `NPX_FLAGS`) that fail closed; a new launcher or flag goes in
   a table with a test case.
+- Agent skills come from `skills/centaur-*` (`CENTAUR_SKILLS_DIR`, set on the turn action's `prepare`
+  step) and from the trusted checkout's `.claude/skills`, never the pull request branch; both are
+  copied by `installSkills` (`src/workflows/skills.ts`) into `$HOME/.claude/skills`, and consumer
+  ones are validated there. Comment turns pass `--setting-sources user` (never `local` or `project`: both read the branch). A statement in a
+  `SKILL.md` must describe what the code does; check it against the code (and keep `test/skills-files.test.ts`
+  passing: frontmatter is `name` and `description` only). A change to reactions, MCP approval, thread
+  commands, pull requests or the chat tools needs the matching skill updated.
+- The `skills` config key must not reach a consumer's default branch before the Lambda that knows it
+  is deployed (`register` parses the config there).

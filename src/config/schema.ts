@@ -226,6 +226,12 @@ export const centaurConfigSchema = z
           .default(DEFAULT_CHAT_TOOLS.max_messages),
       })
       .default(DEFAULT_CHAT_TOOLS),
+    skills: z
+      .strictObject({
+        builtin: z.boolean().default(true),
+        consumer: z.boolean().default(true),
+      })
+      .default({ builtin: true, consumer: true }),
     persona: repoPath.default(".centaur/persona.md"),
     instructions: instructionsSchema.default({}),
     prompts: z.record(slug, promptSchema).default({}),

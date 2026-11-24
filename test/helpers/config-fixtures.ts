@@ -194,6 +194,13 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
         RegExp,
       ],
   ),
+  ["skills with an unknown key", withExtra("skills: {other: true}"), "skills", /unrecognized key/i],
+  [
+    "skills with a non-boolean switch",
+    withExtra("skills: {builtin: sometimes}"),
+    "skills.builtin",
+    /./,
+  ],
   ["empty document", "", "(root)", /expected object/i],
   ["malformed YAML", "bot: [unclosed", "(root)", /invalid YAML/],
   ["missing model", yamlOf({ model: undefined }), "model", /./],

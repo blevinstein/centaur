@@ -22,6 +22,13 @@ describe("the turn action", () => {
     }
   });
 
+  it("points prepare at the skills folder next to the action's dist", () => {
+    expect(stepsWithEnv("CENTAUR_SKILLS_DIR")).toEqual(["prepare"]);
+    expect(steps.find((step) => step.id === "prepare")?.env?.CENTAUR_SKILLS_DIR).toMatch(
+      /^\$\{\{ github\.action_path \}\}\/\.\.\/\.\.\/\.\.\/skills$/,
+    );
+  });
+
   it("gives finish the pull request update outputs", () => {
     expect(stepsWithEnv("PULL_REQUEST_UPDATED")).toHaveLength(1);
     expect(stepsWithEnv("FALLBACK_REASON")).toHaveLength(1);

@@ -33,6 +33,7 @@ runs:
         PROMPT_NAME: ${{ inputs.prompt_name }}
         COMMENT_PULL_REQUEST: ${{ inputs.comment }}
         CENTAUR_CONFIG_ROOT: ${{ inputs.config_root }}
+        CENTAUR_SKILLS_DIR: ${{ github.action_path }}/../../../skills
         GITHUB_TOKEN: ${{ github.token }}
       run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" prepare
 
