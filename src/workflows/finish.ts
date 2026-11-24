@@ -432,8 +432,9 @@ export async function finish(deps: FinishDeps) {
     await linkPullRequest(deps.poster, link, state.bot, threadId);
     const store = deps.storeFor(state.bot, threadId);
     suspended = await suspendForApprovals(deps, state, result, clearReactionsOnce);
-    if (!suspended && state.marker && (state.markerThreadId ?? threadId) === threadId) {
-      await store.writeMarker(state.marker);
+    const marker = suspended ? state.suspendMarker : state.marker;
+    if (marker && (state.markerThreadId ?? threadId) === threadId) {
+      await store.writeMarker(marker);
     }
     if (state.policy === "resume" && result.sessionId) {
       await store.saveSession(state.sessionDirectory, result.sessionId);

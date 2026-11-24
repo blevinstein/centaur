@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { parseCommand } from "../src/workflows/commands.js";
 import { buildPrompt, replySchema } from "../src/workflows/prompt.js";
-import { pendingMessages, planTurn, threadPolicy } from "../src/workflows/transcript.js";
+import {
+  markerBefore,
+  NOTHING_PROCESSED,
+  pendingMessages,
+  planTurn,
+  threadPolicy,
+} from "../src/workflows/transcript.js";
 import { botMessage, message, schemaOptions } from "./helpers/workflow-fixtures.js";
 
 describe("parseCommand", () => {
@@ -38,6 +44,25 @@ describe("pendingMessages", () => {
   it("falls back to the bot's last message without a marker or with an expired one", () => {
     expect(pendingMessages(thread, undefined).map((m) => m.id)).toEqual(["3", "4"]);
     expect(pendingMessages(thread, "gone").map((m) => m.id)).toEqual(["3", "4"]);
+  });
+});
+
+describe("markerBefore", () => {
+  const waiting = [message("1", "a"), botMessage("2", "waiting")];
+
+  it("marks nothing processed when the pending message opens the thread", () => {
+    const marker = markerBefore(waiting, undefined);
+    expect(marker).toBe(NOTHING_PROCESSED);
+    expect(pendingMessages(waiting, marker).map((m) => m.id)).toEqual(["1"]);
+  });
+
+  it("points at the message before the pending ones, so a later bot reply does not hide them", () => {
+    const thread = [message("1", "a"), botMessage("2", "r"), message("3", "b")];
+    const marker = markerBefore(thread, undefined);
+    expect(marker).toBe("2");
+    expect(pendingMessages([...thread, botMessage("4", "w")], marker).map((m) => m.id)).toEqual([
+      "3",
+    ]);
   });
 });
 

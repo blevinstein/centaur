@@ -48,6 +48,7 @@ import { clearReactions, type ReactionSource } from "./reactions.js";
 import {
   type AttachmentPath,
   type ChatMessage,
+  markerBefore,
   pendingMessages,
   planTurn,
   threadPolicy,
@@ -88,6 +89,8 @@ export interface TurnState {
   marker?: string;
   /** The thread `marker` was read from; `finish` stores it only when that thread is the primary one. */
   markerThreadId?: string;
+  /** Written as the marker when the turn suspends and no marker exists, so the resume turn sees the same pending messages. */
+  suspendMarker?: string;
   source?: ReactionSource;
   /** Pending servers the agent may suspend the turn for; absent when the turn never suspends. */
   suspend?: SuspendableServers;
@@ -145,6 +148,7 @@ interface Turn {
   policy: ContextPolicy;
   marker?: string;
   markerThreadId?: string;
+  suspendMarker?: string;
   source?: ReactionSource;
   prompt: string;
   /** Where an approval request for this turn is raised; absent when the turn has no thread. */
@@ -383,6 +387,9 @@ async function chatTurn(
         policy: plan.policy,
         source,
         ...(marker ? { marker } : {}),
+        ...(lastProcessed === undefined
+          ? { suspendMarker: markerBefore(messages, lastProcessed) }
+          : {}),
         ...(resumeSessionId ? { resumeSessionId } : {}),
         ...(canStaySilent ? { canStaySilent } : {}),
         prompt: buildPrompt({
@@ -591,6 +598,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     ...(turn.start ? { start: turn.start } : {}),
     ...(turn.marker ? { marker: turn.marker } : {}),
     ...(turn.markerThreadId ? { markerThreadId: turn.markerThreadId } : {}),
+    ...(turn.suspendMarker ? { suspendMarker: turn.suspendMarker } : {}),
     ...(turn.source ? { source: turn.source } : {}),
     ...(suspend ? { suspend } : {}),
   };

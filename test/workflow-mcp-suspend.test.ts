@@ -3,6 +3,7 @@ import { MCP_APPROVAL_SERVERS_MAX } from "../src/lambda/mcp-approvals.js";
 import { extractResult, waitingReply } from "../src/workflows/finish.js";
 import { prepare } from "../src/workflows/prepare.js";
 import { replySchema } from "../src/workflows/prompt.js";
+import { NOTHING_PROCESSED } from "../src/workflows/transcript.js";
 import { readTurnState } from "../src/workflows/turn-state.js";
 import {
   APPROVAL_ENV,
@@ -26,6 +27,7 @@ import {
   setup,
 } from "./helpers/turn-fixtures.js";
 import {
+  botMessage,
   executionText,
   message,
   schemaOptions,
@@ -53,7 +55,7 @@ describe("suspend_for", () => {
     expect(run.aws.requests.find((r) => r.operation === "post")).toMatchObject({
       text: "Waiting for the admin to approve linear.",
     });
-    expect(lastProcessed(run.aws)).toBeUndefined();
+    expect(lastProcessed(run.aws)).toBe(NOTHING_PROCESSED);
     expect(run.aws.objects.get(`${THREAD_PREFIX}s1.jsonl`)).toBe("data");
     expect(asked).toHaveBeenCalledTimes(2);
     const [prepared, suspended] = asked.mock.calls.map(([request]) => request);
@@ -63,6 +65,22 @@ describe("suspend_for", () => {
       suspend: true,
     });
     expect(prepared).not.toHaveProperty("suspend");
+  });
+
+  it("resumes a fresh thread's suspended question after the waiting reply is posted", async () => {
+    const first = await setup(hi, linearConfig(RESUME_CONTEXT));
+    await finishAfterApprovalTurn(first, pendingLinear(), {
+      reply: "Waiting.",
+      suspend_for: ["linear"],
+    });
+
+    const resumed = await setup([...hi, botMessage("2", "Waiting.")], linearConfig());
+    const approved = fakeMcpApprovals({ linear: "approved" });
+    const marker = lastProcessed(first.aws);
+    if (marker !== undefined) resumed.aws.objects.set(`${THREAD_PREFIX}last-processed`, marker);
+
+    expect(await prepare(approvalDeps(resumed, approved))).toMatchObject({ skip: false });
+    expect(await readPrompt(resumed.root)).toContain("hi");
   });
 
   it("clears the 👀 reaction before the suspend call, leaving the waiting reaction last", async () => {
@@ -89,7 +107,7 @@ describe("suspend_for", () => {
     expect(run.aws.requests.filter((r) => r.operation === "post")).toMatchObject([
       { text: waitingReply(["linear"]) },
     ]);
-    expect(lastProcessed(run.aws)).toBeUndefined();
+    expect(lastProcessed(run.aws)).toBe(NOTHING_PROCESSED);
     expect(asked.mock.calls[1]?.[0]).toMatchObject({ suspend: true });
   });
 

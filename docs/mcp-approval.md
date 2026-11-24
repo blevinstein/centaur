@@ -124,7 +124,7 @@ Suspending is only for **chat turns that reply in an existing thread**. It does 
 **When a turn does not suspend.** `prepare` asks the poster once per turn and uses the answer as is: a server whose decision is already stored as approved runs in that turn and nothing is dropped, asked of the agent or suspended. A request is never polled; a decision that arrives later is seen by the next turn (or, for a suspended thread, by the re-dispatch).
 
 **What suspend does.** `finish` posts the reply, removes the 👀 reactions (before the suspend call, so the waiting reaction the call sets is not removed with them), saves the session (as for
-every `resume` thread) and **does not advance the last-processed marker**, then calls the poster
+every `resume` thread) and **does not advance the last-processed marker** (on a thread with no marker it records one just before the first pending message, or `NOTHING_PROCESSED` when that message opens the thread, so the bot's waiting reply cannot hide it from the resume turn), then calls the poster
 `mcp-approvals` with `suspend: true` for the named servers. The job ends and the thread's concurrency
 group is free, so later messages run normally (and see the same pending messages, still without the
 server). The marker stays only if the `suspend: true` call succeeds; if it fails (or `finish` has no

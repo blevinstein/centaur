@@ -22,14 +22,31 @@ const POLICY_COMMANDS: Partial<Record<Command, ContextPolicy>> = {
   transcript: "transcript",
 };
 
+/** A marker meaning that no message of the thread has been processed. */
+export const NOTHING_PROCESSED = "centaur:nothing-processed";
+
 /**
  * Human messages after the last-processed marker. Without a marker (or when it has aged out of
  * the stored transcript), everything after the bot's latest message counts as unprocessed.
  */
 export function pendingMessages(messages: ChatMessage[], marker: string | undefined) {
   const markerIndex = marker === undefined ? -1 : messages.findIndex((m) => m.id === marker);
-  const start = markerIndex >= 0 ? markerIndex + 1 : messages.findLastIndex((m) => m.fromBot) + 1;
+  const start =
+    marker === NOTHING_PROCESSED
+      ? 0
+      : markerIndex >= 0
+        ? markerIndex + 1
+        : messages.findLastIndex((m) => m.fromBot) + 1;
   return messages.slice(start).filter((m) => !m.fromBot);
+}
+
+/**
+ * The marker that leaves `pending` unprocessed regardless of the bot messages posted after it: the
+ * message before the first pending one, or `NOTHING_PROCESSED` when it opens the thread.
+ */
+export function markerBefore(messages: ChatMessage[], marker: string | undefined) {
+  const first = messages.findIndex((m) => m.id === pendingMessages(messages, marker)[0]?.id);
+  return (first > 0 ? messages[first - 1]?.id : undefined) ?? NOTHING_PROCESSED;
 }
 
 export function threadPolicy(messages: ChatMessage[], fallback: ContextPolicy): ContextPolicy {
