@@ -45,15 +45,33 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
       **[HUMAN ACTION]** Deploy the stack (`yarn deploy-prod`) so the poster serves `get-mcp-policy`;
       until then every turn and registration with `mcp_servers` fails closed. Then confirm a turn
       with `mcp_servers` still passes and an unpinned local server is denied.
-- [ ] Explore **approval-required** MCP servers: a level between deny and allow where the operator
-      policy marks a server (or tool) as needing a human decision, and the bot asks in Telegram (with
-      emoji reactions or buttons) before the turn uses it. Consider both synchronous (the turn waits)
-      and asynchronous (the turn proceeds without it, and a later turn is offered it) variants. It also
-      needs a way to express the third outcome in Cedar (for example a separate `RequireApproval`
-      action) and a state record for decisions. Keep the harness small: explore first, decide scope
-      before building.
-      Design and recommendations: [docs/mcp-approval.md](docs/mcp-approval.md); **[HUMAN APPROVAL]**
-      accept or amend its Decisions before building.
+- [ ] **Approval-required** MCP servers: design accepted, all recommendations plus the synchronous
+      window (`mcp_approval.wait_seconds`, default 2): [docs/mcp-approval.md](docs/mcp-approval.md).
+      Slices, in the order and with the dependencies of its
+      [implementation plan](docs/mcp-approval.md#implementation-plan):
+  - [ ] Approval 1: Cedar `context.approved`, two-pass `authorize`, fingerprint helper,
+        `checkMcpPolicy` returning `{ issues, approvals }`, and the `config check` / `register`
+        notices. No dependencies.
+  - [ ] Approval 2: the `mcp` access-request kind, decisions by reaction and `/approve` / `/deny`, the
+        SSM record, the `mcp-denied` TTL record, IAM, and the re-dispatch when `suspended`. No
+        dependencies (parallel with 1). **[HUMAN APPROVAL]** deploy of the Lambda and IAM change.
+  - [ ] Approval 3: poster `mcp-approvals` operation and `docs/poster.md`. Needs 2.
+        **[HUMAN APPROVAL]** deploy of the Lambda change.
+  - [ ] Approval 4: `prepare` wiring, the synchronous window, prompt lines and the `mcp_approval`
+        config key. Needs 1 and 3.
+  - [ ] Approval 5: `suspend_for` field and the `finish` suspend. Needs 4.
+  - [ ] Approval 6: `centaur mcp approvals` list and `revoke`. Needs 2.
+  - [ ] Approval 7: docs fold-in and the live check. Needs 1 to 6. **[HUMAN ACTION]** run the live
+        check against a remote server in the bot's real chat.
+- [ ] Explore a way to update the MCP policy by adding entries to an allowlist, with some level of
+      generalization (for example allow a server by name, by URL or host pattern, or a tool within
+      it) instead of editing the Cedar files by hand. Open questions to settle first: who may add an
+      entry (the platform admin, through a decision like an approval, or a reviewed change to the
+      policy file), where it is stored (the repo policy on the default branch, the global policy, or
+      a per-bot record), how it composes with the global `forbid` ceiling, and how generalized an
+      entry may be before it needs more than one approval. Revisit after the approval slices land;
+      it may reuse the approval record (`bots/<bot>/mcp-approvals/...`) as a persistent allow.
+      Design first; **[HUMAN APPROVAL]** accept its decisions before building.
 
 - [ ] Chat context tools: let the agent read other threads in its chat through a built-in MCP server
       backed by new poster operations. Design and recommendations:
