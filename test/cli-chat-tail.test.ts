@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { threadKey } from "../src/thread-key.js";
 import {
+  slackRoot,
   TAIL_BOT,
   TAIL_CHAT_ID,
   TAIL_NOW,
+  TAIL_SLACK_THREAD,
   TAIL_STRANGER,
   TAIL_TABLE,
   TAIL_USER,
@@ -214,5 +216,114 @@ describe("chat tail on Slack", () => {
 
     expect(failure).toEqual(new Error("Reading slack history failed: channel_not_found."));
     expect(String(failure)).not.toContain("xoxb");
+  });
+});
+
+describe("chat tail --replies and --reactions", () => {
+  const thread = threadKey(TAIL_BOT, TAIL_SLACK_THREAD);
+  const REACTORS = ["U7REACTOR", "U8REACTOR"];
+  const reactions = [
+    { name: "hourglass_flowing_sand", count: 1, users: [REACTORS[0] ?? ""] },
+    { name: "white_check_mark", count: 2, users: REACTORS },
+  ];
+  const root = () => slackRoot({ id: "root", minute: 30, raw: { reactions } });
+  const reply = (options = {}) =>
+    tailMessage({ id: "r1", threadId: TAIL_SLACK_THREAD, minute: 35, isMe: true, ...options });
+
+  it("keeps the default output free of replies and reactions", async () => {
+    const cli = await createTailHarness(["slack"], {
+      pages: { C0123: [root()] },
+      replies: { [TAIL_SLACK_THREAD]: [root(), reply()] },
+    });
+
+    await cli.run("chat", "tail", TAIL_BOT);
+
+    expect(cli.fake.fetchMessages).not.toHaveBeenCalled();
+    expect(cli.output[0]).toContain("1 shown");
+    expect(cli.output[0]).not.toContain("hourglass");
+    expect(cli.output[0]).not.toContain("kind");
+  });
+
+  it("lists replies under the thread key, through the sender filter and the limit", async () => {
+    const cli = await createTailHarness(["slack"], {
+      pages: { C0123: [root()] },
+      replies: {
+        [TAIL_SLACK_THREAD]: [
+          root(),
+          reply({ id: "r1", minute: 35 }),
+          reply({ id: "r2", minute: 36, isMe: false, userId: TAIL_STRANGER }),
+          reply({ id: "r3", minute: 37 }),
+        ],
+      },
+    });
+
+    await cli.run("chat", "tail", TAIL_BOT, "--replies");
+    const lines = cli.output[0]?.split("\n") ?? [];
+
+    expect(lines.slice(1, 4).map((line) => line.split(/\s+/).slice(2, 5))).toEqual([
+      ["user", thread, "post"],
+      ["bot", thread, "reply"],
+      ["bot", thread, "reply"],
+    ]);
+    expect(lines.at(-1)).toContain("3 shown, 1 dropped by the sender filter");
+
+    const limited = await createTailHarness(["slack"], {
+      pages: { C0123: [root()] },
+      replies: { [TAIL_SLACK_THREAD]: [reply({ id: "r1" }), reply({ id: "r3", minute: 37 })] },
+    });
+    await limited.run("chat", "tail", TAIL_BOT, "--replies", "--limit", "2");
+    expect(limited.output[0]).toContain("2 shown");
+    expect(limited.output[0]).not.toContain("03:30:00Z");
+  });
+
+  it("reads at most 20 threads and says when more exist", async () => {
+    const roots = Array.from({ length: 22 }, (_, index) =>
+      slackRoot({ id: `t${index}`, threadId: `slack:C0123:${index}.0`, minute: index }),
+    );
+    const cli = await createTailHarness(["slack"], { pages: { C0123: roots } });
+
+    await cli.run("chat", "tail", TAIL_BOT, "--replies", "--limit", "50");
+
+    expect(cli.fake.fetchMessages).toHaveBeenCalledTimes(20);
+    expect(cli.output[0]).toContain(
+      "Replies read for the newest 20 of 22 threads; older threads' replies are not shown.",
+    );
+  });
+
+  it("prints reaction names and counts and never the users who reacted", async () => {
+    const cli = await createTailHarness(["slack"], { pages: { C0123: [root()] } });
+
+    await cli.run("chat", "tail", TAIL_BOT, "--reactions", "--text");
+
+    expect(cli.output[0]).toContain("hourglass_flowing_sand x1, white_check_mark x2");
+    for (const user of REACTORS) expect(cli.output[0]).not.toContain(user);
+  });
+
+  it("prints the code of a thread that failed to read and carries on", async () => {
+    const error = Object.assign(new Error("failed xoxb-secret"), {
+      code: "slack_webapi_platform_error",
+      data: { error: "thread_not_found" },
+    });
+    const cli = await createTailHarness(["slack"], {
+      pages: { C0123: [root()] },
+      replies: { [TAIL_SLACK_THREAD]: error },
+    });
+
+    await cli.run("chat", "tail", TAIL_BOT, "--replies");
+
+    expect(cli.output[0]).toContain("Replies of one thread not read: thread_not_found.");
+    expect(cli.output[0]).toContain("1 shown");
+    expect(cli.output[0]).not.toContain("xoxb");
+  });
+
+  it("notes on Telegram that replies are already listed and reactions are not stored", async () => {
+    const cli = await createTailHarness(["telegram"], {
+      history: { [TAIL_CHAT_ID]: [tailMessage()] },
+    });
+
+    await cli.run("chat", "tail", TAIL_BOT, "--replies", "--reactions");
+
+    expect(cli.output[0]).toContain("--replies adds nothing.");
+    expect(cli.output[0]).toContain("Telegram does not store reactions; --reactions shows none.");
   });
 });

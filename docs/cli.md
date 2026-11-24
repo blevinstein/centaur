@@ -267,7 +267,7 @@ $ centaur approvers remove garden <user id>
 Removed approver <user id> for bot "garden".
 ```
 
-### `centaur chat tail <bot> [--platform <platform>] [--minutes <n>] [--limit <n>] [--text] [--table <name>]`
+### `centaur chat tail <bot> [--platform <platform>] [--minutes <n>] [--limit <n>] [--text] [--replies] [--reactions] [--table <name>]`
 
 Read-only. Lists a connection's recent messages, oldest first, through the poster's `read-channel`
 reader and sender filter ([poster.md](poster.md#list-threads-and-read-channel)): only enrolled users
@@ -280,6 +280,16 @@ to change that. It reads only the connection's approved chats.
   posts made before that are not shown.
 - Slack stores nothing; the command calls `conversations.history` with the connection's token from
   SSM, which is never printed. A Slack API error prints its code only.
+- On Slack, `conversations.history` lists channel-level messages only. `--replies` also reads the
+  replies of the newest 20 listed messages that have any (one `conversations.replies` call each; a
+  note says how many threads were skipped when there are more). Replies pass the same sender filter
+  and `--minutes` window, are merged in time order and count toward `--limit` (newest kept), so a
+  busy thread can push older channel-level lines out. A thread that fails to read prints a one-line
+  note with the Slack error code and the listing continues. Telegram's stored list already holds
+  every thread's messages, so `--replies` there only prints a note.
+- `--reactions` appends each message's reaction names with counts, taken from the messages already
+  fetched (no extra calls). The users who reacted are never read or printed. Telegram does not store
+  reactions, so a note is printed instead.
 - `--minutes` (default 60) bounds the age and `--limit` (default 30, at most 200) the count, newest
   kept.
 - The state table is `--table`, else `CENTAUR_STATE_TABLE`, else the SSM parameter
@@ -297,6 +307,17 @@ time (UTC)            platform  author  thread        files  chars
 2026-01-02T03:30:00Z  telegram  user    1a2b3c4d5e6f  0      11
 2026-01-02T03:40:00Z  telegram  bot     1a2b3c4d5e6f  0      2
 2 shown, 1 dropped by the sender filter; oldest examined 2026-01-02T03:30:00.000Z; window exhausted.
+```
+
+With `--replies` a `kind` column (`post` or `reply`) follows the thread key, and with `--reactions` a
+`reactions` column follows `chars`:
+
+```
+time (UTC)            platform  author  thread        kind   files  chars  reactions
+2026-01-02T03:30:00Z  slack     user    1a2b3c4d5e6f  post   0      11     hourglass_flowing_sand x1, white_check_mark x1
+2026-01-02T03:31:00Z  slack     bot     1a2b3c4d5e6f  reply  0      42
+Replies read for the newest 20 of 23 threads; older threads' replies are not shown.
+2 shown, 0 dropped by the sender filter; oldest examined 2026-01-02T03:30:00.000Z; window exhausted.
 ```
 
 The AWS credentials need `ssm:GetParametersByPath` and `ssm:GetParameter` on `/centaur/*` (with KMS

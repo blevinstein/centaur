@@ -28,6 +28,9 @@ export interface TailMessageOptions {
   minute?: number;
   attachments?: number;
   topic?: string;
+  /** Slack raw fields: reply count and reactions. */
+  raw?: { reply_count?: number; reactions?: { name: string; count: number; users: string[] }[] };
+  threadId?: string;
 }
 
 export const tailMessage = ({
@@ -39,10 +42,13 @@ export const tailMessage = ({
   minute = 30,
   attachments = 0,
   topic = "77",
+  raw,
+  threadId = `telegram:${TAIL_CHAT_ID}:${topic}`,
 }: TailMessageOptions = {}) =>
   ({
     id,
-    threadId: `telegram:${TAIL_CHAT_ID}:${topic}`,
+    threadId,
+    raw,
     text,
     author: { userId, userName: "pat", isBot, isMe },
     metadata: { dateSent: new Date(Date.UTC(2026, 0, 2, 3, minute)) },
@@ -56,6 +62,8 @@ export interface TailAccessOptions {
   pages?: Record<string, Message[]>;
   nextCursor?: string;
   slackError?: unknown;
+  /** `conversations.replies` result per thread ID; an Error value is thrown. */
+  replies?: Record<string, Message[] | Error>;
   env?: NodeJS.ProcessEnv;
   /** The `/centaur/state-table` parameter; null leaves it unset. */
   parameterTable?: string | null;
@@ -67,12 +75,18 @@ export function fakeChatAccess({
   pages = {},
   nextCursor,
   slackError,
+  replies = {},
   env = {},
 }: Omit<TailAccessOptions, "parameterTable"> = {}) {
   const states = strictStates();
   const fetchChannelMessages = vi.fn(async (channelId: string) => {
     if (slackError) throw slackError;
     return { messages: pages[channelId.slice("slack:".length)] ?? [], nextCursor };
+  });
+  const fetchMessages = vi.fn(async (threadId: string) => {
+    const found = replies[threadId] ?? [];
+    if (found instanceof Error) throw found;
+    return { messages: found };
   });
   const createState = vi.fn((_table: string, prefix: string) => states.createState(prefix));
   const access: ChatAccess = {
@@ -89,11 +103,11 @@ export function fakeChatAccess({
           },
         },
         channel: () => ({
-          adapter: { name: bot.platform, fetchChannelMessages },
+          adapter: { name: bot.platform, fetchChannelMessages, fetchMessages },
         }),
       }) as unknown as PosterChat,
   };
-  return { access, states, fetchChannelMessages, createState };
+  return { access, states, fetchChannelMessages, fetchMessages, createState };
 }
 
 /** Adds the platform's connection to the bot `garden`, bound, with one approved chat and one enrolled user. */
@@ -137,3 +151,13 @@ export function stubTelegramIdentity() {
     ),
   );
 }
+
+export const TAIL_SLACK_THREAD = `slack:${TAIL_CHANNEL_ID}:1700000000.000100`;
+
+/** A channel-level Slack message that opens a thread of `replyCount` replies. */
+export const slackRoot = (options: TailMessageOptions = {}, replyCount = 1) =>
+  tailMessage({
+    threadId: TAIL_SLACK_THREAD,
+    ...options,
+    raw: { reply_count: replyCount, ...options.raw },
+  });

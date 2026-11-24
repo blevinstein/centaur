@@ -5,6 +5,7 @@ import {
   DEFAULT_MINUTES,
   formatTail,
   MAX_LIMIT,
+  MAX_REPLY_THREADS,
   parseCount,
   readTail,
   STATE_TABLE_ENV,
@@ -17,6 +18,8 @@ interface TailFlags extends PlatformOptions {
   minutes: string;
   limit: string;
   text?: boolean;
+  replies?: boolean;
+  reactions?: boolean;
   table?: string;
 }
 
@@ -31,6 +34,11 @@ export function registerChatCommands(program: Command, context: CliContext): voi
     .option("--limit <n>", `at most n messages, up to ${MAX_LIMIT}`, String(DEFAULT_LIMIT))
     .option("--text", "also print each message's text, clipped to one line")
     .option(
+      "--replies",
+      `also list the replies of the newest ${MAX_REPLY_THREADS} listed Slack threads`,
+    )
+    .option("--reactions", "append each message's reaction names and counts (Slack)")
+    .option(
       "--table <name>",
       `state table (default: $${STATE_TABLE_ENV}, else the ${STATE_TABLE_PARAMETER} parameter)`,
     )
@@ -40,7 +48,9 @@ export function registerChatCommands(program: Command, context: CliContext): voi
         minutes: parseCount("--minutes", flags.minutes),
         limit: parseCount("--limit", flags.limit, MAX_LIMIT),
         table: flags.table,
+        replies: flags.replies,
+        reactions: flags.reactions,
       });
-      context.log(formatTail(bot, tail, flags.text ?? false).join("\n"));
+      context.log(formatTail(bot, tail, flags).join("\n"));
     });
 }
