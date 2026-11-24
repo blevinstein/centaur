@@ -156,3 +156,10 @@
 - A scheduled workflow's concurrency group comes from `resolve-schedule`
   (`src/workflows/schedule-group.ts`). A change to its key must update the template in
   `docs/workflows.md` and `.github/workflows/centaur-hello.yml`.
+- Every poster post path (`post`, `start-thread`, a reused persistent thread) posts through
+  `postInThread` (`src/lambda/channel-history.ts`), which also records the sent message in the
+  chat-level history list on Telegram; a new post path must use it. A failed record only logs.
+- The chat tools read Telegram history through `chat.history.thread.collect(channelId)`;
+  `chat.channel(id).messages` never reads the stored list. A change to a history reader needs a test
+  on the real `Chat` and DynamoDB state (`realTelegramChat`, `test/helpers/real-chat-fixtures.ts`),
+  because the scripted chats in other tests hide this.

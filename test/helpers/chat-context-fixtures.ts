@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import type { PosterChat } from "../../src/lambda/poster.js";
 import {
   GARDEN_REPOSITORY,
   HOUSEHOLD_CHAT_ID,
@@ -97,6 +98,7 @@ export async function contextSetup(
     nextCursor?: string;
     repository?: string;
     parameters?: Record<string, string>;
+    chat?: PosterChat;
   } = {},
 ) {
   const platform = options.platform ?? "telegram";
@@ -108,6 +110,7 @@ export async function contextSetup(
       ...options.parameters,
     },
     ...(options.transcript ? { transcript: options.transcript } : {}),
+    ...(options.chat ? { chat: options.chat } : {}),
   });
   const listThreads = vi.fn(async () => ({
     threads: options.threads ?? [],
@@ -118,13 +121,11 @@ export async function contextSetup(
     nextCursor: options.nextCursor,
   }));
   const history = options.history ?? [];
+  setup.chatMock.history.thread.collect.mockImplementation(async function* () {
+    yield* [...history].reverse();
+  });
   setup.chatMock.channel.mockReturnValue({
     post: setup.channelPost,
-    messages: {
-      async *[Symbol.asyncIterator]() {
-        yield* history;
-      },
-    },
     adapter: { name: platform, listThreads, fetchChannelMessages },
   } as never);
   Object.assign(setup.thread, {

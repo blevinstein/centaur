@@ -1,6 +1,7 @@
-import type { StateAdapter } from "chat";
+import type { Logger, StateAdapter } from "chat";
 import { buildThreadId, type Platform, type ThreadMode, threadPlatform } from "../config/index.js";
 import { createAccessResolver } from "./access.js";
+import { postInThread } from "./channel-history.js";
 import {
   createDestinationOnFirstUse,
   type Destination,
@@ -103,6 +104,7 @@ const topicOf = (threadId: string) => Number(threadId.slice(threadId.lastIndexOf
 export interface ThreadStarterDeps {
   params: ParameterStore;
   telegram: TelegramApi;
+  logger: Pick<Logger, "warn">;
   loadBot: (botName: string, platform?: Platform) => Promise<Bot>;
   openChat: (
     botName: string,
@@ -113,6 +115,7 @@ export interface ThreadStarterDeps {
 
 export function createThreadStarter({
   params,
+  logger,
   telegram,
   loadBot,
   openChat,
@@ -143,7 +146,9 @@ export function createThreadStarter({
         context: request.context,
         destination,
       });
-      if (!opened.posted) await thread.post(request.text);
+      if (!opened.posted) {
+        await postInThread({ chat, botName: bot.name, logger }, opened.threadId, request.text);
+      }
       return opened.threadId;
     };
 

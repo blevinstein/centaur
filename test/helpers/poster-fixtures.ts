@@ -93,7 +93,12 @@ export function fakePosterChat(transcript: unknown[] = []) {
   }));
   const thread = {
     id: "telegram:-100500:77",
-    adapter: { removeReaction, rehydrateAttachment },
+    adapter: {
+      name: "telegram",
+      persistThreadHistory: true,
+      removeReaction,
+      rehydrateAttachment,
+    },
     channelId: `telegram:${HOUSEHOLD_CHAT_ID}`,
     isDM: false,
     post: vi.fn(async () => ({ id: "sent-1" })),
@@ -107,13 +112,18 @@ export function fakePosterChat(transcript: unknown[] = []) {
   const channelPost = vi.fn(async () => ({ id: "sent-2", threadId: SLACK_POST_THREAD_ID }));
   const listThreads = vi.fn(async () => ({ threads: [], nextCursor: undefined }));
   const fetchChannelMessages = vi.fn(async () => ({ messages: [], nextCursor: undefined }));
+  const appendHistory = vi.fn(async () => {});
+  const collectHistory = vi.fn(async function* (): AsyncGenerator<unknown> {});
   const chat = {
     initialize: vi.fn(async () => {}),
+    history: { thread: { append: appendHistory, collect: collectHistory } },
     thread: vi.fn((id: string) => {
       const [platform, chatId] = id.split(":");
       if ((platform === "telegram" || platform === "slack") && id !== thread.id) {
         thread.id = id;
         thread.channelId = `${platform}:${chatId}`;
+        thread.adapter.name = platform;
+        thread.adapter.persistThreadHistory = platform === "telegram";
       }
       return thread;
     }),
@@ -129,6 +139,7 @@ export function fakePosterChat(transcript: unknown[] = []) {
     thread,
     removeReaction,
     rehydrateAttachment,
+    appendHistory,
     channelPost,
     listThreads,
     fetchChannelMessages,
@@ -145,6 +156,8 @@ export async function posterSetup(
     createState?: (prefix: string) => StateAdapter;
     repository?: string;
     globalMcpPolicy?: string;
+    /** A chat to use in place of the scripted one, such as the real `Chat`. */
+    chat?: PosterChat;
   } = {},
 ) {
   const params = fakeParameterStore({
@@ -166,7 +179,7 @@ export async function posterSetup(
     options.createState ??
       ((prefix: string) => (prefix === "" ? registryState : createMemoryState())),
   );
-  const chatFor = vi.fn<PosterDeps["chatFor"]>(() => posting.chat);
+  const chatFor = vi.fn<PosterDeps["chatFor"]>(() => options.chat ?? posting.chat);
   const attachments = fakeAttachments(options.attachments);
   const poster = await createPoster({
     params,

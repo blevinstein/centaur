@@ -157,7 +157,9 @@ const summarize = (
  * configured history window, so the scan is exhausted unless a consumer stops early.
  */
 async function* storedHistory({ chat, channelId }: ChannelQuery, scan: Scan) {
-  for await (const message of chat.channel(channelId).messages) {
+  const stored: Message[] = [];
+  for await (const message of chat.history.thread.collect(channelId)) stored.push(message);
+  for (const message of stored.reverse()) {
     observe(scan, message);
     yield message;
   }

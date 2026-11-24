@@ -225,8 +225,8 @@ to change that. It reads only the connection's approved chats.
 
 - Telegram has no history API, so the messages come from the receiver's stored lists in the state
   table (the newest `HistoryMaxMessages` per chat, expiring `HistoryTtlDays` after the latest one).
-  They are messages people sent: the bot's own posts are stored per thread, not in the chat's list,
-  so they are not shown, and threads nobody replied in are omitted. The command prints a line saying so.
+  The bot's own posts are stored in the chat's list too since the poster started recording them, so
+  posts made before that are not shown.
 - Slack stores nothing; the command calls `conversations.history` with the connection's token from
   SSM, which is never printed. A Slack API error prints its code only.
 - `--minutes` (default 60) bounds the age and `--limit` (default 30, at most 200) the count, newest

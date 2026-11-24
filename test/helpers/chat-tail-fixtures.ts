@@ -81,12 +81,14 @@ export function fakeChatAccess({
     chatFor: (bot) =>
       ({
         initialize: async () => {},
-        channel: (channelId: string) => ({
-          messages: {
-            async *[Symbol.asyncIterator]() {
-              yield* history[channelId.slice(bot.platform.length + 1)] ?? [];
+        history: {
+          thread: {
+            async *collect(channelId: string) {
+              yield* [...(history[channelId.slice(bot.platform.length + 1)] ?? [])].reverse();
             },
           },
+        },
+        channel: () => ({
           adapter: { name: bot.platform, fetchChannelMessages },
         }),
       }) as unknown as PosterChat,

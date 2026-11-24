@@ -10,6 +10,7 @@ import {
 } from "../config/index.js";
 import { createAccessResolver } from "./access.js";
 import type { AttachmentStore } from "./attachments.js";
+import { postInThread } from "./channel-history.js";
 import {
   createChatContext,
   listThreadsRequestSchema,
@@ -107,7 +108,7 @@ export type PosterRequest = z.input<typeof posterRequestSchema>;
 
 export type PosterChat = Pick<
   Chat<Record<string, Adapter>, ThreadMetadata>,
-  "initialize" | "thread" | "channel"
+  "initialize" | "thread" | "channel" | "history" | "thread" | "channel"
 >;
 
 export interface PosterDeps {
@@ -188,6 +189,7 @@ export async function createPoster(deps: PosterDeps) {
 
   const threadStarter = createThreadStarter({
     params,
+    logger,
     telegram,
     loadBot,
     openChat,
@@ -210,8 +212,12 @@ export async function createPoster(deps: PosterDeps) {
       case "read-channel":
         return chatContext.readChannel(request);
       case "post": {
-        const { chat } = await openThreadChat(request.bot, request.threadId);
-        const sent = await chat.thread(request.threadId).post(request.text);
+        const { bot, chat } = await openThreadChat(request.bot, request.threadId);
+        const sent = await postInThread(
+          { chat, botName: bot.name, logger },
+          request.threadId,
+          request.text,
+        );
         return { messageId: sent.id };
       }
       case "start-thread":

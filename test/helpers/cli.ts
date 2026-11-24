@@ -58,10 +58,14 @@ export type CliHarness = ReturnType<typeof createCliHarness>;
 /** A harness with the bot `garden` connected on each platform and a scripted chat for `chat tail`. */
 export async function createTailHarness(
   platforms: Platform[],
-  { parameterTable = TAIL_TABLE, ...options }: TailAccessOptions = {},
+  {
+    parameterTable = TAIL_TABLE,
+    chatAccess,
+    ...options
+  }: TailAccessOptions & { chatAccess?: CliContext["chatAccess"] } = {},
 ) {
   const fake = fakeChatAccess(options);
-  const cli = createCliHarness({}, undefined, undefined, fake.access);
+  const cli = createCliHarness({}, undefined, undefined, chatAccess ?? fake.access);
   if (parameterTable) {
     await cli.store.put(STATE_TABLE_PARAMETER, parameterTable, { secure: false });
   }

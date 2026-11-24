@@ -44,11 +44,15 @@ thread and its channel (`persistThreadHistory`, Telegram only). That storage hap
 checks, so on Telegram the stored history also contains messages from senders who are not enrolled.
 Whatever reads it must apply its own filter (see [Privacy](#privacy-and-trust)).
 
-**Known limit on Telegram.** `Chat` appends an incoming message to the thread's list and the
-chat's list, but the bot's own posts only to the thread's list, and the chat tools read the chat's
-list. So on Telegram `read-channel` and `centaur chat tail` omit the bot's own posts, and
-`list-threads` omits threads only the bot has written in (a scheduled prompt's post, for example).
-Slack reads live and is unaffected.
+**Bot posts on Telegram.** `Chat` appends an incoming message to the thread's list and the chat's
+list, but the bot's own posts only to the thread's list, so the poster appends each message it posts
+to the chat's list too (`postInThread` in `src/lambda/channel-history.ts`), and the chat tools
+list them. Posts made before that was added are in their thread's list only, so the chat tools omit
+them, and threads only the bot wrote in, until the history window passes. The chat tools read the chat
+list through `chat.history.thread.collect(channelId)`: the SDK's `chat.channel(id).messages` and
+`history.channel.listMessages` never read the stored list, because the Telegram adapter's
+`fetchChannelMessages` compares `decoded.chatId` with `telegram:<chatId>` and matches nothing (an SDK
+bug the reader works around). Slack reads live and is unaffected.
 
 Slack rate limits to verify before building: Slack cut `conversations.history` and
 `conversations.replies` to 1 request per minute (15 messages per call) for commercially distributed

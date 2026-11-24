@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TELEGRAM_NOTE } from "../src/cli/chat-tail.js";
 import { threadKey } from "../src/thread-key.js";
 import {
   TAIL_BOT,
@@ -43,7 +42,6 @@ describe("chat tail on Telegram", () => {
         `2026-01-02T03:30:00Z  telegram  user    ${thread}  2      11`,
         `2026-01-02T03:40:00Z  telegram  bot     ${thread}  0      2`,
         "2 shown, 2 dropped by the sender filter; oldest examined 2026-01-02T03:30:00.000Z; window exhausted.",
-        TELEGRAM_NOTE,
       ].join("\n"),
     ]);
   });
@@ -203,7 +201,6 @@ describe("chat tail on Slack", () => {
     expect(cli.output[0]).toContain("slack hello");
     expect(cli.output[0]).toContain("1 shown, 1 dropped by the sender filter");
     expect(cli.output[0]).toContain("window not exhausted.");
-    expect(cli.output[0]).not.toContain(TELEGRAM_NOTE);
   });
 
   it("prints a Slack API error code and nothing else from the error", async () => {

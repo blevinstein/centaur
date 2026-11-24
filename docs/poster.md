@@ -180,8 +180,11 @@ examined range qualified; older messages can be read with `before`.
   with a message among the chat's newest `HistoryMaxMessages`, and `read-channel` cannot page beyond them. `title`
   is the first line of the oldest message seen, `snippet` the newest, `messageCount` and
   `participants` count visible messages only. `before` skips messages sent at or after it. The
-  bot's own posts are stored only in the thread's list, not the chat's, so `read-channel` omits
-  them and `list-threads` omits threads nobody but the bot has written in.
+  poster records each message it posts (`post`, `start-thread`) in the chat's list as well
+  (`src/lambda/channel-history.ts`), so the bot's own posts and threads only it has written in are
+  listed. Posts made before that was added exist only in their thread's list, so older bot posts
+  are missing here until the window passes. The reader calls `chat.history.thread.collect` with the
+  chat's channel ID, which falls back to the stored list; `chat.channel(id).messages` does not.
 - **Slack:** `list-threads` maps the adapter's `listThreads` (thread parents with replies; the title
   and snippet are the parent's text, `messageCount` is replies plus one, `participants` only the
   parent's author). `read-channel` maps `fetchChannelMessages` (top-level messages only); `before`
