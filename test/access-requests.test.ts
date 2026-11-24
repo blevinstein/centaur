@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { PENDING_TEXT, REQUESTED_TEXT, UNREACHABLE_TEXT } from "../src/lambda/access-requests.js";
-import { ADMIN_DM_MESSAGE_ID, accessHarness } from "./helpers/access-fixtures.js";
+import { accessHarness } from "./helpers/access-fixtures.js";
 import {
   fakeMessage,
   fakeThread,
@@ -37,7 +37,7 @@ describe("access requester", () => {
       expect(text).not.toContain(MESSAGE_TEXT);
       expect(post).toHaveBeenCalledExactlyOnceWith(REQUESTED_TEXT);
       expect(await h.store.read(h.requestId())).toMatchObject({ kind, subjectId, subjectName });
-      expect(await h.store.requestIdForMessage(ADMIN_DM_MESSAGE_ID)).toBe(h.requestId());
+      expect(await h.linkedRequestId()).toBe(h.requestId());
     },
   );
 

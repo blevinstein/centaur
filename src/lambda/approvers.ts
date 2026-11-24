@@ -35,3 +35,20 @@ export const isMember = ({ admin, approvers, userId }: DeciderRoles) =>
 
 export const mayDecide = ({ kind, ...roles }: DeciderRoles & { kind: string }) =>
   isMember(roles) && (roles.userId === roles.admin || APPROVER_KINDS.includes(kind));
+
+/**
+ * Who is sent a request of `kind`: the admin first, then, for a kind an approver may decide, the
+ * set in sorted order without the admin, at most MAX_APPROVERS of them.
+ */
+export async function recipientsFor(
+  params: Pick<ParameterStore, "getByPath">,
+  { name, platform }: { name: string; platform: Platform },
+  kind: string,
+  admin: string,
+): Promise<string[]> {
+  if (!APPROVER_KINDS.includes(kind)) return [admin];
+  const approvers = [...(await loadApprovers(params, name, platform))]
+    .filter((userId) => userId !== admin)
+    .sort();
+  return [admin, ...approvers.slice(0, MAX_APPROVERS)];
+}

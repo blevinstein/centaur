@@ -12,6 +12,7 @@ import {
   APPROVER_ID,
   approverEntries,
   commandFrom,
+  dmChannelId,
   MCP_APPROVAL_PARAMETER,
   mcpHarness,
   OTHER_APPROVER_ID,
@@ -136,7 +137,9 @@ describe("who is refused", () => {
   it.each(["chat", "user"] as const)("an approver on a %s request", async (kind) => {
     const h = await pendingAccessHarness(kind, { approvers: [APPROVER_ID] });
 
-    await h.decisions.fromReaction(h.reaction("👍", { userId: APPROVER_ID }));
+    await h.decisions.fromReaction(
+      h.reaction("👍", { userId: APPROVER_ID, channelId: dmChannelId(ADMIN_ID) }),
+    );
     const reply = await h.decisions.fromCommand(
       commandFrom("/approve", h.requestId(), { userId: APPROVER_ID }),
     );

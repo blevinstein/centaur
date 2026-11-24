@@ -1,13 +1,16 @@
 import type { Platform } from "../config/index.js";
 import { adminParameter } from "./access-entries.js";
-import type { Verdict } from "./access-request-store.js";
+import type { MessageRef, Verdict } from "./access-request-store.js";
 import type { ParameterStore } from "./parameters.js";
 
 export const APPROVE_EMOJI = "👍";
 export const DENY_EMOJI = "👎";
 
 export interface DirectMessenger {
-  openDM(userId: string): Promise<{ post(message: { raw: string }): Promise<{ id: string }> }>;
+  openDM(userId: string): Promise<{
+    channelId: string;
+    post(message: { raw: string }): Promise<{ id: string }>;
+  }>;
 }
 
 /**
@@ -18,7 +21,7 @@ export interface DirectMessenger {
 export interface AdminChannel {
   readonly platform: Platform;
   readonly commands: boolean;
-  notify(messenger: DirectMessenger, adminId: string, text: string): Promise<string>;
+  notify(messenger: DirectMessenger, userId: string, text: string): Promise<MessageRef>;
   verdictForReaction(rawEmoji: string): Verdict | undefined;
 }
 
@@ -29,9 +32,9 @@ function chatAdminChannel(
   return {
     platform,
     commands: options.commands,
-    async notify(messenger, adminId, text) {
-      const dm = await messenger.openDM(adminId);
-      return (await dm.post({ raw: text })).id;
+    async notify(messenger, userId, text) {
+      const dm = await messenger.openDM(userId);
+      return { channelId: dm.channelId, messageId: (await dm.post({ raw: text })).id };
     },
     verdictForReaction(rawEmoji) {
       const name = rawEmoji.split("::")[0] as string;

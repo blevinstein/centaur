@@ -31,18 +31,25 @@ import {
 const { "/centaur/chats/telegram/household": _household, ...ACCESS_PARAMETERS } = PARAMETERS;
 
 export const ADMIN_ID = "5001";
-export const ADMIN_DM_MESSAGE_ID = "telegram:5001:900";
+export const dmMessageId = (requestId: string) => `dm-${requestId}`;
+export const dmChannelId = (userId: string) => `telegram:${userId}`;
 export const ADMIN_PARAMETER = "/centaur/admin/telegram";
+
+const requestIdIn = (text: string) => /Access request (\w+)/.exec(text)?.[1] as string;
 
 export async function accessHarness({
   admin = ADMIN_ID,
   limits,
   dmFails = false,
+  failingUsers = [],
+  messageIds,
   approvers = [],
 }: {
   admin?: string | null;
   limits?: Partial<AccessRequestLimits>;
   dmFails?: boolean;
+  failingUsers?: string[];
+  messageIds?: string[];
   approvers?: string[];
 } = {}) {
   const state = createMemoryState();
@@ -57,11 +64,14 @@ export async function accessHarness({
     perHour: 10,
     ...limits,
   });
-  const adminPost = vi.fn(async (_message: { raw: string }) => ({ id: ADMIN_DM_MESSAGE_ID }));
+  const queuedIds = [...(messageIds ?? [])];
+  const adminPost = vi.fn(async ({ raw }: { raw: string }) => ({
+    id: queuedIds.shift() ?? dmMessageId(requestIdIn(raw)),
+  }));
   const messenger = {
-    openDM: vi.fn(async (_userId: string) => {
-      if (dmFails) throw new Error("chat not found");
-      return { post: adminPost };
+    openDM: vi.fn(async (userId: string) => {
+      if (dmFails || failingUsers.includes(userId)) throw new Error("chat not found");
+      return { channelId: dmChannelId(userId), post: adminPost };
     }),
   };
   const logger = fakeLogger();
@@ -95,16 +105,27 @@ export async function accessHarness({
     logger,
   });
   const adminText = (index = 0) => adminPost.mock.calls[index]?.[0].raw ?? "";
-  const requestId = (index = 0) => /Access request (\w+)/.exec(adminText(index))?.[1] as string;
+  const requestId = (index = 0) => requestIdIn(adminText(index));
+  const linkedRequestId = (userId = ADMIN_ID, messageId = dmMessageId(requestId())) =>
+    store.requestIdForMessage({ channelId: dmChannelId(userId), messageId });
   const reaction = (
     rawEmoji: string,
-    overrides: { userId?: string; messageId?: string; added?: boolean; isDM?: boolean } = {},
+    overrides: {
+      userId?: string;
+      messageId?: string;
+      channelId?: string;
+      added?: boolean;
+      isDM?: boolean;
+    } = {},
   ) => ({
     added: overrides.added ?? true,
     rawEmoji,
-    messageId: overrides.messageId ?? ADMIN_DM_MESSAGE_ID,
+    messageId: overrides.messageId ?? dmMessageId(requestId()),
     user: { userId: overrides.userId ?? admin ?? ADMIN_ID },
-    thread: { isDM: overrides.isDM ?? true },
+    thread: {
+      isDM: overrides.isDM ?? true,
+      channelId: overrides.channelId ?? dmChannelId(overrides.userId ?? admin ?? ADMIN_ID),
+    },
   });
   return {
     state,
@@ -114,6 +135,7 @@ export async function accessHarness({
     adminPost,
     adminText,
     requestId,
+    linkedRequestId,
     logger,
     requestAccess,
     requestMcp,

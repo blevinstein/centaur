@@ -4,6 +4,7 @@ import {
   ADMIN_ID,
   accessHarness,
   commandFrom,
+  dmChannelId,
   pendingAccessHarness,
 } from "./helpers/access-fixtures.js";
 import { destinationAt } from "./helpers/destination-fixtures.js";
@@ -87,7 +88,9 @@ describe("access decisions by reaction", () => {
   it("warns by ID when a non-admin reacts to a request message", async () => {
     const h = await pendingAccessHarness("user");
 
-    await h.decisions.fromReaction(h.reaction("👍", { userId: STRANGER_USER_ID }));
+    await h.decisions.fromReaction(
+      h.reaction("👍", { userId: STRANGER_USER_ID, channelId: dmChannelId(ADMIN_ID) }),
+    );
 
     expect(h.logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("non-admin"),

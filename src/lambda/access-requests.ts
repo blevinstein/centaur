@@ -8,6 +8,7 @@ import {
   type DirectMessenger,
   lookupAdminId,
 } from "./admin-channel.js";
+import { recipientsFor } from "./approvers.js";
 import { scopedChatPrefix } from "./connection-paths.js";
 import { parseDestinations, proposeDestinationName } from "./destinations.js";
 import type { ThreadMetadata } from "./ownership.js";
@@ -33,7 +34,7 @@ export interface AccessRequesterDeps {
   store: AccessRequestStore;
   channel: AdminChannel;
   messenger: DirectMessenger;
-  logger: Pick<Logger, "info" | "error">;
+  logger: Pick<Logger, "info" | "warn" | "error">;
 }
 
 export type AccessRequester = (
@@ -61,16 +62,18 @@ export interface RequestSpec {
   describe: () => Promise<{ fields: Omit<RequestFields, "kind" | "subjectId">; lines: string[] }>;
 }
 
-/** Opens a request for a subject: one pending slot, a rate limit, the stored record and the admin DM. */
+/** Opens a request for a subject: one pending slot, a rate limit, the stored record and a DM to each recipient. */
 function createRequestRaiser({
   bot,
+  params,
   store,
   channel,
   messenger,
   logger,
-}: Omit<AccessRequesterDeps, "params">) {
+}: AccessRequesterDeps) {
   const where = { bot: bot.name, platform: bot.platform };
   return async (adminId: string, { kind, subjectId, describe }: RequestSpec) => {
+    const recipients = await recipientsFor(params, bot, kind, adminId);
     if (!(await store.claimSubject(kind, subjectId))) return "pending";
     if (await store.overLimit()) {
       await store.releaseSubject(kind, subjectId);
@@ -91,9 +94,18 @@ function createRequestRaiser({
       ...(channel.commands ? [`Or reply /approve ${request.id} or /deny ${request.id}.`] : []),
       `Expires in ${store.ttlMs / DAY_MS} days.`,
     ].join("\n");
-    try {
-      await store.linkMessage(await channel.notify(messenger, adminId, text), request);
-    } catch (error) {
+    let delivered = 0;
+    let lastError: unknown;
+    for (const userId of recipients) {
+      try {
+        await store.linkMessage(await channel.notify(messenger, userId, text), request);
+        delivered++;
+      } catch (error) {
+        lastError = error;
+        logger.warn("failed to notify a recipient of access request", { ...where, kind });
+      }
+    }
+    if (delivered === 0) {
       await store.remove(request);
       await store.releaseSubject(kind, subjectId);
       logger.error("failed to notify admin of access request", {
@@ -101,7 +113,7 @@ function createRequestRaiser({
         kind,
         subjectId,
         requestId: request.id,
-        error,
+        error: lastError,
       });
       return "unreachable";
     }

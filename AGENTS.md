@@ -170,6 +170,9 @@
   because the scripted chats in other tests hide this.
 - A new access request kind goes through `createRequestRaiser` (`src/lambda/access-requests.ts`) and
   the `appliers` map in `src/lambda/access-decisions.ts`.
+- The DM-to-request link is keyed `<channelId>:<messageId>` (`MessageRef`, `access-request-store.ts`); a
+  new platform adds nothing but must return both from `AdminChannel.notify`. Recipients of a request
+  come only from `recipientsFor` (`src/lambda/approvers.ts`).
 - In a fresh worktree also run `python3 -m venv .venv && .venv/bin/pip install -r
   requirements-dev.txt` before `yarn lint:cfn`.
 - The poster's `mcp-approvals` (`src/lambda/mcp-approvals.ts`) reads decisions only through

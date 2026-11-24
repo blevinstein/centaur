@@ -4,10 +4,11 @@ Design for a group of **approvers** besides the platform admin: people the admin
 Slack or Telegram, to decide requests the bot sends for approval.
 
 Status: slice 1 (set and gate) is built: the path helpers, `loadApprovers`, `mayDecide`, the denial
-audit record and the `approverId` log field. Slice 5 (the CLI, `centaur approvers`) is built; it
-writes entries without the `approver` field, which the entry codec does not have yet. Not built: DMs
-to approvers (slice 2), the `approver` request kind and `leave` (3), admin commands (4), access
-requests (6) and the docs fold-in (7); until slice 2 an approver cannot receive a request. The [Decisions](#decisions) are the design. Terms (admin channel, access request, claim) are
+audit record and the `approverId` log field. Slice 2 (fan-out) is built: `recipientsFor`, one DM per
+recipient for `mcp` requests and the channel-keyed message link. Slice 5 (the CLI, `centaur
+approvers`) is built; it writes entries without the `approver` field, which the entry codec does not
+have yet. Not built: the `approver` request kind and `leave` (3), admin commands (4), access
+requests (6) and the docs fold-in (7); until slice 3 the set is written by hand or with the CLI. The [Decisions](#decisions) are the design. Terms (admin channel, access request, claim) are
 defined in [plan.md](plan.md#access-requests); the request kind that motivates this is in
 [mcp-approval.md](mcp-approval.md).
 

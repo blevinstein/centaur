@@ -117,7 +117,7 @@ export function fakePosterChat(transcript: unknown[] = []) {
   const adminPost = vi.fn(async (_message: { raw: string }) => ({ id: "dm-1" }));
   const chat = {
     initialize: vi.fn(async () => {}),
-    openDM: vi.fn(async (_userId: string) => ({ post: adminPost })),
+    openDM: vi.fn(async (userId: string) => ({ channelId: `telegram:${userId}`, post: adminPost })),
     history: { thread: { append: appendHistory, collect: collectHistory } },
     thread: vi.fn((id: string) => {
       const [platform, chatId] = id.split(":");

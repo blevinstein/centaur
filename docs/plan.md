@@ -305,7 +305,7 @@ person in it still needs approval to talk to the bot (DMs only need the user).
 is immediate) may decide the kinds in `APPROVER_KINDS` (`src/lambda/approvers.ts`, today `mcp`); an
 approver trying another kind is told it is for the admin. Anyone else is ignored. With no admin
 the set is inert, and an empty set means the admin alone decides. A denial stores `{at, approver}`
-at `denied:<kind>:<subject>`. Approvers are not yet sent requests; see [approvers.md](approvers.md).
+at `denied:<kind>:<subject>`. An `mcp` request is sent as a DM to the admin and to each approver (the set in sorted order, at most `MAX_APPROVERS`, without the admin; `recipientsFor` in `approvers.ts`), every DM linked to the request, so the first decision claims it and the other DMs are left as they are. A DM that fails is skipped and logged by bot and platform; only when every DM fails is the request removed and reported unreachable. Other kinds go to the admin alone. See [approvers.md](approvers.md).
 
 **MCP approval requests.** A third kind, `mcp`, asks the admin to approve one MCP server definition
 (design in [mcp-approval.md](mcp-approval.md)). It reuses the keys above and adds fields to the
@@ -380,7 +380,7 @@ recovered by claiming again.
 |---|---|---|
 | State table (TTL) | `access-request:<id>` | The pending request: kind, subject, display name, thread, time. |
 | State table (TTL) | `access-subject:<kind>:<id>` | One pending slot per subject. |
-| State table (TTL) | `access-request-message:<message id>` | Maps the admin DM to its request. |
+| State table (TTL) | `access-request-message:<channel id>:<message id>` | Maps a request DM to its request; the channel ID is the DM thread's, because a reaction carries a message ID that is only unique within its channel. |
 | State table (TTL) | `access-request-claim:<id>` | Makes a decision single-use. |
 | SSM | `bots/<bot>/platforms/<platform>/approved-chats/<chatId>`, `approved-users/<userId>` | Approved subjects (JSON: name, destination name for chats, time). The destination name is stored under the key `alias`, as is the proposal in a pending request; the key name is historical and is not renamed. |
 | SSM | `chats/<platform>/<name>` | A destination: a chat ID or a JSON record with an optional bound thread; created by approvals, never overwritten by approvals. |

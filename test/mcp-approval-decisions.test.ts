@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { APPROVED_TEXT, COMMAND_REPLIES, DENIED_TEXT } from "../src/lambda/access-decisions.js";
 import { threadKey } from "../src/thread-key.js";
 import {
-  ADMIN_DM_MESSAGE_ID,
   MCP_APPROVAL_PARAMETER,
   MCP_MESSAGE_ID,
   MCP_SUBJECT,
@@ -45,7 +44,7 @@ describe("an MCP approval request", () => {
       messageId: MCP_MESSAGE_ID,
       suspended: true,
     });
-    expect(await h.store.requestIdForMessage(ADMIN_DM_MESSAGE_ID)).toBe(h.requestId());
+    expect(await h.linkedRequestId()).toBe(h.requestId());
   });
 
   it("limits the summary to one line of bounded length", async () => {

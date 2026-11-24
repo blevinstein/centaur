@@ -185,7 +185,7 @@ export function createAccessDecisions({
     async fromReaction(
       event: Pick<ReactionEvent, "added" | "rawEmoji" | "messageId"> & {
         user: { userId: string };
-        thread: { isDM: boolean };
+        thread: { isDM: boolean; channelId: string };
       },
     ) {
       const verdict = event.added ? channel.verdictForReaction(event.rawEmoji) : undefined;
@@ -195,7 +195,10 @@ export function createAccessDecisions({
         logger.info("ignoring access reaction outside a direct message", { ...where, userId });
         return;
       }
-      const requestId = await store.requestIdForMessage(event.messageId);
+      const requestId = await store.requestIdForMessage({
+        channelId: event.thread.channelId,
+        messageId: event.messageId,
+      });
       if (!requestId) {
         logger.info("ignoring access reaction on a message with no linked request", {
           ...where,

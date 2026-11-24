@@ -11,6 +11,12 @@ const ID_ATTEMPTS = 5;
 
 export type Verdict = "approve" | "deny";
 
+/** A sent message: reactions carry a message id that is only unique within its channel. */
+export interface MessageRef {
+  channelId: string;
+  messageId: string;
+}
+
 /** `mcp` requests approval of an MCP server definition; the others grant a chat or a user access. */
 export type RequestKind = AccessKind | "mcp";
 
@@ -40,7 +46,8 @@ const requestKey = (id: string) => `access-request:${id}`;
 const claimKey = (id: string) => `access-request-claim:${id}`;
 const subjectKey = (kind: RequestKind, subjectId: string) => `access-subject:${kind}:${subjectId}`;
 const noticeKey = (kind: RequestKind, subjectId: string) => `access-notice:${kind}:${subjectId}`;
-const messageKey = (messageId: string) => `access-request-message:${messageId}`;
+const messageKey = ({ channelId, messageId }: MessageRef) =>
+  `access-request-message:${channelId}:${messageId}`;
 const denialKey = (kind: RequestKind, subjectId: string) => `denied:${kind}:${subjectId}`;
 const RATE_KEY = "access-request-rate";
 
@@ -109,10 +116,10 @@ export function createAccessRequestStore(
 
     read: (id: string) => state.get<AccessRequest>(requestKey(normalizeId(id))),
 
-    linkMessage: (messageId: string, request: AccessRequest) =>
-      state.set(messageKey(messageId), request.id, ttlMs),
+    linkMessage: (message: MessageRef, request: AccessRequest) =>
+      state.set(messageKey(message), request.id, ttlMs),
 
-    requestIdForMessage: (messageId: string) => state.get<string>(messageKey(messageId)),
+    requestIdForMessage: (message: MessageRef) => state.get<string>(messageKey(message)),
 
     /** A denied subject stays denied until the record expires; the record names who denied it. */
     recordDenial: (kind: RequestKind, subjectId: string, approver: string) =>
