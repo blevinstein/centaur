@@ -204,7 +204,10 @@ gets one sentence telling the agent it may return `suspend_for`, an array of up 
 instead of working around the absence; the schema offers the field only then. `prepare` records the
 pending servers (names, fingerprints, summaries) and the thread in the turn state, and `finish`
 honors only entries in that record, so a name that is not pending, or any `suspend_for` on a turn
-that cannot suspend, is ignored. A valid `suspend_for` posts the reply and clears the reactions as
+that cannot suspend, is ignored. The sentence also asks for a `reply`, but a non-empty `suspend_for`
+is accepted without one (and without `ignore`); `finish` then posts `waitingReply` ("Waiting for the
+admin to approve <servers>, then I'll carry on."), while an output whose `suspend_for` names no
+pending server and has no reply fails like one with no reply at all. A valid `suspend_for` posts the reply and clears the reactions as
 usual and saves the session, but leaves the last-processed marker where it was and calls
 `mcp-approvals` with `suspend: true` for the named servers; the decision then re-dispatches the
 thread. If that call fails, `finish` logs the error type only and ends as an ordinary turn,

@@ -129,7 +129,8 @@ group is free, so later messages run normally (and see the same pending messages
 server). The marker stays only if the `suspend: true` call succeeds; if it fails (or `finish` has no
 OIDC token), `finish` logs the error type and advances the marker as for any turn, because no
 decision will resume the thread. Only servers that were pending when `prepare` ran count; other
-names in `suspend_for` are ignored.
+names in `suspend_for` are ignored. A valid `suspend_for` without a `reply` is accepted, and `finish`
+posts a fixed waiting line naming the servers.
 
 **Pending record.** Extends the access request (`kind: "mcp"`, state table, TTL 7 days like every
 request):

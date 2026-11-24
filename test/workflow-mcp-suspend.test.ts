@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MCP_APPROVAL_SERVERS_MAX } from "../src/lambda/mcp-approvals.js";
-import { extractResult } from "../src/workflows/finish.js";
+import { extractResult, waitingReply } from "../src/workflows/finish.js";
 import { prepare } from "../src/workflows/prepare.js";
 import { replySchema } from "../src/workflows/prompt.js";
 import { readTurnState } from "../src/workflows/turn-state.js";
@@ -63,6 +63,33 @@ describe("suspend_for", () => {
       suspend: true,
     });
     expect(prepared).not.toHaveProperty("suspend");
+  });
+
+  it("suspends without a reply by posting the shared waiting line", async () => {
+    const run = await setup(hi, linearConfig(RESUME_CONTEXT));
+    const asked = pendingLinear();
+
+    await finishAfterApprovalTurn(run, asked, { suspend_for: ["linear"] });
+
+    expect(run.aws.requests.filter((r) => r.operation === "post")).toMatchObject([
+      { text: waitingReply(["linear"]) },
+    ]);
+    expect(lastProcessed(run.aws)).toBeUndefined();
+    expect(asked.mock.calls[1]?.[0]).toMatchObject({ suspend: true });
+  });
+
+  it.each([
+    ["names only servers that are not pending", { suspend_for: ["unknown"] }],
+    ["has neither a reply, ignore nor suspend_for", {}],
+    ["has an empty suspend_for", { suspend_for: [] }],
+    ["has a reply together with ignore", { reply: "x", ignore: true }],
+  ])("fails when the output %s", async (_name, output) => {
+    const run = await setup(hi, linearConfig());
+
+    await expect(finishAfterApprovalTurn(run, pendingLinear(), output)).rejects.toThrow(
+      /no structured reply/,
+    );
+    expect(operationsOf(run.aws)).not.toContain("post");
   });
 
   it("suspends only for the named pending servers", async () => {
@@ -160,6 +187,7 @@ describe("the suspend_for prompt sentence and schema", () => {
     const out = await prepare(approvalDeps(run, pendingLinear()));
 
     expect(await readPrompt(run.root)).toContain(SUSPEND_SENTENCE);
+    expect(await readPrompt(run.root)).toContain('and a "reply" saying plainly');
     expect(await readTurnState(run.stateDir)).toMatchObject({
       suspend: { thread: { threadId: THREAD, messageId: "1" }, servers: [{ name: "linear" }] },
     });

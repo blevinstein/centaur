@@ -15,6 +15,11 @@ import { readTurnState } from "./turn-state.js";
 const DEFAULT_COMMIT_MESSAGE = "Address review comments";
 const DEFAULT_NEW_TITLE = "Centaur agent changes";
 
+const NO_REPLY = "the agent produced no structured reply";
+
+export const waitingReply = (servers: string[]) =>
+  `Waiting for the admin to approve ${servers.join(", ")}, then I'll carry on.`;
+
 const resultMessage = z.object({
   type: z.literal("result"),
   session_id: z.string().optional(),
@@ -29,16 +34,21 @@ const resultMessage = z.object({
       existing_pr_number: z.number().int().positive().optional(),
       suspend_for: z.array(z.string()).max(MCP_APPROVAL_SERVERS_MAX).optional(),
     })
-    .refine((output) => (output.reply !== undefined) !== (output.ignore === true)),
+    .refine((output) => {
+      const replied = output.reply !== undefined;
+      const ignored = output.ignore === true;
+      return replied !== ignored || (!replied && !ignored && !!output.suspend_for?.length);
+    }),
 });
 
 export function extractResult(executionFileText: string) {
   const entries = JSON.parse(executionFileText) as { type?: string }[];
   const last = entries.findLast((entry) => entry.type === "result");
   const parsed = resultMessage.safeParse(last);
-  if (!parsed.success) throw new Error("the agent produced no structured reply");
+  if (!parsed.success) throw new Error(NO_REPLY);
   return {
     reply: parsed.data.structured_output.reply,
+    ignore: parsed.data.structured_output.ignore === true,
     title: parsed.data.structured_output.new_thread_title,
     prTitle: parsed.data.structured_output.pr_title,
     prBody: parsed.data.structured_output.pr_body,
@@ -335,9 +345,23 @@ function ignoreMisplacedTargets(state: TurnState, result: ReturnType<typeof extr
   return comment ? { ...result, existingPr: undefined } : { ...result, prAction: undefined };
 }
 
+/** The servers named in `suspend_for` that were pending when the turn started; the rest is ignored. */
+const suspendedServers = (state: TurnState, result: ReturnType<typeof extractResult>) =>
+  state.suspend?.servers.filter(({ name }) => result.suspendFor?.includes(name)) ?? [];
+
 /**
- * Marks the requests of the servers the agent suspended for. Only servers that were pending when
- * the turn started count; anything else in `suspend_for` is ignored. Returns whether the thread is
+ * Gives a suspend without a reply the shared waiting line. An output that has neither a reply, an
+ * ignore nor a valid suspend names nothing to post and fails like an unparsable one.
+ */
+function withSuspendReply(state: TurnState, result: ReturnType<typeof extractResult>) {
+  if (result.reply !== undefined || result.ignore) return result;
+  const servers = suspendedServers(state, result);
+  if (servers.length === 0) throw new Error(NO_REPLY);
+  return { ...result, reply: waitingReply(servers.map(({ name }) => name)) };
+}
+
+/**
+ * Marks the requests of the servers the agent suspended for. Returns whether the thread is
  * suspended; a failed call is logged without text or IDs, and the turn ends as an ordinary one.
  */
 async function suspendForApprovals(
@@ -346,7 +370,7 @@ async function suspendForApprovals(
   result: ReturnType<typeof extractResult>,
 ) {
   const { suspend } = state;
-  const servers = suspend?.servers.filter(({ name }) => result.suspendFor?.includes(name)) ?? [];
+  const servers = suspendedServers(state, result);
   if (!suspend || !deps.fetchToken || servers.length === 0) return false;
   try {
     await deps.poster.mcpApprovals(
@@ -366,9 +390,9 @@ async function suspendForApprovals(
 
 export async function finish(deps: FinishDeps) {
   const state = await readTurnState(deps.stateDir);
-  const result = ignoreMisplacedTargets(
+  const result = withSuspendReply(
     state,
-    extractResult(await readFile(deps.executionFile, "utf8")),
+    ignoreMisplacedTargets(state, extractResult(await readFile(deps.executionFile, "utf8"))),
   );
   let delivery: Delivery;
   let link = deps.pullRequestLink;

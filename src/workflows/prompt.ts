@@ -191,7 +191,7 @@ export const replySchema = ({
   additionalProperties: false,
 });
 
-const SUSPEND_CONTRACT = `If you cannot complete the request without one of these servers, return "suspend_for" with the server name(s) instead of working around the absence.`;
+const SUSPEND_CONTRACT = `If you cannot complete the request without one of these servers, return "suspend_for" with the server name(s) and a "reply" saying plainly what you are waiting for and that you will continue once the admin decides, instead of working around the absence.`;
 
 /**
  * What the agent is told about approval-required MCP servers that are not running this turn;
