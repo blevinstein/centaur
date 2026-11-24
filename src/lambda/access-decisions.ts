@@ -193,6 +193,7 @@ export function createAccessDecisions({
       }
       throw error;
     }
+    await store.releaseSubject(request.kind, request.subjectId);
     logger.info("access request decided", {
       ...where,
       requestId: request.id,

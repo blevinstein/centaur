@@ -77,9 +77,16 @@ function createRequestRaiser({
   logger,
 }: AccessRequesterDeps) {
   const where = { bot: bot.name, platform: bot.platform };
+  /** Takes the subject's pending slot, replacing one left pointing at a decided or missing request. */
+  const claimSlot = async (kind: RequestKind, subjectId: string) => {
+    if (await store.claimSubject(kind, subjectId)) return true;
+    if (!(await store.isSubjectSlotStale(kind, subjectId))) return false;
+    await store.releaseSubject(kind, subjectId);
+    return store.claimSubject(kind, subjectId);
+  };
   return async (adminId: string, { kind, subjectId, describe }: RequestSpec) => {
     const recipients = await recipientsFor(params, bot, kind, adminId);
-    if (!(await store.claimSubject(kind, subjectId))) return "pending";
+    if (!(await claimSlot(kind, subjectId))) return "pending";
     if (await store.overLimit()) {
       await store.releaseSubject(kind, subjectId);
       logger.info("access request limit reached; dropping request", { ...where, kind, subjectId });

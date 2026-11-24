@@ -164,7 +164,7 @@ server was approved or denied.
 |---|---|
 | Double approval, reaction plus `/approve` | The existing claim makes the decision single-use; one dispatch. |
 | Thread moved on: a later message ran a turn before the decision | That turn already handled the pending messages (without the server) and advanced the marker. The resume turn finds nothing pending and exits as every empty turn does; the receiver's "approved, ask again" post tells the user the server is available. |
-| Approved, then revoked before the turn | `prepare` reads the record: the server is dropped and pending again, and the prompt says so. `suspend_for` is ignored for servers that were not pending, so a turn cannot loop. |
+| Approved, then revoked before the turn | `prepare` reads the record: the server is dropped and pending again, and the prompt says so. The decision released the pending slot, so the next turn asks the admin again. `suspend_for` is ignored for servers that were not pending, so a turn cannot loop. |
 | The permit removed before the turn | `prepare` evaluates policy first: the server is denied by policy and the turn fails like any denied server, whatever the record says. |
 | Definition edited meanwhile | New fingerprint, so the old approval does not apply; a new question is asked. |
 | Request expires (7 days) | No dispatch. The messages stay pending until the next message in the thread. |

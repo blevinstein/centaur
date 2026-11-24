@@ -228,6 +228,23 @@ export async function mcpHarness(
   return { ...h, outcome };
 }
 
+/** An `mcp` request with its pending slot linked and, optionally, its decision claimed. */
+export async function strandedMcpSlot(
+  h: Pick<Awaited<ReturnType<typeof accessHarness>>, "store">,
+  { decided = false }: { decided?: boolean } = {},
+) {
+  const request = await h.store.create({
+    kind: "mcp",
+    subjectId: MCP_SUBJECT,
+    subjectName: "linear",
+    threadId: MCP_THREAD_ID,
+  });
+  await h.store.claimSubject("mcp", MCP_SUBJECT);
+  await h.store.linkSubject(request);
+  if (decided) await h.store.claimDecision(request.id, "approve");
+  return request;
+}
+
 export const APPROVER_ID = "6001";
 export const OTHER_APPROVER_ID = "6002";
 

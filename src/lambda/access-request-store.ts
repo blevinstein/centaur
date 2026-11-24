@@ -67,6 +67,8 @@ export function createAccessRequestStore(
   state: StateAdapter,
   { ttlMs, perHour }: AccessRequestLimits = { ttlMs: REQUEST_TTL_MS, perHour: REQUESTS_PER_HOUR },
 ) {
+  const isDecided = async (id: string) => (await state.get(claimKey(id))) != null;
+
   return {
     ttlMs,
 
@@ -88,12 +90,22 @@ export function createAccessRequestStore(
     linkSubject: (request: AccessRequest) =>
       state.set(subjectKey(request.kind, request.subjectId), request.id, ttlMs),
 
+    /**
+     * True when the subject's slot points at a request that no longer exists or was already decided.
+     * A slot still holding the placeholder belongs to a request being created, so it is live.
+     */
+    async isSubjectSlotStale(kind: RequestKind, subjectId: string) {
+      const id = await state.get<string | true>(subjectKey(kind, subjectId));
+      if (typeof id !== "string") return false;
+      return (await state.get(requestKey(id))) == null || (await isDecided(id));
+    },
+
     /** Merges `fields` into the pending `mcp` request of the subject; false when none is pending. */
     async updatePending(subjectId: string, fields: Partial<AccessRequest>) {
       const id = await state.get<string>(subjectKey("mcp", subjectId));
       const request =
         typeof id === "string" ? await state.get<AccessRequest>(requestKey(id)) : null;
-      if (!request) return false;
+      if (!request || (await isDecided(request.id))) return false;
       const remaining = ttlMs - (Date.now() - Date.parse(request.createdAt));
       if (remaining <= 0) return false;
       await state.set(requestKey(request.id), { ...request, ...fields }, remaining);
@@ -134,6 +146,8 @@ export function createAccessRequestStore(
 
     isDenied: async (kind: RequestKind, subjectId: string) =>
       (await state.get(denialKey(kind, subjectId))) != null,
+
+    isDecided,
 
     claimDecision: (id: string, verdict: Verdict) =>
       state.setIfNotExists(claimKey(id), verdict, ttlMs),
