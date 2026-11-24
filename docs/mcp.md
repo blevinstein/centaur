@@ -256,9 +256,13 @@ policy names the source it permits:
 permit(principal, action == Action::"UseServer", resource)
   when {
     resource.transport == "stdio" && resource.command == "uvx" && resource.pinned &&
-    resource.args.contains("git+https://github.com/example-org/example-mcp-server@0123456789abcdef0123456789abcdef01234567")
+    resource.args == ["--from", "git+https://github.com/example-org/example-mcp-server@0123456789abcdef0123456789abcdef01234567", "example-entrypoint"]
   };
 ```
+
+The permit fixes the whole argument list, so it matches this command, source and entrypoint only: a
+different first package, an extra argument or another entrypoint does not match. A new commit SHA
+is a reviewed edit of the permit.
 
 This repo's own policy permits only the read-only endpoints of the remote GitHub MCP server, and only
 with a decision by the admin or an approver (the maintainer's own repo uses approval):
@@ -347,6 +351,140 @@ What happens at a turn:
   `allowed_tools` entries naming it) asks again, because the approval belongs to the definition.
   Removing the `when { context.approved }` permit makes the policy deny the server, and the turn
   fails like for any denied server.
+
+## Permit cookbook
+
+There is no runtime allowlist ([mcp-allowlist.md](mcp-allowlist.md)): a generalized allow is a
+reviewed `permit` in the repo's `.centaur/mcp-policy.cedar` (or, for every repo, the global file).
+Each recipe below has two forms. The plain permit allows a matching server outright. The
+`context.approved` form allows it only after the admin or an approver confirms that exact definition
+([Approval by the admin](#operator-policy)), so editing the server asks again. The `forbid` ceiling
+at the end beats every recipe.
+
+Replace the example names. A permit matches nothing it does not name, and a server the global
+ceiling forbids stays denied whatever is permitted here.
+
+### A remote server by exact URL
+
+Use it when a repo needs one specific endpoint.
+
+```cedar
+// cookbook: remote-url
+permit(principal, action == Action::"UseServer", resource)
+  when { resource.transport == "remote" && resource.url == "https://mcp.example.com/mcp" };
+```
+
+```cedar
+// cookbook: remote-url-approved
+permit(principal, action == Action::"UseServer", resource)
+  when {
+    resource.transport == "remote" && resource.url == "https://mcp.example.com/mcp" &&
+    context.approved
+  };
+```
+
+Security: the narrowest remote permit. A different path, query or scheme does not match, and the
+headers (so the secrets sent) are not part of the match: the plain form lets a config change which
+secret goes to this URL, which the approved form asks about again.
+
+### A remote server by host
+
+Use it when a vendor serves several endpoints under one host and each repo should pick its own.
+
+```cedar
+// cookbook: remote-host
+permit(principal, action == Action::"UseServer", resource)
+  when { resource.transport == "remote" && resource.host == "mcp.example.com" };
+```
+
+```cedar
+// cookbook: remote-host-approved
+permit(principal, action == Action::"UseServer", resource)
+  when { resource.transport == "remote" && resource.host == "mcp.example.com" && context.approved };
+```
+
+Security: `host` is the hostname only. A host permit does not bound the path (so a read-only and a
+write endpoint on the host are both allowed; pin the URL as above when the path carries the
+privilege, as for the GitHub `/readonly` endpoint), the port (it is not part of `host`), or the
+tools the server exposes later, since a server can add tools without any change to the config. Use
+`like` for a family of hosts (`resource.host like "*.example.com"`) only when every subdomain is
+yours: a user-controlled subdomain on a shared domain is an exfiltration channel. Carve a path out
+with a `forbid` (below).
+
+### A local server by exact package name, pinned
+
+Use it when a repo runs one known package. The permit fixes the whole argument list, so the
+definition has to be this command with exactly these arguments; `pinned` stays as a second check.
+A version bump is a reviewed edit of the permit (plain form) or of the permit plus one more decision
+(approved form).
+
+```cedar
+// cookbook: npx-package
+permit(principal, action == Action::"UseServer", resource)
+  when {
+    resource.transport == "stdio" && resource.command == "npx" && resource.pinned &&
+    resource.args == ["-y", "@example/docs-mcp@1.4.2"]
+  };
+```
+
+```cedar
+// cookbook: npx-package-approved
+permit(principal, action == Action::"UseServer", resource)
+  when {
+    resource.transport == "stdio" && resource.command == "npx" && resource.pinned &&
+    resource.args == ["-y", "@example/docs-mcp@1.4.2"] && context.approved
+  };
+```
+
+```cedar
+// cookbook: uvx-package
+permit(principal, action == Action::"UseServer", resource)
+  when {
+    resource.transport == "stdio" && resource.command == "uvx" && resource.pinned &&
+    resource.args == ["example-mcp==1.4.2"]
+  };
+```
+
+```cedar
+// cookbook: uvx-package-approved
+permit(principal, action == Action::"UseServer", resource)
+  when {
+    resource.transport == "stdio" && resource.command == "uvx" && resource.pinned &&
+    resource.args == ["example-mcp==1.4.2"] && context.approved
+  };
+```
+
+Security: the permit matches this exact argument list only. `resource.args` is a Cedar set, and
+`==` on sets ignores order and repeats, so `["-y", "pkg"]` also matches `["pkg", "-y"]`; because the
+set holds one package and otherwise only flags, that package is the one that runs. A different
+first package, an extra argument (including one after `--`) and a missing flag do not match.
+Cedar cannot match a pattern over the elements, so there is no "any version of this package"
+permit. A pinned package still runs arbitrary code with the job's secrets in its environment. A git
+source works the same way, with the full argument list as in
+[Pinned git sources](#operator-policy).
+
+### Any pinned local server
+
+See [Allow any pinned local server](#operator-policy) for both forms (with and without
+`context.approved`) and why the approved one is preferred. It is the broadest local permit; the
+recipes above narrow it by package.
+
+### A ceiling no permit can override
+
+Use it for what no repo may ever run. A `forbid` in the global file or in the repo's file wins over
+every permit in either file and over every approval. Put what must hold for all repos in
+`infra/mcp-policy.cedar`; a repo's own `forbid` only narrows that repo.
+
+```cedar
+// cookbook: forbid-admin-path
+forbid(principal, action == Action::"UseServer", resource)
+  when { resource.url like "https://mcp.example.com/admin/*" };
+```
+
+With the host recipes this allows the host except that path. Matching on `like` is exact text, so
+write the ceiling for every spelling of what you mean to block, or invert it with
+`forbid ... unless { ... }` so that only what you list can pass, which is how the global ceiling is
+written.
 
 ## Out of scope
 

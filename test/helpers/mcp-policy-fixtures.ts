@@ -53,7 +53,7 @@ export const PERMIT_UVX = `permit(principal, action == Action::"UseServer", reso
 export const PERMIT_UVX_GIT_SOURCE = `permit(principal, action == Action::"UseServer", resource)
   when {
     resource.transport == "stdio" && resource.command == "uvx" && resource.pinned &&
-    resource.args.contains("--from") && resource.args.contains("${GIT_REPO_URL}@${COMMIT_SHA}")
+    resource.args == ["--from", "${GIT_REPO_URL}@${COMMIT_SHA}", "example-entrypoint"]
   };`;
 
 export const PERMIT_ANY_PINNED_APPROVED = `permit(principal, action == Action::"UseServer", resource)
@@ -62,10 +62,22 @@ export const PERMIT_ANY_PINNED_APPROVED = `permit(principal, action == Action::"
 export const PERMIT_ANY_PINNED = `permit(principal, action == Action::"UseServer", resource)
   when { resource.transport == "stdio" && resource.pinned };`;
 
+export const uvxArgsServers = (args: string[]) =>
+  mcpServersFrom(`  git-mcp:\n    command: uvx\n    args: ${JSON.stringify(args)}\n`);
+
 export const uvxGitServers = (source: string) =>
-  mcpServersFrom(
-    `  git-mcp:\n    command: uvx\n    args: ["--from", "${source}", "example-entrypoint"]\n`,
-  );
+  uvxArgsServers(["--from", source, "example-entrypoint"]);
+
+const PINNED_SOURCE = `${GIT_REPO_URL}@${COMMIT_SHA}`;
+
+export const UVX_GIT_BYPASSES: [string, string[]][] = [
+  [
+    "a different pinned first package",
+    ["other==1.0.0", "--from", PINNED_SOURCE, "example-entrypoint"],
+  ],
+  ["an extra trailing argument", ["--from", PINNED_SOURCE, "example-entrypoint", "--extra"]],
+  ["the source listed after another entrypoint", ["--from", PINNED_SOURCE, "other-entrypoint"]],
+];
 
 export const GITHUB_SERVER_CONFIG = {
   mcp_servers: `{ghmcp: {url: "https://${GITHUB_HOST}/mcp/"}}`,

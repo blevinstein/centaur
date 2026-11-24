@@ -265,6 +265,8 @@ keys. Recommendation: server level only. Servers with dangerous tools list them 
 - Suspending scheduled prompts and pull request comment turns.
 - Approving a secret's value or scope; the caller `env:` stays the allowlist.
 - Time-based expiry of approvals; revocation is explicit.
+- A runtime allowlist of generalized entries (any version, any server on a host): write a reviewed
+  permit from the [permit cookbook](mcp.md#permit-cookbook); see [mcp-allowlist.md](mcp-allowlist.md).
 
 ## Implementation map
 

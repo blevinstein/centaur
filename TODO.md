@@ -102,15 +102,12 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
         in a direct message, the admin approves it, and `centaur approvers list` shows them; the
         admin tries `approver add` by Telegram reply and by Slack mention, and the approver can
         decide an MCP request and then `approver leave`. Not run yet: it needs a second account.
-- [ ] Explore a way to update the MCP policy by adding entries to an allowlist, with some level of
-      generalization (for example allow a server by name, by URL or host pattern, or a tool within
-      it) instead of editing the Cedar files by hand. Open questions to settle first: who may add an
-      entry (the platform admin, through a decision like an approval, or a reviewed change to the
-      policy file), where it is stored (the repo policy on the default branch, the global policy, or
-      a per-bot record), how it composes with the global `forbid` ceiling, and how generalized an
-      entry may be before it needs more than one approval. Revisit after the approval slices land;
-      it may reuse the approval record (`bots/<bot>/mcp-approvals/...`) as a persistent allow.
-      Design first; **[HUMAN APPROVAL]** accept its decisions before building.
+- [x] Explore a way to update the MCP policy by adding entries to an allowlist. Decided
+      ([mcp-allowlist.md](docs/mcp-allowlist.md)): no allowlist store; a generalized allow is a
+      reviewed Cedar permit, any `forbid` wins; the permit cookbook in `docs/mcp.md` shipped.
+  - [ ] Optional: `centaur mcp approve <bot> <name>` pre-approves the exact definition in the
+        default-branch config before its first turn (decision 9 of the design). Writes the existing
+        approval record; deploys nothing. Add it to `docs/cli.md`.
 
 - [ ] Chat context tools: let the agent read other threads in its chat through a built-in MCP server
       backed by new poster operations. Design and recommendations:

@@ -33,7 +33,9 @@ import {
   PERMIT_WHEN_APPROVED,
   PERMIT_WHEN_NOT_APPROVED,
   permitForBot,
+  UVX_GIT_BYPASSES,
   untrustedServers,
+  uvxArgsServers,
   uvxGitServers,
 } from "./helpers/mcp-policy-fixtures.js";
 import { loadSelfConfig } from "./helpers/self-config.js";
@@ -365,6 +367,14 @@ describe("this repo's infra/mcp-policy.cedar", () => {
     const issues = checkMcpPolicy("garden", uvxGitServers(source), { global, repo });
     expect(issues).toHaveLength(allowed ? 0 : 1);
     if (!allowed && repo === PERMIT_UVX) expect(issues[0]?.message).toMatch(/forbidden by policy/);
+  });
+
+  it.each(UVX_GIT_BYPASSES)("a policy naming one git source denies %s", (_name, args) => {
+    const issues = checkMcpPolicy("garden", uvxArgsServers(args), {
+      global,
+      repo: PERMIT_UVX_GIT_SOURCE,
+    });
+    expect(issues).toHaveLength(1);
   });
 
   it.each<[string, string, string, string]>([
