@@ -260,7 +260,8 @@ permit(principal, action == Action::"UseServer", resource)
   };
 ```
 
-This repo's own policy permits only the read-only endpoints of the remote GitHub MCP server:
+This repo's own policy permits only the read-only endpoints of the remote GitHub MCP server, and only
+with a decision by the admin or an approver (the maintainer's own repo uses approval):
 
 ```cedar
 permit(principal, action == Action::"UseServer", resource)
@@ -268,7 +269,8 @@ permit(principal, action == Action::"UseServer", resource)
     resource.transport == "remote" &&
     resource.host == "api.githubcopilot.com" &&
     (resource.url == "https://api.githubcopilot.com/mcp/readonly" ||
-     resource.url like "https://api.githubcopilot.com/mcp/x/*/readonly")
+     resource.url like "https://api.githubcopilot.com/mcp/x/*/readonly") &&
+    context.approved
   };
 ```
 

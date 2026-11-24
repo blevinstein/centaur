@@ -244,13 +244,16 @@ describe("this repo's .centaur/mcp-policy.cedar", async () => {
     expect(validateMcpPolicy(policy)).toEqual([]);
   });
 
-  it("permits the servers in the repo config", () => {
+  it("requires approval for the servers in the repo config", () => {
     expect(Object.keys(mcp_servers)).not.toEqual([]);
-    expect(checkMcpPolicy(bot, mcp_servers, policy)).toEqual([]);
+    expect(outcomeOf(evaluateMcpPolicy(bot, mcp_servers, policy))).toBe(APPROVAL_REQUIRED);
   });
 
-  it("denies the read-write GitHub endpoint", () => {
-    expect(checkMcpPolicy(bot, githubServers, policy)).toHaveLength(1);
+  it.each([
+    ["the read-write GitHub endpoint", githubServers],
+    ["a non-GitHub host", untrustedServers],
+  ])("denies %s", (_name, servers) => {
+    expect(checkMcpPolicy(bot, servers, policy)).toHaveLength(1);
   });
 });
 
