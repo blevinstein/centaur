@@ -274,14 +274,15 @@ Design and decisions: [docs/skills-rules.md](docs/skills-rules.md).
 - [ ] **[HUMAN APPROVAL]** Deploy the Lambda that knows the `skills` key (`yarn deploy-prod`) before
       any consumer's default branch sets `skills`; then check the `register` run. Consumers that do
       not set the key need no change.
-- [ ] **[HUMAN ACTION]** Run the live check on an `experiment/*` branch after the push (plan in
-      [docs/skills-rules.md](docs/skills-rules.md#test-plan-and-live-check)): a sentinel skill (a
-      made-up fact in its body, not committed to the final tree) and a prompt only it answers, read
-      with `centaur chat tail <bot>`; the execution file shows a `Skill` call, the listing size and
-      whether `Skill` must be in `--allowedTools`; then the resume check (is the invoked body
-      retained?), the comment-turn trust check (a branch-committed `.claude/skills` skill with
-      `allowed-tools: Bash` is not visible and the trusted `CLAUDE.md` still is), and which name a
-      consumer skill is listed under. Record the findings in `docs/skills-rules.md`.
+- [x] Live check of the built-in skills on an `experiment/*` branch (2026-11-24): discovery,
+      invocation, the consumer-skill name (`centaur-consumer-<folder name>`) and the comment-turn
+      trust check (branch-committed skills are not visible) are done and recorded in
+      [docs/skills-rules.md](docs/skills-rules.md#live-check-results).
+- [ ] **[HUMAN ACTION]** Remaining live-check points (see the same section): the resume check (two
+      chat messages from the maintainer in one `resume` thread: is the invoked skill body
+      retained?); whether `Skill` must be in `--allowedTools` (run without it; harmless to leave);
+      whether the trusted `CLAUDE.md` still reaches the agent under `--setting-sources user` (needs
+      a consumer that has a `CLAUDE.md`).
 
 ## Needs triage
 

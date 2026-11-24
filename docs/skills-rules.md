@@ -4,7 +4,8 @@ Design for giving the agent more information about the Centaur harness (how to r
 pull requests, MCP approval, the chat tools, the config) through Claude Code **skills** and
 **rules**, without putting more text into the prompt. Status: accepted; all nine decisions were
 accepted as recommended and the first slice is implemented (see [What shipped](#what-shipped)); the
-live check is still open. Terms (turn,
+live check ran on 2026-11-24 and three points remain unverified (see
+[Live check results](#live-check-results)). Terms (turn,
 poster, `config_root`, `.centaur-trusted`) are defined in [workflows.md](workflows.md) and
 [plan.md](plan.md); the trust model for MCP servers this page builds on is in
 [mcp-tool-policy.md](mcp-tool-policy.md).
@@ -83,7 +84,7 @@ Verified against the raw docs at `code.claude.com/docs/en/*.md` and the action's
    instructions are read from `.centaur-trusted`. This predates this proposal; skills would widen it
    (`allowed-tools`), so Decision 4 closes it.
 
-Not verified from docs or source, to check in the live run (see the [test plan](#test-plan-and-live-check)):
+Still unverified after the live run (see [Live check results](#live-check-results)):
 
 - Whether `Skill` must appear in `--allowedTools` for the agent to invoke a skill in a `-p` /
   action run. The docs say Claude can invoke any skill by default and that denying `Skill` disables
@@ -204,8 +205,9 @@ All nine were accepted as recommended.
 4. **Which sources a turn loads.** (A) leave the action default (`user,project,local`), (B) comment
    turns pass `--setting-sources user` and `prepare` copies the trusted checkout's consumer
    skills, (C) every turn does that. **Recommend B**: only comment turns run on untrusted branch
-   content, and chat turns already run on the default branch. Needs the live check that `CLAUDE.md`
-   and rules from the trusted copy still reach the agent; if `--setting-sources user` drops the
+   content, and chat turns already run on the default branch. The live check confirmed that branch
+   skills are not visible; that the trusted `CLAUDE.md` and rules still reach the agent is untested;
+   if `--setting-sources user` drops the
    project `CLAUDE.md`, copy the trusted `CLAUDE.md` into the home (`$HOME/.claude/CLAUDE.md`); do
    not re-enable `project` or `local`, which read the untrusted branch.
 5. **Consumer skills validation.** (A) none, (B) reject `hooks`, `.claude-plugin`, and an
@@ -213,8 +215,8 @@ All nine were accepted as recommended.
    the skill. **Recommend B**, applied to whatever is loaded from the trusted copy; with Decision 4
    B no untrusted skill loads at all.
 6. **`Skill` tool permission.** Add `Skill` to the tool list in `buildClaudeArgs`, as `Read(./.centaur-turn/**)`
-   is, only when skills are on. **Recommend** adding it once the live check shows whether it is
-   required (an unneeded entry is harmless).
+   is, only when skills are on. **Recommend** adding it; the live check ran with it present and did
+   not test whether it is required (an unneeded entry is harmless).
 7. **Config key.** `skills.builtin` and `skills.consumer`, both default true. **Recommend yes.**
    Alternative: no key, always on. The key costs a docs and fixtures update and gives an operator an
    off switch while the feature is new.
@@ -245,8 +247,8 @@ All nine were accepted as recommended.
 - `installSkills` (`src/workflows/skills.ts`), called by `prepare` once a turn is not skipped. The
   source folder comes from `CENTAUR_SKILLS_DIR`, set on the turn action's `prepare` step. Consumer
   skills install as `centaur-consumer-<name>`, so the stale-folder cleanup covers them and a
-  built-in name can never be taken; their frontmatter name must equal the folder name. Which of the
-  two names Claude Code lists is unverified (live check step 0).
+  built-in name can never be taken; their frontmatter name must equal the folder name. Claude Code
+  lists them under the folder-prefixed name (see [Live check results](#live-check-results)).
 - `buildClaudeArgs` adds `Skill` when any skill was installed and `--setting-sources user` for
   comment turns only (`local` would read the branch's `.claude/settings.local.json`).
 - `skills: { builtin, consumer }` in the config schema, `docs/config.md`, the fixtures.
@@ -278,28 +280,43 @@ Unit tests (Vitest, helpers in `test/helpers`, no per-test functions; implemente
 - A test that every `skills/*/SKILL.md` has a `description` under the 1,536-character cap and no
   forbidden frontmatter, so a bad skill fails `yarn verify`.
 
-Live check, on an `experiment/*` branch with the workflow dispatched by `gh workflow run <file> --ref
-<branch>` (AGENTS.md "Workflow experiments"), using a scheduled prompt so no chat message is needed:
+### Live check results
 
-0. Before anything else, run one turn on an `experiment/*` branch and confirm that a built-in
-   skill is listed (execution file init message) and that the consumer sentinel below is listed
-   under which name (its frontmatter name or the folder `centaur-consumer-<name>`) and that the name
-   invokes it; adjust the install if only the folder name works.
-1. Add a sentinel skill (a made-up fact in its body, for example a nonsense token) and a prompt
-   asking a question only that skill answers. Dispatch it; read the reply with
-   `centaur chat tail <bot>`. A correct answer proves discovery and invocation. Keep the sentinel
-   out of the public repo's final tree.
-2. Read the run's execution file (the `execution_file` output) for a `Skill` tool call, to prove the
-   agent invoked it rather than guessed, and for the skills listing in the system init message to
-   measure the listing size.
-3. Repeat with `Skill` omitted from the tool list to answer the unverified permission question.
-4. Resume check: two messages in one `resume` thread; the second asks the sentinel again and the
-   execution file shows whether the body was retained or re-invoked.
-5. Comment-turn trust check: on a throwaway pull request branch commit a `.claude/skills/` skill
-   with a different sentinel and `allowed-tools: Bash`; comment, and confirm the agent does not
-   see it (Decision 4 B) and that the turn still reads the trusted `CLAUDE.md` under `--setting-sources user` alone; if
-   not, copy the trusted `CLAUDE.md` into `$HOME/.claude` (never re-enable `project` or `local`).
-6. Never print tokens, chat IDs or other people's messages (AGENTS.md); `chat tail` prints none.
+The check ran on 2026-11-24 on an `experiment/*` branch (workflow dispatched with `gh workflow run
+<file> --ref <branch>`, AGENTS.md "Workflow experiments"): scheduled prompts, plus one
+pull-request comment turn. The sentinels were made-up tokens kept out of the final tree.
+
+Verified:
+
+- A scheduled turn lists the built-in skills (`centaur-chat-tools`, `centaur-mcp-approval`,
+  `centaur-pull-requests`, `centaur-reactions`, `centaur-thread-commands`) and a consumer skill
+  from the workspace's `.claude/skills` under `centaur-consumer-<folder name>`, the folder-prefixed
+  name and not the bare frontmatter name. The agent invoked the consumer skill and answered with a
+  token only its body contains, and invoked a built-in skill and answered correctly from it. The
+  run had `Skill` in `--allowedTools`.
+- Claude Code's own bundled skills also appear in the listing next to Centaur's (a comment turn
+  listed several), so a skill listing is not exclusively Centaur's.
+- A comment turn ran with `--setting-sources user` (seen in the run's `claude_args`). A skill
+  committed to the pull request branch with `allowed-tools: Bash` and a skill already present in
+  the branch tree were not available to the agent, which said so and did not use their tokens.
+  The consumer-skill source is the trusted default-branch checkout only.
+- Operational: `centaur chat tail --text` clips to 120 characters, so a live-check prompt puts its
+  answer first, on one line.
+
+Not verified (open):
+
+- [ ] Whether `Skill` must be in `--allowedTools`: not tested without it. The entry is harmless.
+- [ ] Whether a skill body is retained across `--resume`: no resume check was run. It needs two
+  chat messages in one `resume` thread; the second asks the sentinel again and the execution file
+  shows whether the body was retained or re-invoked.
+- [ ] Whether the trusted `CLAUDE.md` still reaches the agent under `--setting-sources user`: this
+  repository has no `CLAUDE.md`, so a consumer with one is needed. If it does not, copy the
+  trusted `CLAUDE.md` into `$HOME/.claude` (never re-enable `project` or `local`).
+
+Method for a repeat: use a scheduled prompt so no chat message is needed; read the reply with
+`centaur chat tail <bot>`; read the run's execution file (the `execution_file` output) for a
+`Skill` tool call and the skills listing in the init message. Never print tokens, chat IDs or other
+people's messages (AGENTS.md); `chat tail` prints none.
 
 ## Docs to update
 
