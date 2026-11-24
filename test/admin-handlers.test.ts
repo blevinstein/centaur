@@ -9,8 +9,15 @@ const wire = (commands: boolean) => {
   };
   const chat = { onReaction: vi.fn(), onSlashCommand: vi.fn(), processMessage: vi.fn() };
   const claimAdmin = vi.fn(async () => "claimed" as string | undefined);
-  registerAdminHandlers(chat, { ...telegramAdminChannel, commands }, decisions, claimAdmin);
-  return { chat, decisions, claimAdmin };
+  const approverCommand = vi.fn(async () => "approver reply" as string | undefined);
+  registerAdminHandlers(
+    chat,
+    { ...telegramAdminChannel, commands },
+    decisions,
+    claimAdmin,
+    approverCommand,
+  );
+  return { chat, decisions, claimAdmin, approverCommand };
 };
 
 describe("admin handlers", () => {
@@ -96,6 +103,28 @@ describe("admin handlers", () => {
     expect(post).not.toHaveBeenCalled();
     expect(adapter.parseMessage).toHaveBeenCalledWith({ raw: true });
     expect(chat.processMessage).toHaveBeenCalledWith(adapter, "telegram:7", parsed);
+  });
+
+  it.each([
+    ["answers", "request", "approver reply", true],
+    ["processes the message normally for an unknown subcommand in", "add 5", undefined, false],
+  ])("%s /approver", async (_name, text, reply, answered) => {
+    const { chat, approverCommand } = wire(true);
+    const post = vi.fn();
+    const adapter = { isDM: () => true, parseMessage: vi.fn(() => ({})) };
+
+    await chat.onSlashCommand.mock.calls[2]?.[1]({
+      command: "/approver",
+      text,
+      user: { userId: "7", fullName: "Pat" },
+      adapter,
+      raw: {},
+      channel: { id: "telegram:7", post },
+    });
+
+    expect(approverCommand).toHaveBeenCalledTimes(answered ? 1 : 0);
+    expect(post.mock.calls).toEqual(answered ? [[reply]] : []);
+    expect(chat.processMessage).toHaveBeenCalledTimes(answered ? 0 : 1);
   });
 
   it("registers no slash commands on a channel without them", () => {

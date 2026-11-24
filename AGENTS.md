@@ -38,6 +38,7 @@
   layout is in `docs/plan.md`. Never accept secrets as flags.
 - `yarn bundle:lambda` builds the Lambda to `dist/lambda/index.mjs`; `scripts/deploy.sh`
   (`yarn deploy-prod`) bundles, uploads and deploys the stack (see `docs/deploy.md`).
+- The `approver` words (`request`, `leave`) are parsed once in `src/lambda/approver-commands.ts` and reached from the Telegram slash handler and the Slack DM word.
 - Biome covers code and JSON only; Markdown and YAML are not auto-formatted.
 - Chat SDK slash commands (`onSlashCommand`) bypass the message handler and its allowlist, so each
   slash handler authorizes itself and falls back to `processMessage` for anything it doesn't own.

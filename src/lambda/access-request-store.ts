@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import type { StateAdapter } from "chat";
-import type { AccessKind } from "./access-entries.js";
+import { ACCESS_KINDS, type AccessKind } from "./access-entries.js";
 
 export const REQUEST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const REQUESTS_PER_HOUR = 10;
@@ -17,8 +17,15 @@ export interface MessageRef {
   messageId: string;
 }
 
-/** `mcp` requests approval of an MCP server definition; the others grant a chat or a user access. */
-export type RequestKind = AccessKind | "mcp";
+/**
+ * `mcp` requests approval of an MCP server definition, `approver` asks to join the approver set
+ * (`subjectId` is the requester's user ID); the others grant a chat or a user access.
+ */
+export type RequestKind = AccessKind | "mcp" | "approver";
+
+/** Denying a chat or user request blocks the subject; the other kinds only record the denial. */
+export const blocksOnDeny = (kind: RequestKind) =>
+  (ACCESS_KINDS as readonly string[]).includes(kind);
 
 export interface AccessRequest {
   id: string;

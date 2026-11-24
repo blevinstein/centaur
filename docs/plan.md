@@ -319,6 +319,8 @@ denial writes the state-table record `denied:mcp:<name>:<fingerprint>` (7-day TT
 the original `{bot, thread_id, thread_key, message_id}`; if the dispatch fails the claim is released so
 the decision can be retried.
 
+**Approver requests.** A fourth kind, `approver`, asks the admin to add the requester to the approver set (design in [approvers.md](approvers.md)). An approved, unblocked user DMs the bot `approver request` (Slack) or `/approver request` (Telegram); anyone else gets the ordinary flow for their standing. `subjectId` is the requester's user ID, and the DM names the bot, platform, requester and ID, never message content. Only the admin decides it. It reuses the pending slot per user, the hourly limit and the 7-day TTL. Approval writes `bots/<bot>/platforms/<platform>/approvers/<userId>` (the entry JSON plus `approver`, the deciding admin's ID) after re-checking the cap of 10 and confirms in the requester's DM; denial blocks nothing, writes `denied:approver:<userId>` (7 days, which refuses a new request meanwhile) and tells the requester. `approver leave` deletes the sender's own entry; the admin cannot leave. Both words are answered in a DM only.
+
 **Destinations.** Approving a chat creates a destination scoped to the connection's platform,
 `/centaur/chats/<platform>/<name>`: a JSON record `{ chatId, threadId?, bot?, context?, name, at }`
 (a bare chat ID, as older approvals wrote, reads as a destination with no thread). A prompt's
@@ -409,7 +411,7 @@ case-insensitive, and checked for uniqueness when created.
 DM message that holds the request, in a direct message. Anyone else's reaction is ignored and
 logged by ID. Requests are single-use and idempotent, so a second reaction or command changes
 nothing. The Lambda role can write only the approved and blocked paths, `chats/*` (destinations), `admin/*` (for a claim), and delete
-only `admin-claim/*`. The admin DM contains
+only `admin-claim/*` and the approver entries. The admin DM contains
 names and IDs but never message content.
 
 ## Validation

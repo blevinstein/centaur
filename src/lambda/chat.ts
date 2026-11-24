@@ -5,10 +5,11 @@ import type { Platform } from "../config/index.js";
 import { createAccessResolver } from "./access.js";
 import { createAccessDecisions } from "./access-decisions.js";
 import { createAccessRequestStore } from "./access-request-store.js";
-import { createAccessRequester } from "./access-requests.js";
+import { createAccessRequester, createApproverRequester } from "./access-requests.js";
 import { ADMIN_CHANNELS } from "./admin-channel.js";
 import { createAdminClaimer } from "./admin-claims.js";
 import { registerAdminHandlers } from "./admin-handlers.js";
+import { createApproverCommand } from "./approver-commands.js";
 import type { AttachmentStore } from "./attachments.js";
 import type { RepositoryDispatcher } from "./github.js";
 import { DEFAULT_HISTORY_WINDOW, type HistoryWindow } from "./history-window.js";
@@ -82,19 +83,22 @@ export function createBotChat({
     invalidateAccess: resolveAccess.invalidate,
     logger,
   });
+  const requesterDeps = { bot, params, store, channel, messenger: chat, logger };
+  const approverCommand = createApproverCommand({
+    bot,
+    params,
+    store,
+    resolveAccess,
+    requestApprover: createApproverRequester(requesterDeps),
+    logger,
+  });
   const handle = createMessageHandler({
     bot,
     resolveAccess,
-    requestAccess: createAccessRequester({
-      bot,
-      params,
-      store,
-      channel,
-      messenger: chat,
-      logger,
-    }),
+    requestAccess: createAccessRequester(requesterDeps),
     attachments,
     claimAdmin: channel.commands ? undefined : claimAdmin,
+    approverCommand: channel.commands ? undefined : approverCommand,
     resolveRespondTo: async () =>
       (await readPlatformSettings(registryState, bot, logger))?.respond_to,
     dispatcher,
@@ -115,6 +119,7 @@ export function createBotChat({
       logger,
     }),
     claimAdmin,
+    approverCommand,
   );
   chat.onDirectMessage(handle);
   chat.onNewMention(handle);

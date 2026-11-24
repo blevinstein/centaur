@@ -12,17 +12,23 @@ export const subjectIdOf = (parameterName: string) =>
 const entrySchema = z.object({
   name: z.string().optional(),
   alias: z.string().optional(),
+  approver: z.string().optional(),
   at: z.string(),
 });
 export type AccessEntry = z.infer<typeof entrySchema>;
 
 export const encodeEntry = (
-  { name, alias }: { name?: string | undefined; alias?: string | undefined } = {},
+  {
+    name,
+    alias,
+    approver,
+  }: { name?: string | undefined; alias?: string | undefined; approver?: string | undefined } = {},
   at = new Date(),
 ) =>
   JSON.stringify({
     ...(name ? { name } : {}),
     ...(alias ? { alias } : {}),
+    ...(approver ? { approver } : {}),
     at: at.toISOString(),
   });
 

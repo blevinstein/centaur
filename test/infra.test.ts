@@ -70,8 +70,17 @@ describe("the Lambda role's parameter permissions", () => {
     expect(all.filter((arn) => arn.includes("/users"))).toEqual([]);
   });
 
-  it("cannot delete anything but admin claims", () => {
-    expect(resourcesFor("ssm:DeleteParameter")).toEqual(["/centaur/admin-claim/*"]);
+  it("can write approver entries", () => {
+    const name = "/centaur/bots/garden/platforms/slack/approvers/U1";
+    const covers = (pattern: string) => new RegExp(`^${pattern.replace(/\*/g, ".*")}$`).test(name);
+    expect(resourcesFor("ssm:PutParameter").some(covers)).toBe(true);
+  });
+
+  it("cannot delete anything but admin claims and approver entries", () => {
+    expect(resourcesFor("ssm:DeleteParameter")).toEqual([
+      "/centaur/admin-claim/*",
+      "/centaur/bots/*/platforms/*/approvers/*",
+    ]);
   });
 });
 

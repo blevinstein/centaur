@@ -3,13 +3,21 @@ import { type AccessKind, encodeEntry } from "./access-entries.js";
 import {
   type AccessRequest,
   type AccessRequestStore,
+  blocksOnDeny,
   normalizeId,
   type Verdict,
 } from "./access-request-store.js";
 import { type AdminChannel, lookupAdminId } from "./admin-channel.js";
-import { type DeciderRoles, isMember, loadApprovers, mayDecide } from "./approvers.js";
+import {
+  type DeciderRoles,
+  isMember,
+  loadApprovers,
+  MAX_APPROVERS,
+  mayDecide,
+} from "./approvers.js";
 import {
   approvedParameter,
+  approverParameter,
   blockedParameter,
   mcpApprovalParameter,
   parseMcpApprovalKey,
@@ -29,25 +37,29 @@ export const APPROVED_TEXT: Record<AccessRequest["kind"], string> = {
   chat: "This chat is approved. Each person still needs approval to talk to me.",
   user: "You're approved. Send your message again.",
   mcp: "The admin approved the MCP server. If I haven't carried on, ask again.",
+  approver: "You're now an approver for this bot.",
 };
 
 export const DENIED_TEXT: Partial<Record<AccessRequest["kind"], string>> = {
   mcp: "The admin denied the MCP server. I'll carry on without it.",
+  approver: "The admin declined your request to be an approver.",
 };
 
 export const COMMAND_REPLIES = {
   approve: (request: AccessRequest, destinationName?: string) =>
     `Approved ${request.kind} ${request.id}${destinationName ? ` as "${destinationName}"` : ""}.`,
   deny: (request: AccessRequest) =>
-    `Denied${request.kind === "mcp" ? "" : " and blocked"} ${request.kind} ${request.id}.`,
+    `Denied${blocksOnDeny(request.kind) ? " and blocked" : ""} ${request.kind} ${request.id}.`,
   unknown: "Unknown or expired request.",
   adminOnly: "That request is for the admin to decide.",
   handled: "That request was already handled.",
+  approverCap: `There are already ${MAX_APPROVERS} approvers; remove one first.`,
   usage: "Usage: /approve <id> or /deny <id>",
 } as const;
 
 export type DecisionOutcome =
   | { status: "applied"; request: AccessRequest; destinationName?: string | undefined }
+  | { status: "refused"; reason: string }
   | { status: "unknown" | "handled" };
 
 export interface AccessDecisionsDeps {
@@ -60,6 +72,8 @@ export interface AccessDecisionsDeps {
   dispatcher: RepositoryDispatcher;
   logger: Pick<Logger, "info" | "warn">;
 }
+
+class DecisionRefused extends Error {}
 
 interface Decision {
   request: AccessRequest;
@@ -136,10 +150,26 @@ export function createAccessDecisions({
     return undefined;
   };
 
+  const applyApprover = async ({ request, verdict, approverId }: Decision) => {
+    if (verdict === "deny") {
+      await store.recordDenial(request.kind, request.subjectId, approverId);
+      return undefined;
+    }
+    const approvers = await loadApprovers(params, bot.name, bot.platform);
+    if (!approvers.has(request.subjectId) && approvers.size >= MAX_APPROVERS) {
+      throw new DecisionRefused(COMMAND_REPLIES.approverCap);
+    }
+    await params.put(
+      approverParameter(bot.name, bot.platform, request.subjectId),
+      encodeEntry({ name: request.subjectName, approver: approverId }),
+    );
+    return undefined;
+  };
+
   const appliers: Record<
     AccessRequest["kind"],
     (decision: Decision) => Promise<string | undefined>
-  > = { chat: applyAccess, user: applyAccess, mcp: applyMcp };
+  > = { chat: applyAccess, user: applyAccess, mcp: applyMcp, approver: applyApprover };
 
   const resolve = async (
     request: AccessRequest | undefined,
@@ -153,6 +183,14 @@ export function createAccessDecisions({
       destinationName = await appliers[request.kind]({ request, verdict, approverId });
     } catch (error) {
       await store.releaseDecision(request.id);
+      if (error instanceof DecisionRefused) {
+        logger.warn("access request refused", {
+          ...where,
+          requestId: request.id,
+          reason: error.message,
+        });
+        return { status: "refused", reason: error.message };
+      }
       throw error;
     }
     logger.info("access request decided", {
@@ -235,6 +273,7 @@ export function createAccessDecisions({
       if (!requestId) return COMMAND_REPLIES.usage;
       if (access === "refused") return COMMAND_REPLIES.adminOnly;
       const outcome = await resolve(request, verdict, event.user.userId);
+      if (outcome.status === "refused") return outcome.reason;
       return outcome.status === "applied"
         ? COMMAND_REPLIES[verdict](outcome.request, outcome.destinationName)
         : COMMAND_REPLIES[outcome.status];

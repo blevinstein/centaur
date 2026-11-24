@@ -1,6 +1,7 @@
 import { createMemoryState } from "@chat-adapter/state-memory";
 import { vi } from "vitest";
 import type { Platform } from "../../src/config/index.js";
+import { createAccessResolver } from "../../src/lambda/access.js";
 import { createAccessDecisions } from "../../src/lambda/access-decisions.js";
 import { encodeEntry } from "../../src/lambda/access-entries.js";
 import {
@@ -9,14 +10,23 @@ import {
 } from "../../src/lambda/access-request-store.js";
 import {
   createAccessRequester,
+  createApproverRequester,
   createMcpApprovalRequester,
   type McpApprovalInput,
 } from "../../src/lambda/access-requests.js";
 import { telegramAdminChannel } from "../../src/lambda/admin-channel.js";
 import { encodeClaim } from "../../src/lambda/admin-claim-record.js";
 import { createAdminClaimer } from "../../src/lambda/admin-claims.js";
-import { approverParameter } from "../../src/lambda/connection-paths.js";
+import { registerAdminHandlers } from "../../src/lambda/admin-handlers.js";
+import { createApproverCommand } from "../../src/lambda/approver-commands.js";
 import {
+  approvedParameter,
+  approverParameter,
+  blockedParameter,
+} from "../../src/lambda/connection-paths.js";
+import { createMessageHandler } from "../../src/lambda/message-handler.js";
+import {
+  fakeAttachments,
   fakeDispatcher,
   fakeLogger,
   fakeMessage,
@@ -27,6 +37,7 @@ import {
   SLACK_BOT,
   STRANGER_USER_ID,
 } from "./receiver-fixtures.js";
+import { noThreadMeta } from "./thread-meta-fixtures.js";
 
 const { "/centaur/chats/telegram/household": _household, ...ACCESS_PARAMETERS } = PARAMETERS;
 
@@ -235,3 +246,136 @@ export const commandFrom = (
   user: { userId: overrides.userId ?? ADMIN_ID },
   isDM: overrides.isDM ?? true,
 });
+
+export const REQUESTER_ID = "7001";
+export const REQUESTER_THREAD_ID = `telegram:${REQUESTER_ID}`;
+
+export async function approverHarness({
+  standing = "approved",
+  ...options
+}: Parameters<typeof accessHarness>[0] & { standing?: "approved" | "blocked" | "stranger" } = {}) {
+  const h = await accessHarness(options);
+  const subjectName = { name: "Pat Example" };
+  if (standing === "approved") {
+    h.params.values[approvedParameter("garden", "telegram", "user", REQUESTER_ID)] =
+      encodeEntry(subjectName);
+  } else if (standing === "blocked") {
+    h.params.values[approvedParameter("garden", "telegram", "user", REQUESTER_ID)] =
+      encodeEntry(subjectName);
+    h.params.values[blockedParameter("garden", "telegram", "user", REQUESTER_ID)] =
+      encodeEntry(subjectName);
+  }
+  const resolveAccess = createAccessResolver(GARDEN_BOT, h.params, 0);
+  const approverCommand = vi.fn(
+    createApproverCommand({
+      bot: GARDEN_BOT,
+      params: h.params,
+      store: h.store,
+      resolveAccess,
+      requestApprover: createApproverRequester({
+        bot: GARDEN_BOT,
+        params: h.params,
+        store: h.store,
+        channel: telegramAdminChannel,
+        messenger: h.messenger,
+        logger: h.logger,
+      }),
+      logger: h.logger,
+    }),
+  );
+  const approverEntry = (userId = REQUESTER_ID) =>
+    h.params.values[approverParameter("garden", "telegram", userId)];
+  const approveRequest = () => h.decisions.fromReaction(h.reaction("👍"));
+  const askToBeApprover = () =>
+    approverCommand({
+      sub: "request",
+      userId: REQUESTER_ID,
+      name: "Pat Example",
+      isDM: true,
+      threadId: REQUESTER_THREAD_ID,
+    });
+  const setApprovers = (userIds: string[]) => {
+    for (const name of Object.keys(h.params.values)) {
+      if (name.includes("/approvers/")) delete h.params.values[name];
+    }
+    Object.assign(h.params.values, approverEntries(GARDEN_BOT, userIds));
+  };
+  return {
+    ...h,
+    resolveAccess,
+    approverCommand,
+    approverEntry,
+    approveRequest,
+    askToBeApprover,
+    setApprovers,
+  };
+}
+
+export type ApproverHarness = Awaited<ReturnType<typeof approverHarness>>;
+
+export interface ApproverAsk {
+  userId?: string;
+  isDM?: boolean;
+}
+
+/** What a route did with an `approver <sub>` message: what it posted, and whether it fell through. */
+export interface ApproverRouteResult {
+  posts: string[];
+  fellThrough: boolean;
+}
+
+const fellThroughOf = async (h: ApproverHarness): Promise<boolean> =>
+  (await h.approverCommand.mock.results.at(-1)?.value) === undefined;
+
+/** The Telegram route: the `/approver <sub>` slash handler. */
+export async function viaSlashCommand(
+  h: ApproverHarness,
+  sub: string,
+  { userId = REQUESTER_ID, isDM = true }: ApproverAsk = {},
+): Promise<ApproverRouteResult> {
+  const chat = { onReaction: vi.fn(), onSlashCommand: vi.fn(), processMessage: vi.fn() };
+  registerAdminHandlers(chat, telegramAdminChannel, h.decisions, vi.fn(), h.approverCommand);
+  const handler = chat.onSlashCommand.mock.calls.find(([names]) =>
+    names.includes("/approver"),
+  )?.[1];
+  const post = vi.fn();
+  await handler({
+    command: "/approver",
+    text: sub,
+    user: { userId, fullName: "Pat Example" },
+    adapter: { isDM: () => isDM, parseMessage: vi.fn(() => ({})) },
+    raw: {},
+    channel: { id: REQUESTER_THREAD_ID, post },
+  });
+  return { posts: post.mock.calls.map(([text]) => text), fellThrough: await fellThroughOf(h) };
+}
+
+/** The Slack route: the `approver <sub>` word in a direct message. */
+export async function viaDirectMessage(
+  h: ApproverHarness,
+  sub: string,
+  { userId = REQUESTER_ID, isDM = true }: ApproverAsk = {},
+): Promise<ApproverRouteResult> {
+  const handle = createMessageHandler({
+    bot: GARDEN_BOT,
+    resolveAccess: h.resolveAccess,
+    requestAccess: h.requestAccess,
+    attachments: fakeAttachments(),
+    approverCommand: h.approverCommand,
+    resolveRespondTo: async () => "all",
+    dispatcher: h.dispatcher,
+    threadMeta: noThreadMeta(),
+    logger: h.logger,
+  });
+  const { thread, post } = fakeThread({ isDM, chatId: userId });
+  await handle(thread, fakeMessage({ userId, text: `approver ${sub}`, isMention: true }));
+  return {
+    posts: (post.mock.calls as unknown as [string][]).map(([text]) => text),
+    fellThrough: await fellThroughOf(h),
+  };
+}
+
+export const APPROVER_ROUTES = [
+  ["the Telegram slash command", viaSlashCommand],
+  ["the Slack direct-message word", viaDirectMessage],
+] as const;

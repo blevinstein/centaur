@@ -1,6 +1,11 @@
 import type { Logger, Message, Thread } from "chat";
 import type { AccessKind } from "./access-entries.js";
-import type { AccessRequest, AccessRequestStore, RequestKind } from "./access-request-store.js";
+import {
+  type AccessRequest,
+  type AccessRequestStore,
+  blocksOnDeny,
+  type RequestKind,
+} from "./access-request-store.js";
 import {
   type AdminChannel,
   APPROVE_EMOJI,
@@ -85,7 +90,7 @@ function createRequestRaiser({
     await store.recordRequest();
     await store.linkSubject(request);
 
-    const denyVerb = kind === "mcp" ? "deny" : "deny and block";
+    const denyVerb = blocksOnDeny(kind) ? "deny and block" : "deny";
     const text = [
       `Access request ${request.id}`,
       `Bot: ${bot.name}`,
@@ -207,6 +212,37 @@ export function createMcpApprovalRequester(deps: AccessRequesterDeps): McpApprov
           `Repository: ${bot.repo}`,
           `Server: ${oneLine(name)}`,
           `Summary: ${oneLineSummary}`,
+        ],
+      }),
+    });
+  };
+}
+
+export interface ApproverRequestInput {
+  userId: string;
+  name: string | undefined;
+  threadId: string;
+}
+
+/** Asks the admin to make a user an approver; `undefined` when the bot has no admin. */
+export type ApproverRequester = (input: ApproverRequestInput) => Promise<RaiseOutcome | undefined>;
+
+export function createApproverRequester(deps: AccessRequesterDeps): ApproverRequester {
+  const { bot, params } = deps;
+  const raise = createRequestRaiser(deps);
+  return async ({ userId, name, threadId }) => {
+    const adminId = await lookupAdminId(params, bot.platform);
+    if (!adminId) return undefined;
+    const requesterName = oneLine(name);
+    return raise(adminId, {
+      kind: "approver",
+      subjectId: userId,
+      describe: async () => ({
+        fields: { subjectName: requesterName, threadId },
+        lines: [
+          "Kind: approver",
+          `Platform: ${bot.platform}`,
+          `Requester: ${requesterName} (${userId})`,
         ],
       }),
     });

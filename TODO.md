@@ -77,7 +77,7 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
   - [x] Approvers 1: set and gate (path helpers, `mayDecide`, audit). No dependencies.
   - [x] Approvers 2: fan-out of `mcp` requests to the admin and each approver, with the
         channel-keyed message link. Needs 1.
-  - [ ] Approvers 3: the `approver` request kind and `leave`, IAM write on the approvers path.
+  - [x] Approvers 3: the `approver` request kind and `leave`, IAM write on the approvers path.
         Needs 1. **[HUMAN APPROVAL]** deploy of the Lambda and IAM change.
   - [ ] Approvers 4: admin commands `add`, `remove`, `list` from chat. Needs 3.
   - [x] Approvers 5: `centaur approvers list|remove|add`. Needs 1 (path helpers).

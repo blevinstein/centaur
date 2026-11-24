@@ -4,6 +4,7 @@ import { threadKey } from "../thread-key.js";
 import type { AccessResolver } from "./access.js";
 import type { AccessRequester } from "./access-requests.js";
 import { type AdminClaimer, CLAIM_MESSAGE } from "./admin-claims.js";
+import { type ApproverCommand, parseApproverCommand } from "./approver-commands.js";
 import type { AttachmentStore } from "./attachments.js";
 import type { RepositoryDispatcher } from "./github.js";
 import { isAddressed, ownsMessage, rememberAddressed, type ThreadMetadata } from "./ownership.js";
@@ -34,6 +35,8 @@ export interface MessageHandlerDeps {
   requestAccess: AccessRequester;
   attachments: Pick<AttachmentStore, "save">;
   claimAdmin?: AdminClaimer | undefined;
+  /** Slack has no slash commands, so it answers the `approver` words here. */
+  approverCommand?: ApproverCommand | undefined;
   /** Undefined when the connection is not registered; the message is then ignored. */
   resolveRespondTo: () => Promise<RespondTo | undefined>;
   dispatcher: RepositoryDispatcher;
@@ -48,6 +51,7 @@ export function createMessageHandler({
   requestAccess,
   attachments,
   claimAdmin,
+  approverCommand,
   resolveRespondTo,
   dispatcher,
   threadMeta,
@@ -68,6 +72,21 @@ export function createMessageHandler({
     if (!respondTo || !(await ownsMessage(thread, message, respondTo, threadMeta))) return;
 
     const refusable = respondTo === "mention" || isAddressed(thread, message);
+
+    const sub = approverCommand ? parseApproverCommand(message.text) : undefined;
+    if (approverCommand && sub) {
+      const reply = await approverCommand({
+        sub,
+        userId: message.author.userId,
+        name: message.author.fullName || message.author.userName,
+        isDM: thread.isDM,
+        threadId: thread.id,
+      });
+      if (reply) {
+        await thread.post(reply);
+        return;
+      }
+    }
 
     const access = await resolveAccess();
     const chatId = thread.channelId.slice(bot.platform.length + 1);

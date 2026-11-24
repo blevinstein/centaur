@@ -123,6 +123,9 @@ That's all that's needed for group use. Optionally, to DM a bot: open its link
 - **Commands**, at the start of a message: `/new` opens a new topic without the old context;
   `/resume` and `/transcript` switch how the thread's context is rebuilt
   ([policies](workflows.md#context-policies)).
+- **Approvers:** an approved user DMs the bot `/approver request` (Telegram) or `approver request`
+  (Slack) to ask the admin to make them an approver; the admin decides with 👍 or 👎. `/approver leave`
+  (`approver leave` on Slack) removes yourself. Both work in a DM only ([design](approvers.md)).
 - **Results:** when the agent changes a repo, its reply links the pull request. The maintainer
   reviews and merges it; household members don't need to do anything.
 
