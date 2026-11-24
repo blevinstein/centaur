@@ -138,7 +138,7 @@ messages are still processed, so the call only throws for an invalid request or 
   `removed: false`.
 - **Telegram:** `setMessageReaction` replaces the bot's own reaction list, and the Chat SDK adapter
   clears it with an empty list, ignoring the emoji. That drops any other reaction the bot set on
-  the message, but never other users' reactions; the bot only ever sets 👀. Removal is idempotent.
+  the message, but never other users' reactions; the bot's other reactions are the MCP approval states ([mcp-approval.md](mcp-approval.md#suspend-and-resume)). Removal is idempotent.
 - Reactions on Telegram business-account threads are unsupported and report `removed: false`.
 
 ## `list-threads` and `read-channel`
@@ -250,7 +250,7 @@ Reads the admin's decision for each MCP server definition, identified by `<name>
 3. Otherwise the shared request raiser opens one request to the platform admin (one pending request per definition, 10 new requests per bot per hour, 7-day expiry) and the result is `pending`. A request over the hourly limit or one that could not be delivered is also `pending`.
 4. A bot with no admin on its platform gets `denied`, no record is created, and the Lambda logs a warning with the bot and platform.
 
-Reads are idempotent: a repeated read neither creates a second request nor sends a second DM. Without `threadId` and `messageId` (both or neither; `suspend` requires them) the operation is read-only and needs no platform, so it works for a bot on several connections: it answers `approved` or `denied` from the stored records and `pending` otherwise, and never creates a request, sends a DM or touches a pending request. A scheduled prompt without a thread uses an approved server but cannot request one. `suspend: true` marks the pending request `suspended` and records `threadId` and `messageId` on it, so the decision re-dispatches that thread; a read without `suspend` never sets or clears the flag. A `suspend` call that finds a server already decided, or whose request is decided while it is marked, resumes the thread with the same dispatch as the decision handler, once per call. An error reading SSM or state fails the invocation; the client treats a failed call as `pending`, never `approved`.
+Reads are idempotent: a repeated read neither creates a second request nor sends a second DM. Without `threadId` and `messageId` (both or neither; `suspend` requires them) the operation is read-only and needs no platform, so it works for a bot on several connections: it answers `approved` or `denied` from the stored records and `pending` otherwise, and never creates a request, sends a DM or touches a pending request. A scheduled prompt without a thread uses an approved server but cannot request one. `suspend: true` marks the pending request `suspended` and records `threadId` and `messageId` on it, so the decision re-dispatches that thread; a read without `suspend` never sets or clears the flag. A suspending call also leaves the waiting reaction on the triggering message (the decided reaction when the request was decided meanwhile), best-effort. A `suspend` call that finds a server already decided, or whose request is decided while it is marked, resumes the thread with the same dispatch as the decision handler, once per call. An error reading SSM or state fails the invocation; the client treats a failed call as `pending`, never `approved`.
 
 ## Security model
 

@@ -72,6 +72,7 @@ export async function mcpApprovalsPoster(
     channel: telegramAdminChannel,
     invalidateAccess: vi.fn(),
     postToThread: vi.fn(async () => ({})),
+    showApproval: vi.fn(async () => {}),
     dispatcher: h.dispatcher,
     logger: h.logger,
   });

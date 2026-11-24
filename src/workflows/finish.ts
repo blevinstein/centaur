@@ -362,17 +362,21 @@ function withSuspendReply(state: TurnState, result: ReturnType<typeof extractRes
 
 /**
  * Marks the requests of the servers the agent suspended for. Returns whether the thread is
- * suspended; a failed call is logged without text or IDs, and the turn ends as an ordinary one.
+ * suspended. The 👀 is cleared first, because the call leaves the waiting reaction on the message
+ * and a platform that keeps one reaction per message would drop it. A failed call is logged without
+ * text or IDs, and the turn ends as an ordinary one.
  */
 async function suspendForApprovals(
   deps: FinishDeps,
   state: TurnState,
   result: ReturnType<typeof extractResult>,
+  clearReactionsOnce: () => Promise<void>,
 ) {
   const { suspend } = state;
   const servers = suspendedServers(state, result);
   if (!suspend || !deps.fetchToken || servers.length === 0) return false;
   try {
+    await clearReactionsOnce();
     await deps.poster.mcpApprovals(
       approvalsRequest(
         { token: await deps.fetchToken(), bot: state.bot, servers, suspend: true },
@@ -416,11 +420,18 @@ export async function finish(deps: FinishDeps) {
     delivery = await deliverReply(deps, state, result);
   }
 
+  let cleared = false;
+  const clearReactionsOnce = async () => {
+    if (cleared) return;
+    cleared = true;
+    await clearReactions(deps.poster, state.source);
+  };
   const [threadId] = delivery.threadIds;
+  let suspended = false;
   if (threadId) {
     await linkPullRequest(deps.poster, link, state.bot, threadId);
     const store = deps.storeFor(state.bot, threadId);
-    const suspended = await suspendForApprovals(deps, state, result);
+    suspended = await suspendForApprovals(deps, state, result, clearReactionsOnce);
     if (!suspended && state.marker && (state.markerThreadId ?? threadId) === threadId) {
       await store.writeMarker(state.marker);
     }
@@ -433,7 +444,7 @@ export async function finish(deps: FinishDeps) {
       `the reply reached ${delivery.threadIds.length} of ${delivery.threadIds.length + delivery.failed.length} targets; failed: ${delivery.failed.join(", ")}`,
     );
   }
-  await clearReactions(deps.poster, state.source);
+  if (!suspended) await clearReactionsOnce();
 }
 
 export async function notifyFailure(

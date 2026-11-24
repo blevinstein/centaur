@@ -78,7 +78,7 @@ describe("an mcp request with approvers", () => {
     await h.decisions.fromReaction(h.reaction("👎", { userId: ADMIN_ID }));
 
     expect(h.params.values[MCP_APPROVAL_PARAMETER]).toBeDefined();
-    expect(h.postToThread).toHaveBeenCalledOnce();
+    expect(h.reactions.addReaction).toHaveBeenCalledOnce();
     expect(h.adminPost).toHaveBeenCalledTimes(2);
   });
 

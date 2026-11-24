@@ -65,6 +65,21 @@ describe("suspend_for", () => {
     expect(prepared).not.toHaveProperty("suspend");
   });
 
+  it("clears the 👀 reaction before the suspend call, leaving the waiting reaction last", async () => {
+    const run = await setup(hi, linearConfig(RESUME_CONTEXT));
+    const asked = pendingLinear();
+    const seenAtSuspend: string[] = [];
+    asked.mockImplementation(async (request) => {
+      if (request.suspend) seenAtSuspend.push(...operationsOf(run.aws));
+      return { servers: { linear: "pending" } };
+    });
+
+    await finishAfterApprovalTurn(run, asked, { reply: "Waiting.", suspend_for: ["linear"] });
+
+    expect(seenAtSuspend).toEqual(["read", "post", "unreact"]);
+    expect(operationsOf(run.aws).filter((operation) => operation === "unreact")).toHaveLength(1);
+  });
+
   it("suspends without a reply by posting the shared waiting line", async () => {
     const run = await setup(hi, linearConfig(RESUME_CONTEXT));
     const asked = pendingLinear();

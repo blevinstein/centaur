@@ -87,7 +87,8 @@ export const fakeTelegram = () => ({
 
 export function fakePosterChat(transcript: unknown[] = []) {
   const state: ThreadMetadata = {};
-  const removeReaction = vi.fn(async () => {});
+  const removeReaction = vi.fn(async (..._args: unknown[]) => {});
+  const addReaction = vi.fn(async (..._args: unknown[]) => {});
   const rehydrateAttachment = vi.fn((attachment: object) => ({
     ...attachment,
     fetchData: async () => Buffer.from("bytes"),
@@ -98,6 +99,7 @@ export function fakePosterChat(transcript: unknown[] = []) {
       name: "telegram",
       persistThreadHistory: true,
       removeReaction,
+      addReaction,
       rehydrateAttachment,
     },
     channelId: `telegram:${HOUSEHOLD_CHAT_ID}`,
@@ -141,6 +143,7 @@ export function fakePosterChat(transcript: unknown[] = []) {
     chatMock: chat,
     thread,
     removeReaction,
+    addReaction,
     rehydrateAttachment,
     appendHistory,
     adminPost,

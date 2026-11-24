@@ -333,7 +333,8 @@ Commands: `register`, `resolve`, `resolve-schedule`, `prepare`, `pr-details`, `f
    `link-pull-request`, authenticated by the same OIDC token as `register`; a failure is a warning
    and never fails the turn.
    Last, it removes the 👀 reaction (`unreact`) from every message the turn processed, so a message
-   that still shows 👀 is still being worked on.
+   that still shows 👀 is still being worked on. A turn that suspends for MCP approval does this
+   before its suspend call, which leaves the waiting reaction on the message.
 5. On failure, `notify-failure` posts a generic notice with the run URL, then removes the 👀
    reactions; the marker is not advanced, so the messages are retried on the next turn.
 

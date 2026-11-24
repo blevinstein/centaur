@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { APPROVAL_EMOJI } from "../src/lambda/approval-reactions.js";
 import { threadKey } from "../src/thread-key.js";
 import { ADMIN_ID, MCP_MESSAGE_ID, MCP_SUBJECT, MCP_THREAD_ID } from "./helpers/access-fixtures.js";
 import { LINEAR, mcpApprovalsPoster } from "./helpers/mcp-approvals-fixtures.js";
@@ -49,6 +50,37 @@ describe("a suspend call after the decision", () => {
     h.dispatcher.dispatch.mockRejectedValueOnce(new Error("HTTP 502"));
 
     await expect(h.statuses({ suspend: true })).rejects.toThrow("HTTP 502");
+  });
+});
+
+describe("the waiting reaction", () => {
+  it("is set on the triggering message when the call suspends a pending request", async () => {
+    const h = await mcpApprovalsPoster();
+
+    await h.statuses({ suspend: true });
+
+    expect(h.addReaction).toHaveBeenCalledExactlyOnceWith(
+      MCP_THREAD_ID,
+      MCP_MESSAGE_ID,
+      APPROVAL_EMOJI.telegram.emoji.waiting,
+    );
+  });
+
+  it("is not set by a call that does not suspend", async () => {
+    const h = await mcpApprovalsPoster();
+
+    await h.statuses();
+
+    expect(h.addReaction).not.toHaveBeenCalled();
+  });
+
+  it("gives way to the decision that landed while the call marked the request", async () => {
+    const h = await mcpApprovalsPoster({ decideWhileMarking: "/approve" });
+    await h.statuses();
+
+    await h.statuses({ suspend: true });
+
+    expect(h.addReaction.mock.calls.at(-1)?.[2]).toBe(APPROVAL_EMOJI.telegram.emoji.approved);
   });
 });
 

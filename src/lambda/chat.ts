@@ -9,6 +9,7 @@ import { createAccessRequester, createApproverRequester } from "./access-request
 import { ADMIN_CHANNELS } from "./admin-channel.js";
 import { createAdminClaimer } from "./admin-claims.js";
 import { registerAdminHandlers } from "./admin-handlers.js";
+import { showApprovalState } from "./approval-reactions.js";
 import { createApproverCommand } from "./approver-commands.js";
 import type { AttachmentStore } from "./attachments.js";
 import { DEFAULT_FAILURE_NOTICE_MINUTES, withFailureNotice } from "./dispatch-failure-notice.js";
@@ -128,6 +129,15 @@ export function createBotChat({
       channel,
       invalidateAccess: resolveAccess.invalidate,
       postToThread: (threadId, text) => chat.thread(threadId).post(text),
+      showApproval: (threadId, messageId, state) =>
+        showApprovalState({
+          adapter: chat.thread(threadId).adapter,
+          bot,
+          threadId,
+          messageId,
+          state,
+          logger,
+        }),
       dispatcher,
       logger,
     }),

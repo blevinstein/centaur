@@ -119,7 +119,8 @@ That's all that's needed for group use. Optionally, to DM a bot: open its link
   ([config](config.md#responding-to-all-messages)).
 - **Progress:** a 👀 reaction appears on your message while the turn runs and is removed when it
   is done (also after a failure, when the bot posts a notice and retries the message on the next
-  turn).
+  turn). While an MCP server waits for admin approval the message shows a waiting reaction, then an
+  approved or denied one ([details](mcp-approval.md#suspend-and-resume)).
 - **Commands**, at the start of a message: `/new` opens a new topic without the old context;
   `/resume` and `/transcript` switch how the thread's context is rebuilt
   ([policies](workflows.md#context-policies)).

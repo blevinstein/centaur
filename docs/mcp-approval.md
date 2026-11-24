@@ -123,7 +123,7 @@ Suspending is only for **chat turns that reply in an existing thread**. It does 
 
 **When a turn does not suspend.** `prepare` asks the poster once per turn and uses the answer as is: a server whose decision is already stored as approved runs in that turn and nothing is dropped, asked of the agent or suspended. A request is never polled; a decision that arrives later is seen by the next turn (or, for a suspended thread, by the re-dispatch).
 
-**What suspend does.** `finish` posts the reply, removes the 👀 reactions, saves the session (as for
+**What suspend does.** `finish` posts the reply, removes the 👀 reactions (before the suspend call, so the waiting reaction the call sets is not removed with them), saves the session (as for
 every `resume` thread) and **does not advance the last-processed marker**, then calls the poster
 `mcp-approvals` with `suspend: true` for the named servers. The job ends and the thread's concurrency
 group is free, so later messages run normally (and see the same pending messages, still without the
@@ -155,8 +155,23 @@ decision can be retried, as access decisions already do.
 **What the agent sees on resume.** The pending messages and its earlier session. After an approval
 the server is simply running with its tools; after a denial the prompt says `MCP server linear was
 denied by the admin; answer without it.` Context policies `fresh` and `transcript` have no session,
-but the pending messages are enough to redo the work. The receiver also posts in the thread that the
-server was approved or denied.
+but the pending messages are enough to redo the work. The receiver posts nothing in the thread
+for an MCP decision; it shows the decision as a reaction (below).
+
+**Status reactions.** The request's triggering message carries one reaction at a time
+(`src/lambda/approval-reactions.ts`, one table per platform):
+
+| State | Set by | Slack | Telegram |
+|---|---|---|---|
+| waiting | the poster's `mcp-approvals` call with `suspend: true`, when the request is pending | `hourglass_flowing_sand` | 🤔 |
+| approved | the receiver, right after it applies an approval | `white_check_mark` | 👍 |
+| denied | the receiver, right after it applies a denial | `no_entry_sign` | 👎 |
+
+A turn that answered without the server shows no waiting reaction, because the message was already
+answered. Slack removes the other two states when it sets one; on Telegram a new reaction replaces
+the bot's previous one. The emoji are Telegram `ReactionTypeEmoji` values (👀 stays the working
+reaction). A failed reaction (deleted message, rate limit) is logged with the bot, platform and
+state and never fails or retries the decision, and a request without a message shows nothing.
 
 **Idempotency and races.**
 
@@ -164,7 +179,7 @@ server was approved or denied.
 |---|---|
 | The decision lands before the turn's suspend call (a fast reaction while the turn runs, or between the call's request and its mark) | The decision handler saw no suspended request and dispatched nothing, so the poster's `suspend` call re-dispatches the thread itself when it finds the approval or denial: once per call however many servers were decided, with the others resuming or suspending again on their own decisions. If the handler also dispatched, the second resume turn finds nothing pending and exits as every empty turn does. A failed dispatch fails the call; `finish` logs it and ends the turn as an ordinary one, so the thread is not stuck. |
 | Double approval, reaction plus `/approve` | The existing claim makes the decision single-use; one dispatch. |
-| Thread moved on: a later message ran a turn before the decision | That turn already handled the pending messages (without the server) and advanced the marker. The resume turn finds nothing pending and exits as every empty turn does; the receiver's "approved, ask again" post tells the user the server is available. |
+| Thread moved on: a later message ran a turn before the decision | That turn already handled the pending messages (without the server) and advanced the marker. The resume turn finds nothing pending and exits as every empty turn does; the approved reaction on the original message tells the user the server is available. |
 | Approved, then revoked before the turn | `prepare` reads the record: the server is dropped and pending again, and the prompt says so. The decision released the pending slot, so the next turn asks the admin again. `suspend_for` is ignored for servers that were not pending, so a turn cannot loop. |
 | The permit removed before the turn | `prepare` evaluates policy first: the server is denied by policy and the turn fails like any denied server, whatever the record says. |
 | Definition edited meanwhile | New fingerprint, so the old approval does not apply; a new question is asked. |

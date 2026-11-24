@@ -106,7 +106,7 @@ describe("an approver deciding an mcp request", () => {
       h.decisions.fromReaction(h.reaction("👍", { userId: OTHER_APPROVER_ID })),
     ]);
 
-    expect(h.postToThread).toHaveBeenCalledOnce();
+    expect(h.reactions.addReaction).toHaveBeenCalledOnce();
   });
 
   it("is refused once the approver is removed between two decisions", async () => {

@@ -18,6 +18,7 @@ import { telegramAdminChannel } from "../../src/lambda/admin-channel.js";
 import { encodeClaim } from "../../src/lambda/admin-claim-record.js";
 import { createAdminClaimer } from "../../src/lambda/admin-claims.js";
 import { registerAdminHandlers } from "../../src/lambda/admin-handlers.js";
+import { type ApprovalState, showApprovalState } from "../../src/lambda/approval-reactions.js";
 import { createApproverCommand } from "../../src/lambda/approver-commands.js";
 import {
   approvedParameter,
@@ -118,6 +119,19 @@ export async function accessHarness({
   });
   const invalidateAccess = vi.fn();
   const postToThread = vi.fn(async (_threadId: string, _text: string) => ({}));
+  const reactions = {
+    addReaction: vi.fn(async (..._args: unknown[]) => {}),
+    removeReaction: vi.fn(async (..._args: unknown[]) => {}),
+  };
+  const showApproval = (threadId: string, messageId: string, state: ApprovalState) =>
+    showApprovalState({
+      adapter: reactions,
+      bot: GARDEN_BOT,
+      threadId,
+      messageId,
+      state,
+      logger,
+    });
   const decisions = createAccessDecisions({
     bot: GARDEN_BOT,
     params,
@@ -125,6 +139,7 @@ export async function accessHarness({
     channel: telegramAdminChannel,
     invalidateAccess,
     postToThread,
+    showApproval,
     dispatcher: noticeDispatcher,
     logger,
   });
@@ -167,6 +182,7 @@ export async function accessHarness({
     decisions,
     invalidateAccess,
     postToThread,
+    reactions,
     reaction,
   };
 }

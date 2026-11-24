@@ -8,6 +8,7 @@ import {
   type Verdict,
 } from "./access-request-store.js";
 import { type AdminChannel, lookupAdminId } from "./admin-channel.js";
+import type { ApprovalState } from "./approval-reactions.js";
 import {
   type DeciderRoles,
   isMember,
@@ -33,15 +34,14 @@ export const COMMAND_VERDICTS: Record<string, Verdict> = {
   "/deny": "deny",
 };
 
-export const APPROVED_TEXT: Record<AccessRequest["kind"], string> = {
+/** `mcp` is absent: its decision shows as a reaction on the triggering message instead. */
+export const APPROVED_TEXT: Partial<Record<AccessRequest["kind"], string>> = {
   chat: "This chat is approved. Each person still needs approval to talk to me.",
   user: "You're approved. Send your message again.",
-  mcp: "The admin approved the MCP server. If I haven't carried on, ask again.",
   approver: "You're now an approver for this bot.",
 };
 
 export const DENIED_TEXT: Partial<Record<AccessRequest["kind"], string>> = {
-  mcp: "The admin denied the MCP server. I'll carry on without it.",
   approver: "The admin declined your request to be an approver.",
 };
 
@@ -69,6 +69,8 @@ export interface AccessDecisionsDeps {
   channel: AdminChannel;
   invalidateAccess: () => void;
   postToThread: (threadId: string, text: string) => Promise<unknown>;
+  /** Best-effort: shows an MCP decision on the message that triggered the request. */
+  showApproval: (threadId: string, messageId: string, state: ApprovalState) => Promise<void>;
   dispatcher: RepositoryDispatcher;
   logger: Pick<Logger, "info" | "warn">;
 }
@@ -88,6 +90,7 @@ export function createAccessDecisions({
   channel,
   invalidateAccess,
   postToThread,
+  showApproval,
   dispatcher,
   logger,
 }: AccessDecisionsDeps) {
@@ -202,6 +205,13 @@ export function createAccessDecisions({
       verdict,
       approverId,
     });
+    if (request.kind === "mcp" && request.messageId) {
+      await showApproval(
+        request.threadId,
+        request.messageId,
+        verdict === "approve" ? "approved" : "denied",
+      );
+    }
     const reply = verdict === "approve" ? APPROVED_TEXT[request.kind] : DENIED_TEXT[request.kind];
     if (reply) {
       try {

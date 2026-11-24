@@ -1,14 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
-import { APPROVED_TEXT, COMMAND_REPLIES, DENIED_TEXT } from "../src/lambda/access-decisions.js";
+import { COMMAND_REPLIES } from "../src/lambda/access-decisions.js";
+import { APPROVAL_EMOJI } from "../src/lambda/approval-reactions.js";
 import { DispatchError } from "../src/lambda/github.js";
 import { threadKey } from "../src/thread-key.js";
 import {
+  ADMIN_ID,
+  accessHarness,
   MCP_APPROVAL_PARAMETER,
   MCP_MESSAGE_ID,
   MCP_SUBJECT,
   MCP_THREAD_ID,
   mcpHarness,
   mcpInput,
+  strandedMcpSlot,
 } from "./helpers/access-fixtures.js";
 import { STRANGER_USER_ID } from "./helpers/receiver-fixtures.js";
 
@@ -97,7 +101,7 @@ describe("an MCP approval request", () => {
 });
 
 describe("an MCP approval decision", () => {
-  it("records the approval, confirms in the thread and does not dispatch an unsuspended request", async () => {
+  it("records the approval, shows it as a reaction and does not dispatch an unsuspended request", async () => {
     const h = await mcpHarness();
 
     await h.decisions.fromReaction(h.reaction("👍"));
@@ -105,9 +109,44 @@ describe("an MCP approval decision", () => {
     expect(JSON.parse(h.params.values[MCP_APPROVAL_PARAMETER] as string)).toMatchObject({
       approver: "5001",
     });
-    expect(h.postToThread).toHaveBeenCalledExactlyOnceWith(MCP_THREAD_ID, APPROVED_TEXT.mcp);
+    expect(h.postToThread).not.toHaveBeenCalled();
+    expect(h.reactions.addReaction).toHaveBeenCalledExactlyOnceWith(
+      MCP_THREAD_ID,
+      MCP_MESSAGE_ID,
+      APPROVAL_EMOJI.telegram.emoji.approved,
+    );
     expect(h.dispatcher.dispatch).not.toHaveBeenCalled();
     expect(h.invalidateAccess).not.toHaveBeenCalled();
+  });
+
+  it("decides and dispatches even when the reaction fails", async () => {
+    const h = await mcpHarness({}, { suspended: true });
+    h.reactions.addReaction.mockRejectedValueOnce(new Error("MESSAGE_ID_INVALID"));
+
+    await h.decisions.fromReaction(h.reaction("👍"));
+
+    expect(h.params.values[MCP_APPROVAL_PARAMETER]).toBeDefined();
+    expect(h.dispatcher.dispatch).toHaveBeenCalledOnce();
+    expect(h.logger.warn).toHaveBeenCalledWith("failed to show the approval state", {
+      bot: "garden",
+      platform: "telegram",
+      state: "approved",
+    });
+  });
+
+  it("reacts to nothing for a request without a message", async () => {
+    const h = await accessHarness();
+    const request = await strandedMcpSlot(h);
+
+    await h.decisions.fromCommand({
+      command: "/approve",
+      text: request.id,
+      user: { userId: ADMIN_ID },
+      isDM: true,
+    });
+
+    expect(h.reactions.addReaction).not.toHaveBeenCalled();
+    expect(h.postToThread).not.toHaveBeenCalled();
   });
 
   it("resumes a suspended thread with the original message on approval", async () => {
@@ -122,14 +161,19 @@ describe("an MCP approval decision", () => {
     );
   });
 
-  it("denies with a TTL record, a message and no SSM record", async () => {
+  it("denies with a TTL record, a reaction and no SSM record", async () => {
     const h = await mcpHarness();
 
     await h.decisions.fromReaction(h.reaction("👎"));
 
     expect(await h.store.isDenied("mcp", MCP_SUBJECT)).toBe(true);
     expect(h.params.values[MCP_APPROVAL_PARAMETER]).toBeUndefined();
-    expect(h.postToThread).toHaveBeenCalledExactlyOnceWith(MCP_THREAD_ID, DENIED_TEXT.mcp);
+    expect(h.postToThread).not.toHaveBeenCalled();
+    expect(h.reactions.addReaction).toHaveBeenCalledExactlyOnceWith(
+      MCP_THREAD_ID,
+      MCP_MESSAGE_ID,
+      APPROVAL_EMOJI.telegram.emoji.denied,
+    );
     expect(h.dispatcher.dispatch).not.toHaveBeenCalled();
   });
 
@@ -174,7 +218,7 @@ describe("an MCP approval decision", () => {
 
     expect(reply).toBe(COMMAND_REPLIES.handled);
     expect(h.dispatcher.dispatch).toHaveBeenCalledOnce();
-    expect(h.postToThread).toHaveBeenCalledOnce();
+    expect(h.reactions.addReaction).toHaveBeenCalledOnce();
   });
 
   it("releases the claim when the dispatch fails, so the decision can be retried", async () => {
@@ -186,7 +230,7 @@ describe("an MCP approval decision", () => {
     await h.decisions.fromReaction(h.reaction("👍"));
 
     expect(h.dispatcher.dispatch).toHaveBeenCalledTimes(2);
-    expect(h.postToThread).toHaveBeenCalledOnce();
+    expect(h.reactions.addReaction).toHaveBeenCalledOnce();
   });
 
   it("notifies the admin once when the re-dispatch fails", async () => {

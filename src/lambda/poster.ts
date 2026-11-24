@@ -196,7 +196,7 @@ export async function createPoster(deps: PosterDeps) {
     oidc: deps.oidc,
     open: async (botName, threadId) => {
       const { bot, chat, state } = await openThreadChat(botName, threadId);
-      return { bot, messenger: chat, state };
+      return { bot, messenger: chat, state, adapter: chat.thread(threadId).adapter };
     },
     openBotState: (botName) => stateFor(botStatePrefix(botName)),
     dispatcher: deps.dispatcher,

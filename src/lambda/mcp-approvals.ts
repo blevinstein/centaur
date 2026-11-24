@@ -4,6 +4,11 @@ import { slug } from "../config/index.js";
 import { createAccessRequestStore } from "./access-request-store.js";
 import { createMcpApprovalRequester } from "./access-requests.js";
 import { ADMIN_CHANNELS, type DirectMessenger } from "./admin-channel.js";
+import {
+  type ApprovalReaction,
+  type ApprovalState,
+  showApprovalState,
+} from "./approval-reactions.js";
 import { mcpApprovalParameter } from "./connection-paths.js";
 import type { RepositoryDispatcher } from "./github.js";
 import { dispatchMessage } from "./message-handler.js";
@@ -57,7 +62,12 @@ export interface McpApprovalsDeps {
   open: (
     botName: string,
     threadId: string,
-  ) => Promise<{ bot: Bot; messenger: DirectMessenger; state: StateAdapter }>;
+  ) => Promise<{
+    bot: Bot;
+    messenger: DirectMessenger;
+    state: StateAdapter;
+    adapter: ApprovalReaction["adapter"];
+  }>;
   /** The bot's state without a thread or a platform, for reads that never ask. */
   openBotState: (botName: string) => Promise<StateAdapter>;
   dispatcher: RepositoryDispatcher;
@@ -106,7 +116,7 @@ export function createMcpApprovals({
 
     const decisionOf = async (
       server: McpApprovalsRequest["servers"][number],
-    ): Promise<McpApprovalStatus | undefined> => {
+    ): Promise<Exclude<McpApprovalStatus, "pending"> | undefined> => {
       if (
         (await params.get(mcpApprovalParameter(request.bot, server.name, server.fingerprint))) !==
         undefined
@@ -142,14 +152,27 @@ export function createMcpApprovals({
         });
         return "denied";
       }
-      if (outcome === "pending" && suspend) {
-        await store.updatePending(subjectId, {
-          threadId: thread.threadId,
-          messageId: thread.messageId,
-          suspended: true,
-        });
-        const late = await decisionOf(server);
+      if (suspend && (outcome === "pending" || outcome === "raised")) {
+        if (outcome === "pending") {
+          await store.updatePending(subjectId, {
+            threadId: thread.threadId,
+            messageId: thread.messageId,
+            suspended: true,
+          });
+        }
+        const show = (state: ApprovalState) =>
+          showApprovalState({
+            adapter: thread.adapter,
+            bot: thread.bot,
+            threadId: thread.threadId,
+            messageId: thread.messageId,
+            state,
+            logger,
+          });
+        await show("waiting");
+        const late = outcome === "pending" ? await decisionOf(server) : undefined;
         if (late) {
+          await show(late);
           resume = true;
           return late;
         }
