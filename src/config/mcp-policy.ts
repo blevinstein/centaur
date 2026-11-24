@@ -22,10 +22,121 @@ const COMMIT_PINNED_GIT = new RegExp(
 
 const messagesOf = (errors: DetailedError[]) => errors.map((error) => error.message);
 
-export const isPinned = (args: string[]) => {
-  const target = args.find((arg) => !arg.startsWith("-"));
-  return target !== undefined && (EXACT_VERSION.test(target) || COMMIT_PINNED_GIT.test(target));
+type FlagKind = "bool" | "value";
+type FlagTable = Record<string, FlagKind>;
+
+// Flags the launchers document; any other flag before the target makes the target unknowable.
+const UVX_FLAGS: FlagTable = {
+  "--from": "value",
+  "--with": "value",
+  "--with-editable": "value",
+  "--with-requirements": "value",
+  "--constraints": "value",
+  "-c": "value",
+  "--overrides": "value",
+  "--python": "value",
+  "-p": "value",
+  "--index": "value",
+  "--default-index": "value",
+  "--index-url": "value",
+  "-i": "value",
+  "--extra-index-url": "value",
+  "--find-links": "value",
+  "-f": "value",
+  "--index-strategy": "value",
+  "--resolution": "value",
+  "--prerelease": "value",
+  "--exclude-newer": "value",
+  "--directory": "value",
+  "--project": "value",
+  "--config-file": "value",
+  "--cache-dir": "value",
+  "--isolated": "bool",
+  "--no-cache": "bool",
+  "-n": "bool",
+  "--offline": "bool",
+  "--quiet": "bool",
+  "-q": "bool",
+  "--verbose": "bool",
+  "-v": "bool",
+  "--native-tls": "bool",
+  "--no-progress": "bool",
+  "--refresh": "bool",
+  "--reinstall": "bool",
+  "--upgrade": "bool",
+  "-U": "bool",
+  "--no-config": "bool",
 };
+
+const NPX_FLAGS: FlagTable = {
+  "--package": "value",
+  "-p": "value",
+  "--call": "value",
+  "-c": "value",
+  "--registry": "value",
+  "--cache": "value",
+  "--userconfig": "value",
+  "--prefix": "value",
+  "--loglevel": "value",
+  "--yes": "bool",
+  "-y": "bool",
+  "--no": "bool",
+  "-n": "bool",
+  "--no-install": "bool",
+  "--ignore-existing": "bool",
+  "--quiet": "bool",
+  "-q": "bool",
+  "--silent": "bool",
+  "--offline": "bool",
+  "--prefer-offline": "bool",
+  "--no-audit": "bool",
+  "--no-fund": "bool",
+};
+type ParsedLauncherArgs = { flagValues: Map<string, string[]>; positional: string | undefined };
+
+// Arguments after the first positional belong to the launched tool. Undefined when a flag is
+// unknown, lacks its value or takes one it cannot take.
+function parseLauncherArgs(args: string[], flags: FlagTable): ParsedLauncherArgs | undefined {
+  const flagValues = new Map<string, string[]>();
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i] ?? "";
+    if (arg === "--") return { flagValues, positional: args[i + 1] };
+    if (!arg.startsWith("-")) return { flagValues, positional: arg };
+    const [name = "", inline] = arg.split(/=(.*)/s, 2);
+    const kind = Object.hasOwn(flags, name) ? flags[name] : undefined;
+    if (kind === undefined || (kind === "bool" && inline !== undefined)) return undefined;
+    if (kind === "value") {
+      const value = inline ?? args[++i];
+      if (value === undefined) return undefined;
+      flagValues.set(name, [...(flagValues.get(name) ?? []), value]);
+    }
+  }
+  return { flagValues, positional: undefined };
+}
+
+const isPinnedSpec = (spec: string | undefined) =>
+  spec !== undefined && (EXACT_VERSION.test(spec) || COMMIT_PINNED_GIT.test(spec));
+
+const flagValuesOf = (parsed: ParsedLauncherArgs, ...names: string[]) =>
+  names.flatMap((name) => parsed.flagValues.get(name) ?? []);
+
+const PINNED_TARGETS: Record<string, (args: string[]) => boolean> = {
+  uvx(args) {
+    const parsed = parseLauncherArgs(args, UVX_FLAGS);
+    if (parsed === undefined) return false;
+    const [from] = flagValuesOf(parsed, "--from");
+    return isPinnedSpec(from ?? parsed.positional);
+  },
+  npx(args) {
+    const parsed = parseLauncherArgs(args, NPX_FLAGS);
+    if (parsed === undefined || flagValuesOf(parsed, "--call", "-c").length > 0) return false;
+    const packages = flagValuesOf(parsed, "--package", "-p");
+    return packages.length > 0 ? packages.every(isPinnedSpec) : isPinnedSpec(parsed.positional);
+  },
+};
+
+export const isPinned = (command: string, args: string[]) =>
+  Object.hasOwn(PINNED_TARGETS, command) && (PINNED_TARGETS[command]?.(args) ?? false);
 
 export function describeServer(server: McpServer) {
   if ("url" in server) {
@@ -46,7 +157,7 @@ export function describeServer(server: McpServer) {
     url: "",
     command: server.command,
     args,
-    pinned: isPinned(args),
+    pinned: isPinned(server.command, args),
   };
 }
 

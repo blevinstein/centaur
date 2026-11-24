@@ -202,3 +202,6 @@
   checked in `test/infra.test.ts`.
 - A poster operation that has no thread must not resolve a connection (`requireBot` fails for a bot
   on several platforms); it takes the bot name alone, as `openBotState` in `mcp-approvals` does.
+- `isPinned(command, args)` (`src/config/mcp-policy.ts`) is the only place the launched package is decided,
+  from per-command flag tables (`UVX_FLAGS`, `NPX_FLAGS`) that fail closed; a new launcher or flag goes in
+  a table with a test case.

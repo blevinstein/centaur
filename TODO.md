@@ -75,7 +75,7 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
 - [ ] Offer to redo the original request after an approval when the agent answered without
       suspending (store the request and re-ask on approval; today the receiver only posts that the
       server is available and the user asks again)
-- [ ] Harden `isPinned` (`src/config/mcp-policy.ts`) against flags that take a value. It takes the
+- [x] Harden `isPinned` (`src/config/mcp-policy.ts`) against flags that take a value. It takes the
       first argument not starting with `-` as the package, so in `uvx --with pkg==1.0.0 other-pkg`
       the pinned-looking `--with` value hides the unpinned `other-pkg`, and in `uvx --python 3.12
       pkg==1.0` the version `3.12` is taken as the package (a false negative). For `uvx`, the

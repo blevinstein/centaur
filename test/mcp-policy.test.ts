@@ -39,20 +39,89 @@ import {
 import { loadSelfConfig } from "./helpers/self-config.js";
 
 describe("isPinned", () => {
-  it.each<[string, string[], boolean]>([
-    ["a scoped package at an exact version", ["-y", "@example/docs-mcp@1.4.2"], true],
-    ["an unscoped package at an exact version", ["pkg@1.4.2"], true],
-    ["a prerelease version", ["pkg@1.4.2-beta.1"], true],
-    ["a pip-style exact version", ["pkg==1.4.2"], true],
-    ["the latest tag", ["-y", "pkg@latest"], false],
-    ["a version range", ["pkg@^1.4.2"], false],
-    ["a partial version", ["pkg@1.4"], false],
-    ["a bare package", ["pkg"], false],
-    ["only flags", ["-y", "--quiet"], false],
-    ["no arguments", [], false],
-    ["a pinned argument after the package", ["pkg", "other@1.4.2"], false],
-  ])("%s", (_name, args, expected) => {
-    expect(isPinned(args)).toBe(expected);
+  it.each<[string, string, string[], boolean]>([
+    ["a scoped npx package at an exact version", "npx", ["-y", "@example/docs-mcp@1.4.2"], true],
+    ["an unscoped npx package at an exact version", "npx", ["pkg@1.4.2"], true],
+    ["a prerelease version", "npx", ["pkg@1.4.2-beta.1"], true],
+    ["a pip-style exact version", "uvx", ["pkg==1.4.2"], true],
+    ["the latest tag", "npx", ["-y", "pkg@latest"], false],
+    ["a version range", "npx", ["pkg@^1.4.2"], false],
+    ["a partial version", "npx", ["pkg@1.4"], false],
+    ["a bare package", "npx", ["pkg"], false],
+    ["only flags", "npx", ["-y", "--quiet"], false],
+    ["no arguments", "npx", [], false],
+    ["a pinned argument after the package", "npx", ["pkg", "other@1.4.2"], false],
+    ["a command that is neither npx nor uvx", "docker", ["pkg@1.4.2"], false],
+    ["npx boolean flags", "npx", ["-y", "--no-install", "--yes", "pkg@1.2.3"], true],
+    [
+      "an npx value flag before the package",
+      "npx",
+      ["--registry", "https://r.example", "pkg@1.2.3"],
+      true,
+    ],
+    [
+      "an npx value flag with an equals sign",
+      "npx",
+      ["--registry=https://r.example", "pkg"],
+      false,
+    ],
+    [
+      "a pinned flag value before an unpinned npx package",
+      "npx",
+      ["--registry", "x@1.2.3", "pkg"],
+      false,
+    ],
+    ["npx -p with a pinned package", "npx", ["-p", "pkg@1.2.3", "cmd"], true],
+    ["npx -p with an unpinned package", "npx", ["-p", "other", "pkg@1.2.3"], false],
+    ["npx --package= with a pinned package", "npx", ["--package=pkg@1.2.3", "cmd"], true],
+    ["npx -p repeated with one unpinned", "npx", ["-p", "a@1.0.0", "-p", "b", "cmd"], false],
+    ["npx -c has no package target", "npx", ["-c", "pkg@1.2.3"], false],
+    ["an unknown npx flag", "npx", ["--mystery", "pkg@1.2.3"], false],
+    ["a flag after the npx package belongs to the tool", "npx", ["pkg@1.2.3", "--mystery"], true],
+    ["an npx -- separator", "npx", ["--", "pkg@1.2.3"], true],
+    [
+      "a uvx --with value before an unpinned package",
+      "uvx",
+      ["--with", "pkg==1.0.0", "other-pkg"],
+      false,
+    ],
+    ["a uvx --with value after the package", "uvx", ["other-pkg", "--with", "pkg==1.0.0"], false],
+    ["a uvx --with value before a pinned package", "uvx", ["--with", "dep", "pkg==1.0.0"], true],
+    [
+      "a uvx --python value before a pinned package",
+      "uvx",
+      ["--python", "3.12", "pkg==1.0.0"],
+      true,
+    ],
+    ["a uvx --python= value before a pinned package", "uvx", ["--python=3.12", "pkg==1.0.0"], true],
+    [
+      "a uvx --python value before an unpinned package",
+      "uvx",
+      ["--python", "3.12.1", "pkg"],
+      false,
+    ],
+    ["a uvx --from target", "uvx", ["--from", "pkg==1.0.0", "cmd"], true],
+    ["a uvx --from= target", "uvx", ["--from=pkg==1.0.0", "cmd"], true],
+    [
+      "a uvx --from unpinned target with a pinned command",
+      "uvx",
+      ["--from", "pkg", "cmd==1.0.0"],
+      false,
+    ],
+    [
+      "a uvx --from with a pinned --with",
+      "uvx",
+      ["--with", "dep==1.0.0", "--from", "pkg", "cmd"],
+      false,
+    ],
+    ["a uvx --from without a value", "uvx", ["--from"], false],
+    ["uvx boolean flags", "uvx", ["--isolated", "-q", "--no-cache", "pkg==1.0.0"], true],
+    ["an unknown uvx flag", "uvx", ["--mystery", "pkg==1.0.0"], false],
+    ["an unknown uvx short flag", "uvx", ["-Z", "pkg==1.0.0"], false],
+    ["a flag after the uvx package belongs to the tool", "uvx", ["pkg==1.0.0", "--mystery"], true],
+    ["a value flag missing its value", "uvx", ["--python"], false],
+  ])("%s", (_name, command, args, expected) => {
+    expect(isPinned(command, args)).toBe(expected);
   });
 
   it.each<[string, string, boolean]>([
@@ -81,7 +150,7 @@ describe("isPinned", () => {
     ["an unknown fragment", `${GIT_REPO_URL}@${COMMIT_SHA}#sha=abc`, false],
     ["path traversal", `git+https://github.com/../o/r@${COMMIT_SHA}`, false],
   ])("git source: %s", (_name, source, expected) => {
-    expect(isPinned(["--from", source, "example-entrypoint"])).toBe(expected);
+    expect(isPinned("uvx", ["--from", source, "example-entrypoint"])).toBe(expected);
   });
 });
 

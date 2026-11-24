@@ -239,7 +239,7 @@ fetches a policy.
 | `transport` | `"remote"` | `"stdio"` |
 | `host`, `url` | URL hostname and full URL | `""` |
 | `command`, `args` (set of strings) | `""`, empty | the command and its arguments |
-| `pinned` (bool) | `false` | the first argument not starting with `-` is an exact registry version, such as `pkg@1.4.2` or `pkg==1.4.2`, or a git URL at a full 40-hex commit SHA (see below) |
+| `pinned` (bool) | `false` | for `npx` and `uvx` only: the launched package is an exact registry version, such as `pkg@1.4.2` or `pkg==1.4.2`, or a git URL at a full 40-hex commit SHA (see below). The package is the `--from` value for `uvx`, every `-p`/`--package` value for `npx`, else the first positional argument after skipping the launcher's flags (and their values). `pinned` is `false` for an unknown flag, a missing value, `npx -c`, any other command, or when no package is found |
 
 A server is allowed when some `permit` matches and no `forbid` does. Policy templates are not
 supported.
