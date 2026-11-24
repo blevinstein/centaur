@@ -4,7 +4,7 @@ import { threadKey } from "../thread-key.js";
 import type { AccessResolver } from "./access.js";
 import type { AccessRequester } from "./access-requests.js";
 import { type AdminClaimer, CLAIM_MESSAGE } from "./admin-claims.js";
-import { type ApproverCommand, parseApproverCommand } from "./approver-commands.js";
+import { type ApproverCommand, commandText, readApproverCommand } from "./approver-commands.js";
 import type { AttachmentStore } from "./attachments.js";
 import type { RepositoryDispatcher } from "./github.js";
 import { isAddressed, ownsMessage, rememberAddressed, type ThreadMetadata } from "./ownership.js";
@@ -73,10 +73,10 @@ export function createMessageHandler({
 
     const refusable = respondTo === "mention" || isAddressed(thread, message);
 
-    const sub = approverCommand ? parseApproverCommand(message.text) : undefined;
-    if (approverCommand && sub) {
+    const command = approverCommand ? readApproverCommand(commandText(message)) : undefined;
+    if (approverCommand && command) {
       const reply = await approverCommand({
-        sub,
+        ...command,
         userId: message.author.userId,
         name: message.author.fullName || message.author.userName,
         isDM: thread.isDM,

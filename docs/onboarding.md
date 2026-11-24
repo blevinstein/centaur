@@ -125,7 +125,7 @@ That's all that's needed for group use. Optionally, to DM a bot: open its link
   ([policies](workflows.md#context-policies)).
 - **Approvers:** an approved user DMs the bot `/approver request` (Telegram) or `approver request`
   (Slack) to ask the admin to make them an approver; the admin decides with 👍 or 👎. `/approver leave`
-  (`approver leave` on Slack) removes yourself. Both work in a DM only ([design](approvers.md)).
+  (`approver leave` on Slack) removes yourself. Both work in a DM only ([design](approvers.md)). The admin manages the set the same way: `/approver add|remove` as a reply to the person's message (any chat) or with their numeric ID, `approver add|remove <@U…>` or a Slack ID in a DM, and `approver list` (DM only). A username alone is not enough: reply to the person instead.
 - **Results:** when the agent changes a repo, its reply links the pull request. The maintainer
   reviews and merges it; household members don't need to do anything.
 

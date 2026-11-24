@@ -107,7 +107,7 @@ describe("admin handlers", () => {
 
   it.each([
     ["answers", "request", "approver reply", true],
-    ["processes the message normally for an unknown subcommand in", "add 5", undefined, false],
+    ["processes the message normally for an unknown subcommand in", "promote 5", undefined, false],
   ])("%s /approver", async (_name, text, reply, answered) => {
     const { chat, approverCommand } = wire(true);
     const post = vi.fn();

@@ -3,7 +3,7 @@ import { vi } from "vitest";
 import type { Platform } from "../../src/config/index.js";
 import { createAccessResolver } from "../../src/lambda/access.js";
 import { createAccessDecisions } from "../../src/lambda/access-decisions.js";
-import { encodeEntry } from "../../src/lambda/access-entries.js";
+import { adminParameter, encodeEntry } from "../../src/lambda/access-entries.js";
 import {
   type AccessRequestLimits,
   createAccessRequestStore,
@@ -316,7 +316,16 @@ export type ApproverHarness = Awaited<ReturnType<typeof approverHarness>>;
 export interface ApproverAsk {
   userId?: string;
   isDM?: boolean;
+  /** The Telegram user whose message the command replies to. */
+  replyTo?: { id: number; isBot?: boolean; firstName?: string };
 }
+
+export const asAdmin = { userId: ADMIN_ID };
+
+export const approverKeys = (h: Pick<ApproverHarness, "params">) =>
+  Object.keys(h.params.values)
+    .filter((name) => name.includes("/approvers/"))
+    .sort();
 
 /** What a route did with an `approver <sub>` message: what it posted, and whether it fell through. */
 export interface ApproverRouteResult {
@@ -331,7 +340,7 @@ const fellThroughOf = async (h: ApproverHarness): Promise<boolean> =>
 export async function viaSlashCommand(
   h: ApproverHarness,
   sub: string,
-  { userId = REQUESTER_ID, isDM = true }: ApproverAsk = {},
+  { userId = REQUESTER_ID, isDM = true, replyTo }: ApproverAsk = {},
 ): Promise<ApproverRouteResult> {
   const chat = { onReaction: vi.fn(), onSlashCommand: vi.fn(), processMessage: vi.fn() };
   registerAdminHandlers(chat, telegramAdminChannel, h.decisions, vi.fn(), h.approverCommand);
@@ -344,7 +353,13 @@ export async function viaSlashCommand(
     text: sub,
     user: { userId, fullName: "Pat Example" },
     adapter: { isDM: () => isDM, parseMessage: vi.fn(() => ({})) },
-    raw: {},
+    raw: replyTo
+      ? {
+          reply_to_message: {
+            from: { id: replyTo.id, is_bot: replyTo.isBot ?? false, first_name: replyTo.firstName },
+          },
+        }
+      : {},
     channel: { id: REQUESTER_THREAD_ID, post },
   });
   return { posts: post.mock.calls.map(([text]) => text), fellThrough: await fellThroughOf(h) };
@@ -368,7 +383,9 @@ export async function viaDirectMessage(
     logger: h.logger,
   });
   const { thread, post } = fakeThread({ isDM, chatId: userId });
-  await handle(thread, fakeMessage({ userId, text: `approver ${sub}`, isMention: true }));
+  const raw = { text: `approver ${sub}` };
+  const text = raw.text.replace(/<@(\w+)(?:\|[^>]*)?>/g, "@name");
+  await handle(thread, fakeMessage({ userId, text, raw, isMention: true }));
   return {
     posts: (post.mock.calls as unknown as [string][]).map(([text]) => text),
     fellThrough: await fellThroughOf(h),
@@ -379,3 +396,28 @@ export const APPROVER_ROUTES = [
   ["the Telegram slash command", viaSlashCommand],
   ["the Slack direct-message word", viaDirectMessage],
 ] as const;
+
+export const SLACK_ADMIN_ID = "U0ADMIN1";
+
+/** The approver command of a Slack bot over its own store, wired like `approverHarness` for the routes. */
+export async function slackApproverHarness({ approvers = [] }: { approvers?: string[] } = {}) {
+  const h = await approverHarness();
+  const params = fakeParameterStore({
+    [adminParameter("slack")]: SLACK_ADMIN_ID,
+    ...approverEntries(SLACK_BOT, approvers),
+  });
+  const resolveAccess = createAccessResolver(SLACK_BOT, params, 0);
+  const approverCommand = vi.fn(
+    createApproverCommand({
+      bot: SLACK_BOT,
+      params,
+      store: h.store,
+      resolveAccess,
+      requestApprover: vi.fn(),
+      logger: h.logger,
+    }),
+  );
+  const approverEntry = (userId = REQUESTER_ID) =>
+    params.values[approverParameter(SLACK_BOT.name, SLACK_BOT.platform, userId)];
+  return { ...h, params, resolveAccess, approverCommand, approverEntry };
+}

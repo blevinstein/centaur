@@ -1,28 +1,51 @@
 import { describe, expect, it } from "vitest";
 import { COMMAND_REPLIES } from "../src/lambda/access-decisions.js";
-import { APPROVER_REPLIES, parseApproverCommand } from "../src/lambda/approver-commands.js";
+import {
+  APPROVER_REPLIES,
+  parseApproverCommand,
+  readApproverCommand,
+} from "../src/lambda/approver-commands.js";
 import { MAX_APPROVERS } from "../src/lambda/approvers.js";
 import {
   ADMIN_ID,
   APPROVER_ID,
   APPROVER_ROUTES,
   approverHarness,
+  approverKeys,
+  asAdmin,
   commandFrom,
+  OTHER_APPROVER_ID,
   REQUESTER_ID,
   REQUESTER_THREAD_ID,
+  SLACK_ADMIN_ID,
+  slackApproverHarness,
+  viaDirectMessage,
+  viaSlashCommand,
 } from "./helpers/access-fixtures.js";
 
 describe("parseApproverCommand", () => {
   it.each([
     ["approver request", "request"],
     ["  Approver   LEAVE ", "leave"],
+    ["approver list", "list"],
+    ["approver add 1", "add"],
+    ["approver remove <@U1>", "remove"],
   ])("parses %j", (text, sub) => {
     expect(parseApproverCommand(text)).toBe(sub);
   });
 
   it.each([
+    ["approver add 6001", { sub: "add", target: "6001" }],
+    ["approver add", { sub: "add", target: undefined }],
+    ["approver remove <@U1|pat>", { sub: "remove", target: "<@U1|pat>" }],
+  ])("reads the target of %j", (text, command) => {
+    expect(readApproverCommand(text)).toEqual(command);
+  });
+
+  it.each([
     "approver",
-    "approver add 1",
+    "approver list 1",
+    "approver add 1 2",
     "request",
     "approver request please",
     "hi approver leave",
@@ -191,6 +214,253 @@ describe.each(APPROVER_ROUTES)("approver words through %s", (_route, via) => {
       expect(h.approverEntry()).toBeDefined();
     });
   });
+});
+
+const FULL_SET = Array.from({ length: MAX_APPROVERS }, (_, index) => `${8000 + index}`);
+
+describe.each(APPROVER_ROUTES)("admin approver commands through %s", (_route, via) => {
+  it("adds by numeric ID, recording the admin and the time, and tells nobody else", async () => {
+    const h = await approverHarness();
+
+    const { posts } = await via(h, "add 6001", asAdmin);
+
+    expect(posts).toEqual(["Added 6001 as an approver."]);
+    expect(JSON.parse(h.approverEntry("6001") ?? "")).toEqual({
+      approver: ADMIN_ID,
+      at: expect.any(String),
+    });
+    expect(h.messenger.openDM).not.toHaveBeenCalled();
+    expect(h.postToThread).not.toHaveBeenCalled();
+  });
+
+  it("is idempotent for an existing approver", async () => {
+    const h = await approverHarness({ approvers: [APPROVER_ID] });
+
+    const { posts } = await via(h, `add ${APPROVER_ID}`, asAdmin);
+
+    expect(posts).toEqual([APPROVER_REPLIES.alreadyListed]);
+    expect(JSON.parse(h.approverEntry(APPROVER_ID) ?? "")).not.toHaveProperty("approver");
+  });
+
+  it("refuses the admin's own ID", async () => {
+    const h = await approverHarness();
+
+    const { posts } = await via(h, `add ${ADMIN_ID}`, asAdmin);
+
+    expect(posts).toEqual([APPROVER_REPLIES.adminTarget]);
+    expect(approverKeys(h)).toEqual([]);
+  });
+
+  it("refuses over the cap", async () => {
+    const h = await approverHarness({ approvers: FULL_SET });
+
+    const { posts } = await via(h, "add 6001", asAdmin);
+
+    expect(posts).toEqual([APPROVER_REPLIES.full]);
+    expect(h.approverEntry("6001")).toBeUndefined();
+  });
+
+  it.each(["../x", "a/b", "1.5", "abc", "6001/../x", "<@../x>", "12345678901234567890"])(
+    "refuses the ID %j and writes nothing",
+    async (target) => {
+      const h = await approverHarness();
+
+      const { posts } = await via(h, `add ${target}`, asAdmin);
+
+      expect(posts).toEqual([APPROVER_REPLIES.invalidId]);
+      expect(approverKeys(h)).toEqual([]);
+    },
+  );
+
+  it("asks for a target when there is none", async () => {
+    const h = await approverHarness();
+
+    const { posts } = await via(h, "add", asAdmin);
+
+    expect(posts).toEqual([APPROVER_REPLIES.noTarget]);
+  });
+
+  it("refuses a bare username with a hint", async () => {
+    const h = await approverHarness();
+
+    const { posts } = await via(h, "add @pat", asAdmin);
+
+    expect(posts).toEqual([APPROVER_REPLIES.usernameTarget]);
+    expect(approverKeys(h)).toEqual([]);
+  });
+
+  it("removes an approver and keeps the others", async () => {
+    const h = await approverHarness({ approvers: ["6001", OTHER_APPROVER_ID] });
+
+    const { posts } = await via(h, "remove 6001", asAdmin);
+
+    expect(posts).toEqual(["Removed 6001 as an approver."]);
+    expect(h.approverEntry("6001")).toBeUndefined();
+    expect(h.approverEntry(OTHER_APPROVER_ID)).toBeDefined();
+  });
+
+  it("says so when the ID to remove is not an approver, and deletes nothing", async () => {
+    const h = await approverHarness({ approvers: [APPROVER_ID] });
+
+    const { posts } = await via(h, "remove 6009", asAdmin);
+
+    expect(posts).toEqual([APPROVER_REPLIES.notListed]);
+    expect(approverKeys(h)).toHaveLength(1);
+  });
+
+  it("lists nobody when the set is empty", async () => {
+    const h = await approverHarness();
+
+    expect((await via(h, "list", asAdmin)).posts).toEqual([APPROVER_REPLIES.noApprovers]);
+  });
+
+  it("lists the approvers in order with when and by whom they were added", async () => {
+    const h = await approverHarness({ approvers: [OTHER_APPROVER_ID] });
+    await via(h, "add 6001", asAdmin);
+
+    const { posts } = await via(h, "list", asAdmin);
+
+    expect(posts[0]).toMatch(
+      /^Approvers \(you, the admin, are always one\):\n6001, added \S+ by 5001\n6002, added \S+$/,
+    );
+  });
+
+  it("tells an approver that only the admin can", async () => {
+    const h = await approverHarness({ approvers: [APPROVER_ID] });
+
+    for (const text of ["add 6001", "remove 6001", "list"]) {
+      expect((await via(h, text, { userId: APPROVER_ID })).posts).toEqual([
+        APPROVER_REPLIES.adminOnly,
+      ]);
+    }
+    expect(approverKeys(h)).toHaveLength(1);
+  });
+
+  it.each(["approved", "stranger"] as const)(
+    "falls through for a %s user, so they are never told the commands exist",
+    async (standing) => {
+      const h = await approverHarness({ standing });
+
+      for (const text of ["add 6001", "remove 6001", "list"]) {
+        const { posts, fellThrough } = await via(h, text);
+        expect(fellThrough).toBe(true);
+        expect(posts.join(" ")).not.toMatch(/approver/i);
+      }
+      expect(approverKeys(h)).toEqual([]);
+    },
+  );
+
+  it("is not available without an admin on the platform", async () => {
+    const h = await approverHarness({ admin: null });
+
+    expect(await via(h, "add 6001")).toEqual({ posts: [], fellThrough: true });
+    expect(approverKeys(h)).toEqual([]);
+  });
+
+  it.each(["add 6001", "remove 6001", "list"])(
+    "refuses %j outside a direct message",
+    async (text) => {
+      const h = await approverHarness({ approvers: ["6001"] });
+
+      const { posts } = await via(h, text, { ...asAdmin, isDM: false });
+
+      expect(posts).toEqual([APPROVER_REPLIES.notDirect]);
+      expect(approverKeys(h)).toHaveLength(1);
+    },
+  );
+});
+
+describe("admin approver commands as a Telegram reply", () => {
+  it("adds the author of the replied-to message and confirms their name", async () => {
+    const h = await approverHarness();
+
+    const { posts } = await viaSlashCommand(h, "add", {
+      ...asAdmin,
+      replyTo: { id: 6001, firstName: "Sam" },
+    });
+
+    expect(posts).toEqual(["Added Sam (6001) as an approver."]);
+    expect(JSON.parse(h.approverEntry("6001") ?? "")).toEqual({
+      name: "Sam",
+      approver: ADMIN_ID,
+      at: expect.any(String),
+    });
+  });
+
+  it("answers with a fixed line in a group, where only a reply is accepted", async () => {
+    const h = await approverHarness();
+    const inGroup = { ...asAdmin, isDM: false, replyTo: { id: 6001, firstName: "Sam" } };
+
+    expect((await viaSlashCommand(h, "add", inGroup)).posts).toEqual([APPROVER_REPLIES.added]);
+    expect(h.approverEntry("6001")).toBeDefined();
+    expect((await viaSlashCommand(h, "remove", inGroup)).posts).toEqual([APPROVER_REPLIES.removed]);
+    expect(h.approverEntry("6001")).toBeUndefined();
+    expect((await viaSlashCommand(h, "add 6001", { ...inGroup })).posts).toEqual([
+      APPROVER_REPLIES.notDirect,
+    ]);
+  });
+
+  it("refuses a bot account", async () => {
+    const h = await approverHarness();
+
+    const { posts } = await viaSlashCommand(h, "add", {
+      ...asAdmin,
+      replyTo: { id: 6001, isBot: true },
+    });
+
+    expect(posts).toEqual([APPROVER_REPLIES.botTarget]);
+    expect(approverKeys(h)).toEqual([]);
+  });
+
+  it("prefers a named ID over the replied-to author", async () => {
+    const h = await approverHarness();
+
+    await viaSlashCommand(h, "add 6003", { ...asAdmin, replyTo: { id: 6001 } });
+
+    expect(approverKeys(h)).toEqual([expect.stringMatching(/\/6003$/)]);
+  });
+});
+
+describe("admin approver commands on Slack", () => {
+  it.each([
+    ["a user ID", "add U0PAT1", "U0PAT1"],
+    ["a workspace-wide ID", "add W0PAT1", "W0PAT1"],
+    ["a mention", "add <@U0PAT1>", "U0PAT1"],
+    ["a mention with a name", "add <@U0PAT1|pat>", "U0PAT1"],
+  ])("adds by %s from the raw text", async (_name, text, userId) => {
+    const h = await slackApproverHarness();
+
+    const { posts } = await viaDirectMessage(h, text, { userId: SLACK_ADMIN_ID });
+
+    expect(posts).toEqual([`Added ${userId} as an approver.`]);
+    expect(JSON.parse(h.approverEntry(userId) ?? "")).toEqual({
+      approver: SLACK_ADMIN_ID,
+      at: expect.any(String),
+    });
+  });
+
+  it("removes by mention", async () => {
+    const h = await slackApproverHarness({ approvers: ["U0PAT1"] });
+
+    const { posts } = await viaDirectMessage(h, "remove <@U0PAT1>", { userId: SLACK_ADMIN_ID });
+
+    expect(posts).toEqual(["Removed U0PAT1 as an approver."]);
+    expect(h.approverEntry("U0PAT1")).toBeUndefined();
+  });
+
+  it.each(["6001", "u0pat1", "U0/../x", "<@U0PAT1/x>", "@pat"])(
+    "refuses %j and writes nothing",
+    async (target) => {
+      const h = await slackApproverHarness();
+
+      const { posts } = await viaDirectMessage(h, `add ${target}`, { userId: SLACK_ADMIN_ID });
+
+      expect(posts).toEqual([
+        target === "@pat" ? APPROVER_REPLIES.usernameTarget : APPROVER_REPLIES.invalidId,
+      ]);
+      expect(approverKeys(h)).toEqual([]);
+    },
+  );
 });
 
 describe("the approver request decision", () => {

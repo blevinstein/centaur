@@ -79,7 +79,7 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
         channel-keyed message link. Needs 1.
   - [x] Approvers 3: the `approver` request kind and `leave`, IAM write on the approvers path.
         Needs 1. **[HUMAN APPROVAL]** deploy of the Lambda and IAM change.
-  - [ ] Approvers 4: admin commands `add`, `remove`, `list` from chat. Needs 3.
+  - [x] Approvers 4: admin commands `add`, `remove`, `list` from chat. Needs 3.
   - [x] Approvers 5: `centaur approvers list|remove|add`. Needs 1 (path helpers).
   - [ ] Approvers 6: open `chat` or `user` requests to approvers, only if Decision 1 is amended.
         Needs 1.

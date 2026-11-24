@@ -171,11 +171,13 @@ export const fakeMessage = (
     isMe?: boolean;
     fullName?: string;
     attachments?: unknown[];
+    raw?: unknown;
   } = {},
 ) =>
   ({
     id: "telegram:msg-42",
     text: overrides.text ?? MESSAGE_TEXT,
+    raw: overrides.raw,
     isMention: overrides.isMention ?? false,
     attachments: overrides.attachments ?? [],
     author: {

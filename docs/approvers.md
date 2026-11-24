@@ -7,9 +7,11 @@ Status: slice 1 (set and gate) is built: the path helpers, `loadApprovers`, `may
 audit record and the `approverId` log field. Slice 2 (fan-out) is built: `recipientsFor`, one DM per
 recipient for `mcp` requests and the channel-keyed message link. Slice 3 is built: the `approver`
 request kind, `request` and `leave` (`src/lambda/approver-commands.ts`); it needs the Lambda and IAM
-deploy. Slice 5 (the CLI, `centaur approvers`) is built; it writes entries without the `approver`
-field by design, and `list` shows that field (`added by <id>`, or `added by the CLI` without it). Not built: admin commands (4), access requests (6) and the docs
-fold-in (7). The [Decisions](#decisions) are the design. Terms (admin channel, access request, claim) are
+deploy. Slice 4 is built: the admin's `approver add`, `remove` and `list` (same file; targets are
+validated per platform with `isUserId`, and Slack mentions are read from the raw event text). Slice 5
+(the CLI, `centaur approvers`) is built; it writes entries without the `approver` field by design,
+and `list` shows that field (`added by <id>`, or `added by the CLI` without it). Not built: access
+requests (6) and the docs fold-in (7). The [Decisions](#decisions) are the design. Terms (admin channel, access request, claim) are
 defined in [plan.md](plan.md#access-requests); the request kind that motivates this is in
 [mcp-approval.md](mcp-approval.md).
 

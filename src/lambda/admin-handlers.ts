@@ -7,7 +7,8 @@ import { CLAIM_COMMANDS } from "./admin-claims.js";
 import {
   APPROVER_COMMANDS,
   type ApproverCommand,
-  parseApproverCommand,
+  readApproverCommand,
+  telegramReplyTo,
 } from "./approver-commands.js";
 import type { BotChat } from "./chat.js";
 
@@ -44,12 +45,13 @@ export function registerAdminHandlers(
     );
   });
   chat.onSlashCommand(APPROVER_COMMANDS, async (event) => {
-    const sub = parseApproverCommand(`approver ${event.text}`);
+    const command = readApproverCommand(`approver ${event.text}`);
     await replyOrProcess(
       event,
-      sub
+      command
         ? await approverCommand({
-            sub,
+            ...command,
+            replyTo: telegramReplyTo(event.raw),
             userId: event.user.userId,
             name: event.user.fullName || event.user.userName,
             isDM: isDM(event),
