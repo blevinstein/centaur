@@ -5,7 +5,7 @@ import {
   encodeEntry,
   subjectIdOf,
 } from "../../lambda/access-entries.js";
-import { MAX_APPROVERS } from "../../lambda/approvers.js";
+import { isUserId, MAX_APPROVERS } from "../../lambda/approvers.js";
 import { approverParameter, approversPrefix } from "../../lambda/connection-paths.js";
 import type { CliContext } from "../context.js";
 import { type PlatformOptions, withPlatformOption } from "../platform-option.js";
@@ -16,8 +16,11 @@ export function registerApproversCommands(program: Command, context: CliContext)
     .command("approvers")
     .description("Manage the users who may decide MCP approvals besides the admin");
 
-  const connection = async (bot: string, { platform }: PlatformOptions) => {
+  const connection = async (bot: string, { platform }: PlatformOptions, userId?: string) => {
     const resolved = await requireConnection(context.store, bot, platform);
+    if (userId !== undefined && !isUserId(resolved, userId)) {
+      throw new CliError(`"${userId}" is not a valid ${resolved} user ID.`);
+    }
     return {
       platform: resolved,
       admin: await context.store.get(adminParameter(resolved)),
@@ -46,7 +49,7 @@ export function registerApproversCommands(program: Command, context: CliContext)
   withPlatformOption(approvers.command("add <bot> <userId>"))
     .description("Authorize a user to decide MCP approvals")
     .action(async (bot: string, userId: string, options: PlatformOptions) => {
-      const { platform, admin, names } = await connection(bot, options);
+      const { platform, admin, names } = await connection(bot, options, userId);
       if (!admin) {
         throw new CliError(
           `No admin is set for ${platform}: approvers have no effect without one. Run "centaur admin set" first.`,
@@ -72,7 +75,7 @@ export function registerApproversCommands(program: Command, context: CliContext)
   withPlatformOption(approvers.command("remove <bot> <userId>"))
     .description("Remove an approver")
     .action(async (bot: string, userId: string, options: PlatformOptions) => {
-      const { platform, names } = await connection(bot, options);
+      const { platform, names } = await connection(bot, options, userId);
       const parameter = approverParameter(bot, platform, userId);
       if (!names.includes(parameter)) throw new CliError(`Approver ${userId} not found.`);
       await context.store.delete([parameter]);

@@ -255,6 +255,7 @@ apply to the next decision.
   set has no effect without one), for the admin's own ID, and when the connection already has 10
   approvers. Adding an existing approver changes nothing.
 - `remove <bot> <user id>` deletes the entry and errors, deleting nothing, if there is none.
+- `add` and `remove` refuse a user id that is not a valid user id for the connection's platform, before any write.
 
 ```text
 $ centaur approvers add garden <user id>
@@ -380,6 +381,7 @@ Errors are printed to stderr and the exit code is 1.
 | `<id> is the admin for <platform>, who is always an approver.` | `approvers add` of the admin's ID. |
 | `Bot "<x>" already has 10 approvers on <platform>; remove one first.` | `approvers add` over the cap. |
 | `Approver <id> not found.` | `approvers remove` with no such entry. |
+| `"<id>" is not a valid <platform> user ID.` | `approvers add` or `remove` with an ID outside the platform's alphabet. |
 | `Cannot block <id>: they are the admin for <platform>.` | `access block <bot> user <id>` for the admin. |
 | `No pending claim for bot "<x>".` | `admin claim --cancel` with no pending claim for that bot. |
 | `Could not look up the bot's username from Telegram: ...` | `admin claim` for a Telegram bot when `getMe` fails (bad token or network). |

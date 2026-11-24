@@ -86,6 +86,37 @@ describe("approvers remove", () => {
   });
 });
 
+describe("approvers add and remove with an invalid user ID", () => {
+  const invalid = [
+    ["telegram", "60a1"],
+    ["telegram", "a/b"],
+    ["telegram", ".."],
+    ["telegram", " "],
+    ["slack", "u2"],
+    ["slack", "U"],
+    ["slack", "a/b"],
+    ["slack", ".."],
+    ["slack", " "],
+  ] as const;
+
+  it.each(invalid)("refuses %s ID %j and touches nothing", async (platform, id) => {
+    const cli = await createApproverHarness([platform]);
+    await cli.addApprover(
+      "garden",
+      platform,
+      "U6001".replace(/^U/, platform === "slack" ? "U" : ""),
+    );
+    const before = cli.store.names();
+
+    for (const command of ["add", "remove"]) {
+      await expect(cli.run("approvers", command, "garden", id)).rejects.toThrow(
+        `"${id}" is not a valid ${platform} user ID.`,
+      );
+    }
+    expect(cli.store.names()).toEqual(before);
+  });
+});
+
 describe("approvers list", () => {
   it("says there are none and shows the admin", async () => {
     const cli = await createApproverHarness();
