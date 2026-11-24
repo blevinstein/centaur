@@ -19,6 +19,8 @@ import {
 } from "./helpers/pr-comment-fixtures.js";
 import { THREAD, THREAD_PREFIX } from "./helpers/workflow-fixtures.js";
 
+const PUSH_FAILED_NOTE = `I couldn't open the pull request, so the changes were not saved. Details: ${RUN_URL}.`;
+
 const posts = (aws: { requests: { operation: string }[] }) =>
   aws.requests.filter((r) => r.operation === "post");
 
@@ -153,12 +155,20 @@ describe("finish in comment mode", () => {
     warn.mockRestore();
   });
 
-  it("fails before posting when the push fails", async () => {
-    const { github, deps, writeExecution } = await commentFinishSetup({ fail: "push" });
+  it("still posts the reply with a note, and refreshes the link, when the push fails", async () => {
+    const { aws, github, deps, writeExecution } = await commentFinishSetup({ fail: "push" });
     await writeExecution({ structured_output: { reply: "ok" } });
 
-    await expect(finish(deps())).rejects.toThrow("push rejected");
-    expect(github.comment).not.toHaveBeenCalled();
+    await finish(deps());
+
+    expect(github.comment).toHaveBeenCalledWith(
+      "octo/sprout",
+      PULL_REQUEST,
+      `${REPLY_MARKER}\nok\n\n${PUSH_FAILED_NOTE}`,
+      undefined,
+    );
+    expect(posts(aws)).toHaveLength(1);
+    expect(aws.requests.map((r) => r.operation)).toContain("link-pull-request");
   });
 
   it("rejects a state that is not a comment turn", async () => {
@@ -258,16 +268,22 @@ describe("finish in comment mode with pr_action new", () => {
     expect(aws.requests.filter((r) => r.operation === "link-pull-request")).toHaveLength(1);
   });
 
-  it("fails the turn before opening or replying when the push fails", async () => {
+  it("still replies with a note when the new branch push fails", async () => {
     const { github, deps, writeExecution } = await commentFinishSetup({
       newPr: { stacked: true },
       fail: "push",
     });
     await writeExecution({ structured_output: newOutput });
 
-    await expect(finish(deps())).rejects.toThrow("push rejected");
+    await finish(deps());
+
     expect(github.createPullRequest).not.toHaveBeenCalled();
-    expect(github.comment).not.toHaveBeenCalled();
+    expect(github.comment).toHaveBeenCalledWith(
+      "octo/sprout",
+      PULL_REQUEST,
+      `${REPLY_MARKER}\nSplit out.\n\n${PUSH_FAILED_NOTE}`,
+      undefined,
+    );
   });
 
   it("keeps the update behavior when comment_new is off", async () => {

@@ -102,6 +102,9 @@ export interface FinishDeps {
   stateDir: string;
   executionFile: string;
   pullRequestUrl?: string | undefined;
+  /** The step that opens or updates the pull request failed; the reply says the changes were not saved. */
+  pullRequestFailed?: boolean | undefined;
+  runUrl?: string | undefined;
   pullRequestLink?: PullRequestLink | undefined;
   /** OIDC token for the poster calls that act for the repository; without it a turn cannot suspend. */
   fetchToken?: (() => Promise<string>) | undefined;
@@ -157,6 +160,9 @@ async function deliver(
   return delivery;
 }
 
+const pullRequestFailureNote = (runUrl: string | undefined) =>
+  `I couldn't open the pull request, so the changes were not saved.${runUrl ? ` Details: ${runUrl}.` : ""}`;
+
 async function deliverReply(
   deps: FinishDeps,
   state: TurnState,
@@ -172,6 +178,7 @@ async function deliverReply(
       fallbackReason &&
       result.existingPr !== undefined &&
       `Could not update #${result.existingPr} (${fallbackReason}); opened the usual pull request instead.`,
+    !pullRequestUrl && deps.pullRequestFailed && pullRequestFailureNote(deps.runUrl),
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -287,27 +294,38 @@ async function finishComment(
     throw new Error("comment finish needs a comment turn state");
   }
   const asNew = result.prAction === "new" && comment.newPullRequest;
-  const opened = asNew
-    ? await openNewPullRequest(
+  let opened: Awaited<ReturnType<typeof openNewPullRequest>>;
+  let pushed = 0;
+  let failed = false;
+  try {
+    if (asNew) {
+      opened = await openNewPullRequest(
         comment,
         asNew,
         { bot: state.bot, threadId: state.threadId, pullRequest: state.pullRequest },
         result,
-      )
-    : undefined;
-  const pushed = asNew
-    ? 0
-    : await comment.push(cleanTitle(result.prTitle) || DEFAULT_COMMIT_MESSAGE);
-  const body = asNew
-    ? [
-        result.reply,
-        opened
-          ? `Opened #${opened.number} for this.`
-          : "There were no changes, so no pull request was opened.",
-      ]
-        .filter(Boolean)
-        .join("\n\n")
-    : (result.reply ?? (pushed > 0 ? `Pushed ${plural(pushed)}.` : undefined));
+      );
+    } else {
+      pushed = await comment.push(cleanTitle(result.prTitle) || DEFAULT_COMMIT_MESSAGE);
+    }
+  } catch (error) {
+    console.warn(
+      `::warning::could not push the changes to the pull request (${(error as Error).constructor.name})`,
+    );
+    failed = true;
+  }
+  const body = failed
+    ? [result.reply, pullRequestFailureNote(deps.runUrl)].filter(Boolean).join("\n\n")
+    : asNew
+      ? [
+          result.reply,
+          opened
+            ? `Opened #${opened.number} for this.`
+            : "There were no changes, so no pull request was opened.",
+        ]
+          .filter(Boolean)
+          .join("\n\n")
+      : (result.reply ?? (pushed > 0 ? `Pushed ${plural(pushed)}.` : undefined));
   if (body) {
     await comment.github.comment(
       comment.repository,

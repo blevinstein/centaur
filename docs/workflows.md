@@ -318,6 +318,12 @@ Commands: `register`, `resolve`, `resolve-schedule`, `prepare`, `pr-details`, `f
    agent's choice fell back, the note adds `Could not update #N (<reason>); opened the usual pull
    request instead.`, with the reason code from `plan-pr` or `push-existing`; it is omitted when no
    pull request was opened.
+   The `Open pull request` and `push-existing` steps are `continue-on-error`, so a rejected push or
+   pull request (for example a branch that edits `.github/workflows/*` without the permission for it)
+   does not fail the job. When one failed and no pull request was opened, `finish` appends `I couldn't
+   open the pull request, so the changes were not saved. Details: <run url>.` to the reply, with no
+   error text; the marker and session advance as for any answered turn. A comment turn whose push
+   fails posts the same note in its marked comment.
    A scheduled prompt with several targets still runs one agent turn: `finish` starts a thread
    per target, in the order of the prompt's `destination` map, and posts the same reply (with the
    same title and pull request link) to each. The first thread that received the reply is the
@@ -335,7 +341,7 @@ Commands: `register`, `resolve`, `resolve-schedule`, `prepare`, `pr-details`, `f
    Last, it removes the 👀 reaction (`unreact`) from every message the turn processed, so a message
    that still shows 👀 is still being worked on. A turn that suspends for MCP approval does this
    before its suspend call, which leaves the waiting reaction on the message.
-5. On failure, `notify-failure` posts a generic notice with the run URL, then removes the 👀
+5. On failure (a failed pull request step is not one: see above), `notify-failure` posts a generic notice with the run URL, then removes the 👀
    reactions; the marker is not advanced, so the messages are retried on the next turn.
 
 `prepare` records the turn state (bot, thread, mode, pull request and reply target, marker, session

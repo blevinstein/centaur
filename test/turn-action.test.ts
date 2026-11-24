@@ -4,6 +4,7 @@ import { parse } from "yaml";
 
 interface Step {
   id?: string;
+  "continue-on-error"?: boolean;
   env?: Record<string, string>;
 }
 
@@ -24,5 +25,12 @@ describe("the turn action", () => {
   it("gives finish the pull request update outputs", () => {
     expect(stepsWithEnv("PULL_REQUEST_UPDATED")).toHaveLength(1);
     expect(stepsWithEnv("FALLBACK_REASON")).toHaveLength(1);
+  });
+
+  it("lets the pull request steps fail so finish still posts the reply", () => {
+    for (const id of ["pr", "push_existing"]) {
+      expect(steps.find((step) => step.id === id)?.["continue-on-error"]).toBe(true);
+    }
+    expect(stepsWithEnv("PULL_REQUEST_FAILED")).toHaveLength(1);
   });
 });

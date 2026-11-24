@@ -183,6 +183,7 @@ export async function commentFinishSetup(
     poster: aws.poster,
     storeFor: aws.storeFor,
     pullRequestLink: pullRequestLink(0),
+    runUrl: RUN_URL,
     comment: {
       repository: "octo/sprout",
       pullRequestUrl: PR_URL,

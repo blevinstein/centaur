@@ -577,6 +577,32 @@ describe("finish", () => {
     });
   });
 
+  it("posts the reply with a note, and still advances the marker and saves the session, when the pull request failed", async () => {
+    const { deps, aws, executionFile, writeExecution, stateDir } = await setup(
+      [message("1", "hi")],
+      configText("context: {default: resume}"),
+    );
+    await prepare(deps());
+    await writeFile(join((await state(stateDir)).sessionDirectory, "s1.jsonl"), "data");
+    await writeExecution({ session_id: "s1", structured_output: { reply: "Done." } });
+
+    await finish({
+      stateDir,
+      executionFile,
+      pullRequestFailed: true,
+      runUrl: "https://example.test/run/1",
+      poster: aws.poster,
+      storeFor: aws.storeFor,
+    });
+
+    expect(aws.requests.at(-2)).toMatchObject({
+      operation: "post",
+      text: "Done.\n\nI couldn't open the pull request, so the changes were not saved. Details: https://example.test/run/1.",
+    });
+    expect(aws.objects.get(`${THREAD_PREFIX}last-processed`)).toBe("1");
+    expect(aws.objects.get(`${THREAD_PREFIX}s1.jsonl`)).toBe("data");
+  });
+
   it("clears the reactions of every pending message, not the bot's own", async () => {
     const { deps, aws, executionFile, writeExecution, stateDir } = await setup([
       message("1", "old"),

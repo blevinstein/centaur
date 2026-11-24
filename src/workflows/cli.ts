@@ -259,6 +259,8 @@ program.command("finish").action(async () => {
     updatedPullRequest: updatedPullRequestDeps(),
     fallbackReason: process.env.FALLBACK_REASON || undefined,
     pullRequestUrl: process.env.PULL_REQUEST_URL || undefined,
+    pullRequestFailed: process.env.PULL_REQUEST_FAILED === "true",
+    runUrl: env("RUN_URL"),
     pullRequestLink: {
       number:
         Number.isInteger(pullRequestNumber) && pullRequestNumber > 0

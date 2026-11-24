@@ -74,6 +74,7 @@ runs:
 
     - name: Update existing pull request
       id: push_existing
+      continue-on-error: true
       if: steps.prepare.outputs.skip != 'true' && inputs.comment == '' && steps.plan.outputs.target == 'existing'
       shell: bash
       env:
@@ -84,6 +85,7 @@ runs:
 
     - name: Open pull request
       id: pr
+      continue-on-error: true
       if: steps.prepare.outputs.skip != 'true' && inputs.comment == '' && (steps.plan.outputs.target == 'thread' || steps.push_existing.outputs.fallback == 'true')
       uses: peter-evans/create-pull-request@v8
       with:
@@ -102,6 +104,7 @@ runs:
         PULL_REQUEST_NUMBER: ${{ steps.push_existing.outputs.pull-request-number || steps.pr.outputs.pull-request-number }}
         PULL_REQUEST_UPDATED: ${{ steps.push_existing.outputs.pull-request-url != '' }}
         FALLBACK_REASON: ${{ steps.plan.outputs.fallback_reason || steps.push_existing.outputs.reason }}
+        PULL_REQUEST_FAILED: ${{ steps.push_existing.outcome == 'failure' || steps.pr.outcome == 'failure' }}
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         CENTAUR_CONFIG_ROOT: ${{ inputs.config_root }}
         COMMENT_PULL_REQUEST: ${{ inputs.comment }}
