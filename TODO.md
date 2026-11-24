@@ -18,165 +18,6 @@ Unlabeled items are free for an agent to complete.
 
 A section moves to [DONE.md](DONE.md) once every item in it is checked; whole sections only.
 
-## 11. MCP support
-
-- [ ] Poster MCP tool for mid-turn questions and progress messages (builds on the MCP server
-      config below).
-- [x] Design additional MCP servers in the config: [docs/mcp.md](docs/mcp.md), all
-      recommendations accepted.
-- [x] MCP servers 1: schema and validation (`mcp_servers`, `secretRef`, name refinements and the
-      `allowed_tools` cross-checks in `src/config/schema.ts`), with tests and `docs/config.md`.
-- [x] MCP servers 2: pure `buildMcpConfig(servers, env)` in `src/workflows/`, with tests.
-- [x] MCP servers 3: `prepare` writes `.centaur-turn/mcp.json`, `buildClaudeArgs` adds
-      `--mcp-config`, and the turn fails on a missing secret.
-- [x] MCP servers 4: caller-workflow docs (`env:` pattern, the `Bash` caveat) in
-      `docs/workflows.md` and `docs/onboarding.md`.
-- [x] MCP servers 5: verified against the GitHub MCP server (`https://api.githubcopilot.com/mcp/`)
-      in this repo: `${VAR}` expansion in `--mcp-config` headers and the `mcp__ghmcp__*` wildcard
-      both work. The Actions token has no user identity, so `get_me` is not exposed to it.
-- [x] MCP servers 6: Cedar policy at `.centaur/mcp-policy.cedar` in the repo, always read from the
-      default branch through the GitHub API and enforced on the runner by `prepare` and `register`
-      (fail closed; see [docs/mcp.md](docs/mcp.md#operator-policy)). **[HUMAN APPROVAL]** Merge the
-      policy file to the default branch together with, or before, any `mcp_servers` config, and add a
-      `CODEOWNERS` entry or ruleset requiring review on it.
-- [x] MCP servers 7: global operator policy `infra/mcp-policy.cedar`, zipped into the Lambda by
-      `scripts/deploy.sh` and served by the poster's `get-mcp-policy`; merged with the repo policy
-      into one Cedar set on the runner (a global `forbid` cannot be lifted). Not verified live.
-      **[HUMAN ACTION]** Deploy the stack (`yarn deploy-prod`) so the poster serves `get-mcp-policy`;
-      until then every turn and registration with `mcp_servers` fails closed. Then confirm a turn
-      with `mcp_servers` still passes and an unpinned local server is denied.
-- [x] **Approval-required** MCP servers: implemented and checked live (2026-11-24); design:
-      [docs/mcp-approval.md](docs/mcp-approval.md) (code in its
-      [implementation map](docs/mcp-approval.md#implementation-map)). Slices:
-  - [x] Approval 1: Cedar `context.approved`, two-pass `authorize`, fingerprint helper,
-        `checkMcpPolicy` returning `{ issues, approvals }`, and the `config check` / `register`
-        notices. No dependencies.
-  - [x] Approval 2: the `mcp` access-request kind, decisions by reaction and `/approve` / `/deny`, the
-        SSM record, the `mcp-denied` TTL record, IAM, and the re-dispatch when `suspended`. No
-        dependencies (parallel with 1). **[HUMAN APPROVAL]** deploy of the Lambda and IAM change.
-  - [x] Approval 3: poster `mcp-approvals` operation and `docs/poster.md`. Needs 2.
-        **[HUMAN APPROVAL]** deploy of the Lambda change.
-  - [x] Approval 4: `prepare` wiring (one `mcp-approvals` call per turn) and prompt lines. Needs 1 and 3.
-  - [x] Approval 5: `suspend_for` field and the `finish` suspend. Needs 4.
-  - [x] Approval 6: `centaur mcp approvals` list and `revoke`. Needs 2.
-  - [x] **[HUMAN ACTION]** Approval live check, done on this repo's read-only GitHub server behind
-        a `when { context.approved }` permit. Verified: the policy flags the server and `prepare`
-        drops it until approved; a chat turn raises the request and the admin gets the DM; a 👍
-        records the approval and the server is then used by a chat turn and by a scheduled prompt;
-        a turn that suspends posts its reply and the admin's later decision resumes it, including a
-        decision that lands before the suspend call; the status shows as a reaction instead of a
-        post; `centaur mcp approvals` lists the approval and `centaur mcp revoke` removes it, after
-        which the server is asked about again; run logs show no message text, thread ID, chat ID or
-        token. The live check found and fixed six bugs (thread-less read on a multi-platform bot, a
-        reply-less suspend, a stale pending slot, a decision before the suspend call, the poster's
-        eager GitHub token read, and a shallow checkout). Not run live: a 👎 denial (it blocks the
-        server for 7 days) and an edit of the server definition asking a new question; both are
-        covered by tests.
-- [ ] Offer to redo the original request after an approval when the agent answered without
-      suspending (store the request and re-ask on approval; today the receiver only posts that the
-      server is available and the user asks again)
-- [x] Harden `isPinned` (`src/config/mcp-policy.ts`) against flags that take a value. It takes the
-      first argument not starting with `-` as the package, so in `uvx --with pkg==1.0.0 other-pkg`
-      the pinned-looking `--with` value hides the unpinned `other-pkg`, and in `uvx --python 3.12
-      pkg==1.0` the version `3.12` is taken as the package (a false negative). For `uvx`, the
-      target is the `--from` value when present, else the first positional argument; for `npx`, the
-      package after its flags. Design first: which flags take a value per command, and fail closed
-      (not pinned) on an unknown flag. A config change reviewed on the default branch is the only
-      way to exploit it today, so it is defense in depth on the global ceiling.
-- [ ] Approvers: a group broader than the platform admin who can decide MCP approvals (and possibly
-      access requests), authorized by the admin. Design and recommendations:
-      [docs/approvers.md](docs/approvers.md); **[HUMAN APPROVAL]** accept or amend its Decisions
-      before building.
-  - [x] Approvers 1: set and gate (path helpers, `mayDecide`, audit). No dependencies.
-  - [x] Approvers 2: fan-out of `mcp` requests to the admin and each approver, with the
-        channel-keyed message link. Needs 1.
-  - [x] Approvers 3: the `approver` request kind and `leave`, IAM write on the approvers path.
-        Needs 1. **[HUMAN APPROVAL]** deploy of the Lambda and IAM change.
-  - [x] Approvers 4: admin commands `add`, `remove`, `list` from chat. Needs 3.
-  - [x] Approvers 5: `centaur approvers list|remove|add`. Needs 1 (path helpers).
-  - [ ] Approvers 6: open `chat` or `user` requests to approvers, only if Decision 1 is amended.
-        Needs 1. Optional and open: nothing else depends on it.
-  - [x] Approvers 7: fold the design's docs table (section 9) into plan, mcp-approval, cli and
-        deploy. Needs 1 to 5.
-  - [ ] **[HUMAN ACTION]** Approvers live check: a second account sends the bot `approver request`
-        in a direct message, the admin approves it, and `centaur approvers list` shows them; the
-        admin tries `approver add` by Telegram reply and by Slack mention, and the approver can
-        decide an MCP request and then `approver leave`. Not run yet: it needs a second account.
-- [x] Explore a way to update the MCP policy by adding entries to an allowlist. Decided
-      ([mcp-allowlist.md](docs/mcp-allowlist.md)): no allowlist store; a generalized allow is a
-      reviewed Cedar permit, any `forbid` wins; the permit cookbook in `docs/mcp.md` shipped.
-  - [ ] Optional: `centaur mcp approve <bot> <name>` pre-approves the exact definition in the
-        default-branch config before its first turn (decision 9 of the design). Writes the existing
-        approval record; deploys nothing. Add it to `docs/cli.md`.
-
-- [ ] Chat context tools: let the agent read other threads in its chat through a built-in MCP server
-      backed by new poster operations. Design and recommendations:
-      [docs/chat-context.md](docs/chat-context.md); **[HUMAN APPROVAL]** accept or amend its
-      Decisions before building.
-  - [x] Config key, poster operations, platform support and the MCP server (steps 1 to 4).
-  - [x] Poster-backed client, stdio entry (`dist/mcp/chat-server-main.js`), `prepare` wiring and
-        prompt block (step 5); `scope: thread` is unchanged.
-  - [ ] Tool gate (step 6): the per-call `CallTool` gate is not on `main`, so only the allowlist
-        bounds the server today. Once the Per-call MCP policy item below lands, add a test that a
-        `forbid` on `centaur-chat` is honored.
-  - [ ] **[HUMAN ACTION]** Chat context 7: real run on `centaur-hello` (or `centaur-test`) in each
-        platform with `chat_tools: { scope: chat }` on the default branch (set in `.centaur/config.yml`). Telegram forum group,
-        then Slack channel; in each:
-        1. In thread A say: "We decided the garden party is Saturday at 6pm and we need tomatoes
-           and basil."
-        2. In thread B (a new topic or a reply to a different top-level message) say: "Summarize
-           what was decided about the garden party in the other thread."
-        3. Expect the reply to give Saturday, 6pm, tomatoes and basil. The run's execution log
-           should show `list_threads` and `read_thread` on `mcp__centaur-chat__*` and the
-           `centaur-chat` server connected; the job log, step outputs and PR text must show no
-           message text, thread ID or chat ID.
-        4. Ask in thread B: "Put that summary in a pull request description." Expect the agent to
-           decline or leave the cross-thread content out.
-        5. Set `scope: thread` again and repeat step 2: no `centaur-chat` server or tool calls.
-        Also confirm the Slack `conversations.history` and `conversations.replies` rate limits
-        hold on this install (see Chat search 6).
-- [x] Telegram chat tools miss the bot's own posts and bot-only threads. Done: option A. The poster
-      records each sent message in the chat's list (`postInThread`, `src/lambda/channel-history.ts`),
-      and the readers (`read-channel`, `list-threads`, `centaur chat tail`) now read that list
-      through `chat.history.thread.collect(channelId)`, because the SDK's `chat.channel(id).messages`
-      never reads the stored list (the Telegram adapter's `fetchChannelMessages` compares
-      `decoded.chatId` with `telegram:<chatId>`). Posts made before this deploy stay thread-only.
-  - [x] (A) Append the sent message to the chat list after `post` and `start-thread`.
-  - [x] (B) Not needed.
-- [x] Chat search: the Chat SDK has no history search, so any search is ours. Decisions accepted
-      2026-11-22 ([docs/chat-search.md](docs/chat-search.md)): no poster-side filter (the poster
-      scans the whole window and the Telegram window fits in one call), report the scanned range,
-      and add opt-in Slack-native search; no secondary index (SQLite FTS, OpenSearch, embeddings)
-      because of the infrastructure cost. Slices, in order:
-  - [x] Chat search 1: `scanned: { oldest, exhausted }` range in `read-channel` and
-        `list-threads` results.
-  - [ ] Chat search 2: `chat_tools` config key for the Slack search opt-in.
-  - [x] Chat search 3: MCP server renders the scanned range and the bounded-window note.
-  - [ ] Chat search 4: Slack-native search (receiver captures the `action_token` into the state
-        table with a TTL, poster `search-chat`, MCP `search_chat`, manifest scopes). Settle the
-        design questions in the doc first.
-  - [x] Chat search 5: the stored-history window, tracked in the next item.
-  - [ ] **[HUMAN ACTION]** Chat search 4a: when slice 4 is about to be built (not before; least
-        privilege), add `search:read.public` to the installed Slack app and reinstall it, as in
-        `docs/slack-app-manifest.yml` and [onboarding](docs/onboarding.md#slack-personal-projects).
-  - [ ] **[HUMAN ACTION]** Chat search 6: verify on a real install (Slack rate limits,
-        `action_token` lifetime and presence in events, AI features in the workspace, Telegram
-        window cost).
-- [x] Decide and set the stored-history window (`history.thread` `maxMessages` and `ttlMs`)
-      explicitly in `src/lambda/chat.ts`. The window is the `HistoryMaxMessages` (default 100,
-      max 5000) and `HistoryTtlDays` (default 7, max 365) stack parameters, read by
-      `src/lambda/history-window.ts`; the dead `STORED_HISTORY_SCAN_MAX` is gone. Measured on
-      DynamoDB Local (which reports no capacity), the adapter's trim reads the whole list on every
-      append: 20 / 25 / 31 / 49 / 109 ms p50 per append at 100 / 500 / 1000 / 2000 / 5000
-      messages (N+1 items read; two queries at 5000). At 1 KB per message and two lists per
-      message that is about N/2 read units, roughly $0.000006 / $0.00003 / $0.0003 per message at
-      100 / 500 / 5000 on-demand (estimate). Recommended: 500 messages, 7 days.
-- [x] **[HUMAN APPROVAL]** Raise the deployed stored-history window to the recommended 500
-      messages (`HistoryMaxMessages=500`, `HistoryTtlDays` stays 7): a CloudFormation parameter
-      change. Approved and deployed 2026-11-22; `HistoryMaxMessages` is set in the private
-      `parameters-prod.json`, so later deploys keep it. Unblocks chat search and `list-threads`
-      seeing more than the newest 100 messages of a Telegram chat.
-
 ## 12. Slack support
 
 - [x] App manifest template with the required scopes and event URL
@@ -343,7 +184,80 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       on a record with no thread creates and binds one; `thread` applies to every fan-out target;
       `persistent` rejected by the schema until slice 16).
 
-## 17. Agent skills
+## 17. Chat context tools
+
+- [ ] Chat context tools: let the agent read other threads in its chat through a built-in MCP server
+      backed by new poster operations. Design and recommendations:
+      [docs/chat-context.md](docs/chat-context.md); **[HUMAN APPROVAL]** accept or amend its
+      Decisions before building.
+  - [x] Config key, poster operations, platform support and the MCP server (steps 1 to 4).
+  - [x] Poster-backed client, stdio entry (`dist/mcp/chat-server-main.js`), `prepare` wiring and
+        prompt block (step 5); `scope: thread` is unchanged.
+  - [ ] Tool gate (step 6): the per-call `CallTool` gate is not on `main`, so only the allowlist
+        bounds the server today. Once the Per-call MCP policy item below lands, add a test that a
+        `forbid` on `centaur-chat` is honored.
+  - [ ] **[HUMAN ACTION]** Chat context 7: real run on `centaur-hello` (or `centaur-test`) in each
+        platform with `chat_tools: { scope: chat }` on the default branch (set in `.centaur/config.yml`). Telegram forum group,
+        then Slack channel; in each:
+        1. In thread A say: "We decided the garden party is Saturday at 6pm and we need tomatoes
+           and basil."
+        2. In thread B (a new topic or a reply to a different top-level message) say: "Summarize
+           what was decided about the garden party in the other thread."
+        3. Expect the reply to give Saturday, 6pm, tomatoes and basil. The run's execution log
+           should show `list_threads` and `read_thread` on `mcp__centaur-chat__*` and the
+           `centaur-chat` server connected; the job log, step outputs and PR text must show no
+           message text, thread ID or chat ID.
+        4. Ask in thread B: "Put that summary in a pull request description." Expect the agent to
+           decline or leave the cross-thread content out.
+        5. Set `scope: thread` again and repeat step 2: no `centaur-chat` server or tool calls.
+        Also confirm the Slack `conversations.history` and `conversations.replies` rate limits
+        hold on this install (see Chat search 6).
+- [x] Telegram chat tools miss the bot's own posts and bot-only threads. Done: option A. The poster
+      records each sent message in the chat's list (`postInThread`, `src/lambda/channel-history.ts`),
+      and the readers (`read-channel`, `list-threads`, `centaur chat tail`) now read that list
+      through `chat.history.thread.collect(channelId)`, because the SDK's `chat.channel(id).messages`
+      never reads the stored list (the Telegram adapter's `fetchChannelMessages` compares
+      `decoded.chatId` with `telegram:<chatId>`). Posts made before this deploy stay thread-only.
+  - [x] (A) Append the sent message to the chat list after `post` and `start-thread`.
+  - [x] (B) Not needed.
+
+## 18. Chat search
+
+- [x] Chat search: the Chat SDK has no history search, so any search is ours. Decisions accepted
+      2026-11-22 ([docs/chat-search.md](docs/chat-search.md)): no poster-side filter (the poster
+      scans the whole window and the Telegram window fits in one call), report the scanned range,
+      and add opt-in Slack-native search; no secondary index (SQLite FTS, OpenSearch, embeddings)
+      because of the infrastructure cost. Slices, in order:
+  - [x] Chat search 1: `scanned: { oldest, exhausted }` range in `read-channel` and
+        `list-threads` results.
+  - [ ] Chat search 2: `chat_tools` config key for the Slack search opt-in.
+  - [x] Chat search 3: MCP server renders the scanned range and the bounded-window note.
+  - [ ] Chat search 4: Slack-native search (receiver captures the `action_token` into the state
+        table with a TTL, poster `search-chat`, MCP `search_chat`, manifest scopes). Settle the
+        design questions in the doc first.
+  - [x] Chat search 5: the stored-history window, tracked in the next item.
+  - [ ] **[HUMAN ACTION]** Chat search 4a: when slice 4 is about to be built (not before; least
+        privilege), add `search:read.public` to the installed Slack app and reinstall it, as in
+        `docs/slack-app-manifest.yml` and [onboarding](docs/onboarding.md#slack-personal-projects).
+  - [ ] **[HUMAN ACTION]** Chat search 6: verify on a real install (Slack rate limits,
+        `action_token` lifetime and presence in events, AI features in the workspace, Telegram
+        window cost).
+- [x] Decide and set the stored-history window (`history.thread` `maxMessages` and `ttlMs`)
+      explicitly in `src/lambda/chat.ts`. The window is the `HistoryMaxMessages` (default 100,
+      max 5000) and `HistoryTtlDays` (default 7, max 365) stack parameters, read by
+      `src/lambda/history-window.ts`; the dead `STORED_HISTORY_SCAN_MAX` is gone. Measured on
+      DynamoDB Local (which reports no capacity), the adapter's trim reads the whole list on every
+      append: 20 / 25 / 31 / 49 / 109 ms p50 per append at 100 / 500 / 1000 / 2000 / 5000
+      messages (N+1 items read; two queries at 5000). At 1 KB per message and two lists per
+      message that is about N/2 read units, roughly $0.000006 / $0.00003 / $0.0003 per message at
+      100 / 500 / 5000 on-demand (estimate). Recommended: 500 messages, 7 days.
+- [x] **[HUMAN APPROVAL]** Raise the deployed stored-history window to the recommended 500
+      messages (`HistoryMaxMessages=500`, `HistoryTtlDays` stays 7): a CloudFormation parameter
+      change. Approved and deployed 2026-11-22; `HistoryMaxMessages` is set in the private
+      `parameters-prod.json`, so later deploys keep it. Unblocks chat search and `list-threads`
+      seeing more than the newest 100 messages of a Telegram chat.
+
+## 19. Agent skills
 
 Design and decisions: [docs/skills-rules.md](docs/skills-rules.md).
 
@@ -451,3 +365,17 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       `connectState` already connects every adapter the Lambda creates.
 - [ ] Run a security audit to explore weaknesses and fix vulnerabillities
 
+- [ ] **[HUMAN ACTION]** Approvers live check: a second account sends the bot `approver request`
+      in a direct message, the admin approves it, and `centaur approvers list` shows them; the
+      admin tries `approver add` by Telegram reply and by Slack mention, and the approver can
+      decide an MCP request and then `approver leave`. Not run yet: it needs a second account. The
+      admin-only and MCP approval flows are verified live; this one has not been run, so until it
+      is, the approver feature ([docs/approvers.md](docs/approvers.md)) is covered by tests only.
+- [ ] Optional: `centaur mcp approve <bot> <name>` pre-approves the exact definition in the
+      default-branch config before its first turn (decision 9 of
+      [docs/mcp-allowlist.md](docs/mcp-allowlist.md)). Writes the existing approval record; deploys
+      nothing. Add it to `docs/cli.md`. It would let an operator approve a server without waiting
+      for the first turn's request.
+- [ ] Poster MCP tool for mid-turn questions and progress messages (builds on the MCP server
+      config in [docs/mcp.md](docs/mcp.md)). It would let a long turn ask the thread a question or
+      report progress before it finishes.

@@ -196,6 +196,88 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
       with the hosted option (per-repo token, reserved-concurrency cap). Documented in
       `docs/poster.md` ("Security model").
 
+## 11. MCP support and approval
+
+- [x] Design additional MCP servers in the config: [docs/mcp.md](docs/mcp.md), all
+      recommendations accepted.
+- [x] MCP servers 1: schema and validation (`mcp_servers`, `secretRef`, name refinements and the
+      `allowed_tools` cross-checks in `src/config/schema.ts`), with tests and `docs/config.md`.
+- [x] MCP servers 2: pure `buildMcpConfig(servers, env)` in `src/workflows/`, with tests.
+- [x] MCP servers 3: `prepare` writes `.centaur-turn/mcp.json`, `buildClaudeArgs` adds
+      `--mcp-config`, and the turn fails on a missing secret.
+- [x] MCP servers 4: caller-workflow docs (`env:` pattern, the `Bash` caveat) in
+      `docs/workflows.md` and `docs/onboarding.md`.
+- [x] MCP servers 5: verified against the GitHub MCP server (`https://api.githubcopilot.com/mcp/`)
+      in this repo: `${VAR}` expansion in `--mcp-config` headers and the `mcp__ghmcp__*` wildcard
+      both work. The Actions token has no user identity, so `get_me` is not exposed to it.
+- [x] MCP servers 6: Cedar policy at `.centaur/mcp-policy.cedar` in the repo, always read from the
+      default branch through the GitHub API and enforced on the runner by `prepare` and `register`
+      (fail closed; see [docs/mcp.md](docs/mcp.md#operator-policy)). **[HUMAN APPROVAL]** Merge the
+      policy file to the default branch together with, or before, any `mcp_servers` config, and add a
+      `CODEOWNERS` entry or ruleset requiring review on it.
+- [x] MCP servers 7: global operator policy `infra/mcp-policy.cedar`, zipped into the Lambda by
+      `scripts/deploy.sh` and served by the poster's `get-mcp-policy`; merged with the repo policy
+      into one Cedar set on the runner (a global `forbid` cannot be lifted). Not verified live.
+      **[HUMAN ACTION]** Deploy the stack (`yarn deploy-prod`) so the poster serves `get-mcp-policy`;
+      until then every turn and registration with `mcp_servers` fails closed. Then confirm a turn
+      with `mcp_servers` still passes and an unpinned local server is denied.
+- [x] **Approval-required** MCP servers: implemented and checked live (2026-11-24); design:
+      [docs/mcp-approval.md](docs/mcp-approval.md) (code in its
+      [implementation map](docs/mcp-approval.md#implementation-map)). Slices:
+  - [x] Approval 1: Cedar `context.approved`, two-pass `authorize`, fingerprint helper,
+        `checkMcpPolicy` returning `{ issues, approvals }`, and the `config check` / `register`
+        notices. No dependencies.
+  - [x] Approval 2: the `mcp` access-request kind, decisions by reaction and `/approve` / `/deny`, the
+        SSM record, the `mcp-denied` TTL record, IAM, and the re-dispatch when `suspended`. No
+        dependencies (parallel with 1). **[HUMAN APPROVAL]** deploy of the Lambda and IAM change.
+  - [x] Approval 3: poster `mcp-approvals` operation and `docs/poster.md`. Needs 2.
+        **[HUMAN APPROVAL]** deploy of the Lambda change.
+  - [x] Approval 4: `prepare` wiring (one `mcp-approvals` call per turn) and prompt lines. Needs 1 and 3.
+  - [x] Approval 5: `suspend_for` field and the `finish` suspend. Needs 4.
+  - [x] Approval 6: `centaur mcp approvals` list and `revoke`. Needs 2.
+  - [x] **[HUMAN ACTION]** Approval live check, done on this repo's read-only GitHub server behind
+        a `when { context.approved }` permit. Verified: the policy flags the server and `prepare`
+        drops it until approved; a chat turn raises the request and the admin gets the DM; a 👍
+        records the approval and the server is then used by a chat turn and by a scheduled prompt;
+        a turn that suspends posts its reply and the admin's later decision resumes it, including a
+        decision that lands before the suspend call; the status shows as a reaction instead of a
+        post; `centaur mcp approvals` lists the approval and `centaur mcp revoke` removes it, after
+        which the server is asked about again; run logs show no message text, thread ID, chat ID or
+        token. The live check found and fixed six bugs (thread-less read on a multi-platform bot, a
+        reply-less suspend, a stale pending slot, a decision before the suspend call, the poster's
+        eager GitHub token read, and a shallow checkout). Not run live: a 👎 denial (it blocks the
+        server for 7 days) and an edit of the server definition asking a new question; both are
+        covered by tests.
+- [x] Dropped as obsolete: offer to redo the original request after an approval. The agent now
+      suspends and resumes on its own, so it only covered the rare case of an answer without a
+      suspend.
+- [x] Harden `isPinned` (`src/config/mcp-policy.ts`) against flags that take a value. It takes the
+      first argument not starting with `-` as the package, so in `uvx --with pkg==1.0.0 other-pkg`
+      the pinned-looking `--with` value hides the unpinned `other-pkg`, and in `uvx --python 3.12
+      pkg==1.0` the version `3.12` is taken as the package (a false negative). For `uvx`, the
+      target is the `--from` value when present, else the first positional argument; for `npx`, the
+      package after its flags. Design first: which flags take a value per command, and fail closed
+      (not pinned) on an unknown flag. A config change reviewed on the default branch is the only
+      way to exploit it today, so it is defense in depth on the global ceiling.
+- [x] Approvers: a group broader than the platform admin who can decide MCP approvals (and possibly
+      access requests), authorized by the admin. Design and recommendations:
+      [docs/approvers.md](docs/approvers.md); **[HUMAN APPROVAL]** accept or amend its Decisions
+      before building.
+  - [x] Approvers 1: set and gate (path helpers, `mayDecide`, audit). No dependencies.
+  - [x] Approvers 2: fan-out of `mcp` requests to the admin and each approver, with the
+        channel-keyed message link. Needs 1.
+  - [x] Approvers 3: the `approver` request kind and `leave`, IAM write on the approvers path.
+        Needs 1. **[HUMAN APPROVAL]** deploy of the Lambda and IAM change.
+  - [x] Approvers 4: admin commands `add`, `remove`, `list` from chat. Needs 3.
+  - [x] Approvers 5: `centaur approvers list|remove|add`. Needs 1 (path helpers).
+  - [x] Approvers 6 (open `chat` or `user` requests to approvers) dropped as obsolete: it applied
+        only if Decision 1 of `docs/approvers.md` were amended, and nothing depends on it.
+  - [x] Approvers 7: fold the design's docs table (section 9) into plan, mcp-approval, cli and
+        deploy. Needs 1 to 5.
+- [x] Explore a way to update the MCP policy by adding entries to an allowlist. Decided
+      ([mcp-allowlist.md](docs/mcp-allowlist.md)): no allowlist store; a generalized allow is a
+      reviewed Cedar permit, any `forbid` wins; the permit cookbook in `docs/mcp.md` shipped.
+
 ## 13. Respond to PR comments
 
 Responding to review comments on the PRs the agent opens completes the PR-sending pattern: the
