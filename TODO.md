@@ -326,7 +326,7 @@ for detailed tracking.
 
 - [ ] Move not-yet-implemented docs into a proposals/ subdir to separate from already-implemented.
 - [x] Create a DONE.md file, and move sections of fully-completed TODO items into DONE.
-- [ ] Setup .centaur config for ~/dev/finance repo - monarch integration, consider using ledger for
+- [ ] Setup .centaur config for ~/dev/finances repo - monarch integration, consider using ledger for
       selected transactions (or link to gsheets), weekly transaction review and liquidity check
       (knows which credit card balances are paid from which bank accounts), quarterly investment/
       insurance/plan review
