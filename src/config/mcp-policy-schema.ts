@@ -8,5 +8,9 @@ entity McpServer = {
   args: Set<String>,
   pinned: Bool,
 };
-action UseServer appliesTo { principal: Bot, resource: McpServer };
+action UseServer appliesTo {
+  principal: Bot,
+  resource: McpServer,
+  context: { approved: Bool },
+};
 `;

@@ -1,22 +1,31 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { mcpApprovalKey } from "../src/config/mcp-fingerprint.js";
 import {
   checkMcpPolicy,
   describeServer,
+  evaluateMcpPolicy,
   isPinned,
   type PolicyLayers,
   validateMcpPolicy,
 } from "../src/config/mcp-policy.js";
 import {
+  ALLOWED,
+  APPROVAL_REQUIRED,
   docsSearchServer,
+  FORBID_ALL,
   FORBID_UNLESS_GITHUB,
   FORBID_UNTRUSTED,
+  FORBID_WHEN_NOT_APPROVED,
   githubServer,
   githubServers,
   npxServers,
+  outcomeOf,
   PERMIT_ANY_REMOTE,
   PERMIT_GITHUB,
   PERMIT_PINNED_NPX,
+  PERMIT_WHEN_APPROVED,
+  PERMIT_WHEN_NOT_APPROVED,
   permitForBot,
   untrustedServers,
 } from "./helpers/mcp-policy-fixtures.js";
@@ -232,5 +241,110 @@ describe("this repo's infra/mcp-policy.cedar", () => {
   it("leaves this repo's own servers permitted", async () => {
     const { bot, mcp_servers } = await loadSelfConfig();
     expect(checkMcpPolicy(bot, mcp_servers, { global, repo })).toEqual([]);
+  });
+});
+
+describe("evaluateMcpPolicy approval outcomes", () => {
+  const ceiling = FORBID_UNLESS_GITHUB;
+
+  it.each<[string, string | PolicyLayers, string]>([
+    [
+      "a forbid with a plain permit",
+      `${PERMIT_ANY_REMOTE}\n${FORBID_ALL}`,
+      "forbidden by policy repo.1",
+    ],
+    [
+      "a forbid with an approval permit",
+      `${PERMIT_WHEN_APPROVED}\n${FORBID_ALL}`,
+      "forbidden by policy repo.1",
+    ],
+    [
+      "a forbid that only matches before approval",
+      `${PERMIT_WHEN_APPROVED}\n${FORBID_WHEN_NOT_APPROVED}`,
+      "forbidden by policy repo.1",
+    ],
+    ["a permit that ignores approval", PERMIT_ANY_REMOTE, ALLOWED],
+    [
+      "a plain permit beside an approval permit",
+      `${PERMIT_ANY_REMOTE}\n${PERMIT_WHEN_APPROVED}`,
+      ALLOWED,
+    ],
+    [
+      "a global plain permit with a repo approval permit",
+      { global: PERMIT_ANY_REMOTE, repo: PERMIT_WHEN_APPROVED },
+      ALLOWED,
+    ],
+    ["only a permit that needs approval", PERMIT_WHEN_APPROVED, APPROVAL_REQUIRED],
+    [
+      "a global default approval permit inside the ceiling",
+      { global: `${ceiling}\n${PERMIT_WHEN_APPROVED}`, repo: "" },
+      APPROVAL_REQUIRED,
+    ],
+    [
+      "approval permits in both layers",
+      { global: PERMIT_WHEN_APPROVED, repo: PERMIT_WHEN_APPROVED },
+      APPROVAL_REQUIRED,
+    ],
+    ["no permit", PERMIT_PINNED_NPX, "not permitted by any policy"],
+    [
+      "a policy that is stricter on approval",
+      PERMIT_WHEN_NOT_APPROVED,
+      "not permitted by any policy",
+    ],
+    [
+      "a plain permit and a permit only before approval",
+      `${PERMIT_WHEN_NOT_APPROVED}\n${PERMIT_WHEN_APPROVED}`,
+      ALLOWED,
+    ],
+  ])("%s", (_name, policy, expected) => {
+    expect(outcomeOf(evaluateMcpPolicy("garden", githubServers, policy))).toBe(expected);
+  });
+
+  it.each<[string, PolicyLayers]>([
+    ["a repo approval permit", { global: ceiling, repo: PERMIT_WHEN_APPROVED }],
+    [
+      "a global and a repo approval permit",
+      { global: `${ceiling}\n${PERMIT_WHEN_APPROVED}`, repo: PERMIT_WHEN_APPROVED },
+    ],
+  ])("a global forbid binds over %s", (_name, layers) => {
+    expect(outcomeOf(evaluateMcpPolicy("garden", untrustedServers, layers))).toBe(
+      "forbidden by policy global.0",
+    );
+  });
+
+  it("names the approval-required server by its approval key", () => {
+    const { issues, approvals } = evaluateMcpPolicy("garden", githubServers, PERMIT_WHEN_APPROVED, [
+      "mcp__ghmcp__*",
+    ]);
+    expect(issues).toEqual([]);
+    expect(approvals).toEqual([
+      {
+        name: "ghmcp",
+        key: mcpApprovalKey("ghmcp", githubServer, ["mcp__ghmcp__*"]),
+      },
+    ]);
+  });
+
+  it("reports each server's outcome separately", () => {
+    const result = evaluateMcpPolicy(
+      "garden",
+      { ...githubServers, ...untrustedServers },
+      `${PERMIT_WHEN_APPROVED}\n${FORBID_UNTRUSTED}`,
+    );
+    expect(result.approvals.map(({ name }) => name)).toEqual(["ghmcp"]);
+    expect(result.issues.map(({ path }) => path)).toEqual(["mcp_servers.evil"]);
+  });
+
+  it.each([PERMIT_WHEN_APPROVED, PERMIT_WHEN_NOT_APPROVED, FORBID_WHEN_NOT_APPROVED])(
+    "validates a policy that reads context.approved: %s",
+    (policy) => {
+      expect(validateMcpPolicy(policy)).toEqual([]);
+    },
+  );
+
+  it("rejects an unknown context attribute", () => {
+    expect(
+      validateMcpPolicy("permit(principal, action, resource) when { context.reviewed };"),
+    ).not.toEqual([]);
   });
 });

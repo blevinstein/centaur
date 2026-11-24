@@ -275,7 +275,33 @@ Check a config and its policy locally with `centaur config check [path]`. That c
 local `.centaur/mcp-policy.cedar` next to the config, which is convenient for editing but is not what
 enforcement uses. Add `--global-policy infra/mcp-policy.cedar` to check against the global layer too.
 
-A third outcome, allowed after the admin approves, is designed in [mcp-approval.md](mcp-approval.md).
+**Approval.** The request also carries `context.approved` (a Bool). Every policy is evaluated twice
+per server, with `approved` false and then true, and the pair gives the outcome:
+
+| Matching policies | `approved=false` | `approved=true` | Outcome |
+|---|---|---|---|
+| any `forbid`, in either layer, at either evaluation | deny | deny | **deny**: `forbidden by policy ...` |
+| a `permit` that does not mention `context.approved` | allow | allow | **allow** |
+| only `permit ... when { context.approved }` | deny | allow | **approval required** |
+| no `permit` | deny | deny | **deny**: `not permitted by any policy` |
+| allow at false, deny at true (stricter on approval) | allow | deny | **deny**: the true evaluation is a ceiling |
+
+An approval-required server passes `register`, `prepare` and `centaur config check`, which report it
+as a notice (`::notice::` in the run, `Notice:` in the CLI) naming its approval key,
+`<name>:<fingerprint>`: the first 16 hex of the SHA-256 of the canonical JSON of the server's
+transport, url, command, args, env and headers (plain values and secret names, never secret values)
+and the `allowed_tools` entries naming it. The key comes only from `mcpApprovalKey`
+(`src/config/mcp-fingerprint.ts`). Because a `forbid` denies both evaluations, approval never lifts a
+ceiling. A typical global default lets any server the ceiling allows through once the admin approves
+it:
+
+```cedar
+permit(principal, action == Action::"UseServer", resource) when { context.approved };
+```
+
+Policies that never mention `context` behave as before. How the admin is asked and the decision
+stored is designed in [mcp-approval.md](mcp-approval.md); only the policy outcome and the notice are
+built so far.
 
 ## Out of scope
 

@@ -86,6 +86,9 @@
   `infra/mcp-policy.cedar` (zipped by `scripts/deploy.sh`, served by the poster's `get-mcp-policy`).
   `prepare` and `registerRepo` run the check before any other poster call and fail closed. Keep `src/config/mcp-policy.ts` (cedar-wasm,
   runner-only) out of the Lambda bundle: do not re-export it from `src/config/index.ts`.
+- The MCP approval key `<name>:<fingerprint>` is derived only by `mcpApprovalKey`
+  (`src/config/mcp-fingerprint.ts`); `checkRepositoryMcpPolicy` returns `{ issues, approvals }` and only
+  `issues` fail a turn or registration.
 - `PrepareDeps.env` carries the secrets named in `mcp_servers`; `prepare` fails before any poster
   call if one is unset. Tests that need git use `test/helpers/git-fixtures.ts`.
 - Comment turns run the actions and read the config (`.centaur.yml` or `.centaur/config.yml`), the persona and the instructions from a

@@ -5,6 +5,7 @@ import {
   validate,
 } from "@cedar-policy/cedar-wasm/nodejs";
 import type { ConfigIssue } from "./index.js";
+import { mcpApprovalKey } from "./mcp-fingerprint.js";
 import { MCP_POLICY_SCHEMA } from "./mcp-policy-schema.js";
 import type { McpServer } from "./schema.js";
 
@@ -56,12 +57,20 @@ function parsePolicies(text: string, layer: PolicyLayer = "repo"): ParsedPolicie
   };
 }
 
-function authorize(bot: string, name: string, server: McpServer, policies: Record<string, string>) {
+type Evaluation = { allowed: boolean; message?: string; final?: boolean };
+
+function evaluate(
+  bot: string,
+  name: string,
+  server: McpServer,
+  policies: Record<string, string>,
+  approved: boolean,
+): Evaluation {
   const answer = isAuthorized({
     principal: { type: "Bot", id: bot },
     action: { type: "Action", id: "UseServer" },
     resource: { type: "McpServer", id: name },
-    context: {},
+    context: { approved },
     policies: { staticPolicies: policies },
     entities: [
       {
@@ -71,15 +80,54 @@ function authorize(bot: string, name: string, server: McpServer, policies: Recor
       },
     ],
   });
-  if (answer.type === "failure") return `policy evaluation failed: ${messagesOf(answer.errors)}`;
+  if (answer.type === "failure") {
+    return {
+      allowed: false,
+      final: true,
+      message: `policy evaluation failed: ${messagesOf(answer.errors)}`,
+    };
+  }
   const { decision, diagnostics } = answer.response;
   if (diagnostics.errors.length > 0) {
-    return `policy evaluation failed: ${diagnostics.errors.map(({ error }) => error.message)}`;
+    return {
+      allowed: false,
+      final: true,
+      message: `policy evaluation failed: ${diagnostics.errors.map(({ error }) => error.message)}`,
+    };
   }
-  if (decision === "allow") return undefined;
+  if (decision === "allow") return { allowed: true };
   return diagnostics.reason.length > 0
-    ? `forbidden by policy ${diagnostics.reason.join(", ")}`
-    : "not permitted by any policy";
+    ? {
+        allowed: false,
+        final: true,
+        message: `forbidden by policy ${diagnostics.reason.join(", ")}`,
+      }
+    : { allowed: false, message: "not permitted by any policy" };
+}
+
+type Outcome =
+  | { kind: "allow" }
+  | { kind: "approval-required" }
+  | { kind: "deny"; message: string };
+
+/**
+ * Evaluates the policy set with `approved` false, then true. A `forbid` at either evaluation denies,
+ * and the true evaluation is a ceiling: a server is allowed only if it is allowed at both, and needs
+ * approval when it is allowed only at true.
+ */
+function authorize(
+  bot: string,
+  name: string,
+  server: McpServer,
+  policies: Record<string, string>,
+): Outcome {
+  const [pending, approved] = [false, true].map((flag) =>
+    evaluate(bot, name, server, policies, flag),
+  ) as [Evaluation, Evaluation];
+  const denial =
+    [pending, approved].find(({ final }) => final) ?? (approved.allowed ? undefined : approved);
+  if (denial) return { kind: "deny", message: denial.message ?? "not permitted by any policy" };
+  return pending.allowed ? { kind: "allow" } : { kind: "approval-required" };
 }
 
 function mergePolicies(layers: PolicyLayers): ParsedPolicies {
@@ -94,21 +142,48 @@ function mergePolicies(layers: PolicyLayers): ParsedPolicies {
   return errors.length > 0 ? { errors } : { policies };
 }
 
-/** A bare string is the repo layer. Both layers form one policy set: any `forbid` wins. */
-export function checkMcpPolicy(
+export interface McpApproval {
+  name: string;
+  /** `<name>:<fingerprint>`, from `mcpApprovalKey` */
+  key: string;
+}
+
+export interface McpPolicyResult {
+  issues: ConfigIssue[];
+  approvals: McpApproval[];
+}
+
+/**
+ * A bare string is the repo layer. Both layers form one policy set: any `forbid` wins. `allowedTools`
+ * scopes each server's approval key to the entries that name it.
+ */
+export function evaluateMcpPolicy(
   bot: string,
   servers: Record<string, McpServer>,
   policy: string | PolicyLayers,
-): ConfigIssue[] {
+  allowedTools: string[] = [],
+): McpPolicyResult {
   const parsed = mergePolicies(typeof policy === "string" ? { repo: policy } : policy);
-  return Object.entries(servers).flatMap(([name, server]) => {
-    const message =
+  const result: McpPolicyResult = { issues: [], approvals: [] };
+  for (const [name, server] of Object.entries(servers)) {
+    const outcome: Outcome =
       "errors" in parsed
-        ? `operator policy is invalid: ${parsed.errors.join("; ")}`
+        ? { kind: "deny", message: `operator policy is invalid: ${parsed.errors.join("; ")}` }
         : authorize(bot, name, server, parsed.policies);
-    return message === undefined ? [] : [{ path: `mcp_servers.${name}`, message }];
-  });
+    if (outcome.kind === "deny") {
+      result.issues.push({ path: `mcp_servers.${name}`, message: outcome.message });
+    } else if (outcome.kind === "approval-required") {
+      result.approvals.push({ name, key: mcpApprovalKey(name, server, allowedTools) });
+    }
+  }
+  return result;
 }
+
+export const checkMcpPolicy = (...args: Parameters<typeof evaluateMcpPolicy>) =>
+  evaluateMcpPolicy(...args).issues;
+
+export const formatApprovals = (approvals: McpApproval[]) =>
+  `MCP servers that need admin approval before they run: ${approvals.map(({ key }) => key).join(", ")}`;
 
 export function validateMcpPolicy(text: string, layer: PolicyLayer = "repo"): string[] {
   const parsed = parsePolicies(text, layer);

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseConfigOrThrow } from "../src/workflows/config-file.js";
 import { checkRepositoryMcpPolicy, MCP_POLICY_FILE } from "../src/workflows/mcp-policy-check.js";
 import { registerRepo } from "../src/workflows/register.js";
@@ -7,6 +7,7 @@ import {
   fakePolicyGitHub,
   PERMIT_ANY_REMOTE,
   PERMIT_GITHUB,
+  PERMIT_WHEN_APPROVED,
   policyPath,
   WORKSPACE_PERMIT_FILES,
 } from "./helpers/mcp-policy-fixtures.js";
@@ -19,7 +20,7 @@ import {
 
 const mcpConfig = () => parseConfigOrThrow(mcpConfigText());
 const messages = async (options?: Parameters<typeof fakePolicyGitHub>[0]) =>
-  (await checkRepositoryMcpPolicy(mcpConfig(), fakePolicyGitHub(options).deps)).map(
+  (await checkRepositoryMcpPolicy(mcpConfig(), fakePolicyGitHub(options).deps)).issues.map(
     (issue) => `${issue.path}: ${issue.message}`,
   );
 
@@ -27,7 +28,7 @@ describe("checkRepositoryMcpPolicy", () => {
   it("reads the file at the repository's default branch", async () => {
     const { deps, paths } = fakePolicyGitHub({ policy: PERMIT_ANY_REMOTE, defaultBranch: "trunk" });
 
-    expect(await checkRepositoryMcpPolicy(mcpConfig(), deps)).toEqual([]);
+    expect((await checkRepositoryMcpPolicy(mcpConfig(), deps)).issues).toEqual([]);
     expect(paths).toEqual(["/repos/octo/sprout", policyPath("trunk")]);
   });
 
@@ -72,7 +73,7 @@ describe("checkRepositoryMcpPolicy", () => {
   it("fetches the global policy through the poster, before reading the repository", async () => {
     const { deps, posterRequests, paths } = fakePolicyGitHub({ globalPolicy: PERMIT_ANY_REMOTE });
 
-    expect(await checkRepositoryMcpPolicy(mcpConfig(), deps)).toEqual([]);
+    expect((await checkRepositoryMcpPolicy(mcpConfig(), deps)).issues).toEqual([]);
     expect(posterRequests).toEqual([{ operation: "get-mcp-policy" }]);
     expect(paths).toHaveLength(2);
   });
@@ -90,7 +91,7 @@ describe("checkRepositoryMcpPolicy", () => {
   it("fails closed when the poster fails, without reading the repository", async () => {
     const { deps, paths } = fakePolicyGitHub({ posterFails: true, policy: PERMIT_ANY_REMOTE });
 
-    const issues = await checkRepositoryMcpPolicy(mcpConfig(), deps);
+    const { issues } = await checkRepositoryMcpPolicy(mcpConfig(), deps);
 
     expect(issues.map((issue) => issue.message)).toEqual([
       "cannot read the global operator policy: poster get-mcp-policy failed (Error)",
@@ -104,20 +105,35 @@ describe("checkRepositoryMcpPolicy", () => {
     ]);
   });
 
+  it("passes a server that needs approval and names it in approvals", async () => {
+    const { deps } = fakePolicyGitHub({ policy: PERMIT_WHEN_APPROVED });
+
+    const { issues, approvals } = await checkRepositoryMcpPolicy(mcpConfig(), deps);
+
+    expect(issues).toEqual([]);
+    expect(approvals).toEqual([
+      { name: "linear", key: expect.stringMatching(/^linear:[0-9a-f]{16}$/) },
+    ]);
+  });
+
   it("denies without GitHub access", async () => {
-    expect(await checkRepositoryMcpPolicy(mcpConfig(), undefined)).toHaveLength(1);
+    expect((await checkRepositoryMcpPolicy(mcpConfig(), undefined)).issues).toHaveLength(1);
   });
 
   it("never fetches for a config without servers", async () => {
     const { deps, paths, posterRequests } = fakePolicyGitHub();
 
-    expect(await checkRepositoryMcpPolicy(parseConfigOrThrow(configText()), deps)).toEqual([]);
+    expect((await checkRepositoryMcpPolicy(parseConfigOrThrow(configText()), deps)).issues).toEqual(
+      [],
+    );
     expect(paths).toEqual([]);
     expect(posterRequests).toEqual([]);
   });
 });
 
 describe("registerRepo with servers", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   const setup = async (policy: ReturnType<typeof fakePolicyGitHub>["deps"]) => {
     const aws = createFakeAws(() => ({ bot: "sprout", repo: "octo/sprout" }));
     const { root } = await createWorkspace({
@@ -150,5 +166,17 @@ describe("registerRepo with servers", () => {
     await run();
 
     expect(aws.requests.map((request) => request.operation)).toEqual(["register"]);
+  });
+
+  it("registers with a notice when a server needs approval", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const { aws, run } = await setup(fakePolicyGitHub({ policy: PERMIT_WHEN_APPROVED }).deps);
+
+    await run();
+
+    expect(aws.requests.map((request) => request.operation)).toEqual(["register"]);
+    expect(log).toHaveBeenCalledWith(
+      expect.stringMatching(/^::notice::.*need admin approval.*linear:[0-9a-f]{16}/),
+    );
   });
 });

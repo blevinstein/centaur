@@ -1,7 +1,8 @@
 import { vi } from "vitest";
+import type { McpPolicyResult } from "../../src/config/mcp-policy.js";
 import type { PosterClient } from "../../src/workflows/aws.js";
 import { GitHubRequestError, type GitHubRequester } from "../../src/workflows/resolve.js";
-import { localServerYaml, mcpServersFrom } from "./config-fixtures.js";
+import { localServerYaml, mcpServersFrom, remoteServerYaml } from "./config-fixtures.js";
 
 export const GITHUB_HOST = "api.githubcopilot.com";
 
@@ -102,3 +103,48 @@ export function fakePolicyGitHub(
     deps: { repository: POLICY_REPOSITORY, github, poster },
   };
 }
+
+export const PERMIT_WHEN_APPROVED = `permit(principal, action == Action::"UseServer", resource)
+  when { context.approved };`;
+
+export const PERMIT_WHEN_NOT_APPROVED = `permit(principal, action == Action::"UseServer", resource)
+  when { !context.approved };`;
+
+export const FORBID_ALL = `forbid(principal, action, resource);`;
+
+export const FORBID_WHEN_NOT_APPROVED = `forbid(principal, action, resource)
+  when { !context.approved };`;
+
+export const ALLOWED = "allow";
+export const APPROVAL_REQUIRED = "approval-required";
+
+export const outcomeOf = ({ issues, approvals }: McpPolicyResult) =>
+  issues[0]?.message ?? (approvals.length > 0 ? APPROVAL_REQUIRED : ALLOWED);
+
+export const REMOTE_SERVER_VARIANTS = {
+  base: remoteServerYaml,
+  url: remoteServerYaml.replace("mcp.linear.app", "mcp.example.org"),
+  plainHeader: remoteServerYaml.replace("X-Org: acme", "X-Org: other"),
+  secretName: remoteServerYaml.replace("LINEAR_API_KEY", "OTHER_API_KEY"),
+  headerOrder: `  linear:
+    headers:
+      X-Org: acme
+      Authorization: { secret: LINEAR_API_KEY, prefix: "Bearer " }
+    url: https://mcp.linear.app/mcp
+`,
+};
+
+export const LOCAL_SERVER_VARIANTS = {
+  base: localServerYaml,
+  command: localServerYaml.replace("npx", "pnpx"),
+  args: localServerYaml.replace("1.4.2", "1.4.3"),
+  plainEnv: localServerYaml.replace("docs.example.com", "docs.example.org"),
+  secretName: localServerYaml.replace("DOCS_API_KEY", "OTHER_API_KEY"),
+  envOrder: `  docs-search:
+    env:
+      API_KEY: { secret: DOCS_API_KEY }
+      INDEX_URL: https://docs.example.com/index
+    args: ["-y", "@example/docs-mcp@1.4.2"]
+    command: npx
+`,
+};

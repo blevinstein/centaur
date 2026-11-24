@@ -49,7 +49,7 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
       window (`mcp_approval.wait_seconds`, default 2): [docs/mcp-approval.md](docs/mcp-approval.md).
       Slices, in the order and with the dependencies of its
       [implementation plan](docs/mcp-approval.md#implementation-plan):
-  - [ ] Approval 1: Cedar `context.approved`, two-pass `authorize`, fingerprint helper,
+  - [x] Approval 1: Cedar `context.approved`, two-pass `authorize`, fingerprint helper,
         `checkMcpPolicy` returning `{ issues, approvals }`, and the `config check` / `register`
         notices. No dependencies.
   - [x] Approval 2: the `mcp` access-request kind, decisions by reaction and `/approve` / `/deny`, the

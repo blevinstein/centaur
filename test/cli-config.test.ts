@@ -7,6 +7,7 @@ import {
   FORBID_UNLESS_GITHUB,
   PERMIT_ANY_REMOTE,
   PERMIT_GITHUB,
+  PERMIT_WHEN_APPROVED,
 } from "./helpers/mcp-policy-fixtures.js";
 import { createWorkspace } from "./helpers/workflow-fixtures.js";
 
@@ -86,7 +87,9 @@ describe("config check", () => {
   describe("with mcp_servers", () => {
     const check = async (files: Record<string, string>, ...flags: string[]) => {
       const { root } = await createWorkspace({ ".centaur.yml": servers, ...files });
-      return createCliHarness().run("config", "check", join(root, ".centaur.yml"), ...flags);
+      const cli = createCliHarness();
+      await cli.run("config", "check", join(root, ".centaur.yml"), ...flags);
+      return cli.output.join("\n");
     };
 
     it("accepts servers the sibling policy permits", async () => {
@@ -99,6 +102,12 @@ describe("config check", () => {
       await expect(check({ ".centaur/mcp-policy.cedar": PERMIT_GITHUB })).rejects.toThrow(
         /mcp_servers\.linear: not permitted by any policy/,
       );
+    });
+
+    it("passes with a notice naming a server that needs approval", async () => {
+      const output = await check({ ".centaur/mcp-policy.cedar": PERMIT_WHEN_APPROVED });
+
+      expect(output).toMatch(/Notice: .*need admin approval.*linear:[0-9a-f]{16}/);
     });
 
     it("fails on an invalid policy", async () => {

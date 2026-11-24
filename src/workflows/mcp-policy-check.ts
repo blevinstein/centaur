@@ -1,6 +1,12 @@
 import { z } from "zod";
-import { type CentaurConfig, type ConfigIssue, formatIssues } from "../config/index.js";
-import { checkMcpPolicy, type PolicyLayer, type PolicyLayers } from "../config/mcp-policy.js";
+import { type CentaurConfig, formatIssues } from "../config/index.js";
+import {
+  evaluateMcpPolicy,
+  formatApprovals,
+  type McpPolicyResult,
+  type PolicyLayer,
+  type PolicyLayers,
+} from "../config/mcp-policy.js";
 import type { PosterClient } from "./aws.js";
 import { GitHubRequestError, type GitHubRequester } from "./resolve.js";
 
@@ -39,15 +45,17 @@ const unreadable = (layer: PolicyLayer) => (error: unknown) => {
   throw new Error(`cannot read the ${layer} operator policy: ${(error as Error).message}`);
 };
 
-const denyAll = (servers: CentaurConfig["mcp_servers"], message: string): ConfigIssue[] =>
-  Object.keys(servers).map((name) => ({ path: `mcp_servers.${name}`, message }));
+const denyAll = (servers: CentaurConfig["mcp_servers"], message: string): McpPolicyResult => ({
+  issues: Object.keys(servers).map((name) => ({ path: `mcp_servers.${name}`, message })),
+  approvals: [],
+});
 
 export async function checkRepositoryMcpPolicy(
   config: CentaurConfig,
   deps: McpPolicyDeps | undefined,
-): Promise<ConfigIssue[]> {
+): Promise<McpPolicyResult> {
   const servers = config.mcp_servers;
-  if (Object.keys(servers).length === 0) return [];
+  if (Object.keys(servers).length === 0) return { issues: [], approvals: [] };
   if (!deps) return denyAll(servers, "cannot read the operator policy without a GitHub token");
   let layers: PolicyLayers;
   try {
@@ -60,12 +68,14 @@ export async function checkRepositoryMcpPolicy(
   }
   return layers.global === undefined && layers.repo === undefined
     ? denyAll(servers, `no global operator policy and no ${MCP_POLICY_FILE} on the default branch`)
-    : checkMcpPolicy(config.bot, servers, layers);
+    : evaluateMcpPolicy(config.bot, servers, layers, config.allowed_tools);
 }
 
 export async function enforceMcpPolicy(config: CentaurConfig, deps: McpPolicyDeps | undefined) {
-  const issues = await checkRepositoryMcpPolicy(config, deps);
+  const { issues, approvals } = await checkRepositoryMcpPolicy(config, deps);
   if (issues.length > 0) {
     throw new Error(`mcp_servers violate the operator policy:\n${formatIssues(issues)}`);
   }
+  if (approvals.length > 0) console.log(`::notice::${formatApprovals(approvals)}`);
+  return approvals;
 }

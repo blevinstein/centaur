@@ -79,7 +79,7 @@ const localServer = z.strictObject({
 
 const MCP_TOOL_PREFIX = "mcp__";
 
-const mcpToolMatchesServer = (tool: string, server: string) =>
+export const mcpToolMatchesServer = (tool: string, server: string) =>
   tool === `${MCP_TOOL_PREFIX}${server}` || tool.startsWith(`${MCP_TOOL_PREFIX}${server}__`);
 
 const platformName = z.enum(PLATFORMS);
