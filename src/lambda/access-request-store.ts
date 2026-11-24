@@ -11,13 +11,23 @@ const ID_ATTEMPTS = 5;
 
 export type Verdict = "approve" | "deny";
 
+/** `mcp` requests approval of an MCP server definition; the others grant a chat or a user access. */
+export type RequestKind = AccessKind | "mcp";
+
 export interface AccessRequest {
   id: string;
-  kind: AccessKind;
+  kind: RequestKind;
+  /** For `mcp`, `<name>:<fingerprint>` of the server definition. */
   subjectId: string;
   subjectName: string;
   alias?: string;
   threadId: string;
+  /** `mcp` only: the message that triggered the request, which a suspended turn resumes from. */
+  messageId?: string;
+  /** `mcp` only: a one-line description of the server, never trusted for the decision. */
+  summary?: string;
+  /** `mcp` only: the turn is waiting, so the decision re-dispatches the thread. */
+  suspended?: boolean;
   createdAt: string;
 }
 
@@ -28,9 +38,10 @@ export interface AccessRequestLimits {
 
 const requestKey = (id: string) => `access-request:${id}`;
 const claimKey = (id: string) => `access-request-claim:${id}`;
-const subjectKey = (kind: AccessKind, subjectId: string) => `access-subject:${kind}:${subjectId}`;
-const noticeKey = (kind: AccessKind, subjectId: string) => `access-notice:${kind}:${subjectId}`;
+const subjectKey = (kind: RequestKind, subjectId: string) => `access-subject:${kind}:${subjectId}`;
+const noticeKey = (kind: RequestKind, subjectId: string) => `access-notice:${kind}:${subjectId}`;
 const messageKey = (messageId: string) => `access-request-message:${messageId}`;
+const denialKey = (subjectId: string) => `mcp-denied:${subjectId}`;
 const RATE_KEY = "access-request-rate";
 
 const randomId = () =>
@@ -56,16 +67,16 @@ export function createAccessRequestStore(
     },
 
     /** Reserves the subject's single pending slot; false when a request is already pending. */
-    claimSubject: (kind: AccessKind, subjectId: string) =>
+    claimSubject: (kind: RequestKind, subjectId: string) =>
       state.setIfNotExists(subjectKey(kind, subjectId), true, ttlMs),
 
-    async releaseSubject(kind: AccessKind, subjectId: string) {
+    async releaseSubject(kind: RequestKind, subjectId: string) {
       await state.delete(subjectKey(kind, subjectId));
       await state.delete(noticeKey(kind, subjectId));
     },
 
     /** True only the first time it is called for the subject's pending request. */
-    claimPendingNotice: (kind: AccessKind, subjectId: string) =>
+    claimPendingNotice: (kind: RequestKind, subjectId: string) =>
       state.setIfNotExists(noticeKey(kind, subjectId), true, ttlMs),
 
     async create(fields: Omit<AccessRequest, "id" | "createdAt">): Promise<AccessRequest> {
@@ -86,6 +97,11 @@ export function createAccessRequestStore(
       state.set(messageKey(messageId), request.id, ttlMs),
 
     requestIdForMessage: (messageId: string) => state.get<string>(messageKey(messageId)),
+
+    /** A denied MCP server stays denied until the record expires. */
+    recordDenial: (subjectId: string) => state.set(denialKey(subjectId), true, ttlMs),
+
+    isDenied: async (subjectId: string) => (await state.get(denialKey(subjectId))) === true,
 
     claimDecision: (id: string, verdict: Verdict) =>
       state.setIfNotExists(claimKey(id), verdict, ttlMs),

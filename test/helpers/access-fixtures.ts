@@ -5,11 +5,16 @@ import {
   type AccessRequestLimits,
   createAccessRequestStore,
 } from "../../src/lambda/access-request-store.js";
-import { createAccessRequester } from "../../src/lambda/access-requests.js";
+import {
+  createAccessRequester,
+  createMcpApprovalRequester,
+  type McpApprovalInput,
+} from "../../src/lambda/access-requests.js";
 import { telegramAdminChannel } from "../../src/lambda/admin-channel.js";
 import { encodeClaim } from "../../src/lambda/admin-claim-record.js";
 import { createAdminClaimer } from "../../src/lambda/admin-claims.js";
 import {
+  fakeDispatcher,
   fakeLogger,
   fakeParameterStore,
   GARDEN_BOT,
@@ -59,6 +64,15 @@ export async function accessHarness({
     messenger,
     logger,
   });
+  const requestMcp = createMcpApprovalRequester({
+    bot: GARDEN_BOT,
+    params,
+    store,
+    channel: telegramAdminChannel,
+    messenger,
+    logger,
+  });
+  const dispatcher = fakeDispatcher();
   const invalidateAccess = vi.fn();
   const postToThread = vi.fn(async (_threadId: string, _text: string) => ({}));
   const decisions = createAccessDecisions({
@@ -68,6 +82,7 @@ export async function accessHarness({
     channel: telegramAdminChannel,
     invalidateAccess,
     postToThread,
+    dispatcher,
     logger,
   });
   const adminText = () => adminPost.mock.calls[0]?.[0].raw ?? "";
@@ -91,6 +106,8 @@ export async function accessHarness({
     requestId,
     logger,
     requestAccess,
+    requestMcp,
+    dispatcher,
     decisions,
     invalidateAccess,
     postToThread,
@@ -129,4 +146,28 @@ export async function claimHarness({
   const attempt = (code: string, overrides: { isDM?: boolean; userId?: string } = {}) =>
     claimAdmin({ userId: overrides.userId ?? CLAIMER_ID, isDM: overrides.isDM ?? true, code });
   return { params, state, parameter, invalidateAccess, logger, claimAdmin, attempt };
+}
+
+export const MCP_FINGERPRINT = "0123456789abcdef";
+export const MCP_SUBJECT = `linear:${MCP_FINGERPRINT}`;
+export const MCP_APPROVAL_PARAMETER = `/centaur/bots/garden/mcp-approvals/linear/${MCP_FINGERPRINT}`;
+export const MCP_THREAD_ID = "telegram:-100500:7";
+export const MCP_MESSAGE_ID = "telegram:-100500:812";
+
+export const mcpInput = (overrides: Partial<McpApprovalInput> = {}): McpApprovalInput => ({
+  name: "linear",
+  fingerprint: MCP_FINGERPRINT,
+  summary: "http https://mcp.example.com/mcp, secrets LINEAR_TOKEN",
+  threadId: MCP_THREAD_ID,
+  messageId: MCP_MESSAGE_ID,
+  ...overrides,
+});
+
+export async function mcpHarness(
+  options: Parameters<typeof accessHarness>[0] = {},
+  input: Partial<McpApprovalInput> = {},
+) {
+  const h = await accessHarness(options);
+  const outcome = await h.requestMcp(mcpInput(input));
+  return { ...h, outcome };
 }

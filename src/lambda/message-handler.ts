@@ -11,6 +11,19 @@ import type { Bot } from "./registry.js";
 import type { ThreadMetaStore } from "./thread-meta.js";
 
 export const DISPATCH_EVENT_TYPE = "centaur-message";
+export const dispatchMessage = (
+  dispatcher: RepositoryDispatcher,
+  bot: Pick<Bot, "name" | "repo">,
+  threadId: string,
+  messageId: string,
+) =>
+  dispatcher.dispatch(bot.repo, DISPATCH_EVENT_TYPE, {
+    bot: bot.name,
+    thread_id: threadId,
+    thread_key: threadKey(bot.name, threadId),
+    message_id: messageId,
+  });
+
 export const REFUSAL_TEXT = "Sorry, you aren't enrolled to talk to me.";
 export const ATTACHMENT_FAILURE_TEXT =
   "Sorry, I couldn't store that attachment, so I haven't processed your message.";
@@ -99,11 +112,6 @@ export function createMessageHandler({
     } catch (error) {
       logger.error("failed to add reaction", { ...where, threadId: thread.id, error });
     }
-    await dispatcher.dispatch(bot.repo, DISPATCH_EVENT_TYPE, {
-      bot: bot.name,
-      thread_id: thread.id,
-      thread_key: threadKey(bot.name, thread.id),
-      message_id: message.id,
-    });
+    await dispatchMessage(dispatcher, bot, thread.id, message.id);
   };
 }

@@ -46,7 +46,8 @@ describe("the Lambda role's parameter permissions", () => {
     "/centaur/bots/garden/platforms/telegram/approved-chats/-100500",
     "/centaur/bots/garden/platforms/slack/approved-users/U1",
     "/centaur/bots/garden/platforms/slack/blocked/chat/C1",
-  ])("can write the connection-scoped access entry %s", (name) => {
+    "/centaur/bots/garden/mcp-approvals/linear/0123456789abcdef",
+  ])("can write the access entry or MCP approval %s", (name) => {
     const covers = (pattern: string) => new RegExp(`^${pattern.replace(/\*/g, ".*")}$`).test(name);
     expect(resourcesFor("ssm:PutParameter").some(covers)).toBe(true);
   });

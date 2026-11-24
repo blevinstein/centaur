@@ -1,5 +1,5 @@
 import type { Logger, ReactionEvent, SlashCommandEvent } from "chat";
-import { encodeEntry } from "./access-entries.js";
+import { type AccessKind, encodeEntry } from "./access-entries.js";
 import {
   type AccessRequest,
   type AccessRequestStore,
@@ -7,8 +7,10 @@ import {
   type Verdict,
 } from "./access-request-store.js";
 import { type AdminChannel, lookupAdminId } from "./admin-channel.js";
-import { approvedParameter, blockedParameter } from "./connection-paths.js";
+import { approvedParameter, blockedParameter, botPath } from "./connection-paths.js";
 import { recordDestination, slugName } from "./destinations.js";
+import type { RepositoryDispatcher } from "./github.js";
+import { dispatchMessage } from "./message-handler.js";
 import type { ParameterStore } from "./parameters.js";
 import type { Bot } from "./registry.js";
 
@@ -20,12 +22,22 @@ export const COMMAND_VERDICTS: Record<string, Verdict> = {
 export const APPROVED_TEXT: Record<AccessRequest["kind"], string> = {
   chat: "This chat is approved. Each person still needs approval to talk to me.",
   user: "You're approved. Send your message again.",
+  mcp: "The admin approved the MCP server. If I haven't carried on, ask again.",
 };
+
+export const DENIED_TEXT: Partial<Record<AccessRequest["kind"], string>> = {
+  mcp: "The admin denied the MCP server. I'll carry on without it.",
+};
+
+/** `bots/<bot>/mcp-approvals/<name>/<fingerprint>` for the subject `<name>:<fingerprint>`. */
+export const mcpApprovalParameter = (bot: string, subjectId: string) =>
+  `${botPath(bot)}/mcp-approvals/${subjectId.replace(/:([^:]*)$/, "/$1")}`;
 
 export const COMMAND_REPLIES = {
   approve: (request: AccessRequest, destinationName?: string) =>
     `Approved ${request.kind} ${request.id}${destinationName ? ` as "${destinationName}"` : ""}.`,
-  deny: (request: AccessRequest) => `Denied and blocked ${request.kind} ${request.id}.`,
+  deny: (request: AccessRequest) =>
+    `Denied${request.kind === "mcp" ? "" : " and blocked"} ${request.kind} ${request.id}.`,
   unknown: "Unknown or expired request.",
   handled: "That request was already handled.",
   usage: "Usage: /approve <id> or /deny <id>",
@@ -42,7 +54,14 @@ export interface AccessDecisionsDeps {
   channel: AdminChannel;
   invalidateAccess: () => void;
   postToThread: (threadId: string, text: string) => Promise<unknown>;
+  dispatcher: RepositoryDispatcher;
   logger: Pick<Logger, "info" | "warn">;
+}
+
+interface Decision {
+  request: AccessRequest;
+  verdict: Verdict;
+  approverId: string;
 }
 
 export function createAccessDecisions({
@@ -52,13 +71,15 @@ export function createAccessDecisions({
   channel,
   invalidateAccess,
   postToThread,
+  dispatcher,
   logger,
 }: AccessDecisionsDeps) {
   const where = { bot: bot.name, platform: bot.platform };
 
   const isAdmin = async (userId: string) => userId === (await lookupAdminId(params, bot.platform));
 
-  const apply = async (request: AccessRequest, verdict: Verdict) => {
+  const applyAccess = async ({ request, verdict }: Decision) => {
+    const kind = request.kind as AccessKind;
     const parameter = verdict === "approve" ? approvedParameter : blockedParameter;
     const destinationName =
       verdict === "approve" && request.kind === "chat"
@@ -70,20 +91,44 @@ export function createAccessDecisions({
           )
         : undefined;
     await params.put(
-      parameter(bot.name, bot.platform, request.kind, request.subjectId),
+      parameter(bot.name, bot.platform, kind, request.subjectId),
       encodeEntry({ name: request.subjectName, alias: destinationName }),
     );
     invalidateAccess();
     return destinationName;
   };
 
-  const resolve = async (requestId: string, verdict: Verdict): Promise<DecisionOutcome> => {
+  const applyMcp = async ({ request, verdict, approverId }: Decision) => {
+    if (verdict === "approve") {
+      await params.put(
+        mcpApprovalParameter(bot.name, request.subjectId),
+        JSON.stringify({ at: new Date().toISOString(), approver: approverId }),
+      );
+    } else {
+      await store.recordDenial(request.subjectId);
+    }
+    if (request.suspended && request.messageId) {
+      await dispatchMessage(dispatcher, bot, request.threadId, request.messageId);
+    }
+    return undefined;
+  };
+
+  const appliers: Record<
+    AccessRequest["kind"],
+    (decision: Decision) => Promise<string | undefined>
+  > = { chat: applyAccess, user: applyAccess, mcp: applyMcp };
+
+  const resolve = async (
+    requestId: string,
+    verdict: Verdict,
+    approverId: string,
+  ): Promise<DecisionOutcome> => {
     const request = await store.read(requestId);
     if (!request?.threadId.startsWith(`${bot.platform}:`)) return { status: "unknown" };
     if (!(await store.claimDecision(request.id, verdict))) return { status: "handled" };
     let destinationName: string | undefined;
     try {
-      destinationName = await apply(request, verdict);
+      destinationName = await appliers[request.kind]({ request, verdict, approverId });
     } catch (error) {
       await store.releaseDecision(request.id);
       throw error;
@@ -95,15 +140,19 @@ export function createAccessDecisions({
       subjectId: request.subjectId,
       verdict,
     });
-    if (verdict === "approve") {
+    const reply = verdict === "approve" ? APPROVED_TEXT[request.kind] : DENIED_TEXT[request.kind];
+    if (reply) {
       try {
-        await postToThread(request.threadId, APPROVED_TEXT[request.kind]);
+        await postToThread(request.threadId, reply);
       } catch (error) {
-        logger.warn("failed to confirm approval to requester", {
-          ...where,
-          requestId: request.id,
-          error,
-        });
+        logger.warn(
+          `failed to confirm ${verdict === "approve" ? "approval" : "denial"} to requester`,
+          {
+            ...where,
+            requestId: request.id,
+            error,
+          },
+        );
       }
     }
     return { status: "applied", request, destinationName };
@@ -135,7 +184,7 @@ export function createAccessDecisions({
         logger.warn("ignoring access decision from a non-admin", { ...where, requestId, userId });
         return;
       }
-      await resolve(requestId, verdict);
+      await resolve(requestId, verdict, userId);
     },
 
     async fromCommand(
@@ -148,7 +197,7 @@ export function createAccessDecisions({
       if (!verdict || !event.isDM || !(await isAdmin(event.user.userId))) return undefined;
       const requestId = normalizeId(event.text);
       if (!requestId) return COMMAND_REPLIES.usage;
-      const outcome = await resolve(requestId, verdict);
+      const outcome = await resolve(requestId, verdict, event.user.userId);
       return outcome.status === "applied"
         ? COMMAND_REPLIES[verdict](outcome.request, outcome.destinationName)
         : COMMAND_REPLIES[outcome.status];

@@ -111,6 +111,7 @@ export function createBotChat({
       channel,
       invalidateAccess: resolveAccess.invalidate,
       postToThread: (threadId, text) => chat.thread(threadId).post(text),
+      dispatcher,
       logger,
     }),
     claimAdmin,
