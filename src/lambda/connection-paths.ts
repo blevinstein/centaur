@@ -61,3 +61,14 @@ export function parseBotParameter(name: string): ParsedBotParameter | undefined 
   }
   return { bot };
 }
+
+/** `bots/<bot>/mcp-approvals/<name>/<fingerprint>`; presence means the definition is approved. */
+export const mcpApprovalsPrefix = (bot: string) => `${botPath(bot)}/mcp-approvals/`;
+export const mcpApprovalParameter = (bot: string, name: string, fingerprint: string) =>
+  `${mcpApprovalsPrefix(bot)}${name}/${fingerprint}`;
+
+/** Splits an approval subject `<name>:<fingerprint>` at its last colon. */
+export const parseMcpApprovalKey = (subjectId: string) => {
+  const split = subjectId.lastIndexOf(":");
+  return { name: subjectId.slice(0, split), fingerprint: subjectId.slice(split + 1) };
+};

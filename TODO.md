@@ -60,7 +60,7 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
   - [ ] Approval 4: `prepare` wiring, the synchronous window, prompt lines and the `mcp_approval`
         config key. Needs 1 and 3.
   - [ ] Approval 5: `suspend_for` field and the `finish` suspend. Needs 4.
-  - [ ] Approval 6: `centaur mcp approvals` list and `revoke`. Needs 2.
+  - [x] Approval 6: `centaur mcp approvals` list and `revoke`. Needs 2.
   - [ ] Approval 7: docs fold-in and the live check. Needs 1 to 6. **[HUMAN ACTION]** run the live
         check against a remote server in the bot's real chat.
 - [ ] Explore a way to update the MCP policy by adding entries to an allowlist, with some level of

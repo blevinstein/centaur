@@ -7,7 +7,12 @@ import {
   type Verdict,
 } from "./access-request-store.js";
 import { type AdminChannel, lookupAdminId } from "./admin-channel.js";
-import { approvedParameter, blockedParameter, botPath } from "./connection-paths.js";
+import {
+  approvedParameter,
+  blockedParameter,
+  mcpApprovalParameter,
+  parseMcpApprovalKey,
+} from "./connection-paths.js";
 import { recordDestination, slugName } from "./destinations.js";
 import type { RepositoryDispatcher } from "./github.js";
 import { dispatchMessage } from "./message-handler.js";
@@ -28,10 +33,6 @@ export const APPROVED_TEXT: Record<AccessRequest["kind"], string> = {
 export const DENIED_TEXT: Partial<Record<AccessRequest["kind"], string>> = {
   mcp: "The admin denied the MCP server. I'll carry on without it.",
 };
-
-/** `bots/<bot>/mcp-approvals/<name>/<fingerprint>` for the subject `<name>:<fingerprint>`. */
-export const mcpApprovalParameter = (bot: string, subjectId: string) =>
-  `${botPath(bot)}/mcp-approvals/${subjectId.replace(/:([^:]*)$/, "/$1")}`;
 
 export const COMMAND_REPLIES = {
   approve: (request: AccessRequest, destinationName?: string) =>
@@ -100,8 +101,9 @@ export function createAccessDecisions({
 
   const applyMcp = async ({ request, verdict, approverId }: Decision) => {
     if (verdict === "approve") {
+      const { name, fingerprint } = parseMcpApprovalKey(request.subjectId);
       await params.put(
-        mcpApprovalParameter(bot.name, request.subjectId),
+        mcpApprovalParameter(bot.name, name, fingerprint),
         JSON.stringify({ at: new Date().toISOString(), approver: approverId }),
       );
     } else {

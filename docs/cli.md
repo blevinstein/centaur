@@ -216,6 +216,31 @@ centaur access approve garden chat <chat id> --name "Garden Club"   # destinatio
 centaur access list garden
 ```
 
+### `centaur mcp approvals <bot>`
+
+Lists each approved MCP server definition as `name  fingerprint  approved-at (UTC)  approver user ID`, ordered by
+name then fingerprint, or `No MCP servers approved for "<bot>".`. The records
+(`/centaur/bots/<bot>/mcp-approvals/<name>/<fingerprint>`) hold no secrets.
+
+```text
+$ centaur mcp approvals garden
+files  3f9a1c0d2b7e  2026-01-02T03:04:05.000Z  <user id>
+search  8c41d2e0a9b3  2026-02-03T04:05:06.000Z  <user id>
+```
+
+### `centaur mcp revoke <bot> <name> [--fingerprint <hex>]`
+
+Prints the approvals it removes, then deletes every approval of the server `<name>`, or only the one with
+`--fingerprint`. Errors, deleting nothing, if there is none. The server is asked about again the next time a turn
+uses it.
+
+```text
+$ centaur mcp revoke garden search
+Revoking:
+search  8c41d2e0a9b3  2026-02-03T04:05:06.000Z  <user id>
+Revoked 1 approval(s) for "search" on bot "garden".
+```
+
 ### `centaur chat tail <bot> [--platform <platform>] [--minutes <n>] [--limit <n>] [--text] [--table <name>]`
 
 Read-only. Lists a connection's recent messages, oldest first, through the poster's `read-channel`

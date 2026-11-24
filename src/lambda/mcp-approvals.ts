@@ -1,10 +1,10 @@
 import type { Logger, StateAdapter } from "chat";
 import { z } from "zod";
 import { slug } from "../config/index.js";
-import { mcpApprovalParameter } from "./access-decisions.js";
 import { createAccessRequestStore } from "./access-request-store.js";
 import { createMcpApprovalRequester } from "./access-requests.js";
 import { ADMIN_CHANNELS, type DirectMessenger } from "./admin-channel.js";
+import { mcpApprovalParameter } from "./connection-paths.js";
 import type { OidcVerifier } from "./oidc.js";
 import type { ParameterStore } from "./parameters.js";
 import { type Bot, requireBound } from "./registry.js";
@@ -74,7 +74,10 @@ export function createMcpApprovals({ params, oidc, open, logger }: McpApprovalsD
       server: McpApprovalsRequest["servers"][number],
     ): Promise<McpApprovalStatus> => {
       const subjectId = `${server.name}:${server.fingerprint}`;
-      if ((await params.get(mcpApprovalParameter(bot.name, subjectId))) !== undefined) {
+      if (
+        (await params.get(mcpApprovalParameter(bot.name, server.name, server.fingerprint))) !==
+        undefined
+      ) {
         return "approved";
       }
       if (await store.isDenied(subjectId)) return "denied";

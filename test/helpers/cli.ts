@@ -5,6 +5,7 @@ import type { Platform } from "../../src/config/index.js";
 import {
   approvedParameter,
   connectionParameter,
+  mcpApprovalParameter,
   repoParameter,
   scopedChatParameter,
 } from "../../src/lambda/connection-paths.js";
@@ -45,6 +46,13 @@ export function createCliHarness(
     /** Approves a chat directly, as `access approve` would. */
     approveChat: (bot: string, platform: Platform, chatId: string) =>
       store.put(approvedParameter(bot, platform, "chat", chatId), "{}", { secure: false }),
+    /** Records an MCP server approval directly, as the poster does on an admin decision. */
+    approveMcp: (bot: string, name: string, fingerprint: string, at = "2026-01-02T03:04:05.000Z") =>
+      store.put(
+        mcpApprovalParameter(bot, name, fingerprint),
+        JSON.stringify({ at, approver: "U1" }),
+        { secure: false },
+      ),
     /** The parsed destination record stored under a name, if any. */
     destinationNamed: async (platform: Platform, name: string) => {
       const value = await store.get(scopedChatParameter(platform, name));

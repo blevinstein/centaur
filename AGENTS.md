@@ -173,3 +173,8 @@
 - The poster's `mcp-approvals` (`src/lambda/mcp-approvals.ts`) reads decisions only through
   `mcpApprovalParameter`, the store's `isDenied` and `createMcpApprovalRequester`, and an error is
   thrown, never answered as `approved`.
+- The CLI has no confirmation prompt: destructive commands (`access revoke`, `bot remove`,
+  `mcp revoke`) act immediately and print what they removed.
+- A new method on the `PosterClient` interface also needs stubs in
+  `test/helpers/mcp-policy-fixtures.ts` and `test/helpers/chat-server-fixtures.ts`.
+- New poster-only fake behavior (such as `openDM` or `adminPost`) goes in `fakePosterChat`.
