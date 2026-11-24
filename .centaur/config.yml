@@ -25,6 +25,8 @@ prompts:
     destination: { slack: centaur-test-slack }
   mcp-smoke:
     destination: { slack: centaur-test-slack, telegram: centaur-test }
+  skills-smoke:
+    destination: { slack: centaur-test-slack }
 mcp_servers:
   ghmcp:
     url: https://api.githubcopilot.com/mcp/readonly
