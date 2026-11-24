@@ -178,3 +178,7 @@
 - A new method on the `PosterClient` interface also needs stubs in
   `test/helpers/mcp-policy-fixtures.ts` and `test/helpers/chat-server-fixtures.ts`.
 - New poster-only fake behavior (such as `openDM` or `adminPost`) goes in `fakePosterChat`.
+- `prepare` asks approval-required MCP servers through `askApprovals` (`src/workflows/mcp-approval.ts`):
+  one `mcp-approvals` call per turn, never polled, a failure meaning `pending`. A new turn path that
+  builds `mcp.json` or `--allowedTools` must take the servers from `withoutServers`, and a turn
+  with a thread sets `approvalThread` so the request can be raised.

@@ -20,10 +20,22 @@ import {
 } from "./aws.js";
 import { parseConfigOrThrow, readConfigText } from "./config-file.js";
 import { type Instructions, loadInstructions } from "./instructions.js";
+import {
+  type ApprovalThread,
+  approvalThread,
+  askApprovals,
+  NO_DROPPED,
+  withoutServers,
+} from "./mcp-approval.js";
 import { buildChatServerConfig, buildMcpConfig } from "./mcp-config.js";
 import { enforceMcpPolicy, type McpPolicyDeps } from "./mcp-policy-check.js";
 import { type CandidateDeps, listCandidates, type TargetDeps } from "./pr-target.js";
-import { buildPrompt, type PullRequestCandidate, replySchema } from "./prompt.js";
+import {
+  buildPrompt,
+  mcpApprovalSection,
+  type PullRequestCandidate,
+  replySchema,
+} from "./prompt.js";
 import {
   type PullRequestReader,
   pendingComments,
@@ -51,7 +63,11 @@ export const MAX_PROMPT_IMAGES = 10;
 const NEW_THREAD_ACK = "Started a new thread.";
 const NEW_THREAD_OPENING = "Fresh thread. What would you like to do?";
 
-const dispatchPayload = z.object({ bot: slug, thread_id: z.string().min(1) });
+const dispatchPayload = z.object({
+  bot: slug,
+  thread_id: z.string().min(1),
+  message_id: z.string().min(1).optional(),
+});
 
 export type StartTarget =
   | { destination: string; platform: Platform; thread?: "persistent" }
@@ -128,6 +144,8 @@ interface Turn {
   markerThreadId?: string;
   source?: ReactionSource;
   prompt: string;
+  /** Where an approval request for this turn is raised; absent when the turn has no thread. */
+  approvalThread?: ApprovalThread | undefined;
   resumeSessionId?: string;
   canStaySilent?: boolean;
   allowExisting: boolean;
@@ -252,6 +270,7 @@ async function scheduledTurn(
         ? prompt.targets.map((target) => ({ ...target, thread: "persistent" as const }))
         : prompt.targets,
     allowExisting: targets.allowExisting,
+    approvalThread: persistent ? approvalThread(persistent.threadId, persistent.marker) : undefined,
     ...(persistent?.marker
       ? { marker: persistent.marker, markerThreadId: persistent.threadId }
       : {}),
@@ -332,6 +351,7 @@ async function chatTurn(
         mode: "start-thread",
         policy: config.context.default,
         start: [{ fromThreadId: threadId }],
+        approvalThread: approvalThread(threadId, payload.message_id ?? marker),
         source,
         allowExisting: targets.allowExisting,
         prompt: buildPrompt({
@@ -356,6 +376,7 @@ async function chatTurn(
         mode: "reply",
         allowExisting: targets.allowExisting,
         threadId,
+        approvalThread: approvalThread(threadId, payload.message_id ?? marker),
         policy: plan.policy,
         source,
         ...(marker ? { marker } : {}),
@@ -426,6 +447,7 @@ async function commentTurn(
   return {
     mode: "comment",
     threadId,
+    approvalThread: approvalThread(threadId, messages.at(-1)?.id),
     branch: details.headRef,
     pullRequest: comment.pullRequest,
     policy,
@@ -518,7 +540,7 @@ const exists = (path: string) =>
 export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   const configRoot = deps.configRoot ?? deps.workspace;
   const config = parseConfigOrThrow(await readConfigText(configRoot));
-  await enforceMcpPolicy(config, deps.mcpPolicy);
+  const approvals = await enforceMcpPolicy(config, deps.mcpPolicy);
   const mcp = buildMcpConfig(config.mcp_servers, deps.env);
   if (mcp.missingSecrets.length > 0) {
     throw new Error(
@@ -542,6 +564,11 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
       ? await commentTurn(deps, deps.comment, config, instructions, directory)
       : await chatTurn(deps, config, instructions, directory);
   if (!turn) return skipped;
+  const { dropped, notice } =
+    approvals.length > 0
+      ? await askApprovals(deps, config, approvals, turn.approvalThread)
+      : NO_DROPPED;
+  const kept = withoutServers(dropped, mcp.config.mcpServers, config.allowed_tools);
 
   const state: TurnState = {
     mode: turn.mode,
@@ -558,11 +585,14 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     ...(turn.source ? { source: turn.source } : {}),
   };
   await mkdir(join(deps.workspace, TURN_DIR), { recursive: true });
-  await writeFile(join(deps.workspace, PROMPT_FILE), turn.prompt);
+  await writeFile(
+    join(deps.workspace, PROMPT_FILE),
+    [turn.prompt, mcpApprovalSection(notice)].filter(Boolean).join("\n\n"),
+  );
   await writeTurnState(deps.stateDir, state);
   const chatTools = Boolean(turn.threadId) && chatToolsEnabled(config);
   const mcpServers = {
-    ...mcp.config.mcpServers,
+    ...kept.servers,
     ...(chatTools
       ? {
           [CHAT_SERVER_NAME]: buildChatServerConfig({
@@ -595,7 +625,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     base_url: PROVIDER_SETTINGS[config.provider].base_url ?? "",
     api_key_secret: PROVIDER_SETTINGS[config.provider].api_key_secret,
     claude_args: buildClaudeArgs({
-      config,
+      config: { ...config, allowed_tools: kept.allowedTools },
       persona,
       resumeSessionId: turn.resumeSessionId,
       canStaySilent: turn.canStaySilent === true,

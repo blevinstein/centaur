@@ -22,7 +22,7 @@ to a repo (a connection's secrets under `bots/<bot>/platforms/<platform>/` plus 
 | `register` | `token` (GitHub OIDC JWT), `config` (the config file's text) | `{ bot, repo }` |
 | `link-pull-request` | `token` (GitHub OIDC JWT), `bot`, `threadId`, `pullRequest` (number) | `{ linked: true }` |
 | `resolve-pull-request` | `token` (GitHub OIDC JWT), `pullRequest` (number), optional `withThreadId` (boolean) | `{ found: false }` or `{ found: true, bot, threadKey }`, plus `threadId` only when `withThreadId` is true |
-| `mcp-approvals` | `token` (GitHub OIDC JWT), `bot`, `threadId`, `messageId`, `servers`: `[{ name, fingerprint, summary }]` (1 to 20; `summary` at most 2000 characters), optional `suspend` (boolean) | `{ servers: { <name>: "approved" \| "pending" \| "denied" } }` |
+| `mcp-approvals` | `token` (GitHub OIDC JWT), `bot`, optional `threadId` and `messageId` (together), `servers`: `[{ name, fingerprint, summary }]` (1 to 20; `summary` at most 2000 characters), optional `suspend` (boolean) | `{ servers: { <name>: "approved" \| "pending" \| "denied" } }` |
 
 All thread operations go through the bot's own Chat instance and state prefix (`bot:<bot>:`), so
 the bot's posts land in the stored transcript the receiver and `read` use.
@@ -250,7 +250,7 @@ Reads the admin's decision for each MCP server definition, identified by `<name>
 3. Otherwise the shared request raiser opens one request to the platform admin (one pending request per definition, 10 new requests per bot per hour, 7-day expiry) and the result is `pending`. A request over the hourly limit or one that could not be delivered is also `pending`.
 4. A bot with no admin on its platform gets `denied`, no record is created, and the Lambda logs a warning with the bot and platform.
 
-Reads are idempotent, so the runner can poll during its synchronous window: a repeated read neither creates a second request nor sends a second DM. `suspend: true` marks the pending request `suspended` and records `threadId` and `messageId` on it, so the decision re-dispatches that thread; a read without `suspend` never sets or clears the flag. An error reading SSM or state fails the invocation; the client treats a failed call as `pending`, never `approved`.
+Reads are idempotent: a repeated read neither creates a second request nor sends a second DM. Without `threadId` and `messageId` (both or neither; `suspend` requires them) the operation is read-only: it answers `approved` or `denied` from the stored records and `pending` otherwise, and never creates a request, sends a DM or touches a pending request. A scheduled prompt without a thread uses an approved server but cannot request one. `suspend: true` marks the pending request `suspended` and records `threadId` and `messageId` on it, so the decision re-dispatches that thread; a read without `suspend` never sets or clears the flag. An error reading SSM or state fails the invocation; the client treats a failed call as `pending`, never `approved`.
 
 ## Security model
 

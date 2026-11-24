@@ -186,6 +186,15 @@ The secret is also in the environment of the agent process, so an allowed `Bash`
 Keep `Bash` out of `allowed_tools` for repos that pass MCP secrets, or accept that the agent can
 read them.
 
+## Approval-required MCP servers
+
+When the operator policy makes a server approval-required, `prepare` (chat, scheduled and pull request
+comment turns alike) calls the poster `mcp-approvals` once with the thread and the triggering message,
+then starts the turn with the approved servers only. The prompt gets one `MCP server approvals`
+section: servers awaiting the admin (with their tools) and servers the admin denied. Nothing is
+polled: a later decision is used by the next turn. See [mcp.md](mcp.md#operator-policy) and
+[mcp-approval.md](mcp-approval.md).
+
 ## This repo as a test consumer
 
 This repo is its own consumer, for end-to-end testing: `.centaur/config.yml` binds the `centaur-slack` bot to Slack and Telegram

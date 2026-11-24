@@ -102,6 +102,30 @@ describe("repeated reads", () => {
   });
 });
 
+describe("without a thread", () => {
+  const threadless = { threadId: undefined, messageId: undefined };
+
+  it.each([
+    ["approved", { approved: true }, "approved"],
+    ["denied", {}, "denied"],
+    ["pending", {}, "pending"],
+  ] as const)("reads a stored decision and answers %s", async (_name, options, expected) => {
+    const h = await mcpApprovalsPoster(options);
+    if (expected === "denied") await h.store.recordDenial(MCP_SUBJECT);
+
+    expect(await h.statuses(threadless)).toEqual({ servers: { linear: expected } });
+  });
+
+  it("never raises a request or sends a DM", async () => {
+    const h = await mcpApprovalsPoster();
+
+    await h.statuses(threadless);
+
+    expect(h.adminPost).not.toHaveBeenCalled();
+    expect(await h.pendingRequest()).toBeNull();
+  });
+});
+
 describe("request limits", () => {
   it("stops raising requests at the hourly limit and still answers pending", async () => {
     const h = await mcpApprovalsPoster();
@@ -124,6 +148,9 @@ describe("request validation and authority", () => {
     ["no servers", { servers: [] }],
     ["more than 20 servers", { servers: Array(21).fill(LINEAR) }],
     ["an over-long summary", { servers: [{ ...LINEAR, summary: "x".repeat(2001) }] }],
+    ["a lone threadId", { messageId: undefined }],
+    ["a lone messageId", { threadId: undefined }],
+    ["suspend without a thread", { threadId: undefined, messageId: undefined, suspend: true }],
   ])("rejects %s", async (_name, overrides) => {
     const h = await mcpApprovalsPoster();
 

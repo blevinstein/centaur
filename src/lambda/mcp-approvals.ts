@@ -14,24 +14,33 @@ export const MCP_SUMMARY_MAX = 2000;
 
 const field = z.string().min(1);
 
-export const mcpApprovalsRequestSchema = z.strictObject({
-  operation: z.literal("mcp-approvals"),
-  token: field,
-  bot: slug,
-  threadId: field,
-  messageId: field,
-  servers: z
-    .array(
-      z.strictObject({
-        name: field,
-        fingerprint: field,
-        summary: z.string().max(MCP_SUMMARY_MAX),
-      }),
-    )
-    .min(1)
-    .max(MCP_APPROVAL_SERVERS_MAX),
-  suspend: z.boolean().optional(),
-});
+export const mcpApprovalsRequestSchema = z
+  .strictObject({
+    operation: z.literal("mcp-approvals"),
+    token: field,
+    bot: slug,
+    threadId: field.optional(),
+    messageId: field.optional(),
+    servers: z
+      .array(
+        z.strictObject({
+          name: field,
+          fingerprint: field,
+          summary: z.string().max(MCP_SUMMARY_MAX),
+        }),
+      )
+      .min(1)
+      .max(MCP_APPROVAL_SERVERS_MAX),
+    suspend: z.boolean().optional(),
+  })
+  .refine(({ threadId, messageId }) => (threadId === undefined) === (messageId === undefined), {
+    message: "threadId and messageId must be given together",
+    path: ["threadId"],
+  })
+  .refine(({ threadId, suspend }) => !suspend || threadId !== undefined, {
+    message: "suspend requires threadId and messageId",
+    path: ["suspend"],
+  });
 
 export type McpApprovalsRequest = z.infer<typeof mcpApprovalsRequestSchema>;
 export const mcpApprovalsResultSchema = z.object({
@@ -47,28 +56,37 @@ export interface McpApprovalsDeps {
     botName: string,
     threadId: string,
   ) => Promise<{ bot: Bot; messenger: DirectMessenger; state: StateAdapter }>;
+  /** The bot and its state without a thread, for reads that never ask. */
+  openBot: (botName: string) => Promise<{ bot: Bot; state: StateAdapter }>;
   logger: Pick<Logger, "info" | "warn" | "error">;
 }
 
 /**
  * Reads each server definition's decision: a stored approval, then a recorded denial, else a
- * request to the admin (raised once per definition). Failures throw, so the caller never reads
+ * request to the admin (raised once per definition). Without a thread the call is read-only: it
+ * never asks, and answers `pending` where it would have. Failures throw, so the caller never reads
  * an error as an approval.
  */
-export function createMcpApprovals({ params, oidc, open, logger }: McpApprovalsDeps) {
+export function createMcpApprovals({ params, oidc, open, openBot, logger }: McpApprovalsDeps) {
   return async (request: McpApprovalsRequest): Promise<McpApprovalsResult> => {
     await requireBound(params, oidc, request.token, request.bot);
-    const { bot, messenger, state } = await open(request.bot, request.threadId);
-    const store = createAccessRequestStore(state);
-    const requestApproval = createMcpApprovalRequester({
-      bot,
-      params,
-      store,
-      channel: ADMIN_CHANNELS[bot.platform],
-      messenger,
-      logger,
-    });
     const { threadId, messageId, suspend } = request;
+    const thread =
+      threadId !== undefined && messageId !== undefined
+        ? { threadId, messageId, ...(await open(request.bot, threadId)) }
+        : undefined;
+    const { bot, state } = thread ?? (await openBot(request.bot));
+    const store = createAccessRequestStore(state);
+    const requestApproval =
+      thread &&
+      createMcpApprovalRequester({
+        bot,
+        params,
+        store,
+        channel: ADMIN_CHANNELS[bot.platform],
+        messenger: thread.messenger,
+        logger,
+      });
 
     const statusOf = async (
       server: McpApprovalsRequest["servers"][number],
@@ -81,10 +99,11 @@ export function createMcpApprovals({ params, oidc, open, logger }: McpApprovalsD
         return "approved";
       }
       if (await store.isDenied(subjectId)) return "denied";
+      if (!thread || !requestApproval) return "pending";
       const outcome = await requestApproval({
         ...server,
-        threadId,
-        messageId,
+        threadId: thread.threadId,
+        messageId: thread.messageId,
         ...(suspend ? { suspended: true } : {}),
       });
       if (outcome === undefined) {
@@ -95,7 +114,11 @@ export function createMcpApprovals({ params, oidc, open, logger }: McpApprovalsD
         return "denied";
       }
       if (outcome === "pending" && suspend) {
-        await store.updatePending(subjectId, { threadId, messageId, suspended: true });
+        await store.updatePending(subjectId, {
+          threadId: thread.threadId,
+          messageId: thread.messageId,
+          suspended: true,
+        });
       }
       return "pending";
     };

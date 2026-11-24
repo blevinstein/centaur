@@ -45,8 +45,8 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
       **[HUMAN ACTION]** Deploy the stack (`yarn deploy-prod`) so the poster serves `get-mcp-policy`;
       until then every turn and registration with `mcp_servers` fails closed. Then confirm a turn
       with `mcp_servers` still passes and an unpinned local server is denied.
-- [ ] **Approval-required** MCP servers: design accepted, all recommendations plus the synchronous
-      window (`mcp_approval.wait_seconds`, default 2): [docs/mcp-approval.md](docs/mcp-approval.md).
+- [ ] **Approval-required** MCP servers: design accepted, all recommendations:
+      [docs/mcp-approval.md](docs/mcp-approval.md).
       Slices, in the order and with the dependencies of its
       [implementation plan](docs/mcp-approval.md#implementation-plan):
   - [x] Approval 1: Cedar `context.approved`, two-pass `authorize`, fingerprint helper,
@@ -57,8 +57,7 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
         dependencies (parallel with 1). **[HUMAN APPROVAL]** deploy of the Lambda and IAM change.
   - [x] Approval 3: poster `mcp-approvals` operation and `docs/poster.md`. Needs 2.
         **[HUMAN APPROVAL]** deploy of the Lambda change.
-  - [ ] Approval 4: `prepare` wiring, the synchronous window, prompt lines and the `mcp_approval`
-        config key. Needs 1 and 3.
+  - [x] Approval 4: `prepare` wiring (one `mcp-approvals` call per turn) and prompt lines. Needs 1 and 3.
   - [ ] Approval 5: `suspend_for` field and the `finish` suspend. Needs 4.
   - [x] Approval 6: `centaur mcp approvals` list and `revoke`. Needs 2.
   - [ ] Approval 7: docs fold-in and the live check. Needs 1 to 6. **[HUMAN ACTION]** run the live

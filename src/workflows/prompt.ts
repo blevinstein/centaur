@@ -1,5 +1,6 @@
 import { fence } from "./clean-text.js";
 import { DEFAULT_INSTRUCTIONS, type Instructions } from "./instructions.js";
+import type { McpApprovalNotice } from "./mcp-approval.js";
 import type { TurnState } from "./prepare.js";
 import { type AttachmentPath, type ChatMessage, renderMessages } from "./transcript.js";
 
@@ -175,3 +176,18 @@ export const replySchema = ({
   required: canStaySilent ? [] : ["reply"],
   additionalProperties: false,
 });
+
+/** What the agent is told about approval-required MCP servers that are not running this turn. */
+export function mcpApprovalSection({ pending, denied }: McpApprovalNotice) {
+  const lines = [
+    ...(pending.length > 0
+      ? [
+          `MCP servers awaiting admin approval and unavailable this turn: ${pending
+            .map(({ name, tools }) => `${name} (tools: ${tools.join(", ")})`)
+            .join("; ")}.`,
+        ]
+      : []),
+    ...denied.map((name) => `MCP server ${name} was denied by the admin; answer without it.`),
+  ];
+  return lines.length > 0 ? `# MCP server approvals\n\n${lines.join("\n\n")}` : undefined;
+}

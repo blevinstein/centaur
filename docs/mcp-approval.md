@@ -16,7 +16,7 @@ a server can be allowed *once a human says yes*. Design accepted by the maintain
   agent cannot do the request without one, it **suspends**: the turn ends, the thread's marker stays
   put, and when the admin decides, the receiver re-dispatches an ordinary turn for the thread. The
   session is already saved by the existing `resume` machinery.
-- No component waits for hours. A decision already stored, or one that arrives within a short configurable window (default 2 seconds), is used by the same turn; a longer wait costs no runner minutes and no Lambda time, because the turn suspends (see [Synchronous window](#synchronous-window)).
+- No component waits for hours, and `prepare` never waits at all. It asks the poster once per turn and uses the answer as is: a decision already stored is used by that turn, and one that arrives later is seen by the next turn (a suspended thread is re-dispatched by the receiver).
 - Server level only. Tool level is the same mechanism applied to `allowed_tools` entries, added later.
 
 ## Where a wait could live
@@ -116,13 +116,15 @@ Suspending is only for **chat turns**. It does not apply to:
 - a slow tool call inside a running turn: the Claude process is alive and cannot be paused, so this is
   the long-running-turn problem, bounded by `timeout-minutes`;
 - scheduled prompts and pull request comment turns in the first version: they run without the server
-  and report which were pending (a scheduled prompt has no waiting human).
+  and report which were pending (a scheduled prompt has no waiting human). A scheduled prompt with no
+  thread asks `mcp-approvals` without `threadId` and `messageId`, which only reads stored decisions: it
+  uses an approved server but cannot request one.
 
-**When a turn does not suspend.** `prepare` first gives the decision a short [synchronous window](#synchronous-window); a decision that is in by then is applied in the same turn and nothing is dropped, asked of the agent or suspended. Only an elapsed window leads to the dropped-server prompt above.
+**When a turn does not suspend.** `prepare` asks the poster once per turn and uses the answer as is: a server whose decision is already stored as approved runs in that turn and nothing is dropped, asked of the agent or suspended. A request is never polled; a decision that arrives later is seen by the next turn (or, for a suspended thread, by the re-dispatch).
 
 **What suspend does.** `finish` posts the reply, removes the 👀 reactions, saves the session (as for
 every `resume` thread) and **does not advance the last-processed marker**, then calls the poster
-`mcp-approvals` with `suspend: true` for the named servers (the runner's repeated reads during the window never set it). The job ends and the thread's concurrency
+`mcp-approvals` with `suspend: true` for the named servers. The job ends and the thread's concurrency
 group is free, so later messages run normally (and see the same pending messages, still without the
 server).
 
@@ -184,9 +186,9 @@ strict schema):
 
 | `operation` | Fields | Result |
 |---|---|---|
-| `mcp-approvals` | `token`, `bot`, `threadId`, `messageId`, `servers`: `[{ name, fingerprint, summary }]` (1 to 20), optional `suspend` (boolean) | `{ servers: { <name>: "approved" \| "pending" \| "denied" } }` |
+| `mcp-approvals` | `token`, `bot`, optional `threadId` and `messageId` (together; without them the call is read-only), `servers`: `[{ name, fingerprint, summary }]` (1 to 20), optional `suspend` (boolean) | `{ servers: { <name>: "approved" \| "pending" \| "denied" } }` |
 
-For each server it reads the decision (one short, stateless call; the runner repeats it during the [synchronous window](#synchronous-window), so the Lambda's 30 s timeout never matters and the operation takes no wait parameter); with none and no pending request it creates one and DMs the
+For each server it reads the decision (one short, stateless call, so the Lambda's 30 s timeout never matters and the operation takes no wait parameter); with none and no pending request it creates one and DMs the
 admin; with `suspend` it marks the request `suspended`. `summary` is rendered by the runner from
 validated config (secret names, never values) and only length-limited by the Lambda; the fingerprint
 is part of the key, so a summary cannot approve a different definition than the one the runner starts,
@@ -213,20 +215,6 @@ Recommendation: A. Buttons can be added to `AdminChannel` later; both feed `clai
 `access-decisions.ts` needs one dispatch on `request.kind` for `mcp`. Only the platform admin
 approves.
 
-## Synchronous window
-
-A decision that resolves quickly should not suspend the turn. When `prepare` has asked the admin (or found a request already pending), it polls the poster `mcp-approvals` with short repeated calls, from the runner, until every asked server is `approved` or `denied` or `mcp_approval.wait_seconds` has elapsed. The runner polls, not the poster, so each call is an ordinary short invoke, the poster stays stateless and the Lambda's 30 s timeout is never involved.
-
-| Result at the end of the window | Behavior |
-|---|---|
-| `approved` | The server is used in this turn. No suspend, no re-dispatch. |
-| `denied` | The server is dropped; the prompt says it was denied. No suspend. |
-| still `pending` | The turn proceeds without the server and the [suspend and resume](#suspend-and-resume) design applies unchanged. |
-
-A human rarely answers within 2 seconds. The default window mainly catches a decision that is already stored, one written between reads (by the CLI or another thread), and tests. A longer window is the operator's tradeoff: the polling bills runner seconds and holds the thread's concurrency group, where suspend costs neither. `wait_seconds: 0` disables waiting.
-
-The key is a top-level `mcp_approval: { wait_seconds: 2 }` block in `.centaur/config.yml` (strict, `wait_seconds` 0 to 30, default 2), beside `chat_tools`, the other top-level strict block that tunes a turn's MCP behavior; it is not under `mcp_servers`, whose entries are server definitions keyed by name. It needs `src/config/schema.ts`, `docs/config.md`, the defaults in `test/config.test.ts` and any fixture that builds the config by hand.
-
 ## Tool-level approval
 
 An `McpTool` resource would let policy say "reads are allowed, `delete_issue` needs approval";
@@ -244,14 +232,13 @@ keys. Recommendation: server level only. Servers with dangerous tools list them 
 - A pull request that adds a server reaches a turn only after merge (default-branch config), then
   needs the admin: a second control behind review of the policy file.
 - No admin on the bot's platform: nothing can be asked; treat as `denied` without a record and log it.
-- The synchronous window only changes when a decision is read. The same fail-closed rule holds: a failed poll ends the window as `pending`, and only a recorded approval ever starts a server. The window is bounded (0 to 30 seconds) so a misconfigured value cannot stall a turn or hold the thread's concurrency group.
 - Secrets never appear in the DM, the fingerprint input or any record, only names.
 
 ## Out of scope
 
 - Tool-level rules and wildcard enumeration.
 - Approval by anyone other than the platform admin.
-- Waiting for a human inside a turn beyond the bounded synchronous window, and mid-turn checkpointing for slow tools.
+- Waiting for a human inside a turn, and mid-turn checkpointing for slow tools.
 - Suspending scheduled prompts and pull request comment turns.
 - Approving a secret's value or scope; the caller `env:` stays the allowlist.
 - Time-based expiry of approvals; revocation is explicit.
@@ -266,13 +253,13 @@ Seven slices, each a worktree that can be built and reviewed alone. Every slice 
 | 1. Policy | Cedar and fingerprints | none |
 | 2. Decisions | request kind, decision handling, records | none |
 | 3. Poster | `mcp-approvals` operation | 2 |
-| 4. `prepare` | wiring, synchronous window, config key | 1, 3 |
+| 4. `prepare` | wiring | 1, 3 |
 | 5. Suspend | `suspend_for` and `finish` | 4 |
 | 6. CLI | list and revoke | 2 |
 | 7. Docs and live check | fold-in, verification | 1 to 6 |
 
 Slices 1 and 2 touch disjoint files and run in parallel. After them, 3 and 6 run in parallel, then 4,
-then 5; 7 is last. Slices 1 to 4 alone give async "ask again", with the synchronous window; 5 adds
+then 5; 7 is last. Slices 1 to 4 alone give async "ask again"; 5 adds
 suspend/resume; 6 is optional.
 
 1. **Cedar, fingerprints and notices.**
@@ -300,13 +287,12 @@ suspend/resume; 6 is optional.
    - Accepted when: tests cover read, ask once, rate limits, extra keys rejected, and the result for
      each decision state; documented in `docs/poster.md`. **[HUMAN APPROVAL]** to deploy.
 4. **`prepare` wiring.**
-   - Files: `src/workflows/prepare.ts`, `src/config/schema.ts`, `docs/config.md`, `test/config.test.ts`
-     and config fixtures, `test/helpers/receiver-fixtures.ts`.
-   - Calls `mcp-approvals`, runs the synchronous window, drops non-approved servers from `mcp.json`
-     and `--allowedTools`, adds the prompt lines, and adds the `mcp_approval` config key.
-   - Accepted when: tests cover approved, denied, pending, an answer arriving inside the window, the
-     window elapsing (with a faked clock), `wait_seconds: 0`, and a poster failure mapping to
-     `pending`; the config bounds are tested; `prepare` still fails closed on policy errors.
+   - Files: `src/workflows/prepare.ts`, `src/workflows/mcp-approval.ts`, `src/workflows/prompt.ts`
+     and `test/helpers/`.
+   - Calls `mcp-approvals` once per turn, drops non-approved servers from `mcp.json` and
+     `--allowedTools`, and adds the prompt lines.
+   - Accepted when: tests cover approved, denied, pending and a poster failure mapping to
+     `pending`; `prepare` still fails closed on policy errors.
 5. **`suspend_for` and `finish`.**
    - Files: `src/workflows/prompt.ts` (`replySchema`), `src/workflows/finish.ts` (`resultMessage`,
      `extractResult`), `src/workflows/cli.ts`, `.github/actions/turn/action.yml`, `docs/workflows.md`.
@@ -320,13 +306,12 @@ suspend/resume; 6 is optional.
 7. **Docs and live check.**
    - Files: [mcp.md](mcp.md#operator-policy), [plan.md](plan.md#access-requests),
      [workflows.md](workflows.md), this file's status line.
-   - Accepted when: one remote server goes through ask, a 👍 inside the window (no suspend), the
-     window elapsing, suspend, 👍, a resume turn that answers the original request, and a URL edit
+   - Accepted when: one remote server goes through ask, a pending turn without the server, suspend, 👍, a resume turn that answers the original request, and a URL edit
      that produces a new question.
 
 ## Decisions (accepted)
 
-The maintainer accepted every recommendation as written and added Decision 12.
+The maintainer accepted every recommendation as written.
 
 1. **Cedar shape.** `context.approved` evaluated twice (A), versus a second action, annotations,
    partial evaluation or a list outside Cedar. Accepted: A.
@@ -344,6 +329,3 @@ The maintainer accepted every recommendation as written and added Decision 12.
 10. **Approval-call failure.** Run without the server, versus fail the turn. Accepted: run without it.
 11. **Long-running backlog item.** Reword it to name `timeout-minutes` and cost as the real limits.
     Accepted (a TODO.md edit, separate from this design).
-12. **Synchronous window.** An approval that resolves quickly does not suspend; only one that outlasts
-    a configurable window falls back to suspend/resume. See
-    [Synchronous window](#synchronous-window). Config: `mcp_approval.wait_seconds`, default `2`.

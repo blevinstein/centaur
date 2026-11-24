@@ -300,8 +300,16 @@ permit(principal, action == Action::"UseServer", resource) when { context.approv
 ```
 
 Policies that never mention `context` behave as before. How the admin is asked and the decision
-stored is designed in [mcp-approval.md](mcp-approval.md); only the policy outcome and the notice are
-built so far.
+stored is designed in [mcp-approval.md](mcp-approval.md).
+
+`prepare` asks the poster `mcp-approvals` once per turn for all approval-required servers, with a one-line
+summary of each (transport, host or command and args, secret names, allowed tools; never values), and
+uses the answer as is. `approved` servers run; `pending` and `denied` servers are dropped from
+`mcp.json` and from `--allowedTools` (including `mcp__<name>__*` entries), and the prompt names them.
+A poster failure counts as `pending`, so the turn runs without them. A decision that arrives later is
+seen by the next turn. A scheduled prompt without a persistent thread has no thread to raise a request in, so it calls
+`mcp-approvals` without one: the call only reads stored decisions, so such a prompt uses a server the
+admin already approved but cannot request one.
 
 ## Out of scope
 
