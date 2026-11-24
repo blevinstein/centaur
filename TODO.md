@@ -386,3 +386,5 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       `docs/research.md`).
 - [x] Bump `@blevinstein/chat-state-dynamodb` to 0.4.0 (adapter rejects calls before `connect()`);
       `connectState` already connects every adapter the Lambda creates.
+- [ ] Run a security audit to explore weaknesses and fix vulnerabillities
+
