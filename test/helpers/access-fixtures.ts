@@ -1,6 +1,8 @@
 import { createMemoryState } from "@chat-adapter/state-memory";
 import { vi } from "vitest";
+import type { Platform } from "../../src/config/index.js";
 import { createAccessDecisions } from "../../src/lambda/access-decisions.js";
+import { encodeEntry } from "../../src/lambda/access-entries.js";
 import {
   type AccessRequestLimits,
   createAccessRequestStore,
@@ -13,13 +15,17 @@ import {
 import { telegramAdminChannel } from "../../src/lambda/admin-channel.js";
 import { encodeClaim } from "../../src/lambda/admin-claim-record.js";
 import { createAdminClaimer } from "../../src/lambda/admin-claims.js";
+import { approverParameter } from "../../src/lambda/connection-paths.js";
 import {
   fakeDispatcher,
   fakeLogger,
+  fakeMessage,
   fakeParameterStore,
+  fakeThread,
   GARDEN_BOT,
   PARAMETERS,
   SLACK_BOT,
+  STRANGER_USER_ID,
 } from "./receiver-fixtures.js";
 
 const { "/centaur/chats/telegram/household": _household, ...ACCESS_PARAMETERS } = PARAMETERS;
@@ -32,16 +38,19 @@ export async function accessHarness({
   admin = ADMIN_ID,
   limits,
   dmFails = false,
+  approvers = [],
 }: {
   admin?: string | null;
   limits?: Partial<AccessRequestLimits>;
   dmFails?: boolean;
+  approvers?: string[];
 } = {}) {
   const state = createMemoryState();
   await state.connect();
   const params = fakeParameterStore({
     ...ACCESS_PARAMETERS,
     ...(admin ? { [ADMIN_PARAMETER]: admin } : {}),
+    ...approverEntries(GARDEN_BOT, approvers),
   });
   const store = createAccessRequestStore(state, {
     ttlMs: 7 * 24 * 60 * 60 * 1000,
@@ -85,8 +94,8 @@ export async function accessHarness({
     dispatcher,
     logger,
   });
-  const adminText = () => adminPost.mock.calls[0]?.[0].raw ?? "";
-  const requestId = () => /Access request (\w+)/.exec(adminText())?.[1] as string;
+  const adminText = (index = 0) => adminPost.mock.calls[index]?.[0].raw ?? "";
+  const requestId = (index = 0) => /Access request (\w+)/.exec(adminText(index))?.[1] as string;
   const reaction = (
     rawEmoji: string,
     overrides: { userId?: string; messageId?: string; added?: boolean; isDM?: boolean } = {},
@@ -98,6 +107,7 @@ export async function accessHarness({
     thread: { isDM: overrides.isDM ?? true },
   });
   return {
+    state,
     store,
     params,
     messenger,
@@ -171,3 +181,35 @@ export async function mcpHarness(
   const outcome = await h.requestMcp(mcpInput(input));
   return { ...h, outcome };
 }
+
+export const APPROVER_ID = "6001";
+export const OTHER_APPROVER_ID = "6002";
+
+export const approverEntries = (
+  bot: { name: string; platform: Platform },
+  userIds: string[],
+): Record<string, string> =>
+  Object.fromEntries(
+    userIds.map((userId) => [approverParameter(bot.name, bot.platform, userId), encodeEntry()]),
+  );
+
+export async function pendingAccessHarness(
+  kind: "chat" | "user",
+  options: Parameters<typeof accessHarness>[0] = {},
+) {
+  const h = await accessHarness(options);
+  const { thread } = fakeThread();
+  await h.requestAccess(kind, thread, fakeMessage({ userId: STRANGER_USER_ID, isMention: true }));
+  return h;
+}
+
+export const commandFrom = (
+  name: string,
+  text: string,
+  overrides: { userId?: string; isDM?: boolean } = {},
+) => ({
+  command: name,
+  text,
+  user: { userId: overrides.userId ?? ADMIN_ID },
+  isDM: overrides.isDM ?? true,
+});

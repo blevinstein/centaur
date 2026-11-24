@@ -42,6 +42,12 @@ export const blockedPrefix = (bot: string, platform: Platform, kind: AccessKind)
 export const blockedParameter = (bot: string, platform: Platform, kind: AccessKind, id: string) =>
   `${blockedPrefix(bot, platform, kind)}/${id}`;
 
+/** Users the admin authorizes to decide some requests; one entry per user ID. */
+export const approversPrefix = (bot: string, platform: Platform) =>
+  connectionParameter(bot, platform, "approvers");
+export const approverParameter = (bot: string, platform: Platform, userId: string) =>
+  `${approversPrefix(bot, platform)}/${userId}`;
+
 export interface ParsedBotParameter {
   bot: string;
   /** Set for `repo` (bot level) and for the direct keys of a connection. */

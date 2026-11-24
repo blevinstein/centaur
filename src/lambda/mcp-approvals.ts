@@ -98,7 +98,7 @@ export function createMcpApprovals({ params, oidc, open, openBot, logger }: McpA
       ) {
         return "approved";
       }
-      if (await store.isDenied(subjectId)) return "denied";
+      if (await store.isDenied("mcp", subjectId)) return "denied";
       if (!thread || !requestApproval) return "pending";
       const outcome = await requestApproval({
         ...server,

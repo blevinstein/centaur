@@ -7,6 +7,7 @@ import {
   type Verdict,
 } from "./access-request-store.js";
 import { type AdminChannel, lookupAdminId } from "./admin-channel.js";
+import { type DeciderRoles, isMember, loadApprovers, mayDecide } from "./approvers.js";
 import {
   approvedParameter,
   blockedParameter,
@@ -40,6 +41,7 @@ export const COMMAND_REPLIES = {
   deny: (request: AccessRequest) =>
     `Denied${request.kind === "mcp" ? "" : " and blocked"} ${request.kind} ${request.id}.`,
   unknown: "Unknown or expired request.",
+  adminOnly: "That request is for the admin to decide.",
   handled: "That request was already handled.",
   usage: "Usage: /approve <id> or /deny <id>",
 } as const;
@@ -77,7 +79,26 @@ export function createAccessDecisions({
 }: AccessDecisionsDeps) {
   const where = { bot: bot.name, platform: bot.platform };
 
-  const isAdmin = async (userId: string) => userId === (await lookupAdminId(params, bot.platform));
+  const rolesOf = async (userId: string): Promise<DeciderRoles> => ({
+    userId,
+    admin: await lookupAdminId(params, bot.platform),
+    approvers: await loadApprovers(params, bot.name, bot.platform),
+  });
+
+  const findRequest = async (requestId: string) => {
+    const request = await store.read(requestId);
+    return request?.threadId.startsWith(`${bot.platform}:`) ? request : undefined;
+  };
+
+  /** A stranger is never told whether a request exists; a member refused for its kind is. */
+  const authorize = async (
+    userId: string,
+    request: AccessRequest | undefined,
+  ): Promise<"stranger" | "refused" | "allowed"> => {
+    const roles = await rolesOf(userId);
+    if (!isMember(roles)) return "stranger";
+    return !request || mayDecide({ ...roles, kind: request.kind }) ? "allowed" : "refused";
+  };
 
   const applyAccess = async ({ request, verdict }: Decision) => {
     const kind = request.kind as AccessKind;
@@ -107,7 +128,7 @@ export function createAccessDecisions({
         JSON.stringify({ at: new Date().toISOString(), approver: approverId }),
       );
     } else {
-      await store.recordDenial(request.subjectId);
+      await store.recordDenial(request.kind, request.subjectId, approverId);
     }
     if (request.suspended && request.messageId) {
       await dispatchMessage(dispatcher, bot, request.threadId, request.messageId);
@@ -121,12 +142,11 @@ export function createAccessDecisions({
   > = { chat: applyAccess, user: applyAccess, mcp: applyMcp };
 
   const resolve = async (
-    requestId: string,
+    request: AccessRequest | undefined,
     verdict: Verdict,
     approverId: string,
   ): Promise<DecisionOutcome> => {
-    const request = await store.read(requestId);
-    if (!request?.threadId.startsWith(`${bot.platform}:`)) return { status: "unknown" };
+    if (!request) return { status: "unknown" };
     if (!(await store.claimDecision(request.id, verdict))) return { status: "handled" };
     let destinationName: string | undefined;
     try {
@@ -141,6 +161,7 @@ export function createAccessDecisions({
       kind: request.kind,
       subjectId: request.subjectId,
       verdict,
+      approverId,
     });
     const reply = verdict === "approve" ? APPROVED_TEXT[request.kind] : DENIED_TEXT[request.kind];
     if (reply) {
@@ -182,11 +203,18 @@ export function createAccessDecisions({
         });
         return;
       }
-      if (!(await isAdmin(userId))) {
-        logger.warn("ignoring access decision from a non-admin", { ...where, requestId, userId });
+      const request = await findRequest(requestId);
+      const access = await authorize(userId, request);
+      if (access !== "allowed") {
+        logger.warn(
+          access === "stranger"
+            ? "ignoring access decision from a non-admin"
+            : "ignoring access decision on a request an approver may not decide",
+          { ...where, requestId, userId },
+        );
         return;
       }
-      await resolve(requestId, verdict, userId);
+      await resolve(request, verdict, userId);
     },
 
     async fromCommand(
@@ -196,10 +224,14 @@ export function createAccessDecisions({
       },
     ): Promise<string | undefined> {
       const verdict = COMMAND_VERDICTS[event.command];
-      if (!verdict || !event.isDM || !(await isAdmin(event.user.userId))) return undefined;
+      if (!verdict || !event.isDM) return undefined;
       const requestId = normalizeId(event.text);
+      const request = requestId ? await findRequest(requestId) : undefined;
+      const access = await authorize(event.user.userId, request);
+      if (access === "stranger") return undefined;
       if (!requestId) return COMMAND_REPLIES.usage;
-      const outcome = await resolve(requestId, verdict, event.user.userId);
+      if (access === "refused") return COMMAND_REPLIES.adminOnly;
+      const outcome = await resolve(request, verdict, event.user.userId);
       return outcome.status === "applied"
         ? COMMAND_REPLIES[verdict](outcome.request, outcome.destinationName)
         : COMMAND_REPLIES[outcome.status];

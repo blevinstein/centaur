@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { MCP_MESSAGE_ID, MCP_SUBJECT, MCP_THREAD_ID } from "./helpers/access-fixtures.js";
+import { ADMIN_ID, MCP_MESSAGE_ID, MCP_SUBJECT, MCP_THREAD_ID } from "./helpers/access-fixtures.js";
 import { LINEAR, mcpApprovalsPoster } from "./helpers/mcp-approvals-fixtures.js";
 
 describe("poster mcp-approvals results", () => {
@@ -12,7 +12,7 @@ describe("poster mcp-approvals results", () => {
 
   it("answers denied while the denial record lasts, without asking", async () => {
     const h = await mcpApprovalsPoster();
-    await h.store.recordDenial(MCP_SUBJECT);
+    await h.store.recordDenial("mcp", MCP_SUBJECT, ADMIN_ID);
 
     expect(await h.statuses()).toEqual({ servers: { linear: "denied" } });
     expect(h.adminPost).not.toHaveBeenCalled();
@@ -20,7 +20,7 @@ describe("poster mcp-approvals results", () => {
 
   it("prefers the approval over a denial record", async () => {
     const h = await mcpApprovalsPoster({ approved: true });
-    await h.store.recordDenial(MCP_SUBJECT);
+    await h.store.recordDenial("mcp", MCP_SUBJECT, ADMIN_ID);
 
     expect(await h.statuses()).toEqual({ servers: { linear: "approved" } });
   });
@@ -111,7 +111,7 @@ describe("without a thread", () => {
     ["pending", {}, "pending"],
   ] as const)("reads a stored decision and answers %s", async (_name, options, expected) => {
     const h = await mcpApprovalsPoster(options);
-    if (expected === "denied") await h.store.recordDenial(MCP_SUBJECT);
+    if (expected === "denied") await h.store.recordDenial("mcp", MCP_SUBJECT, ADMIN_ID);
 
     expect(await h.statuses(threadless)).toEqual({ servers: { linear: expected } });
   });
@@ -175,7 +175,7 @@ describe("no admin", () => {
 
     expect(h.adminPost).not.toHaveBeenCalled();
     expect(await h.pendingRequest()).toBeNull();
-    expect(await h.store.isDenied(MCP_SUBJECT)).toBe(false);
+    expect(await h.store.isDenied("mcp", MCP_SUBJECT)).toBe(false);
     expect(h.logger.warn).toHaveBeenCalledExactlyOnceWith(expect.any(String), {
       bot: "garden",
       platform: "telegram",

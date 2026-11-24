@@ -246,7 +246,7 @@ thread, which restarts the TTL.
 Reads the admin's decision for each MCP server definition, identified by `<name>:<fingerprint>` (`summary` is shown to the admin and only length-limited). The repository comes from the verified OIDC claim and must be the bot's bound repository. For each server, in order:
 
 1. The SSM record `bots/<bot>/mcp-approvals/<name>/<fingerprint>` exists: `approved`.
-2. The `mcp-denied` state record exists (7 days): `denied`.
+2. The `denied:mcp:<name>:<fingerprint>` state record exists (7 days): `denied`.
 3. Otherwise the shared request raiser opens one request to the platform admin (one pending request per definition, 10 new requests per bot per hour, 7-day expiry) and the result is `pending`. A request over the hourly limit or one that could not be delivered is also `pending`.
 4. A bot with no admin on its platform gets `denied`, no record is created, and the Lambda logs a warning with the bot and platform.
 

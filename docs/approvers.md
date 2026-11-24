@@ -1,8 +1,13 @@
 # Approvers
 
 Design for a group of **approvers** besides the platform admin: people the admin authorizes, from
-Slack or Telegram, to decide requests the bot sends for approval. Proposed, not built; the maintainer
-accepts or amends the [Decisions](#decisions) first. Terms (admin channel, access request, claim) are
+Slack or Telegram, to decide requests the bot sends for approval.
+
+Status: slice 1 (set and gate) is built: the path helpers, `loadApprovers`, `mayDecide`, the denial
+audit record and the `approverId` log field. Not built: DMs to approvers (slice 2), the
+`approver` request kind and `leave` (3), admin commands (4), the CLI (5), access requests (6) and
+the docs fold-in (7); until slice 2 an approver cannot receive a request, so the set is written by
+hand. The [Decisions](#decisions) are the design. Terms (admin channel, access request, claim) are
 defined in [plan.md](plan.md#access-requests); the request kind that motivates this is in
 [mcp-approval.md](mcp-approval.md).
 

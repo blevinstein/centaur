@@ -74,6 +74,17 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
       access requests), authorized by the admin. Design and recommendations:
       [docs/approvers.md](docs/approvers.md); **[HUMAN APPROVAL]** accept or amend its Decisions
       before building.
+  - [x] Approvers 1: set and gate (path helpers, `mayDecide`, audit). No dependencies.
+  - [ ] Approvers 2: fan-out of `mcp` requests to the admin and each approver, with the
+        channel-keyed message link. Needs 1.
+  - [ ] Approvers 3: the `approver` request kind and `leave`, IAM write on the approvers path.
+        Needs 1. **[HUMAN APPROVAL]** deploy of the Lambda and IAM change.
+  - [ ] Approvers 4: admin commands `add`, `remove`, `list` from chat. Needs 3.
+  - [ ] Approvers 5: `centaur approvers list|remove|add`. Needs 1 (path helpers).
+  - [ ] Approvers 6: open `chat` or `user` requests to approvers, only if Decision 1 is amended.
+        Needs 1.
+  - [ ] Approvers 7: fold the design's docs table (section 9) into plan, mcp-approval, cli and
+        deploy. Needs 1 to 5.
 - [ ] Explore a way to update the MCP policy by adding entries to an allowlist, with some level of
       generalization (for example allow a server by name, by URL or host pattern, or a tool within
       it) instead of editing the Cedar files by hand. Open questions to settle first: who may add an

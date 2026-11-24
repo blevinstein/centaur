@@ -41,7 +41,7 @@ const claimKey = (id: string) => `access-request-claim:${id}`;
 const subjectKey = (kind: RequestKind, subjectId: string) => `access-subject:${kind}:${subjectId}`;
 const noticeKey = (kind: RequestKind, subjectId: string) => `access-notice:${kind}:${subjectId}`;
 const messageKey = (messageId: string) => `access-request-message:${messageId}`;
-const denialKey = (subjectId: string) => `mcp-denied:${subjectId}`;
+const denialKey = (kind: RequestKind, subjectId: string) => `denied:${kind}:${subjectId}`;
 const RATE_KEY = "access-request-rate";
 
 const randomId = () =>
@@ -114,10 +114,12 @@ export function createAccessRequestStore(
 
     requestIdForMessage: (messageId: string) => state.get<string>(messageKey(messageId)),
 
-    /** A denied MCP server stays denied until the record expires. */
-    recordDenial: (subjectId: string) => state.set(denialKey(subjectId), true, ttlMs),
+    /** A denied subject stays denied until the record expires; the record names who denied it. */
+    recordDenial: (kind: RequestKind, subjectId: string, approver: string) =>
+      state.set(denialKey(kind, subjectId), { at: new Date().toISOString(), approver }, ttlMs),
 
-    isDenied: async (subjectId: string) => (await state.get(denialKey(subjectId))) === true,
+    isDenied: async (kind: RequestKind, subjectId: string) =>
+      (await state.get(denialKey(kind, subjectId))) != null,
 
     claimDecision: (id: string, verdict: Verdict) =>
       state.setIfNotExists(claimKey(id), verdict, ttlMs),

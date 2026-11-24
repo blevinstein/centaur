@@ -300,14 +300,21 @@ users without touching SSM by hand: the bot asks them, and they answer from thei
 A chat request and a user request are separate: a new group needs its chat approved, and each
 person in it still needs approval to talk to the bot (DMs only need the user).
 
+**Who may decide.** The platform admin decides every kind. Users in the connection's approver set
+(`bots/<bot>/platforms/<platform>/approvers/<userId>`, read uncached on every decision, so a removal
+is immediate) may decide the kinds in `APPROVER_KINDS` (`src/lambda/approvers.ts`, today `mcp`); an
+approver trying another kind is told it is for the admin. Anyone else is ignored. With no admin
+the set is inert, and an empty set means the admin alone decides. A denial stores `{at, approver}`
+at `denied:<kind>:<subject>`. Approvers are not yet sent requests; see [approvers.md](approvers.md).
+
 **MCP approval requests.** A third kind, `mcp`, asks the admin to approve one MCP server definition
 (design in [mcp-approval.md](mcp-approval.md)). It reuses the keys above and adds fields to the
 request: `subjectId` is `<name>:<fingerprint>`, plus a length-limited `summary`, the `threadId` and
 `messageId` of the triggering message, and `suspended`. The DM names the bot, repository, server and
-summary, never message content, and `/deny` does not block anything. Only the admin decides, once
+summary, never message content, and `/deny` does not block anything. Decided once
 (the claim); a request expires after 7 days. Approval writes the SSM parameter `bots/<bot>/mcp-approvals/<name>/<fingerprint>` (JSON:
 time and approver user ID; presence means approved) and posts "approved" in the originating thread;
-denial writes the state-table record `mcp-denied:<name>:<fingerprint>` (7-day TTL, like every request) and posts
+denial writes the state-table record `denied:mcp:<name>:<fingerprint>` (7-day TTL, like every request) and posts
 "denied". When `suspended`, either decision then sends a `centaur-message` `repository_dispatch` with
 the original `{bot, thread_id, thread_key, message_id}`; if the dispatch fails the claim is released so
 the decision can be retried.
@@ -378,7 +385,7 @@ recovered by claiming again.
 | SSM | `bots/<bot>/platforms/<platform>/approved-chats/<chatId>`, `approved-users/<userId>` | Approved subjects (JSON: name, destination name for chats, time). The destination name is stored under the key `alias`, as is the proposal in a pending request; the key name is historical and is not renamed. |
 | SSM | `chats/<platform>/<name>` | A destination: a chat ID or a JSON record with an optional bound thread; created by approvals, never overwritten by approvals. |
 | SSM | `bots/<bot>/platforms/<platform>/blocked/<chat\|user>/<id>` | Blocked subjects (JSON: name, time). |
-| State table (TTL) | `mcp-denied:<name>:<fingerprint>` | A denied MCP server. |
+| State table (TTL) | `denied:mcp:<name>:<fingerprint>` | A denied MCP server. |
 | SSM | `bots/<bot>/mcp-approvals/<name>/<fingerprint>` | An approved MCP server definition (JSON: time, approver). |
 | SSM | `admin/<platform>` | The admin's user ID. |
 | SSM | `admin-claim/<platform>` | The pending claim: bot, expiry, code hash. |

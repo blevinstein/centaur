@@ -203,7 +203,7 @@ and the runner re-derives it every turn.
 |---|---|---|
 | SSM | `bots/<bot>/mcp-approvals/<name>/<fingerprint>` | JSON: time, approver user ID. Presence means approved. Listable and revocable from the [CLI](cli.md). |
 | State table (TTL 7 days) | `access-request:<id>`, `access-subject:mcp:<name>:<fingerprint>`, `access-request-message:<message id>`, `access-request-claim:<id>` | As for access requests; the request carries the fields above. |
-| State table (TTL 7 days) | `mcp-denied:<name>:<fingerprint>` | Written on denial; reported as `denied` until it expires. |
+| State table (TTL 7 days) | `denied:mcp:<name>:<fingerprint>` | Written on denial; reported as `denied` until it expires. |
 
 Denial is a TTL record, so a mistaken 👎 heals itself and nothing needs a CLI. A repeated read of a pending request neither creates nor re-sends it. Existing limits apply:
 one pending request per subject, 10 new requests per bot per hour, 7-day expiry. The DM names the bot,

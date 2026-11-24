@@ -127,7 +127,7 @@ describe("an MCP approval decision", () => {
 
     await h.decisions.fromReaction(h.reaction("👎"));
 
-    expect(await h.store.isDenied(MCP_SUBJECT)).toBe(true);
+    expect(await h.store.isDenied("mcp", MCP_SUBJECT)).toBe(true);
     expect(h.params.values[MCP_APPROVAL_PARAMETER]).toBeUndefined();
     expect(h.postToThread).toHaveBeenCalledExactlyOnceWith(MCP_THREAD_ID, DENIED_TEXT.mcp);
     expect(h.dispatcher.dispatch).not.toHaveBeenCalled();
@@ -150,11 +150,11 @@ describe("an MCP approval decision", () => {
     try {
       const h = await mcpHarness({ limits: { ttlMs: 1000 } });
       await h.decisions.fromReaction(h.reaction("👎"));
-      expect(await h.store.isDenied(MCP_SUBJECT)).toBe(true);
+      expect(await h.store.isDenied("mcp", MCP_SUBJECT)).toBe(true);
 
       vi.advanceTimersByTime(1001);
 
-      expect(await h.store.isDenied(MCP_SUBJECT)).toBe(false);
+      expect(await h.store.isDenied("mcp", MCP_SUBJECT)).toBe(false);
       expect(await h.requestMcp(mcpInput())).toBe("raised");
     } finally {
       vi.useRealTimers();

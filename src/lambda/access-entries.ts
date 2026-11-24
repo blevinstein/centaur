@@ -26,10 +26,13 @@ export const encodeEntry = (
     at: at.toISOString(),
   });
 
-export function decodeEntry(value: string): AccessEntry {
+/** The entry a value encodes, or undefined when it is not a valid entry. */
+export function parseEntry(value: string): AccessEntry | undefined {
   try {
     const parsed = entrySchema.safeParse(JSON.parse(value));
     if (parsed.success) return parsed.data;
   } catch {}
-  return { at: "unknown" };
+  return undefined;
 }
+
+export const decodeEntry = (value: string): AccessEntry => parseEntry(value) ?? { at: "unknown" };
