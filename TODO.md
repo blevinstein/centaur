@@ -70,6 +70,10 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
 - [ ] Offer to redo the original request after an approval when the agent answered without
       suspending (store the request and re-ask on approval; today the receiver only posts that the
       server is available and the user asks again)
+- [ ] Approvers: a group broader than the platform admin who can decide MCP approvals (and possibly
+      access requests), authorized by the admin. Design and recommendations:
+      [docs/approvers.md](docs/approvers.md); **[HUMAN APPROVAL]** accept or amend its Decisions
+      before building.
 - [ ] Explore a way to update the MCP policy by adding entries to an allowlist, with some level of
       generalization (for example allow a server by name, by URL or host pattern, or a tool within
       it) instead of editing the Cedar files by hand. Open questions to settle first: who may add an
