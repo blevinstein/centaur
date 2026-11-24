@@ -4,6 +4,7 @@ import type { SecretReader } from "../../src/cli/secret-input.js";
 import type { Platform } from "../../src/config/index.js";
 import {
   approvedParameter,
+  approverParameter,
   connectionParameter,
   mcpApprovalParameter,
   repoParameter,
@@ -46,6 +47,9 @@ export function createCliHarness(
     /** Approves a chat directly, as `access approve` would. */
     approveChat: (bot: string, platform: Platform, chatId: string) =>
       store.put(approvedParameter(bot, platform, "chat", chatId), "{}", { secure: false }),
+    /** Writes an approver entry directly, as an approved chat request would. */
+    addApprover: (bot: string, platform: Platform, userId: string) =>
+      store.put(approverParameter(bot, platform, userId), "{}", { secure: false }),
     /** Records an MCP server approval directly, as the poster does on an admin decision. */
     approveMcp: (bot: string, name: string, fingerprint: string, at = "2026-01-02T03:04:05.000Z") =>
       store.put(
@@ -79,4 +83,19 @@ export async function createTailHarness(
   }
   for (const platform of platforms) await seedTailBot(cli.store, platform);
   return { ...cli, fake };
+}
+
+export const approverPath = (id: string, platform: Platform = "telegram", bot = "garden") =>
+  approverParameter(bot, platform, id);
+
+const ADMIN_IDS: Record<Platform, string> = { telegram: "5001", slack: "U1" };
+
+/** A harness with `garden` connected on each platform and an admin set on each. */
+export async function createApproverHarness(platforms: Platform[] = ["telegram"]) {
+  const cli = createCliHarness();
+  for (const platform of platforms) {
+    await cli.connect("garden", platform);
+    await cli.run("admin", "set", `--${platform}`, ADMIN_IDS[platform]);
+  }
+  return cli;
 }

@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { registerAccessCommands } from "./commands/access.js";
 import { registerAdminCommands } from "./commands/admin.js";
+import { registerApproversCommands } from "./commands/approvers.js";
 import { registerBotCommands } from "./commands/bot.js";
 import { registerChatCommands } from "./commands/chat.js";
 import { registerConfigCommands } from "./commands/config.js";
@@ -18,6 +19,7 @@ export function buildProgram(context: CliContext): Command {
   registerDestinationCommands(program, context);
   registerAdminCommands(program, context);
   registerAccessCommands(program, context);
+  registerApproversCommands(program, context);
   registerGithubTokenCommands(program, context);
   registerConfigCommands(program, context);
   registerChatCommands(program, context);

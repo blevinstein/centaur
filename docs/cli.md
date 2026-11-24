@@ -241,6 +241,30 @@ search  8c41d2e0a9b3  2026-02-03T04:05:06.000Z  <user id>
 Revoked 1 approval(s) for "search" on bot "garden".
 ```
 
+### `centaur approvers list|add|remove <bot> ... [--platform <platform>]`
+
+The operator's fallback to managing [approvers](approvers.md) from chat: users besides the admin who may
+decide MCP approvals. Each entry is `/centaur/bots/<bot>/platforms/<platform>/approvers/<user id>`, so an
+approver on one connection grants nothing on another. All three take `--platform` like `access`; changes
+apply to the next decision.
+
+- `list <bot>` prints `user id  added-at`, or `No approvers for "<bot>" on <platform>.`, then the admin
+  (`none` if unclaimed), who is always an approver.
+- `add <bot> <user id>` writes an entry holding the time. It refuses when the platform has no admin (the
+  set has no effect without one), for the admin's own ID, and when the connection already has 10
+  approvers. Adding an existing approver changes nothing.
+- `remove <bot> <user id>` deletes the entry and errors, deleting nothing, if there is none.
+
+```text
+$ centaur approvers add garden <user id>
+Added approver <user id> for bot "garden".
+$ centaur approvers list garden
+<user id>  2026-01-02T03:04:05.000Z
+The admin (<admin id>) is always an approver.
+$ centaur approvers remove garden <user id>
+Removed approver <user id> for bot "garden".
+```
+
 ### `centaur chat tail <bot> [--platform <platform>] [--minutes <n>] [--limit <n>] [--text] [--table <name>]`
 
 Read-only. Lists a connection's recent messages, oldest first, through the poster's `read-channel`
@@ -351,6 +375,10 @@ Errors are printed to stderr and the exit code is 1.
 | `Unknown kind "<x>": expected chat or user.` | `access` with a kind other than `chat` or `user`. |
 | `Approved <kind> <id> not found.` / `Blocked <kind> <id> not found.` | `access revoke` / `unblock` with no such entry. |
 | `No admin is set for <platform>.` | `admin remove` for a platform with no admin. |
+| `No admin is set for <platform>: approvers have no effect without one. ...` | `approvers add` on a platform with no admin. |
+| `<id> is the admin for <platform>, who is always an approver.` | `approvers add` of the admin's ID. |
+| `Bot "<x>" already has 10 approvers on <platform>; remove one first.` | `approvers add` over the cap. |
+| `Approver <id> not found.` | `approvers remove` with no such entry. |
 | `Cannot block <id>: they are the admin for <platform>.` | `access block <bot> user <id>` for the admin. |
 | `No pending claim for bot "<x>".` | `admin claim --cancel` with no pending claim for that bot. |
 | `Could not look up the bot's username from Telegram: ...` | `admin claim` for a Telegram bot when `getMe` fails (bad token or network). |

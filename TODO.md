@@ -80,7 +80,7 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
   - [ ] Approvers 3: the `approver` request kind and `leave`, IAM write on the approvers path.
         Needs 1. **[HUMAN APPROVAL]** deploy of the Lambda and IAM change.
   - [ ] Approvers 4: admin commands `add`, `remove`, `list` from chat. Needs 3.
-  - [ ] Approvers 5: `centaur approvers list|remove|add`. Needs 1 (path helpers).
+  - [x] Approvers 5: `centaur approvers list|remove|add`. Needs 1 (path helpers).
   - [ ] Approvers 6: open `chat` or `user` requests to approvers, only if Decision 1 is amended.
         Needs 1.
   - [ ] Approvers 7: fold the design's docs table (section 9) into plan, mcp-approval, cli and
