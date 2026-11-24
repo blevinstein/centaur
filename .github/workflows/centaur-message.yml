@@ -26,6 +26,8 @@ jobs:
       GITHUB_MCP_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup-runtime
       - uses: ./.github/actions/turn
         with:

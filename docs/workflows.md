@@ -34,6 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: <owner>/centaur/.github/actions/setup-runtime@main
       - uses: <owner>/centaur/.github/actions/register@main
 ```
@@ -57,6 +59,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: <owner>/centaur/.github/actions/setup-runtime@main
       - uses: <owner>/centaur/.github/actions/turn@main
         with:
@@ -84,6 +88,8 @@ jobs:
       group: ${{ steps.resolve.outputs.group }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: <owner>/centaur/.github/actions/setup-runtime@main
       - id: resolve
         uses: <owner>/centaur/.github/actions/resolve-schedule@main
@@ -98,6 +104,8 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: <owner>/centaur/.github/actions/setup-runtime@main
       - uses: <owner>/centaur/.github/actions/turn@main
         with:
@@ -107,6 +115,12 @@ jobs:
       - if: failure()
         uses: <owner>/centaur/.github/actions/notify-failure@main
 ```
+
+Every centaur entrypoint checks out full history (`fetch-depth: 0`), so each job and the agent see
+the same repository state and the agent can read `git log`, `git blame` and older files; the default
+shallow checkout shows one commit. A very large repository can set a smaller `fetch-depth` at the
+cost of history questions. The `.centaur-trusted` checkout in the pull request comment workflow only
+supplies the trusted config and actions, so it stays shallow.
 
 Pin `@main` to a tag or SHA for stability. Callers must grant the permissions shown:
 `id-token: write` for AWS and the registration token, `contents: write` and `pull-requests: write`

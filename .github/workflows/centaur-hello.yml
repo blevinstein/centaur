@@ -22,6 +22,8 @@ jobs:
       CENTAUR_AWS_REGION: ${{ vars.CENTAUR_AWS_REGION }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup-runtime
       - id: resolve
         uses: ./.github/actions/resolve-schedule
@@ -44,6 +46,8 @@ jobs:
       GITHUB_MCP_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup-runtime
       - uses: ./.github/actions/turn
         with:

@@ -22,5 +22,7 @@ jobs:
       CENTAUR_SESSION_BUCKET: ${{ vars.CENTAUR_SESSION_BUCKET }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup-runtime
       - uses: ./.github/actions/register

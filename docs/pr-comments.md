@@ -102,6 +102,8 @@ jobs:
       CENTAUR_SESSION_BUCKET: ${{ vars.CENTAUR_SESSION_BUCKET }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: blevinstein/centaur/.github/actions/setup-runtime@main
       - id: resolve
         uses: blevinstein/centaur/.github/actions/resolve-pr-comment@main
@@ -124,6 +126,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ needs.resolve.outputs.head_ref }}
+          fetch-depth: 0
       - uses: blevinstein/centaur/.github/actions/setup-runtime@main
       - uses: blevinstein/centaur/.github/actions/turn@main
         with:
@@ -173,6 +176,7 @@ what `finish` commits and pushes, is the pull request branch.
       - uses: actions/checkout@v7
         with:
           ref: ${{ needs.resolve.outputs.head_ref }}
+          fetch-depth: 0
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
