@@ -15,6 +15,7 @@ export interface ReceiverDeps {
   dispatcher: RepositoryDispatcher;
   logger: Logger;
   history?: HistoryWindow | undefined;
+  failureNoticeIntervalMs?: number | undefined;
 }
 
 const ROUTE = /^\/(telegram|slack)\/([a-z0-9][a-z0-9_-]*)$/;
@@ -28,6 +29,7 @@ export async function createReceiver({
   dispatcher,
   logger,
   history,
+  failureNoticeIntervalMs,
 }: ReceiverDeps): Promise<WebHandler> {
   const registryState = await connectState(createState(""));
   const bots = await loadBots(params, logger);
@@ -43,6 +45,7 @@ export async function createReceiver({
           dispatcher,
           logger,
           history,
+          failureNoticeIntervalMs,
         });
         return [routeKey(bot), { bot, chat }] as const;
       } catch (error) {

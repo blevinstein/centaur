@@ -74,6 +74,15 @@ in the diagram because it's invoked over IAM, not a public URL.
   5. Send a `repository_dispatch` of type `centaur-message` to the bot's repo with payload
      `{bot, thread_id, thread_key, message_id}`. The message text stays out of GitHub so it never lands in
      public logs.
+     When the dispatch fails (any path: messages, slash fallbacks, a resumed MCP approval), the
+     error still reaches the Chat SDK log, and the platform's admin gets a direct message with the
+     bot, platform, repository and HTTP status, plus a hint. It never carries message text or
+     user, chat or thread IDs. There is at most one per bot per `DispatchFailureNoticeMinutes`
+     (default 15; state key `dispatch-failure-notice`; `0` turns the notice off, for example
+     `scripts/deploy.sh --stack centaur --params-file parameters-prod.json
+     DispatchFailureNoticeMinutes=0`), and a bot without an admin, or one the admin never messaged,
+     only logs. A 404 (or 401/403) means the GitHub token lacks access to the repository: a
+     fine-grained token needs it added with Contents read/write.
 - Must finish before returning: Lambda freezes after the response, so no post-response work.
   Dispatching to GitHub is a single fast API call.
 - Secrets (bot tokens, webhook secrets, GitHub credential) in SSM Parameter Store or Secrets

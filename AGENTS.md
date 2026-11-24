@@ -192,3 +192,7 @@
   with a thread sets `approvalThread` so the request can be raised.
 - A value `finish` reads from the turn state must be written by `prepare`; `FinishDeps` additions
   stay optional so existing finish tests keep passing.
+- A dispatch path gets its dispatcher from `createBotChat` (`src/lambda/chat.ts`), which wraps it with `withFailureNotice` so a failed dispatch DMs the admin; never build a `RepositoryDispatcher` elsewhere.
+  Its minimum interval is the `DispatchFailureNoticeMinutes` stack parameter
+  (`DISPATCH_FAILURE_NOTICE_MINUTES`, read in `src/lambda/dispatch-failure-notice.ts`; `0` turns it off),
+  checked in `test/infra.test.ts`.

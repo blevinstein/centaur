@@ -24,6 +24,10 @@ import {
   approverParameter,
   blockedParameter,
 } from "../../src/lambda/connection-paths.js";
+import {
+  DEFAULT_FAILURE_NOTICE_MINUTES,
+  withFailureNotice,
+} from "../../src/lambda/dispatch-failure-notice.js";
 import { createMessageHandler } from "../../src/lambda/message-handler.js";
 import {
   fakeAttachments,
@@ -103,6 +107,15 @@ export async function accessHarness({
     logger,
   });
   const dispatcher = fakeDispatcher();
+  const noticeDispatcher = withFailureNotice(dispatcher, {
+    bot: GARDEN_BOT,
+    intervalMs: DEFAULT_FAILURE_NOTICE_MINUTES * 60_000,
+    params,
+    state,
+    channel: telegramAdminChannel,
+    messenger,
+    logger,
+  });
   const invalidateAccess = vi.fn();
   const postToThread = vi.fn(async (_threadId: string, _text: string) => ({}));
   const decisions = createAccessDecisions({
@@ -112,7 +125,7 @@ export async function accessHarness({
     channel: telegramAdminChannel,
     invalidateAccess,
     postToThread,
-    dispatcher,
+    dispatcher: noticeDispatcher,
     logger,
   });
   const adminText = (index = 0) => adminPost.mock.calls[index]?.[0].raw ?? "";

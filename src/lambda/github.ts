@@ -2,6 +2,16 @@ export interface RepositoryDispatcher {
   dispatch(repo: string, eventType: string, clientPayload: Record<string, string>): Promise<void>;
 }
 
+export class DispatchError extends Error {
+  constructor(
+    repo: string,
+    readonly status: number,
+  ) {
+    super(`repository_dispatch to ${repo} failed with HTTP ${status}`);
+    this.name = "DispatchError";
+  }
+}
+
 export function createGitHubDispatcher(token: string, fetchImpl = fetch): RepositoryDispatcher {
   return {
     async dispatch(repo, eventType, clientPayload) {
@@ -16,9 +26,7 @@ export function createGitHubDispatcher(token: string, fetchImpl = fetch): Reposi
         },
         body: JSON.stringify({ event_type: eventType, client_payload: clientPayload }),
       });
-      if (!response.ok) {
-        throw new Error(`repository_dispatch to ${repo} failed with HTTP ${response.status}`);
-      }
+      if (!response.ok) throw new DispatchError(repo, response.status);
     },
   };
 }

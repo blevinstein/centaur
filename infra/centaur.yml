@@ -57,6 +57,12 @@ Parameters:
     MinValue: 1
     MaxValue: 365
     Description: Days a stored history list lives after its latest message.
+  DispatchFailureNoticeMinutes:
+    Type: Number
+    Default: 15
+    MinValue: 0
+    MaxValue: 1440
+    Description: Minimum minutes between direct messages to a bot's admin about a failed GitHub dispatch, per bot. 0 turns the notice off.
 
 Conditions:
   ShouldDeployLambda: !Equals [!Ref DeployLambda, 'TRUE']
@@ -263,6 +269,7 @@ Resources:
           OIDC_AUDIENCE: !Ref OidcAudience
           HISTORY_MAX_MESSAGES: !Ref HistoryMaxMessages
           HISTORY_TTL_DAYS: !Ref HistoryTtlDays
+          DISPATCH_FAILURE_NOTICE_MINUTES: !Ref DispatchFailureNoticeMinutes
 
   ReceiverFunctionUrl:
     Type: AWS::Lambda::Url

@@ -5,6 +5,7 @@ import { ConsoleLogger } from "chat";
 import { createAttachmentStore, createS3ObjectStore } from "./attachments.js";
 import { createCachedParameterStore } from "./cached-parameters.js";
 import { createChat } from "./chat.js";
+import { readFailureNoticeIntervalMs } from "./dispatch-failure-notice.js";
 import { createGitHubDispatcher } from "./github.js";
 import { readHistoryWindow } from "./history-window.js";
 import { wrapHandler } from "./http.js";
@@ -58,6 +59,7 @@ async function buildReceiver() {
     dispatcher: createGitHubDispatcher(token),
     logger,
     history: readHistoryWindow(),
+    failureNoticeIntervalMs: readFailureNoticeIntervalMs(),
   });
 }
 

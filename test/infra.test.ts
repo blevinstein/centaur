@@ -3,6 +3,10 @@ import { TABLE_DEFINITION, TTL_ATTRIBUTE } from "@blevinstein/chat-state-dynamod
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import {
+  DEFAULT_FAILURE_NOTICE_MINUTES,
+  FAILURE_NOTICE_MINUTES_LIMIT,
+} from "../src/lambda/dispatch-failure-notice.js";
+import {
   DEFAULT_HISTORY_MAX_MESSAGES,
   DEFAULT_HISTORY_TTL_DAYS,
   HISTORY_MAX_MESSAGES_LIMIT,
@@ -170,6 +174,22 @@ describe("the stored-history window", () => {
     expect(template.Resources.ReceiverFunction.Properties.Environment.Variables).toMatchObject({
       HISTORY_MAX_MESSAGES: "HistoryMaxMessages",
       HISTORY_TTL_DAYS: "HistoryTtlDays",
+    });
+  });
+});
+
+describe("the dispatch failure notice interval", () => {
+  it("has a template parameter that matches the code's default and bounds", () => {
+    expect(template.Parameters.DispatchFailureNoticeMinutes).toMatchObject({
+      Default: DEFAULT_FAILURE_NOTICE_MINUTES,
+      MinValue: 0,
+      MaxValue: FAILURE_NOTICE_MINUTES_LIMIT,
+    });
+  });
+
+  it("is passed to the Lambda through its environment", () => {
+    expect(template.Resources.ReceiverFunction.Properties.Environment.Variables).toMatchObject({
+      DISPATCH_FAILURE_NOTICE_MINUTES: "DispatchFailureNoticeMinutes",
     });
   });
 });

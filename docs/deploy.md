@@ -27,6 +27,7 @@ format `aws cloudformation` accepts.
 | `LogRetentionDays` | Days to keep Lambda logs. |
 | `HistoryMaxMessages` | Newest messages kept per chat and per thread in stored history (Telegram), 1 to 5000, default 100. The state adapter reads the whole list on every append, so cost per message grows with it (see [chat-context.md](chat-context.md#what-the-platforms-can-provide)). Optional. |
 | `HistoryTtlDays` | Days a stored history list lives after its latest message, 1 to 365, default 7. Optional. |
+| `DispatchFailureNoticeMinutes` | Minimum minutes between direct messages to a bot's admin about a failed GitHub dispatch, per bot, 0 to 1440, default 15; 0 turns the notice off. Optional. |
 
 `CodeKey` and `DeployLambda` are set by the script.
 
@@ -41,6 +42,7 @@ scripts/deploy.sh --stack centaur --params-file parameters-prod.json
 `Name=Value` arguments after the flags override the file, e.g. `scripts/deploy.sh --stack centaur
 --params-file parameters-prod.json LogRetentionDays=7`. The same form sets the history window without touching the file, e.g.
 `scripts/deploy.sh --stack centaur --params-file parameters-prod.json HistoryMaxMessages=500`.
+Likewise `DispatchFailureNoticeMinutes=0` disables the dispatch failure notice (see [plan.md](plan.md#receiver-lambda)).
 
 The script:
 

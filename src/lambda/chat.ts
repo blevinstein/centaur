@@ -11,6 +11,7 @@ import { createAdminClaimer } from "./admin-claims.js";
 import { registerAdminHandlers } from "./admin-handlers.js";
 import { createApproverCommand } from "./approver-commands.js";
 import type { AttachmentStore } from "./attachments.js";
+import { DEFAULT_FAILURE_NOTICE_MINUTES, withFailureNotice } from "./dispatch-failure-notice.js";
 import type { RepositoryDispatcher } from "./github.js";
 import { DEFAULT_HISTORY_WINDOW, type HistoryWindow } from "./history-window.js";
 import { createMessageHandler } from "./message-handler.js";
@@ -41,6 +42,8 @@ export interface BotChatBaseDeps {
 }
 
 export interface BotChatDeps extends BotChatBaseDeps {
+  /** Minimum time between dispatch failure notices; 0 sends none. */
+  failureNoticeIntervalMs?: number | undefined;
   params: ParameterStore;
   registryState: StateAdapter;
   attachments: AttachmentStore;
@@ -68,7 +71,8 @@ export function createBotChat({
   registryState,
   botState,
   attachments,
-  dispatcher,
+  dispatcher: rawDispatcher,
+  failureNoticeIntervalMs = DEFAULT_FAILURE_NOTICE_MINUTES * 60_000,
   logger,
   history,
 }: BotChatDeps) {
@@ -84,6 +88,15 @@ export function createBotChat({
     logger,
   });
   const requesterDeps = { bot, params, store, channel, messenger: chat, logger };
+  const dispatcher = withFailureNotice(rawDispatcher, {
+    bot,
+    intervalMs: failureNoticeIntervalMs,
+    params,
+    state: botState,
+    channel,
+    messenger: chat,
+    logger,
+  });
   const approverCommand = createApproverCommand({
     bot,
     params,

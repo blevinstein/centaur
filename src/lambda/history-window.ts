@@ -18,7 +18,7 @@ export const DEFAULT_HISTORY_WINDOW: HistoryWindow = {
   ttlMs: DEFAULT_HISTORY_TTL_DAYS * DAY_MS,
 };
 
-const setting = (name: string, fallback: number, max: number) =>
+export const setting = (name: string, fallback: number, max: number, min = 1) =>
   z
     .string()
     .optional()
@@ -27,7 +27,7 @@ const setting = (name: string, fallback: number, max: number) =>
       z
         .number({ error: `${name} must be a number` })
         .int(`${name} must be an integer`)
-        .min(1, `${name} must be at least 1`)
+        .min(min, `${name} must be at least ${min}`)
         .max(max, `${name} must be at most ${max}`),
     );
 

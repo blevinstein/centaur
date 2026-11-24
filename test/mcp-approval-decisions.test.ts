@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { APPROVED_TEXT, COMMAND_REPLIES, DENIED_TEXT } from "../src/lambda/access-decisions.js";
+import { DispatchError } from "../src/lambda/github.js";
 import { threadKey } from "../src/thread-key.js";
 import {
   MCP_APPROVAL_PARAMETER,
@@ -186,6 +187,16 @@ describe("an MCP approval decision", () => {
 
     expect(h.dispatcher.dispatch).toHaveBeenCalledTimes(2);
     expect(h.postToThread).toHaveBeenCalledOnce();
+  });
+
+  it("notifies the admin once when the re-dispatch fails", async () => {
+    const h = await mcpHarness({}, { suspended: true });
+    h.dispatcher.dispatch.mockRejectedValueOnce(new DispatchError("octo/garden", 404));
+
+    await expect(h.decisions.fromReaction(h.reaction("👍"))).rejects.toThrow("HTTP 404");
+
+    expect(h.adminPost).toHaveBeenCalledTimes(2);
+    expect(h.adminText(1)).toContain("HTTP status: 404");
   });
 
   it("ignores a decision from anyone but the admin", async () => {
