@@ -3,15 +3,10 @@
 Design for a group of **approvers** besides the platform admin: people the admin authorizes, from
 Slack or Telegram, to decide requests the bot sends for approval.
 
-Status: slice 1 (set and gate) is built: the path helpers, `loadApprovers`, `mayDecide`, the denial
-audit record and the `approverId` log field. Slice 2 (fan-out) is built: `recipientsFor`, one DM per
-recipient for `mcp` requests and the channel-keyed message link. Slice 3 is built: the `approver`
-request kind, `request` and `leave` (`src/lambda/approver-commands.ts`); it needs the Lambda and IAM
-deploy. Slice 4 is built: the admin's `approver add`, `remove` and `list` (same file; targets are
-validated per platform with `isUserId`, and Slack mentions are read from the raw event text). Slice 5
-(the CLI, `centaur approvers`) is built; it writes entries without the `approver` field by design,
-and `list` shows that field (`added by <id>`, or `added by the CLI` without it). Not built: access
-requests (6) and the docs fold-in (7). The [Decisions](#decisions) are the design. Terms (admin channel, access request, claim) are
+Status: implemented, slices 1 to 5 and the docs (7); see the [implementation map](#implementation-map).
+Slice 6 (opening `chat` and `user` requests to approvers) is not built and stays optional: it needs
+Decision 1 amended, and the admin deciding those requests alone is the safer default. The
+[Decisions](#decisions) are the accepted design. Terms (admin channel, access request, claim) are
 defined in [plan.md](plan.md#access-requests); the request kind that motivates this is in
 [mcp-approval.md](mcp-approval.md).
 
@@ -243,15 +238,16 @@ is easy to raise.
 
 ## 9. Docs and CLI impact
 
-Not edited by this change; they change when the slices land.
+Each topic has one home; the other docs link to it.
 
-| Doc | Edit |
+| Topic | Home |
 |---|---|
-| [plan.md](plan.md#access-requests) | Admin channel and MCP request paragraphs: recipients, who may decide, the `approver` kind, the layout, the link key |
-| [mcp-approval.md](mcp-approval.md) | "Only the platform admin approves" and the Out-of-scope line "Approval by anyone other than the platform admin" |
-| [cli.md](cli.md) | A `centaur approvers` section, error messages, and the example flow |
-| [deploy.md](deploy.md) | The new IAM statement, if it lists the Lambda's permissions |
-| AGENTS.md | Lines: the kinds an approver may decide are one constant; membership is read with `getByPath` on every decision; a link between a DM and its request is keyed by channel ID and message ID |
+| Who may decide, fan-out, the `approver` kind, admin commands, layout | [plan.md](plan.md#access-requests) |
+| The operator's how-to: powers, authorizing, listing, removing | [onboarding.md](onboarding.md#approvers) |
+| `centaur approvers` | [cli.md](cli.md) |
+| The Lambda's IAM statements | [deploy.md](deploy.md#iam) |
+| MCP requests going to approvers | [mcp-approval.md](mcp-approval.md), [mcp.md](mcp.md#operator-policy) |
+| Code conventions | AGENTS.md |
 
 ## Decisions
 
@@ -293,78 +289,15 @@ The recommendation is first in each item; the maintainer accepts or amends.
 - Quorum or two-person rules; per-server or per-kind approver lists; a per-kind hourly limit.
 - Approvers across bots or platforms.
 
-## Implementation plan
+## Implementation map
 
-Each slice is a worktree that can be built and reviewed alone; every slice follows AGENTS.md
-(`docs/`, fakes, `yarn verify`). **Slices 1 to 3 are the smallest first version**: the admin
-authorizes approvers from Slack or Telegram, and they decide MCP approvals. 4 and 5 are follow-ups.
-
-| Slice | Content | Depends on |
-|---|---|---|
-| 1. Set and gate | Path helpers, membership read, `mayDecide`, audit | none |
-| 2. Fan-out | DM the admin and each approver, with the channel-keyed link | 1 |
-| 3. `approver` request | New kind, `request` and `leave`, IAM write | 1 |
-| 4. Admin commands | `add`, `remove`, `list` from chat | 3 |
-| 5. CLI | `centaur approvers list|remove|add` | 1 (path helpers) |
-| 6. Access requests | Open `chat` or `user` kinds to approvers | 1 |
-| 7. Docs | Fold-in of the table in section 9 | 1 to 5 |
-
-Slices 2 and 3 touch different files except `access-decisions.ts` and run in parallel after 1; 5 can
-run beside either.
-
-1. **Set and gate.**
-   - Files: `src/lambda/connection-paths.ts` (`approversPrefix`, `approverParameter`), a new
-     `src/lambda/approvers.ts` (`loadApprovers`, the cap constant, `mayDecide`),
-     `src/lambda/access-decisions.ts` (replace `isAdmin` in `fromReaction` and `fromCommand`, add the
-     refusal reply to `COMMAND_REPLIES`, log `approverId`, store `{at, approver}` for denial, key the
-     denial `denied:<kind>:<subjectId>`), `src/lambda/access-request-store.ts`, tests under `test/`.
-   - Accepted when: tests cover the admin, an approver on an `mcp` request, an approver refused on
-     `chat`, `user` and `approver`, a stranger, an approver of another platform and of another bot,
-     removal between two decisions, no approvers (today's behavior), and the single-use claim with two
-     approvers; the reaction path still ignores non-DM reactions. No IAM change (reads are covered by
-     `GetParametersByPath` on `bots/*`).
-2. **Fan-out and the link key.**
-   - Files: `src/lambda/access-requests.ts` (`createRequestRaiser` takes the recipients, `mcp` only),
-     `src/lambda/admin-channel.ts` (`notify` returns `{ channelId, messageId }`),
-     `src/lambda/access-request-store.ts` (`linkMessage` and `requestIdForMessage` take the channel
-     ID), `src/lambda/access-decisions.ts` (reads `event.thread.channelId`), the fakes in
-     `test/helpers/receiver-fixtures.ts`, tests.
-   - Accepted when: tests cover N+1 DMs each linked to the request; two DMs whose messages share a
-     `ts` in different channels map a reaction to the right request (and not to the other); one
-     failing DM skipped and logged; all failing giving `unreachable` with the request removed; `chat`,
-     `user` and `approver` still DMing the admin alone; and the cap on recipients.
-3. **`approver` request and `leave`.** **[HUMAN APPROVAL]** to deploy (Lambda and IAM).
-   - Files: `src/lambda/access-request-store.ts` (`RequestKind`), `src/lambda/access-requests.ts` (a
-     requester for the kind, DM text), `src/lambda/access-decisions.ts` (applier, `APPROVED_TEXT`,
-     `DENIED_TEXT`, `COMMAND_REPLIES`), a new `src/lambda/approver-commands.ts` (parser and handler),
-     `src/lambda/admin-handlers.ts` (the `/approver` slash command on Telegram),
-     `src/lambda/message-handler.ts` (the `approver <sub>` DM word on Slack), `infra/centaur.yml`
-     (`ssm:PutParameter` and `ssm:DeleteParameter` on `bots/*/platforms/*/approvers/*`), tests,
-     `yarn lint:cfn`.
-   - Accepted when: tests cover an approved user's request reaching the admin DM with the requester's
-     ID and no content; an unapproved or blocked user's `request` falling through to the normal access
-     flow; a non-DM `request` refused; one pending slot, the denial record and the hourly limit; only
-     the admin deciding the kind (an approver refused); approval writing the entry and posting the
-     confirmation; the cap; `leave`; the same behavior through the Telegram slash handler and the Slack
-     DM word; and no admin giving the fixed line.
-4. **Admin commands.**
-   - Files: `src/lambda/approver-commands.ts` (`add`, `remove`, `list`), a narrow parsed type for the
-     Telegram `raw.reply_to_message.from` and `text_mention` entities and the Slack `<@U…>` text, the
-     handlers from slice 3, tests.
-   - Accepted when: only the admin can use them; `add` by Telegram reply, by numeric ID and by Slack
-     DM mention; a `@username` mention without an ID is refused with a hint to reply instead; a bot
-     account is refused; `remove` and `list` work; the cap and no-admin rule match the CLI. No IAM
-     change beyond slice 3.
-5. **CLI.**
-   - Files: `src/cli/commands/approvers.ts`, its registration, `FakeParameterStore` tests,
-     `docs/cli.md` for the command.
-   - Accepted when: tests cover add (refused without an admin, for the admin's own ID and over the
-     cap), idempotent re-add, remove, remove of an unknown ID and list; `--platform` follows
-     `requireConnection`.
-6. **Access requests.** Only if Decision 1 is amended.
-   - Files: the kind list in `src/lambda/approvers.ts`, the fan-out in `access-requests.ts`, the
-     self-approval rule for `user` requests, the `approver` field in access entries.
-   - Accepted when: tests cover an approver refused on a request about themself and the audit field.
-7. **Docs.**
-   - Files: those listed in section 9.
-   - Accepted when: they describe the built behavior and every link resolves.
+| Part | Source |
+|---|---|
+| Set, cap, `mayDecide`, `recipientsFor`, `isUserId` | `src/lambda/approvers.ts` |
+| Paths | `src/lambda/connection-paths.ts` (`approversPrefix`, `approverParameter`) |
+| Decisions, the `approver` applier, audit and denial records | `src/lambda/access-decisions.ts`, `src/lambda/access-request-store.ts` |
+| Fan-out and the `approver` request | `src/lambda/access-requests.ts`, `src/lambda/admin-channel.ts` |
+| `request`, `leave`, `add`, `remove`, `list` | `src/lambda/approver-commands.ts`, reached from `src/lambda/admin-handlers.ts` (Telegram) and `src/lambda/message-handler.ts` (Slack) |
+| IAM Put and Delete on the approvers path | `infra/centaur.yml` |
+| CLI | `src/cli/commands/approvers.ts` |
+| Not built | Slice 6, access requests for approvers: the kind list in `src/lambda/approvers.ts`, the fan-out, the self-approval rule for `user` requests and the `approver` field in access entries |

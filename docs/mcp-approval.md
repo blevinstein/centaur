@@ -12,11 +12,12 @@ a server can be allowed *once a human says yes*. Implemented; this page is the d
 - Cedar stays binary. The policy states the precondition ("permit when `context.approved`"); the
   runner evaluates it twice, with `approved` false and true, and derives the third outcome from the
   pair. One action, so every `forbid` (including the global ceiling) binds exactly as today.
-- Asking reuses the [access request](plan.md#access-requests) machinery: the bot DMs the admin, who
-  reacts 👍 or 👎 (or sends `/approve <id>`). The decision is stored per server definition.
+- Asking reuses the [access request](plan.md#access-requests) machinery: the bot DMs the admin and
+  each [approver](approvers.md); the first of them to react 👍 or 👎 (or send `/approve <id>`)
+  decides. The decision is stored per server definition.
 - `prepare` asks at the start of a turn and runs the turn **without** the pending servers. If the
   agent cannot do the request without one, it **suspends**: the turn ends, the thread's marker stays
-  put, and when the admin decides, the receiver re-dispatches an ordinary turn for the thread. The
+  put, and when the admin or an approver decides, the receiver re-dispatches an ordinary turn for the thread. The
   session is already saved by the existing `resume` machinery.
 - No component waits for hours, and `prepare` never waits at all. It asks the poster once per turn and uses the answer as is: a decision already stored is used by that turn, and one that arrives later is seen by the next turn (a suspended thread is re-dispatched by the receiver).
 - Server level only. Tool level is the same mechanism applied to `allowed_tools` entries, added later.
@@ -70,7 +71,7 @@ For *approval required*, the runner then consults the stored decision for this d
 | approved | **approved**: the server runs |
 | denied (7-day record) | **denied**: dropped, no new question |
 | none, request pending | **pending**: dropped, no new question |
-| none | ask the admin, then **pending** |
+| none | ask the admin and approvers, then **pending** |
 
 Because every `forbid` already denies at `approved=true`, approval can never lift a ceiling, and
 re-evaluating policy every turn means removing the permit revokes an approval without touching the
@@ -108,7 +109,7 @@ Recommendation: persistent per bot. The fingerprint makes it exactly what the ad
 drops pending and denied servers from `mcp.json` and `--allowedTools`, and tells the agent in the
 prompt (the wording and the field are in [workflows.md](workflows.md#approval-required-mcp-servers)).
 The agent decides, because only it knows whether the request needs the server. `reply` still posts,
-so the user reads that the agent is waiting for the admin.
+so the user reads that the agent is waiting for an approval.
 
 Suspending is only for **chat turns that reply in an existing thread**. It does not apply to:
 
@@ -143,7 +144,7 @@ request):
 | `suspended` | set by `mcp-approvals` with `suspend: true`; absent when the agent worked without the server |
 
 **Resume.** The decision arrives in the receiver as it does for access requests (reaction or
-`/approve` / `/deny`, admin only, single-use claim). On approval the receiver writes the SSM record.
+`/approve` / `/deny`, from the admin or an approver, single-use claim). On approval the receiver writes the SSM record.
 If `suspended`, it then sends a `repository_dispatch` of type `centaur-message` with the original
 `{bot, thread_id, thread_key, message_id}`. This is a normal turn, so the payload, the three consumer
 workflows and the concurrency group do not change. Because the marker was not advanced, the turn finds
@@ -195,7 +196,7 @@ strict schema):
 | `mcp-approvals` | `token`, `bot`, optional `threadId` and `messageId` (together; without them the call is read-only), `servers`: `[{ name, fingerprint, summary }]` (1 to 20), optional `suspend` (boolean) | `{ servers: { <name>: "approved" \| "pending" \| "denied" } }` |
 
 For each server it reads the decision (one short, stateless call, so the Lambda's 30 s timeout never matters and the operation takes no wait parameter); with none and no pending request it creates one and DMs the
-admin; with `suspend` it marks the request `suspended`. `summary` is rendered by the runner from
+admin and each approver; with `suspend` it marks the request `suspended`. `summary` is rendered by the runner from
 validated config (secret names, never values) and only length-limited by the Lambda; the fingerprint
 is part of the key, so a summary cannot approve a different definition than the one the runner starts,
 and the runner re-derives it every turn.
@@ -214,12 +215,12 @@ repository and summary, never message content.
 
 | Option | Assessment |
 |---|---|
-| A. Reactions 👍 / 👎 on the DM, `/approve <id>` fallback | Built and tested for access requests (`AdminChannel`, `access-decisions.ts`); works on Telegram and Slack; restricted to the admin's user ID on that DM. |
+| A. Reactions 👍 / 👎 on the DM, `/approve <id>` fallback | Built and tested for access requests (`AdminChannel`, `access-decisions.ts`); works on Telegram and Slack; restricted to the admin and the bot's approvers, on their own DM. |
 | B. Telegram inline buttons | Better on mobile, but needs `callback_query` handling and a Slack equivalent: a second decision path to secure. |
 
 Recommendation: A. Buttons can be added to `AdminChannel` later; both feed `claimDecision`.
-`access-decisions.ts` dispatches on `request.kind` to the `mcp` applier. Only the platform admin
-approves.
+`access-decisions.ts` dispatches on `request.kind` to the `mcp` applier. The platform admin and the
+bot's [approvers](approvers.md) decide `mcp` requests; the other kinds stay with the admin.
 
 ## Tool-level approval
 
@@ -236,14 +237,14 @@ keys. Recommendation: server level only. Servers with dangerous tools list them 
   policy fetch failure, which fails the turn: a missing approval only removes a capability, while a
   missing policy removes the guard.
 - A pull request that adds a server reaches a turn only after merge (default-branch config), then
-  needs the admin: a second control behind review of the policy file.
+  needs the admin or an approver: a second control behind review of the policy file.
 - No admin on the bot's platform: nothing can be asked; treat as `denied` without a record and log it.
 - Secrets never appear in the DM, the fingerprint input or any record, only names.
 
 ## Out of scope
 
 - Tool-level rules and wildcard enumeration.
-- Approval by anyone other than the platform admin.
+- Approval by anyone other than the platform admin and its approvers.
 - Waiting for a human inside a turn, and mid-turn checkpointing for slow tools.
 - Suspending scheduled prompts and pull request comment turns.
 - Approving a secret's value or scope; the caller `env:` stays the allowlist.

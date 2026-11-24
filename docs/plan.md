@@ -416,9 +416,9 @@ dropped silently with an `info` log. Requests expire after 7 days. A blocked sub
 reply, no notification and no request. Request IDs are six random characters (`node:crypto`),
 case-insensitive, and checked for uniqueness when created.
 
-**Security.** A decision needs the admin's user ID, taken from the platform's signed webhook, on the
-DM message that holds the request, in a direct message. Anyone else's reaction is ignored and
-logged by ID. Requests are single-use and idempotent, so a second reaction or command changes
+**Security.** A decision needs the user ID of the admin or, for a kind approvers may decide, of an
+approver, taken from the platform's signed webhook, on the DM message that holds the request, in a
+direct message. Anyone else's reaction is ignored and logged by ID. Requests are single-use and idempotent, so a second reaction or command changes
 nothing. The Lambda role can write only the approved and blocked paths, `chats/*` (destinations), `admin/*` (for a claim), and delete
 only `admin-claim/*` and the approver entries. The admin DM contains
 names and IDs but never message content.

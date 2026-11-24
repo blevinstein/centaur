@@ -331,12 +331,12 @@ approval key, `<name>:<fingerprint>`. The outcome table, the fingerprint and the
 
 What happens at a turn:
 
-- The first turn that uses an unapproved server sends the admin a direct message with the bot,
+- The first turn that uses an unapproved server sends the admin, and each [approver](approvers.md), a direct message with the bot,
   repository, server and a one-line summary (transport, host or command, secret names, allowed tools;
   never values or message text). The turn runs without the server, and the agent is told it is
   awaiting approval; if it cannot do the request without it, it can suspend the turn, which resumes
   after the decision ([workflows.md](workflows.md#approval-required-mcp-servers)).
-- The admin reacts 👍 to approve or 👎 to deny, or sends `/approve <id>` or `/deny <id>` where the
+- The admin or an approver reacts 👍 to approve or 👎 to deny, or sends `/approve <id>` or `/deny <id>` where the
   platform supports it. The request expires after 7 days.
 - An approval persists for that bot and server definition until revoked. A denial lasts 7 days and
   the bot does not ask again meanwhile.

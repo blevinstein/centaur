@@ -90,8 +90,8 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
   - [x] Approvers 4: admin commands `add`, `remove`, `list` from chat. Needs 3.
   - [x] Approvers 5: `centaur approvers list|remove|add`. Needs 1 (path helpers).
   - [ ] Approvers 6: open `chat` or `user` requests to approvers, only if Decision 1 is amended.
-        Needs 1.
-  - [ ] Approvers 7: fold the design's docs table (section 9) into plan, mcp-approval, cli and
+        Needs 1. Optional and open: nothing else depends on it.
+  - [x] Approvers 7: fold the design's docs table (section 9) into plan, mcp-approval, cli and
         deploy. Needs 1 to 5.
 - [ ] Explore a way to update the MCP policy by adding entries to an allowlist, with some level of
       generalization (for example allow a server by name, by URL or host pattern, or a tool within

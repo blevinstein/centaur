@@ -123,9 +123,9 @@ That's all that's needed for group use. Optionally, to DM a bot: open its link
 - **Commands**, at the start of a message: `/new` opens a new topic without the old context;
   `/resume` and `/transcript` switch how the thread's context is rebuilt
   ([policies](workflows.md#context-policies)).
-- **Approvers:** an approved user DMs the bot `/approver request` (Telegram) or `approver request`
-  (Slack) to ask the admin to make them an approver; the admin decides with 👍 or 👎. `/approver leave`
-  (`approver leave` on Slack) removes yourself. Both work in a DM only ([design](approvers.md)). The admin manages the set the same way: `/approver add|remove` as a reply to the person's message (any chat) or with their numeric ID, `approver add|remove <@U…>` or a Slack ID in a DM, and `approver list` (DM only). A username alone is not enough: reply to the person instead.
+- **Approvers:** to help the admin decide MCP requests, DM the bot `/approver request` (Telegram) or
+  `approver request` (Slack); `/approver leave` (`approver leave`) removes you again
+  ([details](#approvers)).
 - **Results:** when the agent changes a repo, its reply links the pull request. The maintainer
   reviews and merges it; household members don't need to do anything.
 
@@ -255,6 +255,35 @@ platform. `centaur admin claim <bot> --platform <platform>` prints a one-time co
 minutes). On Telegram it is a link: open it and tap **Start**. On Slack, DM the bot `claim <code>`.
 The first sender becomes the admin for that platform, and `centaur admin show` lists them. See
 [the design](plan.md#bootstrapping-the-first-admin).
+
+## Approvers
+
+An approver is a user, besides the admin, who may decide a bot's MCP approval requests
+([design](approvers.md)). The set is per bot connection, so an approver on one bot or platform has
+no say on another.
+
+- **Can:** react 👍 or 👎 to an MCP request DM, or send `/approve <id>` and `/deny <id>` on Telegram,
+  and leave. The bot sends each MCP request to the admin and to every approver; the first decision
+  wins.
+- **Cannot:** decide chat, user or approver requests (the admin only), add or remove approvers, claim
+  the admin role or change config. Being an approver gives no access to chat with the bot: the person
+  stays an [approved user](#enrolling-chats-and-people) or not, on their own.
+- **Cap and admin:** at most 10 approvers per connection. The admin is always an approver and is not
+  stored in the set. Without an admin for the platform the set has no effect.
+
+Authorize one in any of these ways:
+
+- **The person asks.** An approved user DMs the bot `/approver request` (Telegram) or `approver request`
+  (Slack). The admin gets a DM with `Kind: approver` and decides with 👍 or 👎 (`/approve <id>` on
+  Telegram). A denial stops a new request for 7 days.
+- **The admin names them in chat.** Telegram: `/approver add` as a reply to the person's message
+  (any chat), or `/approver add <numeric id>` in a DM. Slack: a DM to the bot, `approver add <@U…>`
+  or `approver add <user id>`. A username is not an ID, so reply to the person instead.
+- **The CLI:** `centaur approvers add <bot> <user id>` ([cli.md](cli.md#centaur-approvers-listaddremove-bot----platform-platform)).
+
+See and remove them: `approver list` in a DM to the bot (admin only), `approver remove` with the same
+targets as `add`, or `centaur approvers list|remove <bot>`. A removal applies to the person's next
+decision. An approver can remove themselves with `approver leave`.
 
 ## Binding a destination
 
