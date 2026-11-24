@@ -126,6 +126,30 @@ describe("without a thread", () => {
   });
 });
 
+describe("without a thread on a bot with several connections", () => {
+  const threadless = { threadId: undefined, messageId: undefined };
+
+  it.each([
+    ["approved", { approved: true }, "approved"],
+    ["denied", {}, "denied"],
+    ["pending", {}, "pending"],
+  ] as const)("answers %s without asking", async (_name, options, expected) => {
+    const h = await mcpApprovalsPoster({ ...options, twoConnections: true });
+    if (expected === "denied") await h.store.recordDenial("mcp", MCP_SUBJECT, ADMIN_ID);
+
+    expect(await h.statuses(threadless)).toEqual({ servers: { linear: expected } });
+    expect(h.adminPost).not.toHaveBeenCalled();
+    expect(await h.pendingRequest()).toBeNull();
+  });
+
+  it("still raises a request when a thread is given", async () => {
+    const h = await mcpApprovalsPoster({ twoConnections: true });
+
+    expect(await h.statuses()).toEqual({ servers: { linear: "pending" } });
+    expect(h.adminPost).toHaveBeenCalledOnce();
+  });
+});
+
 describe("request limits", () => {
   it("stops raising requests at the hourly limit and still answers pending", async () => {
     const h = await mcpApprovalsPoster();

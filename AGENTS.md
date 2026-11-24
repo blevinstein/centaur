@@ -196,3 +196,5 @@
   Its minimum interval is the `DispatchFailureNoticeMinutes` stack parameter
   (`DISPATCH_FAILURE_NOTICE_MINUTES`, read in `src/lambda/dispatch-failure-notice.ts`; `0` turns it off),
   checked in `test/infra.test.ts`.
+- A poster operation that has no thread must not resolve a connection (`requireBot` fails for a bot
+  on several platforms); it takes the bot name alone, as `openBotState` in `mcp-approvals` does.

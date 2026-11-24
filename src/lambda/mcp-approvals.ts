@@ -56,8 +56,8 @@ export interface McpApprovalsDeps {
     botName: string,
     threadId: string,
   ) => Promise<{ bot: Bot; messenger: DirectMessenger; state: StateAdapter }>;
-  /** The bot and its state without a thread, for reads that never ask. */
-  openBot: (botName: string) => Promise<{ bot: Bot; state: StateAdapter }>;
+  /** The bot's state without a thread or a platform, for reads that never ask. */
+  openBotState: (botName: string) => Promise<StateAdapter>;
   logger: Pick<Logger, "info" | "warn" | "error">;
 }
 
@@ -67,7 +67,7 @@ export interface McpApprovalsDeps {
  * never asks, and answers `pending` where it would have. Failures throw, so the caller never reads
  * an error as an approval.
  */
-export function createMcpApprovals({ params, oidc, open, openBot, logger }: McpApprovalsDeps) {
+export function createMcpApprovals({ params, oidc, open, openBotState, logger }: McpApprovalsDeps) {
   return async (request: McpApprovalsRequest): Promise<McpApprovalsResult> => {
     await requireBound(params, oidc, request.token, request.bot);
     const { threadId, messageId, suspend } = request;
@@ -75,15 +75,14 @@ export function createMcpApprovals({ params, oidc, open, openBot, logger }: McpA
       threadId !== undefined && messageId !== undefined
         ? { threadId, messageId, ...(await open(request.bot, threadId)) }
         : undefined;
-    const { bot, state } = thread ?? (await openBot(request.bot));
-    const store = createAccessRequestStore(state);
+    const store = createAccessRequestStore(thread?.state ?? (await openBotState(request.bot)));
     const requestApproval =
       thread &&
       createMcpApprovalRequester({
-        bot,
+        bot: thread.bot,
         params,
         store,
-        channel: ADMIN_CHANNELS[bot.platform],
+        channel: ADMIN_CHANNELS[thread.bot.platform],
         messenger: thread.messenger,
         logger,
       });
@@ -93,7 +92,7 @@ export function createMcpApprovals({ params, oidc, open, openBot, logger }: McpA
     ): Promise<McpApprovalStatus> => {
       const subjectId = `${server.name}:${server.fingerprint}`;
       if (
-        (await params.get(mcpApprovalParameter(bot.name, server.name, server.fingerprint))) !==
+        (await params.get(mcpApprovalParameter(request.bot, server.name, server.fingerprint))) !==
         undefined
       ) {
         return "approved";
@@ -108,8 +107,8 @@ export function createMcpApprovals({ params, oidc, open, openBot, logger }: McpA
       });
       if (outcome === undefined) {
         logger.warn("no admin to approve an MCP server; treating it as denied", {
-          bot: bot.name,
-          platform: bot.platform,
+          bot: thread.bot.name,
+          platform: thread.bot.platform,
         });
         return "denied";
       }

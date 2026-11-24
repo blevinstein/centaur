@@ -10,6 +10,7 @@ import {
   MCP_THREAD_ID,
 } from "./access-fixtures.js";
 import { GARDEN_REPOSITORY, posterSetup } from "./poster-fixtures.js";
+import { GARDEN_SLACK_PARAMETERS } from "./receiver-fixtures.js";
 
 export const LINEAR = {
   name: "linear",
@@ -29,14 +30,25 @@ export const mcpApprovalsRequest = (overrides: Record<string, unknown> = {}) => 
 
 /** A poster whose bot-prefixed state is shared with `store`, as the real poster's per-bot state is. */
 export async function mcpApprovalsPoster(
-  options: { admin?: boolean; repository?: string; approved?: boolean } = {},
+  options: {
+    admin?: boolean;
+    repository?: string;
+    approved?: boolean;
+    twoConnections?: boolean;
+  } = {},
 ) {
-  const { admin = true, repository = GARDEN_REPOSITORY, approved = false } = options;
+  const {
+    admin = true,
+    repository = GARDEN_REPOSITORY,
+    approved = false,
+    twoConnections = false,
+  } = options;
   const botState = createMemoryState();
   await botState.connect();
   const h = await posterSetup({
     repository,
     parameters: {
+      ...(twoConnections ? GARDEN_SLACK_PARAMETERS : {}),
       ...(admin ? { [ADMIN_PARAMETER]: ADMIN_ID } : {}),
       ...(approved ? { [MCP_APPROVAL_PARAMETER]: "{}" } : {}),
     },
