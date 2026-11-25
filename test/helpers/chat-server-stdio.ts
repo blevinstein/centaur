@@ -8,7 +8,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { build } from "esbuild";
 import { CHAT_SERVER_ENV } from "../../src/mcp/server-config.js";
 import type { TurnState } from "../../src/workflows/prepare.js";
-import { writeTurnState } from "../../src/workflows/turn-state.js";
+import { writeOidcCredentials, writeTurnState } from "../../src/workflows/turn-state.js";
 import { scannedRange } from "./chat-context-fixtures.js";
 import { CURRENT, summary } from "./chat-server-fixtures.js";
 
@@ -53,6 +53,10 @@ export async function startChatServerProcess() {
     sessionDirectory: dir,
   };
   await writeTurnState(join(dir, "state"), state);
+  await writeOidcCredentials(join(dir, "state"), {
+    ACTIONS_ID_TOKEN_REQUEST_URL: `http://127.0.0.1:${(tokens.address() as AddressInfo).port}/token?v=1`,
+    ACTIONS_ID_TOKEN_REQUEST_TOKEN: "bearer",
+  });
 
   const responses = {
     "list-threads": {
@@ -69,8 +73,6 @@ export async function startChatServerProcess() {
       FAKE_POSTER_RESPONSES: JSON.stringify(responses),
       CENTAUR_FUNCTION_NAME: "poster-fn",
       CENTAUR_OIDC_AUDIENCE: "centaur",
-      ACTIONS_ID_TOKEN_REQUEST_URL: `http://127.0.0.1:${(tokens.address() as AddressInfo).port}/token?v=1`,
-      ACTIONS_ID_TOKEN_REQUEST_TOKEN: "bearer",
       [CHAT_SERVER_ENV.stateDir]: join(dir, "state"),
       [CHAT_SERVER_ENV.maxThreads]: "5",
       [CHAT_SERVER_ENV.maxMessages]: "10",

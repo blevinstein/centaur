@@ -214,3 +214,4 @@
   commands, pull requests or the chat tools needs the matching skill updated.
 - The `skills` config key must not reach a consumer's default branch before the Lambda that knows it
   is deployed (`register` parses the config there).
+- claude-code-action strips `ACTIONS_ID_TOKEN_REQUEST_*` from the agent's environment, so the chat server reads them from the credentials file `prepare` writes to the turn state directory (`readOidcCredentials`, `src/workflows/turn-state.ts`).

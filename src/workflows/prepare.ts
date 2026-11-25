@@ -56,7 +56,7 @@ import {
   threadPolicy,
 } from "./transcript.js";
 import { boundTranscript } from "./transcript-budget.js";
-import { writeTurnState } from "./turn-state.js";
+import { writeOidcCredentials, writeTurnState } from "./turn-state.js";
 
 export const TURN_DIR = ".centaur-turn";
 export const PROMPT_FILE = `${TURN_DIR}/prompt.md`;
@@ -636,6 +636,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   );
   await writeTurnState(deps.stateDir, state);
   const chatTools = Boolean(turn.threadId) && chatToolsEnabled(config);
+  if (chatTools) await writeOidcCredentials(deps.stateDir, deps.env);
   const mcpServers = {
     ...kept.servers,
     ...(chatTools

@@ -1,4 +1,5 @@
 import { SafeError } from "./safe-error.js";
+import { readOidcCredentials } from "./turn-state.js";
 
 export function oidcTokenFetcher(env: NodeJS.ProcessEnv, audience: string) {
   return async () => {
@@ -17,3 +18,7 @@ export function oidcTokenFetcher(env: NodeJS.ProcessEnv, audience: string) {
     return ((await response.json()) as { value: string }).value;
   };
 }
+
+/** Reads the credentials `prepare` saved on every call, so each token is minted from the file as it is then. */
+export const savedOidcTokenFetcher = (stateDir: string, audience: string) => async () =>
+  oidcTokenFetcher(await readOidcCredentials(stateDir), audience)();

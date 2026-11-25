@@ -1,9 +1,10 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { CHAT_SERVER_ENV } from "../src/mcp/server-config.js";
 import { CHAT_SERVER_ENTRY } from "../src/workflows/mcp-config.js";
 import { MCP_CONFIG_FILE, PROMPT_FILE, prepare } from "../src/workflows/prepare.js";
+import { OIDC_CREDENTIALS_FILE_NAME } from "../src/workflows/turn-state.js";
 import { envRef } from "./helpers/config-fixtures.js";
 import { fakePolicyGitHub, PERMIT_ANY_REMOTE } from "./helpers/mcp-policy-fixtures.js";
 import { commentSetup, prComment } from "./helpers/pr-comment-fixtures.js";
@@ -18,6 +19,7 @@ import {
 const read = (root: string, file: string) => readFile(join(root, file), "utf8");
 const BLOCK = "`centaur-chat` server";
 const TOOLS_RULE = "mcp__centaur-chat__*";
+const OIDC_NAMES = ["ACTIONS_ID_TOKEN_REQUEST_URL", "ACTIONS_ID_TOKEN_REQUEST_TOKEN"];
 
 describe("prepare with chat context tools", () => {
   it("leaves the turn untouched under the default scope", async () => {
@@ -42,7 +44,11 @@ describe("prepare with chat context tools", () => {
       command: "node",
       args: [CHAT_SERVER_ENTRY],
       env: {
-        ...Object.fromEntries(Object.keys(POSTER_ENV).map((name) => [name, envRef(name)])),
+        ...Object.fromEntries(
+          Object.keys(POSTER_ENV)
+            .filter((name) => !OIDC_NAMES.includes(name))
+            .map((name) => [name, envRef(name)]),
+        ),
         [CHAT_SERVER_ENV.stateDir]: stateDir,
         [CHAT_SERVER_ENV.maxThreads]: "7",
         [CHAT_SERVER_ENV.maxMessages]: "30",
@@ -53,6 +59,34 @@ describe("prepare with chat context tools", () => {
     expect(out.claude_args).toContain(`--mcp-config ${MCP_CONFIG_FILE}`);
     expect(out.claude_args).toContain(`--allowedTools "Read,Edit,${TOOLS_RULE}"`);
     expect(await read(root, PROMPT_FILE)).toContain(BLOCK);
+  });
+
+  it("keeps the OIDC request credentials in the state directory, out of the workspace", async () => {
+    const { deps, root, stateDir } = await setup([message("1", "hi")], chatConfigText());
+
+    await prepare(deps({ env: POSTER_ENV }));
+
+    const written = await read(root, MCP_CONFIG_FILE);
+    for (const leaked of [...OIDC_NAMES, "token.example", "bearer-secret"]) {
+      expect(written).not.toContain(leaked);
+    }
+    const file = join(stateDir, OIDC_CREDENTIALS_FILE_NAME);
+    expect((await stat(file)).mode & 0o777).toBe(0o600);
+    expect(JSON.parse(await readFile(file, "utf8"))).toEqual({
+      ACTIONS_ID_TOKEN_REQUEST_URL: POSTER_ENV.ACTIONS_ID_TOKEN_REQUEST_URL,
+      ACTIONS_ID_TOKEN_REQUEST_TOKEN: POSTER_ENV.ACTIONS_ID_TOKEN_REQUEST_TOKEN,
+    });
+    expect(JSON.parse(written).mcpServers["centaur-chat"].env[CHAT_SERVER_ENV.stateDir]).toBe(
+      stateDir,
+    );
+  });
+
+  it("writes no credentials without chat tools", async () => {
+    const { deps, stateDir } = await setup([message("1", "hi")]);
+
+    await prepare(deps({ env: POSTER_ENV }));
+
+    await expect(stat(join(stateDir, OIDC_CREDENTIALS_FILE_NAME))).rejects.toThrow();
   });
 
   it("resolves the entry beside the running build, outside the workspace", async () => {
@@ -117,7 +151,9 @@ describe("prepare with chat context tools", () => {
   });
 
   it("reads the scope from the trusted config root on a comment turn", async () => {
-    const { deps, root } = await commentSetup({ comments: [prComment(1, "rename it")] });
+    const { deps, root, stateDir } = await commentSetup({
+      comments: [prComment(1, "rename it")],
+    });
     const trusted = await createWorkspace({
       ".centaur/config.yml": chatConfigText(),
       ".centaur/persona.md": "Be kind.",
@@ -126,6 +162,7 @@ describe("prepare with chat context tools", () => {
     const out = await prepare({ ...deps(), configRoot: trusted.root, env: POSTER_ENV });
 
     expect(out.claude_args).toContain(TOOLS_RULE);
+    await stat(join(stateDir, OIDC_CREDENTIALS_FILE_NAME));
     expect(await read(root, PROMPT_FILE)).toContain(BLOCK);
     expect(JSON.parse(await read(root, MCP_CONFIG_FILE)).mcpServers["centaur-chat"].args).toEqual([
       CHAT_SERVER_ENTRY,

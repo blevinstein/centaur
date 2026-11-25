@@ -139,12 +139,24 @@ next to the running `prepare` (`CHAT_SERVER_ENTRY` in `src/workflows/mcp-config.
 Centaur action's checkout, which the `turn` action runs `prepare` from; it is never the workspace,
 so a pull request cannot substitute the entry code, on comment turns too. The `env` in `mcp.json`
 holds the turn state directory (outside the workspace), the two limits and `${NAME}` references to
-the poster and OIDC settings and the AWS credentials the runner already has, so the file holds no
+the poster settings and the AWS credentials the runner already has, so the file holds no
 secret and no thread ID. The entry reads the bot and the dispatched thread from the turn state,
 derives the chat from the thread ID (the poster re-derives it and rejects a mismatch), fetches a
 fresh OIDC token for every call and invokes the poster like the other runner steps. It writes only
 the MCP protocol to stdout and logs nothing but its startup errors to stderr, never message text or
 the thread ID.
+
+**OIDC credentials.** The agent action deletes `ACTIONS_ID_TOKEN_REQUEST_URL` and
+`ACTIONS_ID_TOKEN_REQUEST_TOKEN` from the environment it gives Claude Code, and `mcp.json` sits in
+the workspace where the agent can read it, so neither can be forwarded to the server. `prepare`
+runs in a plain step that still has them and, when chat tools are on, writes both to
+`oidc-credentials.json` in the turn state directory (directory 0700, file 0600, outside the
+workspace; the path comes from `RUNNER_TEMP` alone, so a pull request branch cannot move it). The
+server reads the file on every call and mints a token (valid for 300 s) for the poster audience; a
+missing or malformed file fails the call with "OIDC credentials unavailable". The request token can
+mint tokens for any audience for the rest of the job, the same exposure class as the forwarded
+`AWS_*` credentials: anything running as the runner user, including the agent's shell tools, can
+read the file.
 
 The poster pages `read-channel` by instant and the server's cursors stand for message IDs, so the
 client (`src/mcp/poster-chat-client.ts`) remembers the send time of every message it returns and
