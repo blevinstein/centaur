@@ -8,7 +8,14 @@ import {
   connectChatServer,
   OTHER,
 } from "./helpers/chat-server-fixtures.js";
-import { BOT, CHAT, fakePosterChat, storedThread } from "./helpers/poster-chat-client-fixtures.js";
+import {
+  BOT,
+  CHAT,
+  execFailure,
+  fakePosterChat,
+  posterFailingWith,
+  storedThread,
+} from "./helpers/poster-chat-client-fixtures.js";
 
 const ids = (messages: { id: string }[]) => messages.map((m) => m.id);
 
@@ -49,6 +56,19 @@ describe("poster chat client", () => {
     await client.readChannel({ limit: 2, before: "2" });
 
     expect(requests[1]).toMatchObject({ before: channel[1]?.sentAt });
+  });
+
+  it.each([
+    [
+      "the aws stderr line",
+      execFailure("Unable to locate credentials.\nmore"),
+      "Unable to locate credentials.",
+    ],
+    ["the spawn code", execFailure("", "ENOENT"), "ENOENT"],
+  ])("reports %s of a failed invoke without the command line", async (_name, error, detail) => {
+    await expect(posterFailingWith(error).listThreads({} as never)).rejects.toThrow(
+      new RegExp(`^aws lambda invoke failed: ${detail}$`),
+    );
   });
 
   it("rejects a cursor it never returned", async () => {

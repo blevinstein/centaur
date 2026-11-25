@@ -1,6 +1,7 @@
 import { MESSAGE_TEXT_MAX } from "../lambda/chat-context.js";
 import { clip } from "../lambda/text.js";
 import { type PosterClient, readThreadMessages } from "../workflows/aws.js";
+import { SafeError } from "../workflows/safe-error.js";
 import type { ChatMessage } from "../workflows/transcript.js";
 import type { ChatPosterClient } from "./chat-poster-client.js";
 
@@ -16,7 +17,7 @@ export interface PosterChatTarget {
 /** Thread IDs are `<platform>:<chat>:<thread>`; the poster re-derives the chat and rejects a mismatch. */
 export const chatIdOfThread = (threadId: string) => {
   const chatId = threadId.split(":")[1];
-  if (!chatId) throw new Error("the thread ID has no chat");
+  if (!chatId) throw new SafeError("the thread ID has no chat");
   return chatId;
 };
 
@@ -39,7 +40,7 @@ export function createPosterChatClient(
   };
   const sentAtOf = (cursor: string) => {
     const sentAt = sentAtById.get(cursor);
-    if (sentAt === undefined) throw new Error("unknown cursor");
+    if (sentAt === undefined) throw new SafeError("unknown cursor");
     return sentAt;
   };
   const target = async () => ({ token: await fetchToken(), bot, chatId, threadId });

@@ -19,6 +19,8 @@ import {
   mcpApprovalsResultSchema,
 } from "../lambda/mcp-approvals.js";
 import type { PosterRequest } from "../lambda/poster.js";
+import { firstLine } from "../lambda/text.js";
+import { SafeError } from "./safe-error.js";
 import type { ChatMessage } from "./transcript.js";
 
 export type Exec = (file: string, args: string[]) => Promise<string>;
@@ -31,7 +33,14 @@ export const execCommand: Exec = async (file, args) =>
 
 const ERROR_MESSAGE_LIMIT = 300;
 
-export class PosterError extends Error {}
+export class PosterError extends SafeError {}
+
+/** The aws CLI's first stderr line, or the spawn error code; never the command line, which names the payload file. */
+const execFailureDetail = (error: unknown) => {
+  const { stderr, code } = error as { stderr?: unknown; code?: unknown };
+  const line = typeof stderr === "string" ? firstLine(stderr, ERROR_MESSAGE_LIMIT) : "";
+  return line || (typeof code === "string" ? code : "error");
+};
 
 export interface PosterClient {
   call<T = unknown>(request: PosterRequest): Promise<T>;
@@ -53,19 +62,20 @@ export function createPosterClient(functionName: string, exec: Exec = execComman
         const payloadFile = join(dir, "payload.json");
         const responseFile = join(dir, "response.json");
         await writeFile(payloadFile, JSON.stringify(request));
-        const meta = JSON.parse(
-          await exec("aws", [
-            "lambda",
-            "invoke",
-            "--function-name",
-            functionName,
-            "--cli-binary-format",
-            "raw-in-base64-out",
-            "--payload",
-            `file://${payloadFile}`,
-            responseFile,
-          ]),
-        ) as { FunctionError?: string };
+        const invoked = await exec("aws", [
+          "lambda",
+          "invoke",
+          "--function-name",
+          functionName,
+          "--cli-binary-format",
+          "raw-in-base64-out",
+          "--payload",
+          `file://${payloadFile}`,
+          responseFile,
+        ]).catch((error: unknown) => {
+          throw new PosterError(`aws lambda invoke failed: ${execFailureDetail(error)}`);
+        });
+        const meta = JSON.parse(invoked) as { FunctionError?: string };
         const response = JSON.parse(await readFile(responseFile, "utf8")) as T & {
           errorType?: string;
           errorMessage?: string;

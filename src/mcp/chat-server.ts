@@ -1,7 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { firstLine } from "../lambda/text.js";
 import { cleanTitle, fence } from "../workflows/clean-text.js";
+import { SafeError } from "../workflows/safe-error.js";
 import type { ChatMessage } from "../workflows/transcript.js";
 import type { ChatPosterClient, Scanned, ThreadSummary } from "./chat-poster-client.js";
 import { OpaqueIds } from "./opaque-ids.js";
@@ -32,6 +34,16 @@ const renderScanned = ({ oldest, exhausted }: Scanned) =>
 const renderMessage = (m: ChatMessage) =>
   `[${m.sentAt}] ${m.fromBot ? "assistant" : cleanTitle(m.userName)}` +
   `${m.attachments.length > 0 ? ` (${m.attachments.length} attachment(s))` : ""}:\n${fence(m.text)}`;
+
+const DETAIL_LIMIT = 200;
+
+/** Only a `SafeError` message is shown; any other error may echo chat content, so just its class is. */
+const failureDetail = (error: unknown) =>
+  error instanceof SafeError
+    ? firstLine(error.message, DETAIL_LIMIT)
+    : error instanceof Error
+      ? error.name
+      : undefined;
 
 export function createChatServer({
   client,
@@ -76,12 +88,17 @@ export function createChatServer({
     before === undefined ? undefined : cursors.resolve(before);
 
   const guarded =
-    <A>(run: (args: A) => Promise<ReturnType<typeof text>>) =>
+    <A>(tool: string, run: (args: A) => Promise<ReturnType<typeof text>>) =>
     async (args: A) => {
       try {
         return await run(args);
-      } catch {
-        return text("The chat request failed.", true);
+      } catch (error) {
+        const detail = failureDetail(error);
+        process.stderr.write(`centaur-chat: ${tool} failed${detail ? `: ${detail}` : ""}\n`);
+        return text(
+          detail ? `The chat request failed: ${detail}` : "The chat request failed.",
+          true,
+        );
       }
     };
 
@@ -96,7 +113,7 @@ export function createChatServer({
       inputSchema: { limit: limitSchema },
       annotations,
     },
-    guarded(async ({ limit }) => {
+    guarded("list_threads", async ({ limit }) => {
       const { threads, scanned } = await client.listThreads({ limit: clamp(limit, maxThreads) });
       const others = threads
         .filter((t) => t.threadId !== currentThreadId)
@@ -120,7 +137,7 @@ export function createChatServer({
       },
       annotations,
     },
-    guarded(async ({ handle, before, limit }) => {
+    guarded("read_thread", async ({ handle, before, limit }) => {
       const threadId = handles.resolve(handle);
       if (threadId === undefined) return text("Unknown thread handle. Call list_threads.", true);
       const invalid = unknownCursor(before);
@@ -144,7 +161,7 @@ export function createChatServer({
       inputSchema: { before: cursorSchema, limit: limitSchema },
       annotations,
     },
-    guarded(async ({ before, limit }) => {
+    guarded("read_channel", async ({ before, limit }) => {
       const invalid = unknownCursor(before);
       if (invalid) return invalid;
       const size = clamp(limit, maxMessages);

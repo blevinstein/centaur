@@ -116,6 +116,12 @@ to real thread IDs. Telegram thread IDs embed the chat ID, which the project kee
 GitHub-visible (see `threadKey`); handles keep the raw ID out of the agent's context, tool results and
 session file. The current thread is always `thread-0` and is excluded from `list_threads`.
 
+A failed request returns `The chat request failed: <detail>` and writes `centaur-chat: <tool> failed:
+<detail>` to the server's stderr. `<detail>` is the first line (200 characters) of a `SafeError`
+message (`src/workflows/safe-error.ts`: poster failures, the failed `aws lambda invoke` reduced to the
+CLI's first stderr line or spawn code, OIDC token errors, an unknown cursor) and otherwise only the
+error's class name, because any other message might echo chat content.
+
 Searching by text is out of scope: Slack's search API needs a user token, and Telegram has nothing.
 The agent filters what the tools return. A bounded poster-side filter is proposed in
 [chat-search.md](chat-search.md).

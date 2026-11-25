@@ -18,6 +18,8 @@ requests, commits and files.
 
 - Handles (`thread-N`) and cursors (`cursor-N`) are opaque names for this run only; an unknown one
   is an error.
+- A failed request ends with `The chat request failed: <detail>`; quote the detail when you tell the
+  user the chat history is unavailable.
 - `limit` is clamped to the config's `chat_tools.max_threads` (`list_threads`) or
   `chat_tools.max_messages` (the others).
 - When a page is full, the result ends with `next_cursor: cursor-N`. Pass it as `before` to

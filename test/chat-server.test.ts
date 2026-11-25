@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fence } from "../src/workflows/clean-text.js";
+import { SafeError } from "../src/workflows/safe-error.js";
 import { scannedRange } from "./helpers/chat-context-fixtures.js";
 import {
   CURRENT,
@@ -14,6 +15,12 @@ import { message } from "./helpers/workflow-fixtures.js";
 
 const open: { close: () => Promise<void> }[] = [];
 afterEach(() => Promise.all(open.splice(0).map((s) => s.close())));
+
+let stderr: ReturnType<typeof vi.spyOn>;
+beforeEach(() => {
+  stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+});
+afterEach(() => stderr.mockRestore());
 
 const setup = async (
   data: Parameters<typeof fakeChatClient>[0] = {},
@@ -155,16 +162,34 @@ describe("chat MCP server", () => {
     expect((await call("read_channel", { limit: 5 })).text).not.toContain("next_cursor");
   });
 
-  it("hides client failure details", async () => {
-    const { client } = fakeChatClient();
-    client.readChannel = async () => {
-      throw new Error(`boom ${CURRENT}`);
-    };
-    const server = await connectChatServer(client);
-    open.push(server);
-    const { text, isError } = await server.call("read_channel");
+  it("reports the message of a safe client failure", async () => {
+    const { call } = await setup({ failure: new SafeError("GitHub OIDC is unavailable") });
+    const { text, isError } = await call("read_channel");
     expect(isError).toBe(true);
+    expect(text).toBe("The chat request failed: GitHub OIDC is unavailable");
+    expect(stderr).toHaveBeenCalledWith(
+      "centaur-chat: read_channel failed: GitHub OIDC is unavailable\n",
+    );
+  });
+
+  it("clips a safe failure to its first line", async () => {
+    const { call } = await setup({ failure: new SafeError(`${"x".repeat(500)}\nsecond line`) });
+    const { text } = await call("list_threads");
+    expect(text).toBe(`The chat request failed: ${"x".repeat(200)}`);
+  });
+
+  it("hides the message of any other client failure", async () => {
+    const { call } = await setup({ failure: new SyntaxError(`boom ${CURRENT} token-123`) });
+    const { text, isError } = await call("read_thread", { handle: "thread-0" });
+    expect(isError).toBe(true);
+    expect(text).toBe("The chat request failed: SyntaxError");
     expectNoRawIds(text);
+    expect(stderr.mock.calls.flat().join("")).not.toContain("token-123");
+  });
+
+  it("gives the plain text for a non-Error failure", async () => {
+    const { call } = await setup({ failure: "boom" });
+    expect((await call("list_threads")).text).toBe("The chat request failed.");
   });
 
   it("reports the scanned range on every tool, escaping the instant", async () => {

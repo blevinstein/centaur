@@ -42,6 +42,7 @@ export function fakeChatClient(
     channel?: ChannelMessage[];
     thread?: ReturnType<typeof message>[];
     scanned?: Scanned;
+    failure?: unknown;
   } = {},
 ) {
   const scanned = data.scanned ?? scannedRange(null, true);
@@ -49,14 +50,17 @@ export function fakeChatClient(
   const client: ChatPosterClient = {
     async listThreads(request) {
       calls.push({ op: "listThreads", request });
+      if (data.failure !== undefined) throw data.failure;
       return { threads: data.threads ?? [], scanned };
     },
     async readChannel(request) {
       calls.push({ op: "readChannel", request });
+      if (data.failure !== undefined) throw data.failure;
       return { messages: data.channel ?? [], scanned };
     },
     async readThread(request) {
       calls.push({ op: "readThread", request });
+      if (data.failure !== undefined) throw data.failure;
       return { messages: data.thread ?? [], scanned };
     },
   };

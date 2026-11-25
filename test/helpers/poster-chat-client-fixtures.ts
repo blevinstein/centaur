@@ -1,5 +1,6 @@
 import type { Scanned } from "../../src/mcp/chat-poster-client.js";
 import { createPosterChatClient } from "../../src/mcp/poster-chat-client.js";
+import { createPosterClient } from "../../src/workflows/aws.js";
 import { scannedRange } from "./chat-context-fixtures.js";
 import { CURRENT, type channelMessage, summary } from "./chat-server-fixtures.js";
 import { createFakeAws, message } from "./workflow-fixtures.js";
@@ -43,3 +44,20 @@ export function fakePosterChat(
   });
   return { client, requests: aws.requests };
 }
+
+/** An `execFile` rejection: the message carries the command line (function name, payload path) before stderr. */
+export const execFailure = (stderr: string, code?: string) =>
+  Object.assign(
+    new Error(
+      `Command failed: aws lambda invoke --function-name poster-fn --payload file:///tmp/centaur-invoke-x/payload.json\n${stderr}`,
+    ),
+    {
+      stderr,
+      ...(code && { code }),
+    },
+  );
+
+export const posterFailingWith = (error: Error) =>
+  createPosterClient("poster-fn", async () => {
+    throw error;
+  });
