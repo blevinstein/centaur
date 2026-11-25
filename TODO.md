@@ -30,12 +30,16 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
       it, and slash commands can't target an existing thread. Options: real slash command for
       `/new` only with the command carried in the dispatch payload, plus a plain-text form
       (`!resume`, `!transcript`) in threads; or text forms only. Deprioritized.
-- [ ] **[HUMAN ACTION]** Onboard one personal-project repo on Slack: create the app from the
-      manifest once it exists, install it, store its secrets, invite the bot.
-- [ ] **[HUMAN ACTION]** Measure the Slack webhook acknowledgement time; Slack expects a 200 within
-      about 3 seconds.
+- [x] **[HUMAN ACTION]** Onboard one personal-project repo on Slack: create the app from the
+      manifest once it exists, install it, store its secrets, invite the bot. Done: a
+      personal-project repo runs on its own app and channel. Top-level messages get a reply with
+      `respond_to: all`, and a thread reply continues the thread.
+- [x] **[HUMAN ACTION]** Measure the Slack webhook acknowledgement time; Slack expects a 200 within
+      about 3 seconds. Receiver durations over a sample: 120 ms to 1.8 s warm, 2.5 s total for a
+      cold start including 0.7 s init. All are under the limit; the cold start has the closest
+      margin.
 - [ ] If the 3-second limit is missed, acknowledge first and finish the reaction and dispatch in
-      the background.
+      the background. Not needed so far.
 
 ## 14. Agent-chosen PR targets
 
