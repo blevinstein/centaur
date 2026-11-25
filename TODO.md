@@ -363,7 +363,7 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       encryption, lifecycle and access); non-image attachments (video, audio, documents); letting
       the agent fetch images beyond the newest 10 that `prepare` loads (`MAX_PROMPT_IMAGES`); and
       what the privacy story is for stored personal photos.
-- [ ] Test how a turn behaves when `--max-budget-usd` stops a run before a structured reply.
+- [x] Test how a turn behaves when `--max-budget-usd` stops a run before a structured reply.
 - [ ] Two bots in one group: with a second bot from BotFather, confirm the ownership rules route
       messages correctly (**[HUMAN ACTION]**: the maintainer creates the second bot in BotFather).
 - [ ] Agent-scheduled follow-ups via EventBridge Scheduler.

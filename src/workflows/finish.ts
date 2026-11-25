@@ -466,8 +466,26 @@ export async function finish(deps: FinishDeps) {
   if (!suspended) await clearReactionsOnce();
 }
 
+const BUDGET_SUBTYPE = "error_max_budget_usd";
+
+/** Whether the agent's run ended on `--max-budget-usd`; an unreadable file is not. */
+async function hitBudget(executionFile: string | undefined) {
+  if (!executionFile) return false;
+  try {
+    const entries = JSON.parse(await readFile(executionFile, "utf8")) as {
+      type?: string;
+      subtype?: string;
+    }[];
+    return entries.findLast((entry) => entry.type === "result")?.subtype === BUDGET_SUBTYPE;
+  } catch {
+    return false;
+  }
+}
+
 export async function notifyFailure(
   deps: Pick<FinishDeps, "stateDir" | "poster"> & {
+    /** The agent's execution file, when the step left one. */
+    executionFile?: string | undefined;
     runUrl: string;
     comment?: Pick<CommentFinishDeps, "repository" | "github"> | undefined;
   },
@@ -477,7 +495,9 @@ export async function notifyFailure(
     throw error;
   });
   if (!state) return;
-  const text = `That turn failed. Details are in the workflow run: ${deps.runUrl}`;
+  const text = (await hitBudget(deps.executionFile))
+    ? `That turn hit its spending limit (max_budget_usd) before it could reply. Details: ${deps.runUrl}`
+    : `That turn failed. Details are in the workflow run: ${deps.runUrl}`;
   try {
     if (state.threadId && (state.mode === "reply" || state.mode === "comment")) {
       await deps.poster.call({ operation: "post", bot: state.bot, threadId: state.threadId, text });

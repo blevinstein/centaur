@@ -962,6 +962,50 @@ describe("notifyFailure", () => {
     expect(aws.objects.size).toBe(0);
   });
 
+  it("says the turn hit its budget when the run stopped on max_budget_usd", async () => {
+    const { deps, aws, stateDir, executionFile, writeExecution } = await setup([
+      message("1", "hi"),
+    ]);
+    await prepare(deps());
+    await writeExecution({ subtype: "error_max_budget_usd", is_error: true });
+    await notifyFailure({
+      stateDir,
+      executionFile,
+      poster: aws.poster,
+      runUrl: "https://example.test/run/1",
+    });
+    expect(aws.requests.at(-2)).toMatchObject({
+      operation: "post",
+      text: expect.stringMatching(/budget/),
+    });
+    expect(aws.requests.at(-2)).toMatchObject({ text: expect.not.stringMatching(/\n/) });
+    expect(aws.requests.at(-1)).toMatchObject({ operation: "unreact", messageIds: ["1"] });
+    expect(aws.objects.size).toBe(0);
+  });
+
+  it.each([
+    [
+      "another error subtype",
+      async (w: (e: object) => Promise<void>) => w({ subtype: "error_during_execution" }),
+    ],
+    ["no execution file", async () => undefined],
+  ])("keeps the generic notice with %s", async (_name, prepareFile) => {
+    const { deps, aws, stateDir, executionFile, writeExecution } = await setup([
+      message("1", "hi"),
+    ]);
+    await prepare(deps());
+    await prepareFile(writeExecution);
+    await notifyFailure({
+      stateDir,
+      executionFile,
+      poster: aws.poster,
+      runUrl: "https://example.test/run/1",
+    });
+    expect(aws.requests.at(-2)).toMatchObject({
+      text: expect.stringContaining("That turn failed"),
+    });
+  });
+
   it("does nothing when the turn never wrote its state", async () => {
     const { aws, stateDir } = await setup([message("1", "hi")]);
     await notifyFailure({ stateDir, poster: aws.poster, runUrl: "https://example.test/r" });

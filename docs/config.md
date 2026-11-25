@@ -70,7 +70,7 @@ prompts:
 | `model` | yes | | Model passed to the agent (`--model`). Always set explicitly; the CLI default is never relied on. |
 | `effort` | no | | Reasoning effort: `low`, `medium`, `high`, `xhigh` or `max` (`--effort`); unset uses the CLI's default. |
 | `max_turns` | no | `30` | Agentic turn cap per run (`--max-turns`), an integer from 1 to 200. |
-| `max_budget_usd` | no | | Spend cap per run (`--max-budget-usd`), above 0 and at most 1000. A run that hits it may end without a structured reply, so the turn fails and is retried with the next message. |
+| `max_budget_usd` | no | | Spend cap per run (`--max-budget-usd`), above 0 and at most 1000. A run that hits it ends without a structured reply, so the turn fails with a notice that it hit its spending limit, and is retried with the next message. |
 | `allowed_tools` | yes | | Tool allowlist: a comma-separated string or a YAML list. |
 | `mcp_servers` | no | `{}` | Additional MCP servers by name (see below). |
 | `persona` | no | `.centaur/persona.md` | Repo-relative path to the persona file. |

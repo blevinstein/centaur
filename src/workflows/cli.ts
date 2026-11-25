@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
+import { join } from "node:path";
 import { Command } from "commander";
 import { createAttachmentDownloader, createPosterClient, createThreadStore } from "./aws.js";
 import { cleanTitle } from "./clean-text.js";
@@ -279,6 +280,9 @@ program.command("finish").action(async () => {
 program.command("notify-failure").action(() =>
   notifyFailure({
     stateDir: turnStateDir(),
+    ...(process.env.RUNNER_TEMP && {
+      executionFile: join(process.env.RUNNER_TEMP, "claude-execution-output.json"),
+    }),
     poster: poster(),
     runUrl: env("RUN_URL"),
     comment: commentFinishDeps(),

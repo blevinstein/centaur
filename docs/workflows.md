@@ -366,7 +366,7 @@ See [skills-rules.md](skills-rules.md) for the design and the live check.
    Last, it removes the 👀 reaction (`unreact`) from every message the turn processed, so a message
    that still shows 👀 is still being worked on. A turn that suspends for MCP approval does this
    before its suspend call, which leaves the waiting reaction on the message.
-5. On failure (a failed pull request step is not one: see above), `notify-failure` posts a generic notice with the run URL, then removes the 👀
+5. On failure (a failed pull request step is not one: see above), `notify-failure` posts a generic notice with the run URL, or, when the agent stopped on `max_budget_usd` (result subtype `error_max_budget_usd` in the action's execution file under `RUNNER_TEMP`), a one-line spending-limit notice, then removes the 👀
    reactions; the marker is not advanced, so the messages are retried on the next turn.
 
 `prepare` records the turn state (bot, thread, mode, pull request and reply target, marker, session
