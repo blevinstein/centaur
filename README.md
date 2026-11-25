@@ -124,6 +124,8 @@ Lambda to post the reply. Details: [docs/plan.md](docs/plan.md).
 ## Docs
 
 - [docs/onboarding.md](docs/onboarding.md): setup per platform and per repo.
+- [docs/guide-basic-bot.md](docs/guide-basic-bot.md): a response-only bot, step by step.
+- [docs/guide-scheduled-action.md](docs/guide-scheduled-action.md): add a scheduled prompt to a bot.
 - [docs/config.md](docs/config.md): config file reference.
 - [docs/workflows.md](docs/workflows.md): shared workflows, caller workflow, variables, context
   policies.

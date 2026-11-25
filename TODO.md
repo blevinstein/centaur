@@ -319,7 +319,7 @@ for detailed tracking.
       poster caller check when exploring this: self-hosted accepts that any repo under the owner can
       act as any bot ([docs/poster.md](docs/poster.md#security-model)); a hosted option needs a
       per-repo token and a reserved-concurrency cap on the function.
-- [ ] Better guides - basic response-only bot, adding scheduled actions
+- [x] Better guides - basic response-only bot, adding scheduled actions
 - [ ] Support for centaur in a sub-folder? What would need to change? Explore and plan
 - [x] `centaur chat tail <bot> [--platform <platform>] [--minutes <n>]`: a read-only CLI command
       that lists a bot's recent messages from the state table through the poster's reader and

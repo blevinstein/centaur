@@ -4,6 +4,8 @@ Setup flows by role: the maintainer (once for the stack, once per bot and repo) 
 members (almost nothing). The Telegram flow and a consumer in this repo were validated in a live
 run; the Slack steps are not yet verified end to end ([Still unverified](#still-unverified)).
 
+Short task guides: [a response-only bot](guide-basic-bot.md) and [adding a scheduled action](guide-scheduled-action.md).
+
 One bot can be on several platforms. Create it on its first platform ([Telegram](#telegram-household-repos)
 or [Slack](#slack-personal-projects)), then [add the other platform](#adding-a-platform-to-a-bot).
 Each platform is a separate connection with its own secrets, admin, approvals and destinations.
