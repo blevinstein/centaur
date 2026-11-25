@@ -20,6 +20,7 @@ format `aws cloudformation` accepts.
 | `GitHubOwner` | GitHub user or org whose repositories may assume the OIDC role. |
 | `GitHubOwnerId` | Numeric id of that owner: `gh api users/<owner> --jq .id`. |
 | `ExistingOidcProviderArn` | ARN of the account's existing `token.actions.githubusercontent.com` IAM OIDC provider (`aws iam list-open-id-connect-providers`), or empty to create one. An account can have only one. |
+| `InspectionRolePrincipalArn` | IAM user or role ARN allowed to assume the inspection role (see [IAM](#iam)). Empty trusts the account. Optional. |
 | `SessionExpirationDays` | Days before objects under `sessions/` expire. |
 | `AttachmentExpirationDays` | Days before objects under `attachments/` expire. |
 | `CodeExpirationDays` | Days before uploaded Lambda zips expire. |
@@ -95,6 +96,21 @@ The function role gets the state table policy (`GetItem`, `PutItem`, `UpdateItem
 `ssm:DeleteParameter` only on `/centaur/admin-claim/*` and `/centaur/bots/*/platforms/*/approvers/*`, and `kms:Decrypt` through SSM. The `/centaur/chats/*` write lets approvals create destinations and lets a persistent run bind a thread to one (the only overwrite; approvals never replace a destination, but IAM cannot condition on the `Overwrite` flag).
 The GitHub OIDC role (assumable by repositories under `GitHubOwner`) can read and write objects
 under `sessions/` in the session bucket and invoke the function.
+The inspection role (`InspectionRoleArn` output) is read-only: `GetItem`, `Query` and `Scan` on the state
+table, `ssm:GetParameter`, `GetParameters` and `GetParametersByPath` on `/centaur/bots` and `/centaur/bots/*`,
+and `kms:Decrypt` through SSM so SecureString values read back. Use it instead of a broad IAM user for
+inspection and `centaur chat tail`. Its trust policy names `InspectionRolePrincipalArn` or, when that is
+empty, the account root, which only lets identities that already hold `sts:AssumeRole` on the role assume it;
+set the parameter to a single user or role to narrow it. Sessions last one hour.
+
+```sh
+creds=$(aws sts assume-role --role-arn <InspectionRoleArn> --role-session-name inspect \
+  --query Credentials --output json)
+export AWS_ACCESS_KEY_ID=$(jq -r .AccessKeyId <<<"$creds") \
+  AWS_SECRET_ACCESS_KEY=$(jq -r .SecretAccessKey <<<"$creds") \
+  AWS_SESSION_TOKEN=$(jq -r .SessionToken <<<"$creds")
+```
+
 The function URL is public (`AuthType NONE`) so Telegram and Slack can reach it.
 
 After the first deploy, store secrets with the [CLI](cli.md) and register repos as described in

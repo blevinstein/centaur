@@ -63,9 +63,14 @@ Parameters:
     MinValue: 0
     MaxValue: 1440
     Description: Minimum minutes between direct messages to a bot's admin about a failed GitHub dispatch, per bot. 0 turns the notice off.
+  InspectionRolePrincipalArn:
+    Type: String
+    Default: ''
+    Description: IAM user or role ARN allowed to assume the read-only inspection role. Empty trusts this account, so any identity in it that is itself allowed sts:AssumeRole can.
 
 Conditions:
   ShouldDeployLambda: !Equals [!Ref DeployLambda, 'TRUE']
+  TrustAccountForInspection: !Equals [!Ref InspectionRolePrincipalArn, '']
   CreateProvider: !Equals [!Ref ExistingOidcProviderArn, '']
 
 Resources:
@@ -352,6 +357,47 @@ Resources:
                   Resource: !GetAtt ReceiverFunction.Arn
                 - !Ref AWS::NoValue
 
+  InspectionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Read-only access to the state table and bot parameters, for inspection.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Principal:
+              AWS: !If
+                - TrustAccountForInspection
+                - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+                - !Ref InspectionRolePrincipalArn
+      Policies:
+        - PolicyName: inspect
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: !GetAtt StateTable.Arn
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/centaur/bots
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/centaur/bots/*
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: !Sub arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub ssm.${AWS::Region}.amazonaws.com
+
 Outputs:
   CodeBucketName:
     Value: !Ref CodeBucket
@@ -359,6 +405,8 @@ Outputs:
     Value: !Ref SessionBucket
   RoleArn:
     Value: !GetAtt GitHubRole.Arn
+  InspectionRoleArn:
+    Value: !GetAtt InspectionRole.Arn
   StateTableName:
     Value: !Ref StateTable
   StateTableArn:
