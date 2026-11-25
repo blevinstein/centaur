@@ -97,7 +97,7 @@ describe("checkCandidate", () => {
 });
 
 describe("listCandidates", () => {
-  it("returns the newest ten valid pull requests by number, skipping invalid ones", async () => {
+  it("returns the ten most recently updated valid pull requests, skipping invalid ones", async () => {
     const open = Array.from({ length: 14 }, (_, i) => candidatePr(i + 1));
     open[12] = candidatePr(13, { headRepository: "fork/sprout" });
     const { candidateDeps } = targetSetup({ open: open.toReversed() });
@@ -106,6 +106,23 @@ describe("listCandidates", () => {
 
     expect(MAX_CANDIDATES).toBe(10);
     expect(numbers).toEqual([14, 12, 11, 10, 9, 8, 7, 6, 5, 4]);
+  });
+
+  it("ranks by most recent update rather than number, breaking ties by number", async () => {
+    const stale = (number: number) => candidatePr(number, { updatedAt: "2026-10-01T00:00:00Z" });
+    const fresh = (number: number, at: string) => candidatePr(number, { updatedAt: at });
+    const { candidateDeps } = targetSetup({
+      open: [
+        stale(30),
+        fresh(2, "2026-11-20T00:00:00Z"),
+        fresh(1, "2026-11-20T00:00:00Z"),
+        stale(31),
+      ],
+    });
+
+    const numbers = (await listCandidates(candidateDeps, 3)).map((c) => c.number);
+
+    expect(numbers).toEqual([2, 1, 31]);
   });
 
   it("fetches one token for the whole listing and excludes poster failures", async () => {

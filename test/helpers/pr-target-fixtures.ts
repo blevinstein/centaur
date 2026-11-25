@@ -17,6 +17,7 @@ export const candidatePr = (
 ): CandidatePullRequest => ({
   number,
   title: `Change ${number}`,
+  updatedAt: `2026-11-01T00:00:${String(number).padStart(2, "0")}Z`,
   state: "open",
   author: WORKFLOW_BOT_LOGIN,
   headRef: `centaur/sprout-${String(number).padStart(12, "0")}`,

@@ -72,7 +72,7 @@ poster record exists it names the same bot); never from the turn state.
       and the push; today only unit tests cover it.
 - [x] Match `centaur/<bot>-` branches exactly in `checkCandidate` (a bot named `sprout` also
       matches `sprout-2`'s branches when no poster record exists).
-- [ ] Rank PR candidates by update time instead of number if busy repos show stale ones.
+- [x] Rank PR candidates by update time instead of number if busy repos show stale ones.
 - [x] Investigate the intermittent failure in `test/chat-dynamodb-state.test.ts` ("drops the oldest
       queued message beyond maxQueueSize").
 - [x] Move the security-relevant parts of the turn state out of the workspace, since the agent can

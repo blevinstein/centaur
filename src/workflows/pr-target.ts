@@ -11,6 +11,7 @@ export const MAX_CANDIDATES = 10;
 export interface CandidatePullRequest extends PullRequestInfo {
   number: number;
   title: string;
+  updatedAt: string;
   author: string | undefined;
 }
 
@@ -40,6 +41,7 @@ export type PrTarget =
 const candidateResponse = z.object({
   number: z.number().int().positive(),
   title: z.string(),
+  updated_at: z.string(),
   state: z.string(),
   user: z.object({ login: z.string() }).nullable(),
   head: z.object({ ref: z.string(), repo: z.object({ full_name: z.string() }).nullable() }),
@@ -49,6 +51,7 @@ const candidateResponse = z.object({
 const toCandidate = (data: z.infer<typeof candidateResponse>): CandidatePullRequest => ({
   number: data.number,
   title: data.title,
+  updatedAt: data.updated_at,
   state: data.state,
   author: data.user?.login,
   headRef: data.head.ref,
@@ -116,7 +119,11 @@ export async function checkCandidate(
   }
 }
 
-/** The newest `limit` open pull requests, by number, that pass `checkCandidate`. */
+/** Most recently updated first; the higher number wins a tie. */
+const byRecency = (a: CandidatePullRequest, b: CandidatePullRequest) =>
+  Date.parse(b.updatedAt) - Date.parse(a.updatedAt) || b.number - a.number;
+
+/** The newest `limit` open pull requests, by update time, that pass `checkCandidate`. */
 export async function listCandidates(
   deps: CandidateDeps,
   limit = MAX_CANDIDATES,
@@ -124,7 +131,7 @@ export async function listCandidates(
   const shared = { ...deps, fetchToken: once(deps.fetchToken) };
   const open = await deps.github.listOpenPullRequests(deps.repository);
   const candidates: CandidatePullRequest[] = [];
-  for (const pullRequest of open.toSorted((a, b) => b.number - a.number)) {
+  for (const pullRequest of open.toSorted(byRecency)) {
     if (candidates.length >= limit) break;
     if ((await checkCandidate(shared, pullRequest)) === undefined) candidates.push(pullRequest);
   }

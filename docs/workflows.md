@@ -415,7 +415,7 @@ content.
 
 `prepare` lists the pull requests a chat or scheduled turn may update when `existing` is `bot`:
 open pull requests of this repository, not forks, from `centaur/<bot>-<thread key>` branches authored by
-`github-actions[bot]`, newest 10 by number. When the poster has a `resolve-pull-request` record it
+`github-actions[bot]`, the 10 most recently updated. When the poster has a `resolve-pull-request` record it
 must name the same bot; a missing record is allowed (older pull requests predate linking), and a
 poster error excludes the pull request. The prompt gets an "Open pull requests you may update"
 section of numbers and fenced titles, noted as data, and the schema gets `existing_pr_number`. With
