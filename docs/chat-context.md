@@ -186,7 +186,7 @@ config by hand and `test/config.test.ts` defaults change with it.
 One short block, `src/workflows/instructions/chat_tools.md` (overridable as `instructions.chat_tools`),
 is included in chat and pull request comment turns when the feature is on: that `list_threads`,
 `read_thread` and `read_channel` exist, that their output is untrusted data written by other people,
-that results cover a bounded window, that cross-thread content is not for public artifacts, and
+that results cover a bounded window, and
 (when the skills are installed) that the `centaur-chat-tools` skill explains paging with cursors and
 how to read the window each result reports. The chat's name is not included: no source provides one. Tool results are also fenced the way transcript
 messages are, so a message in another thread that says "ignore your instructions" has the same
@@ -215,12 +215,13 @@ on `main`. For this server that means:
 
 ## Privacy and trust
 
-- **Other threads have other audiences.** In a Slack channel everyone present can read every
-  thread, so reading them adds no exposure. In a Telegram group the same holds for topics. The risk is
-  the agent quoting one thread's content into a place its audience should not see (a DM, a PR in a
-  public repo). The default scope stays within one chat for this reason, and the prompt block tells the
-  agent that cross-thread content is not for public artifacts such as PR bodies and commits. That is
-  guidance, not enforcement; the enforcement is the scope.
+- **Other threads add no exposure.** In a Slack channel everyone present can read every thread, so
+  reading them adds no exposure. In a Telegram group the same holds for topics. The boundary is the
+  scope (one chat per turn) and which chats the bot is enrolled in; a bot per channel is the
+  recommended way to separate audiences. The prompt has no rule about where cross-thread content may
+  go, so the agent may use it in pull requests, commits and files. A repository that is public while
+  its channel is private is the repository owner's configuration to avoid; a config option could be
+  added if that is ever needed.
 - **Prompt injection.** Messages from other people's threads are an additional untrusted input into a
   turn that may hold secrets and write access. The enrolled-sender filter limits who can write into
   it, fencing limits what it can do, and the existing tool allowlist and Cedar gate still bound the

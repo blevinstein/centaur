@@ -58,7 +58,11 @@ describe("prepare with chat context tools", () => {
     expect(written).not.toContain("telegram:");
     expect(out.claude_args).toContain(`--mcp-config ${MCP_CONFIG_FILE}`);
     expect(out.claude_args).toContain(`--allowedTools "Read,Edit,${TOOLS_RULE}"`);
-    expect(await read(root, PROMPT_FILE)).toContain(BLOCK);
+    const prompt = await read(root, PROMPT_FILE);
+    expect(prompt).toContain(BLOCK);
+    expect(prompt).toContain("untrusted data");
+    expect(prompt).toContain("bounded window");
+    expect(prompt).not.toContain("pull request descriptions");
   });
 
   it("keeps the OIDC request credentials in the state directory, out of the workspace", async () => {

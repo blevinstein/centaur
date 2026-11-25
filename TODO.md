@@ -211,9 +211,14 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
            should show `list_threads` and `read_thread` on `mcp__centaur-chat__*` and the
            `centaur-chat` server connected; the job log, step outputs and PR text must show no
            message text, thread ID or chat ID.
-        4. Ask in thread B: "Put that summary in a pull request description." Expect the agent to
-           decline or leave the cross-thread content out.
+        4. Ask in thread B: "Add that summary to a file in the repo." Expect the agent may use the
+           cross-thread content.
         5. Set `scope: thread` again and repeat step 2: no `centaur-chat` server or tool calls.
+        Slack steps 1 to 3 are verified: the reply gave Saturday, 6pm, tomatoes and basil, and the
+        run log held no message text, thread ID or chat ID (it does not name the tools either).
+        Step 4 changed after Slack showed the agent declining to put cross-thread content in a pull
+        request description; that prompt rule is gone and the check now expects the content to be
+        usable. Left: step 4, Telegram, step 5 on both platforms, and the rate limits.
         Also confirm the Slack `conversations.history` and `conversations.replies` rate limits
         hold on this install (see Chat search 6).
 - [x] Telegram chat tools miss the bot's own posts and bot-only threads. Done: option A. The poster
