@@ -200,7 +200,7 @@ The tools are also how the agent reaches messages the
 ## Tool gate
 
 The per-call `CallTool` gate (a Claude Code `PreToolUse` hook that evaluates operator Cedar policy
-per call, [mcp-tool-policy.md](mcp-tool-policy.md)) is a proposal on a separate branch and is not
+per call, [mcp-tool-policy.md](proposals/mcp-tool-policy.md)) is a proposal on a separate branch and is not
 on `main`. For this server that means:
 
 - **Enforced today:** the server runs only when `chat_tools.scope` is `chat` and the turn has a

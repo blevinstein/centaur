@@ -8,7 +8,7 @@ live check ran on 2026-11-24 and three points remain unverified (see
 [Live check results](#live-check-results)). Terms (turn,
 poster, `config_root`, `.centaur-trusted`) are defined in [workflows.md](workflows.md) and
 [plan.md](plan.md); the trust model for MCP servers this page builds on is in
-[mcp-tool-policy.md](mcp-tool-policy.md).
+[mcp-tool-policy.md](proposals/mcp-tool-policy.md).
 
 ## Summary of the design
 
@@ -74,7 +74,7 @@ Verified against the raw docs at `code.claude.com/docs/en/*.md` and the action's
    in `-p` runs in untrusted folders**, and does not restrict other tools (skills.md "Pre-approve
    tools for a skill"). A project skill can therefore widen the allowlist `allowed_tools` sets.
    `hooks` in skill frontmatter and `.claude/settings*.json` carry the risks already listed in
-   [mcp-tool-policy.md](mcp-tool-policy.md).
+   [mcp-tool-policy.md](proposals/mcp-tool-policy.md).
 7. **Skills are live-reloaded** from `~/.claude/skills`, the project and `--add-dir` directories
    (skills.md "Live change detection"). A turn that writes under `.claude/skills/` could add a
    skill mid-turn.
@@ -321,7 +321,7 @@ people's messages (AGENTS.md); `chat tail` prints none.
 ## Docs to update
 
 `docs/config.md` (the `skills` key), `docs/workflows.md` (what `prepare` installs, the comment-turn
-setting sources), `docs/pr-comments.md` (trusted skills only), `docs/mcp-tool-policy.md` (skills as
+setting sources), `docs/pr-comments.md` (trusted skills only), `docs/proposals/mcp-tool-policy.md` (skills as
 a surface beside `.claude/settings*.json`), `docs/plan.md` if the SSM or payload layout changes
 (it does not), AGENTS.md (one bullet: skills come from `skills/` and the trusted checkout, never the
 PR branch), and the `docs/onboarding.md` consumer section.

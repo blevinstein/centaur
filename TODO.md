@@ -299,7 +299,7 @@ Some of these are items that can be implemented in a single task; others require
 discussion before implementation. If a task has many subtasks, break it out into its own section
 for detailed tracking.
 
-- [ ] Move not-yet-implemented docs into a proposals/ subdir to separate from already-implemented.
+- [x] Move not-yet-implemented docs into a proposals/ subdir to separate from already-implemented.
 - [x] Create a DONE.md file, and move sections of fully-completed TODO items into DONE.
 - [ ] Setup .centaur config for ~/dev/finances repo - monarch integration, consider using ledger for
       selected transactions (or link to gsheets), weekly transaction review and liquidity check
@@ -341,7 +341,7 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       Code `PreToolUse` hook, failing closed. Design, the catalogue of ways a misconfiguration could
       grant too much, and the hardening steps (schema validation, literal lint, exit-2 hook
       contract, post-run audit, settings isolation, dry-run command):
-      [docs/mcp-tool-policy.md](docs/mcp-tool-policy.md). A first cut with tests, not yet hardened,
+      [docs/proposals/mcp-tool-policy.md](docs/proposals/mcp-tool-policy.md). A first cut with tests, not yet hardened,
       is on the branch [`proposal/mcp-tool-policy-first-cut`](https://github.com/blevinstein/centaur/tree/proposal/mcp-tool-policy-first-cut). Needs a live experiment first (**[HUMAN ACTION]** to approve
       the `experiment/*` run).
 - [ ] Plan for long-running agent turns (>15 mins). Turns run on the runner, so the real limits are

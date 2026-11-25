@@ -1,7 +1,7 @@
 # Per-call MCP policy
 
 Status: **proposal**, not built on `main`. This document is the plan behind the backlog item in
-[TODO.md](../TODO.md#backlog). It builds on [mcp.md](mcp.md#operator-policy).
+[TODO.md](../../TODO.md#backlog). It builds on [mcp.md](../mcp.md#operator-policy).
 
 A first cut of the design below (the `CallTool` evaluator, the `tool-gate` hook, tests and its
 `mcp.md` section) lives on the branch [`proposal/mcp-tool-policy-first-cut`](https://github.com/blevinstein/centaur/tree/proposal/mcp-tool-policy-first-cut). It fails open when the hook itself
@@ -94,7 +94,7 @@ environment) are not covered by MCP policy.
    managed settings. Shape depends on the live experiment.
 7. **Dry run.** `centaur policy check-call --server S --tool T --args JSON` evaluates local policy files
    with `checkToolCall` and prints the decision and policy id.
-8. **Docs.** Fold this into the "Tool-call policy" section of [mcp.md](mcp.md): allowlist form first,
+8. **Docs.** Fold this into the "Tool-call policy" section of [mcp.md](../mcp.md): allowlist form first,
    sibling-parameter and wildcard pitfalls, the exit-2 contract, the audit and the remaining trust boundary.
 
 ## Verification

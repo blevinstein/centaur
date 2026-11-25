@@ -43,7 +43,7 @@ Only these, and each is separable:
 3. **Naming the generalization without writing Cedar.** `centaur mcp allow my-bot host
    api.example.com` instead of a `permit` with `resource.host == ...`.
 4. **A tool within a server.** `allowed_tools` already names tools and is part of the fingerprint.
-   Tool-level policy belongs to [mcp-tool-policy.md](mcp-tool-policy.md) (`CallTool`), not here.
+   Tool-level policy belongs to [mcp-tool-policy.md](proposals/mcp-tool-policy.md) (`CallTool`), not here.
 
 Items 2 and 3 are the ones that cost something: they move a decision about *what may run with the
 job's secrets* out of a reviewed file into a store the admin edits at runtime, and they widen what a
@@ -157,7 +157,7 @@ the point of pinning: each content change is seen by a human.
 
 Out of scope here. `allowed_tools` is in the fingerprint, so changing the tools of an approved
 server asks again; per-call restrictions are the `CallTool` design in
-[mcp-tool-policy.md](mcp-tool-policy.md). Recommendation: **do not add a tool entry kind.**
+[mcp-tool-policy.md](proposals/mcp-tool-policy.md). Recommendation: **do not add a tool entry kind.**
 
 ### 9. The small addition: `centaur mcp approve`
 
@@ -199,7 +199,7 @@ docs, tests), to add runtime generalization the repo policy already provides wit
 
 ## Out of scope
 
-- Tool-level and argument-level allows ([mcp-tool-policy.md](mcp-tool-policy.md)).
+- Tool-level and argument-level allows ([mcp-tool-policy.md](proposals/mcp-tool-policy.md)).
 - Time-based expiry of approvals or entries.
 - Letting the agent, a pull request or a chat message other than a decision add an entry.
 - Allowing anything the global ceiling forbids.
