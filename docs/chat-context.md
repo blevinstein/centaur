@@ -174,6 +174,7 @@ chat_tools:
   scope: thread        # thread (default, no tools) | chat
   max_threads: 20
   max_messages: 50
+  slack_search: false  # opt-in Slack-native search; needs scope: chat and the slack platform
 ```
 
 `scope: thread` keeps today's behavior, so existing consumers see no change. `chat` enables the

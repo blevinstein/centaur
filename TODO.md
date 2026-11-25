@@ -239,7 +239,7 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       because of the infrastructure cost. Slices, in order:
   - [x] Chat search 1: `scanned: { oldest, exhausted }` range in `read-channel` and
         `list-threads` results.
-  - [ ] Chat search 2: `chat_tools` config key for the Slack search opt-in.
+  - [x] Chat search 2: `chat_tools` config key for the Slack search opt-in.
   - [x] Chat search 3: MCP server renders the scanned range and the bounded-window note.
   - [ ] Chat search 4: Slack-native search (receiver captures the `action_token` into the state
         table with a TTL, poster `search-chat`, MCP `search_chat`, manifest scopes). Settle the

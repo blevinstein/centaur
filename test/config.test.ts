@@ -69,6 +69,15 @@ describe("parseCentaurConfig", () => {
     });
   });
 
+  it("parses the slack_search opt-in", () => {
+    expect(
+      parseCentaurConfig(withExtra("chat_tools: {scope: chat, slack_search: true}")),
+    ).toMatchObject({
+      ok: true,
+      config: { chat_tools: { ...DEFAULT_CHAT_TOOLS, scope: "chat", slack_search: true } },
+    });
+  });
+
   it("parses a full config, normalizing tools and prompts", () => {
     expect(parseCentaurConfig(fullConfig)).toEqual({
       ok: true,

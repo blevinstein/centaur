@@ -19,7 +19,12 @@ const DEFAULT_COMMENT_AUTHORS = ["OWNER", "MEMBER", "COLLABORATOR"] as const;
 export const CHAT_TOOLS_SCOPES = ["thread", "chat"] as const;
 export const CHAT_TOOLS_MAX_THREADS = 50;
 export const CHAT_TOOLS_MAX_MESSAGES = 200;
-const DEFAULT_CHAT_TOOLS = { scope: "thread", max_threads: 20, max_messages: 50 } as const;
+const DEFAULT_CHAT_TOOLS = {
+  scope: "thread",
+  max_threads: 20,
+  max_messages: 50,
+  slack_search: false,
+} as const;
 export const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"] as const;
 export const RESPOND_TO = ["mention", "all"] as const;
 
@@ -224,6 +229,7 @@ export const centaurConfigSchema = z
           .min(1)
           .max(CHAT_TOOLS_MAX_MESSAGES)
           .default(DEFAULT_CHAT_TOOLS.max_messages),
+        slack_search: z.boolean().default(DEFAULT_CHAT_TOOLS.slack_search),
       })
       .default(DEFAULT_CHAT_TOOLS),
     skills: z
@@ -259,6 +265,12 @@ export const centaurConfigSchema = z
       if ((prompt.context ?? config.context.scheduled) === "resume" && targets.length > 1) {
         issue("context", "resume needs one target: a session belongs to one thread");
       }
+    }
+    if (config.chat_tools.slack_search) {
+      const requires = (path: string, ok: boolean, message: string) =>
+        ok || ctx.addIssue({ code: "custom", path: ["chat_tools", path], message });
+      requires("slack_search", config.chat_tools.scope === "chat", "needs chat_tools.scope: chat");
+      requires("slack_search", declared.includes("slack"), "needs the slack platform in platforms");
     }
     const servers = Object.keys(config.mcp_servers);
     config.allowed_tools.forEach((tool, index) => {

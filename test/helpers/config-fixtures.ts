@@ -1,6 +1,11 @@
 import { formatIssues, type McpServer, parseCentaurConfig } from "../../src/config/index.js";
 
-export const DEFAULT_CHAT_TOOLS = { scope: "thread", max_threads: 20, max_messages: 50 };
+export const DEFAULT_CHAT_TOOLS = {
+  scope: "thread",
+  max_threads: 20,
+  max_messages: 50,
+  slack_search: false,
+};
 
 const BASE_FIELDS: Record<string, string | undefined> = {
   bot: "a",
@@ -184,6 +189,12 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
     ["fractional max_threads", "max_threads: 2.5", "chat_tools.max_threads"],
     ["zero max_messages", "max_messages: 0", "chat_tools.max_messages"],
     ["excessive max_messages", "max_messages: 201", "chat_tools.max_messages"],
+    [
+      "a non-boolean slack_search",
+      "scope: chat, slack_search: yes please",
+      "chat_tools.slack_search",
+    ],
+    ["slack_search without chat scope", "slack_search: true", "chat_tools.slack_search"],
     ["an unknown key", "other: 1", "chat_tools"],
   ].map(
     ([name, field, path]) =>
@@ -194,6 +205,12 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
         RegExp,
       ],
   ),
+  [
+    "slack_search on a bot without slack",
+    withPlatforms("{telegram: {}}", "chat_tools: {scope: chat, slack_search: true}"),
+    "chat_tools.slack_search",
+    /slack platform/,
+  ],
   ["skills with an unknown key", withExtra("skills: {other: true}"), "skills", /unrecognized key/i],
   [
     "skills with a non-boolean switch",
