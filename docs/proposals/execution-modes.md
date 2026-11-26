@@ -107,13 +107,13 @@ default branch. The authorization therefore has to be as hard to forge as `.cent
    web page the agent reads, can steer a commit to the default branch with no human review from
    Centaur. This is the cost of opting in. The mitigations are branch protection (point 4) and the
    protected-paths fallback below; an operator who cannot accept the risk keeps `pull_request`.
-8. **Always-on guards stay.** `NEVER_COMMITTED` paths are never staged; a path under
-   `.github/workflows/` still fails with the existing "permission for it" push rejection (the job
-   token lacks `workflows`), which falls back to a pull request, so an agent cannot grant itself
-   new workflows or edit the config that grants direct mode through this path. The `.centaur*` config
-   files should additionally be refused outright in `direct` mode (a patch touching them falls back
-   to a pull request), so the agent can never edit its own authorization even where branch
-   protection is absent. The protected paths are `.github/workflows/*` and `.centaur*`.
+8. **Always-on guards stay.** `NEVER_COMMITTED` paths are never staged. A patch touching a protected
+   path is refused outright in `direct` mode and falls back to a pull request, so the agent can never
+   edit its own authorization or what runs or who reviews, even where branch protection is absent.
+   The protected paths are anything under `.github/` (workflows, composite actions, CODEOWNERS,
+   dependabot), any path with a segment starting with `.centaur` at any depth (so a sub-folder
+   bot's `<root>/.centaur/` and `<root>/.centaur.yml` count), and `CODEOWNERS` at the repo root or
+   under `docs/`.
 
 Net effect: the three layers are the config (default branch only), the trusted push step (never agent
 output), and branch protection (the repository owner's decision). An operator who wants safety keeps
@@ -150,7 +150,7 @@ trusted config for the whole step graph.
 | Patch does not apply cleanly to the tip (`conflict`) | fall back to a pull request; the 3-way merge already tolerates unrelated concurrent commits, so this is a real overlap |
 | The default branch moved between fetch and push (`push_rejected`, non-fast-forward) | retry once from a fresh fetch; a second rejection always falls back to a pull request. Never force-push. The retry is safe because the patch is re-applied, not the old commit re-pushed |
 | Branch protection or a ruleset rejects the push | `push_rejected`: fall back to a pull request. This is the expected result in a protected repository, so it is a `::notice::`, not a warning, and the reply says the change went through review |
-| `.github/workflows/*` or a `.centaur*` path in the patch | fall back (see above) |
+| A protected path (`.github/`, `.centaur*` at any depth, `CODEOWNERS`) in the patch | fall back (see above) |
 | Fallback pull request also fails | existing behavior: `finish` appends "I couldn't open the pull request, so the changes were not saved" |
 
 Reporting: the chat reply gets `Pushed to <branch>: <commit url>` in place of `Pull request: <url>`;
@@ -220,7 +220,7 @@ Unit tests with the fake `Exec` and fake GitHub client already used by `push-exi
 - `pushDirect` (through the shared transplant): applies onto the tip, commits as the bot, pushes the
   default branch, never forces; `conflict`, `fetch_failed`, `push_rejected` map to the codes; the
   retry happens once on a non-fast-forward and re-applies the patch; a second rejection falls back;
-  a patch touching `.centaur.yml`, `.centaur/`, or `.github/workflows/` yields `protected_path`; an
+  a patch touching `.centaur.yml`, `apps/x/.centaur/`, `.github/actions/` or `CODEOWNERS` yields `protected_path`; an
   empty patch pushes nothing; the ref used equals the API's default branch, never agent text.
 - Plan: `direct` bypasses candidate lookup, `pull_request` behaves exactly as today (the existing
   `plan-pr` tests stay unchanged and pass), and the mode is read from `CENTAUR_CONFIG_ROOT`, not the
@@ -241,8 +241,9 @@ output is what the tests above cover.
 
 1. **Config and docs skeleton (built).** `execution` block in `src/config/schema.ts` with its refinements,
    `docs/config.md`, no behavior change (default is today's mode).
-2. **Refactor.** Extract the transplant from `push-existing.ts` into a shared function, add
-   `pushDirect`, unit tests. No action wiring.
+2. **Refactor (built).** The transplant is `transplantAndPush` in `src/workflows/transplant.ts`;
+   `pushDirect` is in `src/workflows/push-direct.ts`, with unit tests. Its success result carries
+   the commit `sha`. No action wiring.
 3. **Wire the turn action.** Generalize `plan-pr` to the execution plan, add `push-direct`, update
    the `if:` conditions in `.github/actions/turn/action.yml`, `finish` reporting. Real-run check on a
    scratch repository.
@@ -260,7 +261,7 @@ consumer's default branch before the action that understands it, or `register` f
 - **Direct on chat turns, or only scheduled prompts?** Allowed on both chat and scheduled turns,
   opt-in per bot in config, never on by default. Consequence: a chat participant (or a pasted web
   page) can steer a commit to the default branch, so branch protection and the protected-paths
-  fallback (`.github/workflows/*`, `.centaur*`) are the mitigations, and the docs say so plainly.
+  fallback (`.github/`, `.centaur*`, `CODEOWNERS`) are the mitigations, and the docs say so plainly.
 - **`execution.branch`?** Not in v1. Consequence: the target is always the default branch resolved
   from the API, with no extra ref validation. A non-default target is a possible later variant.
 - **Poster-side approval of `direct`?** No; authorization comes from the config only in v1.

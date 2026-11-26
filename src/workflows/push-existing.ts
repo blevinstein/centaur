@@ -1,11 +1,6 @@
-import { mkdtemp, rm, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { type Exec, execCommand } from "./aws.js";
-import { BOT_IDENTITY, NEVER_COMMITTED } from "./push.js";
+import type { Exec } from "./aws.js";
 import { BRANCH_PREFIX } from "./resolve.js";
-
-const SAFE_HEAD_REF = /^[A-Za-z0-9._/-]+$/;
+import { isSafeRef, transplantAndPush } from "./transplant.js";
 
 export type PushExistingFailure =
   | "invalid_ref"
@@ -29,67 +24,13 @@ export interface PushExistingOptions {
   exec?: Exec | undefined;
 }
 
-export const isValidHeadRef = (ref: string) =>
-  ref.startsWith(BRANCH_PREFIX) &&
-  SAFE_HEAD_REF.test(ref) &&
-  !ref.includes("..") &&
-  !ref.includes("//") &&
-  !ref.endsWith("/") &&
-  !ref.endsWith(".lock");
+export const isValidHeadRef = (ref: string) => ref.startsWith(BRANCH_PREFIX) && isSafeRef(ref);
 
-/**
- * Applies the workspace's changes onto the tip of an existing pull request branch from a separate
- * worktree and pushes with a plain `git push`, so the workspace keeps the agent's files for a
- * fallback. Every failure is reported as a reason code that carries no repository content.
- */
+/** Pushes the workspace's changes onto the tip of an existing `centaur/` pull request branch. */
 export async function pushExisting(options: PushExistingOptions): Promise<PushExistingResult> {
-  const { workspace, headRef, message, exec = execCommand } = options;
-  if (!isValidHeadRef(headRef)) return { ok: false, reason: "invalid_ref" };
-  const git = (...args: string[]) => exec("git", ["-C", workspace, ...args]);
-  const scratch = await mkdtemp(join(options.tempDir ?? tmpdir(), "centaur-push-"));
-  const patch = join(scratch, "changes.patch");
-  const worktree = join(scratch, "pr");
-  let added = false;
-  const attempt = async (reason: PushExistingFailure, run: () => Promise<unknown>) => {
-    try {
-      await run();
-      return undefined;
-    } catch {
-      return { ok: false, reason } as const;
-    }
-  };
-  try {
-    const prepared = await attempt("patch_failed", async () => {
-      await git("add", "--all");
-      await git("reset", "--quiet", "--", ...NEVER_COMMITTED);
-      await git("diff", "--cached", "--binary", `--output=${patch}`, "HEAD");
-    });
-    if (prepared) return prepared;
-    if ((await stat(patch)).size === 0) return { ok: true, commits: 0 };
-
-    const remoteRef = `refs/remotes/origin/${headRef}`;
-    const inWorktree = (...args: string[]) => exec("git", ["-C", worktree, ...args]);
-    const steps: [PushExistingFailure, () => Promise<unknown>][] = [
-      ["fetch_failed", () => git("fetch", "origin", `+refs/heads/${headRef}:${remoteRef}`)],
-      [
-        "fetch_failed",
-        async () => {
-          await git("worktree", "add", "--detach", worktree, remoteRef);
-          added = true;
-        },
-      ],
-      ["conflict", () => inWorktree("apply", "--3way", "--index", patch)],
-      ["conflict", () => inWorktree(...BOT_IDENTITY, "commit", "--message", message)],
-      ["push_rejected", () => inWorktree("push", "origin", `HEAD:refs/heads/${headRef}`)],
-    ];
-    for (const [reason, run] of steps) {
-      const failure = await attempt(reason, run);
-      if (failure) return failure;
-    }
-    return { ok: true, commits: 1, url: options.pullRequestUrl, number: options.number };
-  } finally {
-    if (added) await git("worktree", "remove", "--force", worktree).catch(() => undefined);
-    await git("worktree", "prune").catch(() => undefined);
-    await rm(scratch, { recursive: true, force: true });
-  }
+  if (!isValidHeadRef(options.headRef)) return { ok: false, reason: "invalid_ref" };
+  const result = await transplantAndPush({ ...options, ref: options.headRef });
+  if (!result.ok) return { ok: false, reason: result.reason as PushExistingFailure };
+  if (result.commits === 0) return result;
+  return { ok: true, commits: 1, url: options.pullRequestUrl, number: options.number };
 }
