@@ -32,6 +32,23 @@ describe("checkRepositoryMcpPolicy", () => {
     expect(paths).toEqual(["/repos/octo/sprout", policyPath("trunk")]);
   });
 
+  it.each([
+    [".", ""],
+    ["apps/garden", "apps/garden/"],
+  ])("reads the policy under the root %s", async (root, prefix) => {
+    const { deps, paths } = fakePolicyGitHub({ policy: PERMIT_ANY_REMOTE, root });
+
+    await checkRepositoryMcpPolicy(mcpConfig(), deps);
+
+    expect(paths[1]).toBe(policyPath("main", prefix));
+  });
+
+  it.each(["../x", "/abs", "a//b", "a\\b"])("rejects the root %s", async (root) => {
+    expect(await messages({ policy: PERMIT_ANY_REMOTE, root })).toEqual([
+      expect.stringMatching(/Invalid Centaur root/),
+    ]);
+  });
+
   it("percent-encodes the default branch name", async () => {
     const { deps, paths } = fakePolicyGitHub({ policy: PERMIT_ANY_REMOTE, defaultBranch: "a/b" });
 

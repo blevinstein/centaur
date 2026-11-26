@@ -1,9 +1,10 @@
 import type { PosterClient } from "./aws.js";
-import { parseConfigOrThrow, readConfigText } from "./config-file.js";
+import { assertSingleConfigStyle, parseConfigOrThrow, readConfigText } from "./config-file.js";
 import { enforceMcpPolicy, type McpPolicyDeps } from "./mcp-policy-check.js";
 
 export interface RegisterDeps {
   workspace: string;
+  root?: string | undefined;
   mcpPolicy?: McpPolicyDeps | undefined;
   poster: PosterClient;
   fetchToken: () => Promise<string>;
@@ -12,12 +13,14 @@ export interface RegisterDeps {
 
 export async function registerRepo({
   workspace,
+  root,
   mcpPolicy,
   poster,
   fetchToken,
   mask,
 }: RegisterDeps) {
-  const config = await readConfigText(workspace);
+  await assertSingleConfigStyle(workspace, root);
+  const config = await readConfigText(workspace, root);
   await enforceMcpPolicy(parseConfigOrThrow(config), mcpPolicy);
   const token = await fetchToken();
   mask(token);

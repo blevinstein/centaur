@@ -1,5 +1,6 @@
+import { posix } from "node:path";
 import { z } from "zod";
-import { type CentaurConfig, formatIssues } from "../config/index.js";
+import { type CentaurConfig, formatIssues, isRepoRelativePath } from "../config/index.js";
 import {
   evaluateMcpPolicy,
   formatApprovals,
@@ -14,6 +15,8 @@ export const MCP_POLICY_FILE = ".centaur/mcp-policy.cedar";
 
 export interface McpPolicyDeps {
   repository: string;
+  /** The Centaur root inside the repository (default `.`). */
+  root?: string | undefined;
   github: GitHubRequester;
   poster: PosterClient;
 }
@@ -21,12 +24,20 @@ export interface McpPolicyDeps {
 const repositoryResponse = z.object({ default_branch: z.string().min(1) });
 const globalPolicyResponse = z.object({ policy: z.string().nullable() });
 
+/** The repo-relative path of the policy file for a Centaur root, as a URL path. */
+export function mcpPolicyPath(root = "."): string {
+  if (!isRepoRelativePath(root)) {
+    throw new Error(`Invalid Centaur root "${root}": must be a relative path inside the repo`);
+  }
+  return posix.join(root, MCP_POLICY_FILE).split("/").map(encodeURIComponent).join("/");
+}
+
 /** Reads the repo layer from the default branch, never the checkout: a turn can run on any branch. */
-async function fetchRepoPolicy({ repository, github }: McpPolicyDeps) {
+async function fetchRepoPolicy({ repository, root, github }: McpPolicyDeps) {
   const { default_branch } = await github.json(`/repos/${repository}`, repositoryResponse);
   try {
     return await github.text(
-      `/repos/${repository}/contents/${MCP_POLICY_FILE}?ref=${encodeURIComponent(default_branch)}`,
+      `/repos/${repository}/contents/${mcpPolicyPath(root)}?ref=${encodeURIComponent(default_branch)}`,
       "application/vnd.github.raw+json",
     );
   } catch (error) {

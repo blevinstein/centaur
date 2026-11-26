@@ -86,8 +86,8 @@ export const GITHUB_SERVER_CONFIG = {
 
 export const POLICY_REPOSITORY = "octo/sprout";
 
-export const policyPath = (ref: string) =>
-  `/repos/${POLICY_REPOSITORY}/contents/.centaur/mcp-policy.cedar?ref=${ref}`;
+export const policyPath = (ref: string, root = "") =>
+  `/repos/${POLICY_REPOSITORY}/contents/${root}.centaur/mcp-policy.cedar?ref=${ref}`;
 
 export const WORKSPACE_PERMIT_FILES = {
   ".centaur/mcp-policy.cedar": PERMIT_ANY_REMOTE,
@@ -101,6 +101,7 @@ export function fakePolicyGitHub(
     contentsStatus?: number;
     globalPolicy?: string;
     posterFails?: boolean;
+    root?: string;
   } = {},
 ) {
   const paths: string[] = [];
@@ -137,7 +138,7 @@ export function fakePolicyGitHub(
     github,
     paths,
     posterRequests,
-    deps: { repository: POLICY_REPOSITORY, github, poster },
+    deps: { repository: POLICY_REPOSITORY, root: options.root, github, poster },
   };
 }
 

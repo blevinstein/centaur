@@ -31,11 +31,10 @@ const storeFor = (bot: string, threadId: string) =>
 const attachments = () => createAttachmentDownloader(env("CENTAUR_SESSION_BUCKET"));
 const workspace = () => process.env.GITHUB_WORKSPACE ?? process.cwd();
 
+const centaurRoot = () => process.env.CENTAUR_ROOT || undefined;
+
 const configText = () =>
-  readConfigText(
-    process.env.CENTAUR_CONFIG_ROOT || workspace(),
-    process.env.CENTAUR_ROOT || undefined,
-  );
+  readConfigText(process.env.CENTAUR_CONFIG_ROOT || workspace(), centaurRoot());
 
 const readEvent = async () => JSON.parse(await readFile(env("GITHUB_EVENT_PATH"), "utf8"));
 
@@ -51,6 +50,7 @@ const mcpPolicyDeps = () => {
   if (!repository || !token) return undefined;
   return {
     repository,
+    root: centaurRoot(),
     github: createGitHubRequester(token, process.env.GITHUB_API_URL),
     poster: poster(),
   };
@@ -59,6 +59,7 @@ const mcpPolicyDeps = () => {
 program.command("register").action(async () => {
   const result = await registerRepo({
     workspace: workspace(),
+    root: centaurRoot(),
     mcpPolicy: mcpPolicyDeps(),
     poster: poster(),
     fetchToken: oidcTokenFetcher(process.env, env("CENTAUR_OIDC_AUDIENCE")),

@@ -74,6 +74,28 @@ describe("config check", () => {
     });
   });
 
+  it("resolves the config and policy under --root", async () => {
+    const { root } = await createWorkspace({
+      "apps/garden/.centaur.yml": servers,
+      "apps/garden/.centaur/mcp-policy.cedar": PERMIT_ANY_REMOTE,
+    });
+    vi.spyOn(process, "cwd").mockReturnValue(root);
+    const cli = createCliHarness();
+
+    await cli.run("config", "check", "--root", "apps/garden");
+
+    expect(cli.output.join("\n")).toContain(`${join(root, "apps/garden/.centaur.yml")} is valid`);
+  });
+
+  it("rejects a --root outside the current directory", async () => {
+    const { root } = await createWorkspace({ ".centaur.yml": minimalConfig });
+    vi.spyOn(process, "cwd").mockReturnValue(root);
+
+    await expect(createCliHarness().run("config", "check", "--root", "..")).rejects.toThrow(
+      /Invalid Centaur root/,
+    );
+  });
+
   it("fails with no path when both config files exist", async () => {
     const { root } = await createWorkspace({
       ".centaur.yml": minimalConfig,
