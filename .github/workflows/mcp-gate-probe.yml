@@ -1,0 +1,98 @@
+name: MCP gate probe
+
+# Throwaway experiment: answers the live questions of docs/proposals/mcp-tool-policy.md with real
+# claude-code-action runs. Needs only ANTHROPIC_API_KEY; read-only token; nothing is pushed.
+
+on:
+  push:
+    branches: [experiment/mcp-gate-probe]
+  workflow_dispatch:
+    inputs:
+      only:
+        description: Comma-separated scenario id prefixes to run (empty runs all), e.g. s1,s5
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: matrix
+        env:
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: node .github/mcp-gate-probe/prepare.mjs matrix "${{ inputs.only }}"
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read the hooks documentation as raw text
+        run: |
+          mkdir -p out
+          curl -s https://code.claude.com/docs/en/hooks -o out/hooks.html
+          {
+            echo "DOCS onFailure mentions (raw page, first 8):"
+            grep -o '.\{0,150\}onFailure.\{0,250\}' out/hooks.html | head -8
+            echo "DOCS setting-sources mentions (raw page, first 8):"
+            grep -o '.\{0,150\}setting-sources.\{0,250\}' out/hooks.html | head -8
+          } | tee out/docs.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probe-docs
+          path: out/docs.txt
+
+  probe:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: prepare
+        env:
+          RUNNER_TEMP: ${{ runner.temp }}
+        run: node .github/mcp-gate-probe/prepare.mjs "${{ matrix.scenario }}"
+      - id: agent
+        continue-on-error: true
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          prompt: ${{ steps.prepare.outputs.prompt }}
+          claude_args: ${{ steps.prepare.outputs.claude_args }}
+      - name: Verify
+        if: always()
+        env:
+          PROBE_DIR: ${{ steps.prepare.outputs.probe_dir }}
+          EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
+          AGENT_OUTCOME: ${{ steps.agent.outcome }}
+        run: |
+          touch "$PROBE_DIR/effects.log" "$PROBE_DIR/hook.log"
+          cp "$PROBE_DIR/settings.json" "$PROBE_DIR/settings.used.json"
+          [ -n "$EXECUTION_FILE" ] && cp "$EXECUTION_FILE" "$PROBE_DIR/execution.json" || true
+          { claude --version || true; } > "$PROBE_DIR/claude-version.txt" 2>&1
+          node .github/mcp-gate-probe/verify.mjs "${{ matrix.scenario }}" | tee -a "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-${{ matrix.scenario }}
+          path: ${{ steps.prepare.outputs.probe_dir }}
+
+  report:
+    needs: [probe, docs]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: probe-*
+          path: results
+      - name: Print every RESULT line
+        run: cat results/probe-*/result.txt | sort | tee -a "$GITHUB_STEP_SUMMARY"
