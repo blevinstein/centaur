@@ -26,7 +26,7 @@ export const BOT_OPERATIONS = {
 
 export const CALLER_CHECKED_OPERATIONS = {
   ...BOT_OPERATIONS,
-  "get-mcp-policy": { operation: "get-mcp-policy" },
+  "get-mcp-policy": { operation: "get-mcp-policy", bot: "garden" },
 } satisfies Record<string, PosterRequest>;
 
 /** A poster over the real verifier; `sign` mints tokens for it. */

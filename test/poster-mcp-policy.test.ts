@@ -11,19 +11,23 @@ describe("poster get-mcp-policy", () => {
   it("returns the bundled global policy", async () => {
     const { poster } = await posterSetup({ globalMcpPolicy: PERMIT_ANY_REMOTE });
 
-    expect(await poster({ operation: "get-mcp-policy" })).toEqual({ policy: PERMIT_ANY_REMOTE });
+    expect(await poster({ operation: "get-mcp-policy", bot: "garden" })).toEqual({
+      policy: PERMIT_ANY_REMOTE,
+    });
   });
 
   it("returns null when no policy is bundled", async () => {
     const { poster } = await posterSetup();
 
-    expect(await poster({ operation: "get-mcp-policy" })).toEqual({ policy: null });
+    expect(await poster({ operation: "get-mcp-policy", bot: "garden" })).toEqual({ policy: null });
   });
 
   it("rejects extra fields", async () => {
     const { poster } = await posterSetup();
 
-    await expect(poster({ operation: "get-mcp-policy", extra: "x" })).rejects.toThrow();
+    await expect(
+      poster({ operation: "get-mcp-policy", bot: "garden", extra: "x" }),
+    ).rejects.toThrow();
   });
 });
 

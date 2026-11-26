@@ -217,7 +217,7 @@ checkout. A pull request that changes the policy therefore has no effect until i
 - `prepare`, on every turn mode including pull request comment turns, so a policy change takes
   effect on the next turn without re-registering.
 
-The check reads the global layer through the poster's argument-free `get-mcp-policy` operation,
+The check reads the global layer through the poster's `get-mcp-policy` operation (it names the config's bot, which must not be bound to another repo),
 which returns the bundled file's text or `null` ([poster.md](poster.md)); it is the only poster call
 that precedes the check. The poster is invoked with IAM-authorized AWS credentials, as for `post` and
 `read`, so the operation carries no OIDC token. The workflows need `contents: read` on the

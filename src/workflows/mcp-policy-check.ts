@@ -48,8 +48,10 @@ async function fetchRepoPolicy({ repository, root, github }: McpPolicyDeps) {
 }
 
 /** The global layer is bundled with the poster Lambda; `null` means none is deployed. */
-async function fetchGlobalPolicy({ poster }: McpPolicyDeps) {
-  const { policy } = globalPolicyResponse.parse(await poster.call({ operation: "get-mcp-policy" }));
+async function fetchGlobalPolicy({ poster }: McpPolicyDeps, bot: string) {
+  const { policy } = globalPolicyResponse.parse(
+    await poster.call({ operation: "get-mcp-policy", bot }),
+  );
   return policy ?? undefined;
 }
 
@@ -81,7 +83,7 @@ export async function checkRepositoryMcpPolicy(
   let layers: PolicyLayers;
   try {
     layers = {
-      global: await fetchGlobalPolicy(deps).catch(unreadable("global")),
+      global: await fetchGlobalPolicy(deps, config.bot).catch(unreadable("global")),
       repo: await fetchRepoPolicy(deps).catch(unreadable("repo")),
     };
   } catch (error) {

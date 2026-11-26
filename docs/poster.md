@@ -19,7 +19,7 @@ to a repo (a connection's secrets under `bots/<bot>/platforms/<platform>/` plus 
 | `list-threads` | `token` (GitHub OIDC JWT), `bot`, `chatId`, `threadId` (the dispatched thread), optional `limit` (default 20, max 50), optional `includeBots` | `{ threads: [{ threadId, title, lastActivity, messageCount, participants, snippet }], scanned }`, most recent first |
 | `read-channel` | `token` (GitHub OIDC JWT), `bot`, `chatId`, `threadId` (the dispatched thread), optional `limit` (default 50, max 200), optional `before` (ISO 8601 instant), optional `includeBots` | `{ messages: [{ id, threadId, userId, userName, fromBot, text, attachments, sentAt }], scanned }`, newest first; `attachments` is always empty |
 | `search-chat` | `token` (GitHub OIDC JWT), `bot`, `chatId`, `threadId` (the dispatched thread), `query` (1 to 200 characters), optional `after` and `before` (ISO 8601 instants), optional `limit` (default 10, max 20), optional `includeBots` | `{ status: "ok", results: [{ channelId, ts, userId, userName?, fromBot, text, permalink?, context?: { before, after } }] }` or `{ status: "unavailable", reason, retryAfterSeconds?, tokenAgeSeconds? }`; see [`search-chat`](#search-chat) |
-| `get-mcp-policy` | optional `token` (GitHub OIDC JWT) | `{ policy }`: the text of the global MCP policy bundled with the Lambda (`mcp-policy.cedar` next to the handler), or `null` when none is deployed |
+| `get-mcp-policy` | `bot`, optional `token` (GitHub OIDC JWT) | `{ policy }`: the text of the global MCP policy bundled with the Lambda (`mcp-policy.cedar` next to the handler), or `null` when none is deployed |
 | `register` | `token` (GitHub OIDC JWT), `config` (the config file's text) | `{ bot, repo }` |
 | `link-pull-request` | `token` (GitHub OIDC JWT), `bot`, `threadId`, `pullRequest` (number) | `{ linked: true }` |
 | `resolve-pull-request` | `token` (GitHub OIDC JWT), `pullRequest` (number), optional `withThreadId` (boolean) | `{ found: false }` or `{ found: true, bot, threadKey }`, plus `threadId` only when `withThreadId` is true |
@@ -296,9 +296,13 @@ repo cannot act on another repo's bot.
 
 `post`, `unreact` and `start-thread` take the same check through an optional `token`
 (`src/lambda/caller-check.ts`): the token is verified and `bots/<bot>/repo` must equal its
-repository, so the bot is rejected when unbound or bound elsewhere. `get-mcp-policy` names no bot, so
-its token is only verified (signature, issuer, audience, expiry, owner); it cannot require a bound
-repo, because `register` reads the policy before it binds a repo's first bot. The workflow client
+repository, so the bot is rejected when unbound or bound elsewhere. `get-mcp-policy` takes the
+same check with one difference: it takes the `bot` the config names, and a bot with no binding yet
+passes, because the `register` step reads the policy before it binds a repo's first bot. A bot bound
+to another repository is rejected. A token from any in-owner repo can therefore still read the policy
+by naming a bot that is not bound; the policy is a non-secret ceiling, and `register` lets the same
+caller claim that bot anyway.
+The workflow client
 (`createPosterClient`) mints the job's token and attaches it to these four operations; when the job
 has no OIDC grant it sends none.
 

@@ -8,6 +8,8 @@ export interface CallerClaim {
   token?: string | undefined;
   /** The bot the caller acts as; an operation with no bot only needs a valid token. */
   bot?: string | undefined;
+  /** The bot may have no repository yet, as at `register`; a bot bound elsewhere still fails. */
+  allowUnbound?: boolean;
 }
 
 export interface CallerCheckDeps {
@@ -20,14 +22,14 @@ export interface CallerCheckDeps {
 
 /** Verifies a caller's OIDC token and that the bot it names, if any, is bound to the token's repository. */
 export function createCallerCheck({ params, oidc, required, logger }: CallerCheckDeps) {
-  return async ({ operation, token, bot }: CallerClaim) => {
+  return async ({ operation, token, bot, allowUnbound }: CallerClaim) => {
     if (token === undefined) {
       if (required) throw new Error("this operation requires a GitHub OIDC token");
       logger.warn("poster call without a token", { operation, ...(bot ? { bot } : {}) });
       return;
     }
     if (bot === undefined) await oidc.verify(token);
-    else await requireBound(params, oidc, token, bot);
+    else await requireBound(params, oidc, token, bot, { allowUnbound: allowUnbound ?? false });
   };
 }
 

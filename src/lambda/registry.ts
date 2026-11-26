@@ -34,15 +34,21 @@ export const botStatePrefix = (bot: string) => `bot:${bot}:`;
 export const isBoundTo = async (params: ReadableParameters, bot: string, repository: string) =>
   (await params.get(repoParameter(bot))) === repository;
 
-/** Verifies the OIDC token and requires the bot to be bound to its repository. */
+/**
+ * Verifies the OIDC token and requires the bot to be bound to its repository. With `allowUnbound`
+ * a bot that has no binding yet passes (a first registration claims it), but one bound elsewhere
+ * does not.
+ */
 export async function requireBound(
   params: ReadableParameters,
   oidc: OidcVerifier,
   token: string,
   bot: string,
+  { allowUnbound = false } = {},
 ) {
   const { repository } = await oidc.verify(token);
-  if (!(await isBoundTo(params, bot, repository))) {
+  const bound = await params.get(repoParameter(bot));
+  if (bound !== repository && !(allowUnbound && bound === undefined)) {
     throw new Error(`bot "${bot}" is not bound to ${repository}`);
   }
   return repository;

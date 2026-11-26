@@ -96,7 +96,7 @@ export const posterRequestSchema = z.discriminatedUnion("operation", [
     threadId,
     messageIds: z.array(z.string().min(1)).min(1).max(UNREACT_MAX_MESSAGES),
   }),
-  z.strictObject({ operation: z.literal("get-mcp-policy"), token: optionalToken }),
+  z.strictObject({ operation: z.literal("get-mcp-policy"), token: optionalToken, bot: slug }),
   z.strictObject({ operation: z.literal("register"), token: z.string().min(1), config: text }),
   z.strictObject({
     operation: z.literal("link-pull-request"),
@@ -252,7 +252,7 @@ export async function createPoster(deps: PosterDeps) {
       case "register":
         return register(request);
       case "get-mcp-policy":
-        await requireCaller(request);
+        await requireCaller({ ...request, allowUnbound: true });
         return { policy: (await deps.globalMcpPolicy()) ?? null };
       case "link-pull-request":
         return pullRequests.link(request);

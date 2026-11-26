@@ -91,7 +91,7 @@ describe("checkRepositoryMcpPolicy", () => {
     const { deps, posterRequests, paths } = fakePolicyGitHub({ globalPolicy: PERMIT_ANY_REMOTE });
 
     expect((await checkRepositoryMcpPolicy(mcpConfig(), deps)).issues).toEqual([]);
-    expect(posterRequests).toEqual([{ operation: "get-mcp-policy" }]);
+    expect(posterRequests).toEqual([{ operation: "get-mcp-policy", bot: mcpConfig().bot }]);
     expect(paths).toHaveLength(2);
   });
 

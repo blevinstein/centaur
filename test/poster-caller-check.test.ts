@@ -49,16 +49,42 @@ describe("poster caller check on a bound bot", () => {
 });
 
 describe("poster caller check on get-mcp-policy", () => {
-  it("serves the policy to a valid token from a repository not yet bound to any bot", async () => {
+  const request = CALLER_CHECKED_OPERATIONS["get-mcp-policy"];
+
+  it("serves the policy to the repository the bot is bound to", async () => {
+    const { poster } = await posterSetup({
+      requirePosterToken: true,
+      repository: "octo/garden",
+      globalMcpPolicy: "permit;",
+    });
+
+    await expect(poster({ ...request, token: "jwt" })).resolves.toEqual({ policy: "permit;" });
+  });
+
+  it("refuses a token from another repository, naming a bound bot", async () => {
+    const { poster } = await posterSetup({ repository: "octo/other", globalMcpPolicy: "permit;" });
+
+    await expect(poster({ ...request, token: "jwt" })).rejects.toThrow(
+      'bot "garden" is not bound to octo/other',
+    );
+  });
+
+  it("serves a bot that is not bound yet, as the register step reads it", async () => {
     const { poster } = await posterSetup({
       requirePosterToken: true,
       repository: "octo/new-repo",
       globalMcpPolicy: "permit;",
     });
 
-    await expect(
-      poster({ ...CALLER_CHECKED_OPERATIONS["get-mcp-policy"], token: "jwt" }),
-    ).resolves.toEqual({ policy: "permit;" });
+    await expect(poster({ ...request, bot: "unbound", token: "jwt" })).resolves.toEqual({
+      policy: "permit;",
+    });
+  });
+
+  it("requires a bot", async () => {
+    const { poster } = await posterSetup();
+
+    await expect(poster({ operation: "get-mcp-policy", token: "jwt" })).rejects.toThrow();
   });
 });
 

@@ -247,12 +247,13 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       [docs/proposals/email.md](docs/proposals/email.md). Deferred 2026-11-25; the first open
       question, whether inbox triage needs a platform at all (an MCP mail connector in a scheduled
       prompt may be enough), is unanswered.
-- [ ] Close the `get-mcp-policy` gap (section 21 in [DONE.md](DONE.md)): it is verified by token only and any valid
-      in-owner token can read the global policy, because `register` reads it before binding the
-      repo's first bot. Design options: bind first then check, with rollback on failure, or have
-      `register` return the policy. Backlogged 2026-11-25: the global policy is a non-secret
-      ceiling in a public file and only in-owner repos can read it; revisit before the global policy
-      holds anything private or with hosted.
+- [ ] Close the unbound-bot case of `get-mcp-policy` (section 21 in [DONE.md](DONE.md)): the operation now
+      takes the config's bot and rejects a token whose repository is not the bot's bound repo, but a
+      bot with no binding is still served, because `register` reads the policy before binding the
+      repo's first bot. Close it by having `register` return the policy, or bind first with
+      rollback. Backlogged 2026-11-25: the global policy is a non-secret ceiling in a public file
+      and only in-owner repos can read it; revisit before the global policy holds anything private
+      or with hosted.
 
 - [ ] Live checks on the test bot (slice 19, from section 16). Verified 2026-11-24: Telegram deleted-topic and
       not-a-forum strings, a closed topic accepting admin-bot posts (no reopen needed), Slack
