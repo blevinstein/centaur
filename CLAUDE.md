@@ -58,20 +58,14 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 <!-- END BEADS INTEGRATION -->
 
 
-## Build & Test
+## Repository instructions
 
-_Add your build and test commands here_
+`AGENTS.md` holds this repository's development rules and is the source of truth; read it first.
+Keep this file consistent with `AGENTS.md` when either changes.
 
 ```bash
-# Example:
-# npm install
-# npm test
+corepack enable && yarn install --immutable   # once, and in every fresh worktree
+yarn verify                                   # lint, typecheck, build, bundle:lambda, test
 ```
 
-## Architecture Overview
-
-_Add a brief overview of your project architecture_
-
-## Conventions & Patterns
-
-_Add your project-specific conventions here_
+Architecture: [docs/plan.md](docs/plan.md). Open work: [TODO.md](TODO.md).

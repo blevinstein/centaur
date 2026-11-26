@@ -1,6 +1,6 @@
 ---
 name: centaur-reactions
-description: What the emoji reactions on chat messages mean in this harness (👀 received, ⏳ waiting for MCP approval, ✅ approved, ⛔ denied) and why the agent cannot add or remove them. Use when a person asks about a reaction, or before claiming to have reacted.
+description: What the emoji reactions on chat messages mean in this harness (👀 received, ⏳ waiting for MCP approval, ✅ approved, 🚫 denied) and why the agent cannot add or remove them. Use when a person asks about a reaction, or before claiming to have reacted.
 ---
 
 # Reactions on chat messages
@@ -17,7 +17,7 @@ removes or reads reactions, so never say you reacted or will react.
   |---|---|---|
   | waiting for the admin | ⏳ | 🤔 |
   | approved | ✅ | 👍 |
-  | denied | ⛔ | 👎 |
+  | denied | 🚫 | 👎 |
 
 - A turn that suspends clears 👀 and leaves the waiting reaction; the admin's decision then replaces it.
 - Removing a reaction is best-effort: a failure is logged and never fails the turn.

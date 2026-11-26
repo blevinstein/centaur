@@ -2,7 +2,8 @@
 
 Setup flows by role: the maintainer (once for the stack, once per bot and repo) and household
 members (almost nothing). The Telegram flow and a consumer in this repo were validated in a live
-run; the Slack steps are not yet verified end to end ([Still unverified](#still-unverified)).
+run, and Slack ran live on two bots; some Slack steps are still unverified
+([Still unverified](#still-unverified)).
 
 Short task guides: [a response-only bot](guide-basic-bot.md) and [adding a scheduled action](guide-scheduled-action.md).
 
@@ -360,7 +361,12 @@ Telegram topic is recreated on the next run and starts without the old transcrip
 
 - [ ] A second bot in the same group (routing between bots, Topics at this group size).
 - [x] A consumer repo different from the centaur repo (`job.workflow_*` contexts, repo access).
-- [ ] Slack end to end, including acknowledging webhooks within Slack's 3 seconds.
+- [x] Slack end to end, including acknowledging webhooks within Slack's 3 seconds (receiver
+      durations stayed under it; the cold start has the closest margin, see `TODO.md`).
+- [ ] Slack search (`slack_search`) and the Slack history rate limits on a real install (`TODO.md`,
+      Chat search 4 and 6).
+- [ ] `/new`, `/resume` and `/transcript` on Slack.
+- [ ] Bot-to-bot mentions in the reverse direction.
 
 Validated in the first live run: deploy, a Telegram bot with a Topics group, registration,
 message-to-reply turns, scheduled topics, `respond_to: all`, and the 👀 reaction.

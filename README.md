@@ -24,7 +24,8 @@ change as a pull request you review. No always-on server.
   keep their transcript within a character budget instead of growing without bound.
 
 Status: built and validated live on Telegram (deploy, registration, replies, scheduled topics,
-`respond_to: all`, persistent threads). Slack is implemented but has not been exercised end to end.
+`respond_to: all`, persistent threads) and on Slack (live runs on two bots, thread replies, a
+bot-to-bot mention). Slack search and per-install rate limits are not yet verified.
 
 ## Demo
 
@@ -114,7 +115,8 @@ Lambda to post the reply. Details: [docs/plan.md](docs/plan.md).
 
 ## Limits
 
-- Telegram is validated live; Slack is untested end to end.
+- Telegram and Slack are validated live. Not yet verified on Slack: the opt-in search, the history
+  rate limits on a real install, and the `/new`, `/resume` and `/transcript` commands.
 - Every non-ignored turn is a model run, and `respond_to: all` runs one for every message from an
   approved sender. Set a budget.
 - One Lambda per deployment, shared by all bots and repos under the configured GitHub owner.

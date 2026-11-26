@@ -29,7 +29,7 @@ poster, `config_root`, `.centaur-trusted`) are defined in [workflows.md](workflo
 | The turn runs `anthropics/claude-code-action@v1` with the prompt `Read .centaur-turn/prompt.md and follow it.` and `claude_args` from `prepare`; nothing else (no `settings`, `plugins`, `plugin_marketplaces` input) | `.github/actions/turn/action.yml` (Run agent step) |
 | `claude_args` is `--model`, `--effort`, `--allowedTools`, `--max-turns`, `--max-budget-usd`, `--json-schema`, `--mcp-config`, `--append-system-prompt-file <persona>`, `--resume`. No `--setting-sources`, `--add-dir`, `--plugin-dir`, `--settings`, `--disallowedTools` | `buildClaudeArgs`, `src/workflows/prepare.ts:517-545` |
 | `--allowedTools` is the config's `allowed_tools` plus `Read(./.centaur-turn/**)` and the chat tool wildcard; `Skill` is never added | `prepare.ts:529-536` |
-| Harness guidance in the prompt: four files totalling 1,792 bytes (about 450 tokens): `chat.md` 362, `chat_tools.md` 760, `comment.md` 435, `silence.md` 235 | `src/workflows/instructions/*.md`, loaded by `loadInstructions` (`src/workflows/instructions.ts`), overridable by the config's `instructions` |
+| Harness guidance in the prompt: five files totalling 1,909 bytes (about 480 tokens; trimmed file sizes, as `bundled` loads them): `chat.md` 171, `chat_tools.md` 520, `comment.md` 434, `scheduled.md` 378, `silence.md` 406 | `src/workflows/instructions/*.md`, loaded by `loadInstructions` (`src/workflows/instructions.ts`), overridable by the config's `instructions` |
 | Output-format and untrusted-input text is code: `CHAT_CONTRACT`, `COMMENT_CONTRACT`, `NEW_PR_CONTRACT`, `EXISTING_PR_CONTRACT`, `CANDIDATES_NOTE`, `SILENCE_CONTRACT` | `src/workflows/prompt.ts:10-40` |
 | Reactions, MCP approval, the config and the pull request flow are **not described to the agent at all** today: the agent only sees the contracts above | `prompt.ts`, `instructions/` |
 | The workspace is the consumer checkout. For a comment turn it is the pull request head branch (untrusted); the config, persona and instructions come from `config_root` (`.centaur-trusted`, the default branch) | `centaur-pr-comment.yml:71-79`, AGENTS.md |
@@ -121,14 +121,14 @@ docs):
 |---|---|---|
 | `centaur-pull-requests` | How `pr_action`, `pr_title`, `pr_body` and `existing_pr_number` interact; what the harness does with commits; branch naming | Needed only when files changed |
 | `centaur-mcp-approval` | A pending server, `suspend_for`, what resume means | Only on turns with a pending server |
-| `centaur-chat-tools` | `list_threads`, `read_thread`, `read_channel`, `before` cursors, the bounded window | Today `chat_tools.md` (760 bytes) is in the prompt; the pointer line stays, the detail moves |
+| `centaur-chat-tools` | `list_threads`, `read_thread`, `read_channel`, `before` cursors, the bounded window | Today `chat_tools.md` (520 bytes) is in the prompt; the pointer line stays, the detail moves |
 | `centaur-reactions` | The 👀 and waiting reactions are the harness's, not the agent's | Rarely relevant |
 | `centaur-config` | Where the config lives, what `allowed_tools` and `mcp_servers` mean, and that the agent may propose changes in a PR but not apply them | Only for config questions |
 
 Prompt-size impact: the listing is five entries of at most 1,536 characters; at about 250
 characters each that is roughly 300 tokens every turn, versus the new content in prompt form
 (about 2 to 3k tokens for the five topics) every turn. The invoked body costs tokens only on turns
-that need it. Moving the existing 1,792 bytes does not reduce the prompt: the listing costs about
+that need it. Moving the existing 1,909 bytes does not reduce the prompt: the listing costs about
 what the text does. So (a) is for **new** guidance, and `instructions/*.md` stays.
 
 Consumer override: a consumer cannot edit a built-in. `skills: { builtin: false }` turns the set
@@ -196,7 +196,7 @@ All nine were accepted as recommended.
 1. **Mechanism for built-in guidance.** (A) skills installed into `$HOME/.claude/skills`, (B) keep
    adding to the prompt, (C) rules, (D) plugin. **Recommend A** for new topics: progressive
    loading, personal skills outrank project ones, versioned with the harness.
-2. **Move the existing `instructions/*.md` into skills.** **Recommend no.** 1,792 bytes is about the
+2. **Move the existing `instructions/*.md` into skills.** **Recommend no.** 1,909 bytes is about the
    cost of the listing, and the text is always needed. Only the detail of `chat_tools.md` (the
    cursor and window mechanics) moves, leaving its untrusted-data sentence and a pointer.
 3. **Consumer override of built-ins.** (A) `skills.builtin: false` only, (B) per-skill overrides,
