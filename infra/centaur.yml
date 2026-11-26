@@ -71,7 +71,7 @@ Parameters:
   InspectionRolePrincipalArn:
     Type: String
     Default: ''
-    Description: IAM user or role ARN allowed to assume the read-only inspection role. Empty trusts this account, so any identity in it that is itself allowed sts:AssumeRole can.
+    Description: IAM user or role ARN allowed to assume the inspection role, which can read bot tokens and signing secrets. Empty trusts this account, so any identity in it that is itself allowed sts:AssumeRole can; set it to one user or role.
 
 Conditions:
   ShouldDeployLambda: !Equals [!Ref DeployLambda, 'TRUE']
@@ -580,7 +580,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       PermissionsBoundary: !Ref DeployPolicy
-      Description: Read-only access to the state table and bot parameters, for inspection.
+      Description: No-write access to the state table and bot parameters, including bot tokens and signing secrets, for inspection and chat tail.
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
         Version: '2012-10-17'

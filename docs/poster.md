@@ -289,6 +289,35 @@ owner never reach the Lambda.
 `GITHUB_OWNER` may be the owner's login or its numeric id; an id is compared with the token's
 `repository_owner_id`, which a rename does not change.
 
+### Session and attachment storage
+
+The session bucket holds `sessions/<bot>/<thread>/<session>.jsonl` (the agent's resumable transcript,
+which contains the chat messages and tool output of that thread) and
+`attachments/<bot>/<thread>/<message>~<n>.<ext>` (images users sent). The GitHub OIDC role grants
+`GetObject` and `PutObject` on `sessions/*`, `GetObject` on `attachments/*` and a prefix-limited
+`ListBucket`, to every repository under the owner. A workflow in one repo can therefore read, list
+and overwrite another bot's transcripts and read its attachments, including by planting a
+transcript the other bot later resumes.
+
+Per-repository isolation in IAM is not available with the current design. The role is shared by the
+owner, the bot-to-repo binding lives in SSM rather than in IAM, and the role policy cannot read the
+OIDC token's `repository` claim: GitHub's token reaches AWS only as the trust policy's
+`token.actions.githubusercontent.com:sub` and `:aud` condition keys, and the claims are not turned
+into session tags usable in the identity policy *(AWS's tag mapping is unverified here)*. Options:
+
+| Option | Isolation | Cost |
+|---|---|---|
+| Accept and document (this section) | None between repos under one owner | None; consistent with the model above, where any repo under the owner can act as any bot until `RequirePosterToken` is `true` |
+| One role per bound repo: trust `sub` of that repo, S3 grant on that repo's bot prefixes | Per repo | A role resource per repo and a stack deploy for each new bot or repo, plus a workflow change to pick the right role ARN |
+| Poster issues presigned URLs scoped to `sessions/<bot>/<thread>` after the OIDC and binding check; the GitHub role loses its S3 grant ([hosted.md](proposals/hosted.md), slice 2) | Per bot | The poster gains S3 permissions, an HTTPS transport and a client in `src/workflows` |
+
+Recommendation: accept the risk for a self-hosted, single-owner deployment, where the owner already
+trusts every repo with its bots' tokens through the shared role, and do not add the per-repo roles,
+which scale poorly. Take the presigned-URL option when the poster becomes the only holder of S3
+access (hosted slice 2); it also removes the role grant. Until then keep bots with different trust
+levels under different owners, or in a separate stack. Decision for the maintainer: confirm that
+accepting the risk is right for the current deployment.
+
 A hosted multi-tenant deployment additionally needs a reserved-concurrency cap on the function so
 one tenant cannot exhaust it ([hosted.md](proposals/hosted.md)).
 

@@ -166,7 +166,7 @@ const MARKER_FILE = "last-processed";
 const SESSION_SUFFIX = ".jsonl";
 const safeSegment = (value: string) => value.replaceAll(/[^A-Za-z0-9._-]/g, "_");
 
-/** Content-free per-thread state in the S3 session bucket: Claude sessions and the marker. */
+/** Per-thread state in the S3 session bucket: the Claude session transcript and the marker. */
 export interface ThreadStore {
   readMarker(): Promise<string | undefined>;
   writeMarker(messageId: string): Promise<void>;

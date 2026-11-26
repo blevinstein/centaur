@@ -97,12 +97,16 @@ The function role gets the state table policy (`GetItem`, `PutItem`, `UpdateItem
 `ssm:DeleteParameter` only on `/centaur/admin-claim/*` and `/centaur/bots/*/platforms/*/approvers/*`, and `kms:Decrypt` through SSM. The `/centaur/chats/*` write lets approvals create destinations and lets a persistent run bind a thread to one (the only overwrite; approvals never replace a destination, but IAM cannot condition on the `Overwrite` flag).
 The GitHub OIDC role (assumable by repositories under `GitHubOwner`) can read and write objects
 under `sessions/` in the session bucket and invoke the function.
-The inspection role (`InspectionRoleArn` output) is read-only: `GetItem`, `Query` and `Scan` on the state
+The inspection role (`InspectionRoleArn` output) has no write permission: `GetItem`, `Query` and `Scan` on the state
 table, `ssm:GetParameter`, `GetParameters` and `GetParametersByPath` on `/centaur/bots` and `/centaur/bots/*`,
-and `kms:Decrypt` through SSM so SecureString values read back. Use it instead of a broad IAM user for
-inspection and `centaur chat tail`. Its trust policy names `InspectionRolePrincipalArn` or, when that is
-empty, the account root, which only lets identities that already hold `sts:AssumeRole` on the role assume it;
-set the parameter to a single user or role to narrow it. Sessions last one hour.
+and `kms:Decrypt` through SSM so SecureString values read back. That includes each bot's platform token and
+signing or webhook secret: `centaur chat tail` reads the chat with the bot's own token and loads the
+connection through the same path read, so those parameters cannot be denied without breaking it. Treat the
+role like the secrets themselves. The admin claim codes and `/centaur/github/token` are outside its resources.
+Use it instead of a broad IAM user for inspection and `centaur chat tail`. Its trust policy names
+`InspectionRolePrincipalArn` or, when that is empty, the account root, which only lets identities that
+already hold `sts:AssumeRole` on the role assume it; set the parameter to a single user or role to narrow it
+(an account administrator can assume the role either way). Sessions last one hour.
 
 ```sh
 creds=$(aws sts assume-role --role-arn <InspectionRoleArn> --role-session-name inspect \
