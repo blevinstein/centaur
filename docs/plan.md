@@ -257,7 +257,7 @@ does not deliver other bots' messages to a bot, so the setting is mostly inert t
 A bot configured with `respond_to: all` replaces rules 1-4 with: every message from a human (or, with
 `bot_messages: mention`, a bot that mentions it) from an approved
 sender in any approved chat of the bot belongs to it, and the agent decides per turn whether to reply or
-stay silent. The checks keep
+stay silent. The default silence instruction tells it to stay silent when a message @mentions someone else, such as another bot, and not it. The agent sees mentions as text only (Slack: the mentioned user's display name as `@Name`; Telegram: the `@username` as typed) with no marker for bots or for itself, so it recognises its own mention only through the configured `handle`; set `handle` for `respond_to: all` bots in shared chats. The checks keep
 their order (ownership, chat approval, sender approval), but an unenrolled sender whose message
 is not a mention or DM is dropped without a refusal (only logged with their ID, so enrollment
 still works), and messages from other chats are dropped without a log. Two bots set to `all` in
