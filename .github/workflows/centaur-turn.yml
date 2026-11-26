@@ -37,3 +37,17 @@ jobs:
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
       - if: failure()
         uses: ./.github/actions/notify-failure
+
+  notify-timeout:
+    needs: turn
+    if: always() && needs.turn.result == 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CENTAUR_ROLE_ARN: ${{ vars.CENTAUR_ROLE_ARN }}
+      CENTAUR_AWS_REGION: ${{ vars.CENTAUR_AWS_REGION }}
+      CENTAUR_FUNCTION_NAME: ${{ vars.CENTAUR_FUNCTION_NAME }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-runtime
+      - uses: ./.github/actions/notify-failure

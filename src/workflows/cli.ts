@@ -333,8 +333,10 @@ program.command("finish").action(async () => {
   });
 });
 
-program.command("notify-failure").action(() =>
+program.command("notify-failure").action(async () =>
   notifyFailure({
+    clientPayload: await clientPayload(),
+    pullRequest: commentPullRequest(),
     stateDir: turnStateDir(),
     ...(process.env.RUNNER_TEMP && {
       executionFile: join(process.env.RUNNER_TEMP, "claude-execution-output.json"),

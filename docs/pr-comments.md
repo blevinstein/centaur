@@ -137,6 +137,18 @@ jobs:
         uses: blevinstein/centaur/.github/actions/notify-failure@main
         with:
           comment: ${{ needs.resolve.outputs.pull_request }}
+
+  notify-timeout:
+    needs: [resolve, turn]
+    if: always() && needs.turn.result == 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: blevinstein/centaur/.github/actions/setup-runtime@main
+      - uses: blevinstein/centaur/.github/actions/notify-failure@main
+        with:
+          comment: ${{ needs.resolve.outputs.pull_request }}
 ```
 
 Notes on the shape:

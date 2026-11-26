@@ -86,7 +86,7 @@ const CONSUMER_SKILLS_DIR = ".claude/skills";
 const NEW_THREAD_ACK = "Started a new thread.";
 const NEW_THREAD_OPENING = "Fresh thread. What would you like to do?";
 
-const dispatchPayload = z.object({
+export const dispatchPayload = z.object({
   bot: slug,
   thread_id: z.string().min(1),
   message_id: z.string().min(1).optional(),
@@ -118,6 +118,8 @@ export interface TurnState {
   /** Pending servers the agent may suspend the turn for; absent when the turn never suspends. */
   suspend?: SuspendableServers;
   sessionDirectory: string;
+  /** Set once `finish` has delivered the reply, so a later failure does not read as an unanswered turn. */
+  replied?: boolean;
 }
 
 /** Present when a pull request comment, not a chat message or a schedule, triggered the turn. */

@@ -12,7 +12,7 @@ operations they invoke, and [config.md](config.md) for the config.
 | `resolve-pr-comment` | Decides whether a pull request comment event starts a turn and which bot and thread it belongs to; see [Comment turns](#comment-turns). |
 | `resolve-schedule` | Computes the concurrency group of a scheduled prompt's turn job (config at `root`); see [Persistent scheduled threads](#persistent-scheduled-threads). |
 | `turn` | One agent turn: answers a dispatched chat message, or (with `prompt_name`) starts a new thread from a scheduled prompt, or (with `comment`) answers the comments on a pull request. Outputs `skip` and `pull-request-url`. Reads the config from `root`; see [Bots in sub-folders](#bots-in-sub-folders). |
-| `notify-failure` | Posts a failure notice in the thread (and, with `comment`, on the pull request) and clears the 👀 reactions. Use with `if: failure()`; does nothing if the turn never started. |
+| `notify-failure` | Posts a failure notice in the thread (and, with `comment`, on the pull request) and clears the 👀 reactions. Use with `if: failure()` in the turn job, and in a follow-up job that runs when the turn job was cancelled (a timeout); see [Failure notices](#failure-notices). |
 
 ## Consumer workflows
 
@@ -68,6 +68,16 @@ jobs:
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
       - if: failure()
         uses: <owner>/centaur/.github/actions/notify-failure@main
+
+  notify-timeout:
+    needs: turn
+    if: always() && needs.turn.result == 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: <owner>/centaur/.github/actions/setup-runtime@main
+      - uses: <owner>/centaur/.github/actions/notify-failure@main
 ```
 
 ```yaml
@@ -273,12 +283,40 @@ jobs:
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
       - if: failure()
         uses: <owner>/centaur/.github/actions/notify-failure@main
+
+  notify-timeout:
+    needs: turn
+    if: always() && needs.turn.result == 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: <owner>/centaur/.github/actions/setup-runtime@main
+      - uses: <owner>/centaur/.github/actions/notify-failure@main
 ```
 
 Scheduled prompts pass `root` to both `resolve-schedule` and `turn`. For pull request comments, keep
 one copy of the comment workflow per bot that passes `root` to `resolve-pr-comment` and `turn`
 (`root` is read inside `config_root`, the trusted checkout),
 and skip the `turn` job unless `needs.resolve.outputs.bot` is that bot. `resolve` takes the bot from the pull request's thread, not from the config at `root` (which only supplies the allowed commenter associations), so it succeeds for every copy and only the matching copy runs a turn. A reusable workflow with `bot` and `root` inputs keeps each copy a thin caller (this repo: `centaur-comment-turn.yml`).
+
+## Failure notices
+
+`notify-failure` runs in two places, and the templates above show both:
+
+- A step in the turn job with `if: failure()`. It reads the turn state, so it can name a spent
+  budget, and it covers a failing step, including `prepare`.
+- A `notify-timeout` job with `if: always() && needs.turn.result == 'cancelled'`. GitHub cancels a
+  job that reaches `timeout-minutes`, so `failure()` is false and a step in that job is not
+  guaranteed time to run; a separate job on a fresh runner does not depend on the cancelled one. It has no turn state, so it
+  uses the dispatch `client_payload`. The same job also fires when someone cancels the run by
+  hand, which the generic "did not finish" notice covers.
+
+Without turn state (`prepare` failed before writing it, or the job was lost) the notice goes to the
+thread and message named by the dispatch payload, because that thread is where the person who wrote is
+waiting; the dispatch-failure notice goes only to the admin because no turn exists for that person
+to follow. A scheduled prompt has no payload and posts nothing. A comment turn comments on its pull request. The text is
+generic (no config, secret, message or ID) and links the run.
 
 ## MCP server secrets
 
@@ -541,14 +579,14 @@ the repository top, which yields one guide.
    that still shows 👀 is still being worked on. A turn that suspends for MCP approval does this
    before its suspend call, which leaves the waiting reaction on the message.
 5. On failure (a failed pull request step is not one: see above), `notify-failure` posts a generic notice with the run URL, or, when the agent stopped on `max_budget_usd` (result subtype `error_max_budget_usd` in the action's execution file under `RUNNER_TEMP`), a one-line spending-limit notice, then removes the 👀
-   reactions; the marker is not advanced, so the messages are retried on the next turn.
+   reactions; the marker is not advanced, so the messages are retried on the next turn. When `finish` fails after posting the reply (the marker write is the one hard failure; the session save and pull request link are warnings), it has recorded `replied` in the turn state and the notice says the reply was posted but not recorded, so the next message may be answered again.
 
 `prepare` records the turn state (bot, thread, mode, pull request and reply target, marker, session
 directory, the pending message IDs; IDs only, no content) in `<RUNNER_TEMP>/centaur-turn/state.json`
 for `pr-details`, `finish` and `notify-failure` (see [Turn state](#turn-state)). Turns that end in `prepare`
 (acknowledged policy commands, a bare `/new`) clear the reactions there. Removing reactions is
 best-effort: a failure is logged as a warning and never fails the job or holds back the reply. If
-`prepare` itself fails before writing the state, the reactions stay.
+`prepare` itself fails before writing the state, `notify-failure` falls back to the dispatch payload (see [Failure notices](#failure-notices)).
 
 The schema also accepts optional `pr_title` and `pr_body`, which the prompt tells the agent to set
 when it edits files. `pr-details` treats them as untrusted: the title is flattened to one line and

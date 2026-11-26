@@ -5,12 +5,12 @@ import { threadKey } from "../thread-key.js";
 import type { PosterClient, ThreadStore } from "./aws.js";
 import { cleanBody, cleanTitle } from "./clean-text.js";
 import { approvalsRequest } from "./mcp-approval.js";
-import type { StartTarget, TurnState } from "./prepare.js";
+import { dispatchPayload, type StartTarget, type TurnState } from "./prepare.js";
 import { pullRequestDetails } from "./pull-request.js";
 import type { PullRequestWriter } from "./pull-request-comments.js";
 import { clearReactions } from "./reactions.js";
 import { BRANCH_PREFIX, REPLY_MARKER } from "./resolve.js";
-import { readTurnState } from "./turn-state.js";
+import { readTurnState, writeTurnState } from "./turn-state.js";
 
 const DEFAULT_COMMIT_MESSAGE = "Address review comments";
 const DEFAULT_NEW_TITLE = "Centaur agent changes";
@@ -225,6 +225,15 @@ async function commentOnUpdatedPullRequest(
   }
 }
 
+/** Runs a step whose failure must not fail the turn; the warning names only the error type. */
+async function bestEffort(what: string, step: () => Promise<unknown>) {
+  try {
+    await step();
+  } catch (error) {
+    console.warn(`::warning::could not ${what} (${(error as Error).constructor.name})`);
+  }
+}
+
 /** Best-effort: a failure is reported as a warning naming only the error type. */
 async function linkPullRequest(
   poster: PosterClient,
@@ -233,21 +242,12 @@ async function linkPullRequest(
   threadId: string,
 ) {
   if (!link || link.number === undefined) return;
-  try {
+  const pullRequest = link.number;
+  await bestEffort("link the pull request to its thread", async () => {
     const token = await link.fetchToken();
     link.mask(token);
-    await poster.call({
-      operation: "link-pull-request",
-      token,
-      bot,
-      threadId,
-      pullRequest: link.number,
-    });
-  } catch (error) {
-    console.warn(
-      `::warning::could not link the pull request to its thread (${(error as Error).constructor.name})`,
-    );
-  }
+    await poster.call({ operation: "link-pull-request", token, bot, threadId, pullRequest });
+  });
 }
 
 /**
@@ -460,6 +460,9 @@ export async function finish(deps: FinishDeps) {
   const [threadId] = delivery.threadIds;
   let suspended = false;
   if (threadId) {
+    await bestEffort("record that the reply was posted", () =>
+      writeTurnState(deps.stateDir, { ...state, replied: true }),
+    );
     await linkPullRequest(deps.poster, link, state.bot, threadId);
     const store = deps.storeFor(state.bot, threadId);
     suspended = await suspendForApprovals(deps, state, result, clearReactionsOnce);
@@ -467,8 +470,11 @@ export async function finish(deps: FinishDeps) {
     if (marker && (state.markerThreadId ?? threadId) === threadId) {
       await store.writeMarker(marker);
     }
-    if (state.policy === "resume" && result.sessionId) {
-      await store.saveSession(state.sessionDirectory, result.sessionId);
+    const { sessionId } = result;
+    if (state.policy === "resume" && sessionId) {
+      await bestEffort("save the session", () =>
+        store.saveSession(state.sessionDirectory, sessionId),
+      );
     }
   }
   if (delivery.failed.length > 0) {
@@ -495,35 +501,83 @@ async function hitBudget(executionFile: string | undefined) {
   }
 }
 
+type NoticeTarget = Pick<TurnState, "mode"> &
+  Partial<Pick<TurnState, "bot" | "threadId" | "pullRequest" | "replyTo" | "source" | "replied">>;
+
+/**
+ * Where the notice goes when no turn state exists, because `prepare` failed or the job was lost:
+ * the thread named by a chat dispatch's payload, else the pull request a comment turn answers.
+ */
+function targetWithoutState(clientPayload: unknown, pullRequest: number | undefined): NoticeTarget {
+  const payload = dispatchPayload.safeParse(clientPayload);
+  if (payload.success) {
+    const { bot, thread_id: threadId, message_id: messageId } = payload.data;
+    return {
+      mode: "reply",
+      bot,
+      threadId,
+      source: { bot, threadId, messageIds: messageId ? [messageId] : [] },
+    };
+  }
+  return { mode: "comment", ...(pullRequest ? { pullRequest } : {}) };
+}
+
+const failureText = (target: NoticeTarget, hasState: boolean, runUrl: string, budget: boolean) => {
+  if (budget) {
+    return `That turn hit its spending limit (max_budget_usd) before it could reply. Details: ${runUrl}`;
+  }
+  if (target.replied) {
+    return `I replied, but could not finish recording that turn, so the next message may be answered again. Details: ${runUrl}`;
+  }
+  return `That turn ${hasState ? "failed" : "did not finish"}. Details are in the workflow run: ${runUrl}`;
+};
+
+/**
+ * Tells the thread (and the pull request of a comment turn) that the turn did not finish. Uses the
+ * turn state when `prepare` wrote it; otherwise the dispatch payload, so a turn that failed in
+ * `prepare` or lost its runner still answers the person who wrote.
+ */
 export async function notifyFailure(
   deps: Pick<FinishDeps, "stateDir" | "poster"> & {
     /** The agent's execution file, when the step left one. */
     executionFile?: string | undefined;
     runUrl: string;
     comment?: Pick<CommentFinishDeps, "repository" | "github"> | undefined;
+    /** The event's `client_payload`, used when there is no turn state. */
+    clientPayload?: unknown;
+    /** The pull request a comment turn answers, used when there is no turn state. */
+    pullRequest?: number | undefined;
   },
 ) {
-  const state = await readTurnState(deps.stateDir).catch((error: NodeJS.ErrnoException) => {
+  const saved = await readTurnState(deps.stateDir).catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") return undefined;
     throw error;
   });
-  if (!state) return;
-  const text = (await hitBudget(deps.executionFile))
-    ? `That turn hit its spending limit (max_budget_usd) before it could reply. Details: ${deps.runUrl}`
-    : `That turn failed. Details are in the workflow run: ${deps.runUrl}`;
+  const target = saved ?? targetWithoutState(deps.clientPayload, deps.pullRequest);
+  const text = failureText(
+    target,
+    saved !== undefined,
+    deps.runUrl,
+    await hitBudget(deps.executionFile),
+  );
   try {
-    if (state.threadId && (state.mode === "reply" || state.mode === "comment")) {
-      await deps.poster.call({ operation: "post", bot: state.bot, threadId: state.threadId, text });
+    if (target.bot && target.threadId && target.mode !== "start-thread") {
+      await deps.poster.call({
+        operation: "post",
+        bot: target.bot,
+        threadId: target.threadId,
+        text,
+      });
     }
-    if (state.mode === "comment" && state.pullRequest && deps.comment) {
+    if (target.mode === "comment" && target.pullRequest && deps.comment) {
       await deps.comment.github.comment(
         deps.comment.repository,
-        state.pullRequest,
+        target.pullRequest,
         `${REPLY_MARKER}\n${text}`,
-        state.replyTo,
+        target.replyTo,
       );
     }
   } finally {
-    await clearReactions(deps.poster, state.source);
+    await clearReactions(deps.poster, target.source);
   }
 }

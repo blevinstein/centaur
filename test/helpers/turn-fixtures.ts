@@ -230,3 +230,16 @@ export async function gardenSetup(
     deps: (overrides: Partial<PrepareDeps> = {}) => run.deps({ root: GARDEN, ...overrides }),
   };
 }
+
+/** A `storeFor` whose marker write or session save throws, for the steps that follow the reply. */
+export const failingStore =
+  (
+    storeFor: ReturnType<typeof createFakeAws>["storeFor"],
+    failing: "writeMarker" | "saveSession",
+  ) =>
+  (bot: string, threadId: string) => ({
+    ...storeFor(bot, threadId),
+    [failing]: async () => {
+      throw new Error("s3 down");
+    },
+  });
