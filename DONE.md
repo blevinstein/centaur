@@ -278,6 +278,26 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
       ([mcp-allowlist.md](docs/mcp-allowlist.md)): no allowlist store; a generalized allow is a
       reviewed Cedar permit, any `forbid` wins; the permit cookbook in `docs/mcp.md` shipped.
 
+## 12. Slack support
+
+- [x] App manifest template with the required scopes and event URL
+      ([docs/slack-app-manifest.yml](docs/slack-app-manifest.yml), steps in `docs/onboarding.md`).
+- [x] **[HUMAN APPROVAL]** One Slack app per repo.
+- [x] ~~Slack `/new`, `/resume` and `/transcript`.~~ Abandoned 2026-11-26: Slack stays without
+      these commands (a slash command never lands in channel history and can't target an existing
+      thread).
+- [x] **[HUMAN ACTION]** Onboard one personal-project repo on Slack: create the app from the
+      manifest once it exists, install it, store its secrets, invite the bot. Done: a
+      personal-project repo runs on its own app and channel. Top-level messages get a reply with
+      `respond_to: all`, and a thread reply continues the thread.
+- [x] **[HUMAN ACTION]** Measure the Slack webhook acknowledgement time; Slack expects a 200 within
+      about 3 seconds. Receiver durations over a sample: 120 ms to 1.8 s warm, 2.5 s total for a
+      cold start including 0.7 s init. All are under the limit; the cold start has the closest
+      margin.
+- [x] ~~If the 3-second limit is missed, acknowledge first and finish the reaction and dispatch in
+      the background.~~ Abandoned 2026-11-26: the maintainer does not care about the window; the
+      principle "acknowledge first, then process" stays in the docs.
+
 ## 13. Respond to PR comments
 
 Responding to review comments on the PRs the agent opens completes the PR-sending pattern: the
@@ -317,6 +337,43 @@ agent proposes a change, a human reviews it, and the agent revises it.
 - [x] Consider filtering comment authors by `author_association` in comment-mode `prepare`, since it
       answers every human comment since the last marked one.
 
+## 14. Agent-chosen PR targets
+
+The agent picks which PR its changes land on, in trusted code with fallbacks. Decisions (accepted):
+`pr_action: update|new` in comment turns, stacked on the original PR's head when that head is an
+ancestor of the working tree, else on the default branch; `existing_pr_number` in chat and
+scheduled turns, with candidates from any thread of the same bot (the PR need not be linked to the
+current thread); an invalid number falls back to the normal thread PR; defaults `comment_new: true`
+and `existing` enabled. Candidates and the final choice are re-derived from GitHub in trusted code
+(open, same repo, not a fork, `centaur/<bot>-` branch, authored by the workflow bot, and when a
+poster record exists it names the same bot); never from the turn state.
+
+- [x] PR targets 1: config block `pull_requests` (`comment_new`, `existing: off|bot`) in
+      `src/config/schema.ts`, `replySchema` parameters (fields appear only when enabled),
+      `extractResult`/`resultMessage` fields, contract text, tests, docs. No behavior change yet.
+- [x] PR targets 2: `prepare` lists candidate open PRs for the prompt (fenced as data, capped at 10).
+- [x] PR targets 3: `plan-pr` validation as a pure function with a fake GitHub client and poster.
+- [x] PR targets 4: `push-existing` transplant (patch, worktree, `git apply --3way`, plain push, fall
+      back on conflict), tested on real git repos.
+- [x] PR targets 5: wire the `turn` action (`plan-pr`, conditional `create-pull-request` and
+      `push-existing`), chat note and marked PR comment.
+- [x] PR targets 6: comment-mode `pr_action: new` (`pushNewBranch`, `createPullRequest`, double link).
+- [x] PR targets 7: docs sweep, including the "dismiss stale approvals" advice.
+- [x] PR targets 8: **[HUMAN ACTION]** real runs on `centaur-hello` (`-f prompt_name=pr-smoke`):
+      a second run updates an open PR, a merged or closed PR falls back, a comment `pr_action: new`
+      opens a stacked PR whose comments resolve to the same thread.
+- [x] ~~Verify the `plan-pr` rejection and `push-existing` conflict fallbacks in a real run.~~
+      Abandoned 2026-11-26: covered by unit tests and real-git tests.
+- [x] Match `centaur/<bot>-` branches exactly in `checkCandidate` (a bot named `sprout` also
+      matches `sprout-2`'s branches when no poster record exists).
+- [x] Rank PR candidates by update time instead of number if busy repos show stale ones.
+- [x] Investigate the intermittent failure in `test/chat-dynamodb-state.test.ts` ("drops the oldest
+      queued message beyond maxQueueSize").
+- [x] Move the security-relevant parts of the turn state out of the workspace, since the agent can
+      edit `.centaur-turn/state.json`. The whole file moved to `$RUNNER_TEMP/centaur-turn/` (every
+      field steers a trusted step); a `Bash` tool in `allowed_tools` can still reach it, see
+      docs/workflows.md "Turn state".
+
 ## 15. Bounded transcript
 
 Design (decided 2026-11-24): the earlier transcript fills at most `context.transcript_max_chars`
@@ -342,6 +399,108 @@ vendor; older messages are reached through the chat context tools. See
 - [x] Bounded transcript 5: the omission note names `read_thread` on `thread-0` with a `before`
       cursor when `chat_tools.scope` is `chat`, and says the messages are unavailable otherwise.
       Done.
+
+## 16. Platforms and destinations
+
+Design (Decisions accepted 2026-11-22, nothing built):
+[docs/platforms-and-destinations.md](docs/platforms-and-destinations.md). There is no backwards
+compatibility: slices 1 to 8 are stacked into the branch `platforms/cutover` and go live together in
+the one-shot cutover (slice 18, runbook in the design doc's Migration section). Slices 9 to 17
+branch from `main` after it; a runner slice merges only after the Lambda it calls is deployed.
+
+- [x] Accept the Decisions in the design doc (2026-11-22): nested SSM layout approved, existing data
+      and consumer configs migrated once instead of kept compatible, everything else as recommended.
+- [x] **[HUMAN APPROVAL]** Approve the three recommendations under "Open after amendment" in the
+      design doc: `register` rewrites the registry entry (so every bot is silent from the Lambda
+      deploy until re-registered), `--alias-platform` for chat aliases whose platform cannot be
+      inferred, and consumers enumerated from `bots/*/repo`. Taken as approved when the maintainer
+      approved the cutover on 2026-11-23; the dry run needed no `--alias-platform`.
+- [x] Platforms 1: config schema (`platforms` map only, legacy top-level keys rejected with a pointer
+      to `config migrate`, prompt `destination` as a name or per-platform map; its prompt `platforms`
+      selector is removed by slice 21); readers take per-platform settings.
+- [x] Platforms 2: connection model and loader (nested SSM layout only, connection view).
+- [x] Platforms 3: CLI connections (`bot add` onto an existing bot, `--platform` on `access` and
+      `admin claim`, `bot list`, `bot remove --platform`). After 2.
+- [x] Platforms 4: CLI migration tools: `bot export` and `bot restore`, `bot migrate` (`--dry-run`,
+      `--prune`, `--alias-platform`), `config migrate`, and `bot adopt`. After 3 (and 1).
+- [x] Platforms 5: per-platform registry entry and `register` over declared platforms; an old-shape
+      entry serves nothing. After 1, 2.
+- [x] Platforms 6: receiver builds one `Chat` per connection; per-platform `respond_to`. After 2, 5.
+- [x] Platforms 7: poster derives the connection from the thread ID; `start-thread` takes
+      `platform` (optional on a single-connection bot). After 2 (and 5, same `registry.ts`).
+- [x] Platforms 8: platform-scoped chat aliases (flat form not read) and the destination resolution
+      order; slice 11 folds aliases into destinations. After 2, 7.
+- [x] **[HUMAN APPROVAL]** Cutover go decision: after a passed rehearsal (`bot export` and
+      `bot migrate --dry-run` on production; the full sequence on a test bot) and slices 1 to 8
+      done, approve the window (about 5 to 10 minutes of unanswered messages), then the
+      `yarn deploy-prod` of the Lambda from `platforms/cutover`. Approved 2026-11-23 after the
+      production dry run; the test-bot rehearsal was skipped.
+- [x] **[HUMAN ACTION]** Platforms 18, the cutover, in the design doc's order: `bot export`,
+      `bot migrate`, deploy, `bot migrate` again, merge `platforms/cutover` and each consumer's
+      `config migrate` pull request (each merge runs `register`), smoke-test every bot and one
+      scheduled prompt per consumer. Rollback: redeploy the previous Lambda, revert the merges and
+      re-register. Done 2026-11-23: the window ran about 90 seconds (Lambda deployed 01:59:59 UTC,
+      the last `register` finished 02:01:29). All three `register` runs succeeded, the Telegram
+      webhooks are set, and the self-consumer `hello` prompt ran. Still to do: a message to each live
+      bot, and a scheduled prompt per consumer (not dispatched, since they post to real chats).
+- [x] **[HUMAN APPROVAL]** After a week's soak, `centaur bot migrate --prune` (deletes the flat
+      parameters and aliases) and delete the export file. Done 2026-11-23 without a soak; flat parameters pruned.
+- [x] Platforms 9: `thread-meta` record stores a thread's context policy; `start-thread` accepts
+      `context`, `read` returns `policy`, ownership reads it. After 18.
+- [x] Platforms 10: runner uses the stored policy and passes the prompt's `context` to
+      `start-thread` (fixes thread policy storage for every prompt). After 9 is deployed.
+      Done.
+- [x] Platforms 11: replace aliases with destinations (design Decision 18, maintainer ruling
+      2026-11-23): widen the `chats/<platform>/<name>` value to a record (chat, optional topic,
+      stored policy), rename `chat-aliases.ts`, `resolveChatAlias`, `proposeChatAlias`,
+      `recordChatAlias` and `slugAlias` to destination names, one-lookup resolution, create on first
+      use, topic recreation, `resolve-destination`; `start-thread` and `resolve-destination` take
+      `thread` (Decision 19); the schema parses `thread: new | persistent` (default `new`) and
+      rejects `persistent` with a clear error until slice 16 lands; no new IAM statement. Deploy
+      gates unchanged. Details approved 2026-11-23. After 8, 9, 18 (and 21, same schema file).
+      Done.
+- [x] Platforms 12: Slack persistent thread destinations (`thread: persistent` on Slack). After 11.
+      Done.
+- [x] Platforms 13: dropped (design Decision 20, maintainer ruling 2026-11-24): `centaur
+      destination set` binds an existing topic, so the in-chat handlers would add admin-auth
+      receiver code for a rare need.
+- [x] Platforms 14: `centaur destination set|list|remove`; removes `centaur chat list` (breaking).
+      After 11. Done. `chat list` and `access approve --alias` are removed.
+- [x] Platforms 15: multi-target scheduled turns (turn state targets, fan-out in `finish`). After 10.
+- [x] Platforms 16: `thread: persistent` scheduled turns (the runner passes the prompt's `thread`;
+      history, marker, session, `resolve` job and concurrency template); the schema stops rejecting
+      `persistent`. After 11, 15 and bounded transcript 3 (section 15). Done.
+- [x] Platforms 17: docs sweep (`onboarding.md`, `plan.md`, `config.md`, `cli.md`, `poster.md`,
+      README); remove the word "alias" everywhere; mark the design doc as built. Done.
+- [x] **[HUMAN APPROVAL]** Deploy the Lambda (`yarn deploy-prod`) after each of slices 9, 11, 12 and
+      13 and confirm existing bots still answer and post, before the runner slices that call them
+      (10, 15, 16) merge to `main`.
+- [x] **[HUMAN ACTION]** Per bot, after the cutover as in the design doc: `centaur bot add <bot>
+      --platform slack`, a Slack app event URL change, `centaur admin claim <bot> --platform slack`
+      and a test message on each live bot. Adding a platform to a bot is `bot add --platform`,
+      nothing else. Moot 2026-11-26: `centaur-slack`, `centaur-test-2` and the garden-style bots
+      already have both platforms; the others are Telegram-only by choice.
+- [x] **[HUMAN APPROVAL]** After a soak, unbind and remove the old Slack-only bot and its config.
+      Moot 2026-11-26: no Slack-only bot remains.
+- [x] Platforms 20: delete the one-time migration code once the cutover has soaked and every
+      consumer config and bot is migrated. The migration tooling (slice 4) is a lot of code for a
+      single use: remove `bot migrate` (copy, verify, `--prune`, `--alias-platform`,
+      `--drop-alias`), `config migrate` with its line-splicing and the `diff` dependency, and
+      `bot adopt` if nothing else uses it, plus their tests, fixtures and `docs/cli.md` entries;
+      reword the legacy-key error in `src/config/schema.ts`, which points at `centaur config
+      migrate`, to say the key was removed. Decide then whether `bot export` and `bot restore`
+      stay as a general backup. Check the Lambda and CLI bundles and `yarn install --immutable`
+      afterwards. **[HUMAN APPROVAL]** to start, since it deletes the way back for a rollback. Done 2026-11-23.
+- [x] Live checks on the test bot (slice 19): moved to Backlog 2026-11-26.
+- [x] Platforms 21: config simplification (design Decision 19, maintainer ruling 2026-11-23): remove
+      the prompt-level `platforms` selector; a string `destination` is valid only for a bot with one
+      platform, a bot with several uses `destination: { <platform>: <name> }`. Updates
+      `docs/config.md`, tests and the self-consumer config. Built independent of the other slices;
+      merged to `main` and not yet pushed. No consumer config used the selector.
+- [x] **[HUMAN APPROVAL]** The recommended `thread` semantics in Decision 19 (`new` never reuses a
+      bound thread; a record bound to a topic with a `new` prompt posts a fresh thread; `persistent`
+      on a record with no thread creates and binds one; `thread` applies to every fan-out target;
+      `persistent` rejected by the schema until slice 16).
 
 ## Quality Improvements
 

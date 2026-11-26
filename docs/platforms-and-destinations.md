@@ -340,7 +340,7 @@ a reply under a deleted parent message without an error, so a deleted parent is 
 replies continue under Slack's "message deleted" stub. Checking the parent with `conversations.replies`
 before posting could detect it, as a possible later change that is not planned. `TOPIC_CLOSED` for a
 bot without topic rights and `is_archived` for a member bot remain unconfirmed
-([TODO](../TODO.md#16-platforms-and-destinations)).
+([DONE](../DONE.md#16-platforms-and-destinations)).
 
 **Slack work.** The Slack items in section 12 (slash commands, onboarding, acknowledgement time) are
 independent of this design. The two meet in two places: the per-connection signing secret (each bot
@@ -548,7 +548,7 @@ keys and the consumer `.centaur.yml` files. Decisions that relied on compatibili
 ### Open after amendment
 
 No accepted Decision became contradictory. Three things the amendment leaves open, each with a
-recommendation, tracked as **[HUMAN APPROVAL]** in [TODO.md](../TODO.md#16-platforms-and-destinations):
+recommendation, tracked as **[HUMAN APPROVAL]** in [DONE.md](../DONE.md#16-platforms-and-destinations):
 
 - **The registry entry could not be migrated by the CLI** (it lives in the state table, which the CLI
   cannot reach). Recommendation: `register` rewrites it, so re-registering every bot is a cutover
