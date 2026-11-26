@@ -1,15 +1,6 @@
 import type { ContextPolicy } from "../config/index.js";
+import type { ChatMessage } from "../poster-contract.js";
 import { type Command, parseCommand } from "./commands.js";
-
-export interface ChatMessage {
-  id: string;
-  userId: string;
-  userName: string;
-  fromBot: boolean;
-  text: string;
-  attachments: string[];
-  sentAt: string;
-}
 
 export type TurnPlan =
   | { kind: "skip" }

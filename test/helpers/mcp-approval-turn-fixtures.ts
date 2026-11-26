@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { vi } from "vitest";
-import type { McpApprovalStatus } from "../../src/lambda/mcp-approvals.js";
+import type { McpApprovalStatus } from "../../src/poster-contract.js";
 import type { PosterClient } from "../../src/workflows/aws.js";
 import { type FinishDeps, finish } from "../../src/workflows/finish.js";
 import { MCP_CONFIG_FILE, type PrepareDeps, prepare } from "../../src/workflows/prepare.js";

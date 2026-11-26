@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { MESSAGE_TEXT_MAX } from "../src/lambda/chat-context.js";
 import { THREAD_WINDOW } from "../src/mcp/poster-chat-client.js";
+import { MESSAGE_TEXT_MAX } from "../src/poster-contract.js";
 import { scannedRange } from "./helpers/chat-context-fixtures.js";
 import {
   CURRENT,

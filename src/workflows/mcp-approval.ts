@@ -1,7 +1,7 @@
 import type { CentaurConfig, McpServer, SecretRef } from "../config/index.js";
 import type { McpApproval } from "../config/mcp-policy.js";
 import { mcpToolMatchesServer } from "../config/schema.js";
-import { MCP_SUMMARY_MAX, type McpApprovalStatus } from "../lambda/mcp-approvals.js";
+import { MCP_SUMMARY_MAX, type McpApprovalStatus } from "../poster-contract.js";
 import type { PosterClient } from "./aws.js";
 
 /** The thread and triggering message a request is raised for; a turn without them can only read. */

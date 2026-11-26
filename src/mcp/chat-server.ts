@@ -1,10 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { firstLine } from "../lambda/text.js";
+import type { ChatMessage } from "../poster-contract.js";
+import { firstLine } from "../text.js";
 import { cleanTitle, fence } from "../workflows/clean-text.js";
 import { SafeError } from "../workflows/safe-error.js";
-import type { ChatMessage } from "../workflows/transcript.js";
 import type { ChatPosterClient, Scanned, ThreadSummary } from "./chat-poster-client.js";
 import { OpaqueIds } from "./opaque-ids.js";
 import { CHAT_SERVER_NAME } from "./server-config.js";

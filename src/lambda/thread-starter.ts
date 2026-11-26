@@ -1,5 +1,6 @@
 import type { Logger, StateAdapter } from "chat";
 import { buildThreadId, type Platform, type ThreadMode, threadPlatform } from "../config/index.js";
+import { firstLine } from "../text.js";
 import { createAccessResolver } from "./access.js";
 import { postInThread } from "./channel-history.js";
 import {
@@ -13,7 +14,6 @@ import type { ParameterStore } from "./parameters.js";
 import type { PosterChat } from "./poster.js";
 import type { Bot } from "./registry.js";
 import type { TelegramApi } from "./telegram.js";
-import { firstLine } from "./text.js";
 import type { ThreadMetaStore } from "./thread-meta.js";
 
 export const TOPIC_NAME_MAX = 128;

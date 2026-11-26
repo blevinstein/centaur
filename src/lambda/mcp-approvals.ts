@@ -1,6 +1,9 @@
 import type { Logger, StateAdapter } from "chat";
-import { z } from "zod";
-import { slug } from "../config/index.js";
+import type {
+  McpApprovalStatus,
+  McpApprovalsRequest,
+  McpApprovalsResult,
+} from "../poster-contract.js";
 import type { SelfIdentity } from "../self-identity.js";
 import { createAccessRequestStore } from "./access-request-store.js";
 import { createMcpApprovalRequester } from "./access-requests.js";
@@ -17,46 +20,6 @@ import type { OidcVerifier } from "./oidc.js";
 import type { ParameterStore } from "./parameters.js";
 import { type Bot, requireBound } from "./registry.js";
 import { withSelfIdentity } from "./self-identity.js";
-
-export const MCP_APPROVAL_SERVERS_MAX = 20;
-export const MCP_SUMMARY_MAX = 2000;
-
-const field = z.string().min(1);
-
-export const mcpApprovalsRequestSchema = z
-  .strictObject({
-    operation: z.literal("mcp-approvals"),
-    token: field,
-    bot: slug,
-    threadId: field.optional(),
-    messageId: field.optional(),
-    servers: z
-      .array(
-        z.strictObject({
-          name: field,
-          fingerprint: field,
-          summary: z.string().max(MCP_SUMMARY_MAX),
-        }),
-      )
-      .min(1)
-      .max(MCP_APPROVAL_SERVERS_MAX),
-    suspend: z.boolean().optional(),
-  })
-  .refine(({ threadId, messageId }) => (threadId === undefined) === (messageId === undefined), {
-    message: "threadId and messageId must be given together",
-    path: ["threadId"],
-  })
-  .refine(({ threadId, suspend }) => !suspend || threadId !== undefined, {
-    message: "suspend requires threadId and messageId",
-    path: ["suspend"],
-  });
-
-export type McpApprovalsRequest = z.infer<typeof mcpApprovalsRequestSchema>;
-export const mcpApprovalsResultSchema = z.object({
-  servers: z.record(z.string(), z.enum(["approved", "pending", "denied"])),
-});
-export type McpApprovalsResult = z.infer<typeof mcpApprovalsResultSchema>;
-export type McpApprovalStatus = McpApprovalsResult["servers"][string];
 
 export interface McpApprovalsDeps {
   params: ParameterStore;

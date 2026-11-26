@@ -8,17 +8,19 @@ import {
   THREAD_MODES,
   threadPlatform,
 } from "../config/index.js";
+import {
+  listThreadsRequestSchema,
+  mcpApprovalsRequestSchema,
+  readChannelRequestSchema,
+  UNREACT_MAX_MESSAGES,
+} from "../poster-contract.js";
 import { createAccessResolver } from "./access.js";
 import type { AttachmentStore } from "./attachments.js";
 import { createCallerCheck } from "./caller-check.js";
 import { postInThread } from "./channel-history.js";
-import {
-  createChatContext,
-  listThreadsRequestSchema,
-  readChannelRequestSchema,
-} from "./chat-context.js";
+import { createChatContext, toChatMessage } from "./chat-context.js";
 import type { RepositoryDispatcher } from "./github.js";
-import { createMcpApprovals, mcpApprovalsRequestSchema } from "./mcp-approvals.js";
+import { createMcpApprovals } from "./mcp-approvals.js";
 import type { McpPolicyReader } from "./mcp-policy.js";
 import type { OidcVerifier } from "./oidc.js";
 import type { ThreadMetadata } from "./ownership.js";
@@ -31,8 +33,6 @@ import { connectState } from "./state.js";
 import type { TelegramApi } from "./telegram.js";
 import { createThreadMeta } from "./thread-meta.js";
 import { createThreadStarter, TOPIC_NAME_MAX } from "./thread-starter.js";
-
-export const UNREACT_MAX_MESSAGES = 50;
 
 const text = z.string().min(1);
 const threadId = z.string().min(1);
@@ -300,15 +300,7 @@ export async function createPoster(deps: PosterDeps) {
         const messages = [];
         for await (const message of thread.allMessages) {
           if (visible && !visible(message)) continue;
-          messages.push({
-            id: message.id,
-            userId: message.author.userId,
-            userName: message.author.userName,
-            fromBot: message.author.isMe,
-            text: message.text,
-            attachments: await storedAttachments(message),
-            sentAt: message.metadata.dateSent.toISOString(),
-          });
+          messages.push(toChatMessage(message, await storedAttachments(message)));
         }
         const policy = (await threadMeta.read(request.threadId))?.context;
         return { messages, ...(policy ? { policy } : {}) };

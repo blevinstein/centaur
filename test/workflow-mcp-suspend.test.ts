@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MCP_APPROVAL_SERVERS_MAX } from "../src/lambda/mcp-approvals.js";
+import { MCP_APPROVAL_SERVERS_MAX } from "../src/poster-contract.js";
 import { extractResult, waitingReply } from "../src/workflows/finish.js";
 import { prepare } from "../src/workflows/prepare.js";
 import { replySchema } from "../src/workflows/prompt.js";

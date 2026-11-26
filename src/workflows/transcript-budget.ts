@@ -1,5 +1,5 @@
+import type { ChatMessage } from "../poster-contract.js";
 import { splitTextMaxChars } from "./split-text.js";
-import type { ChatMessage } from "./transcript.js";
 
 export interface BoundedTranscript {
   messages: ChatMessage[];

@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { PosterRequest } from "../../src/lambda/poster.js";
+import type { ChatMessage } from "../../src/poster-contract.js";
 import {
   createAttachmentDownloader,
   createPosterClient,
@@ -9,7 +10,6 @@ import {
   type Exec,
 } from "../../src/workflows/aws.js";
 import type { ReplySchemaOptions } from "../../src/workflows/prompt.js";
-import type { ChatMessage } from "../../src/workflows/transcript.js";
 
 export const BUCKET = "session-bucket";
 export const THREAD = "telegram:-100:7";

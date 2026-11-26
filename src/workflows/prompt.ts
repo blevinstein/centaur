@@ -1,11 +1,11 @@
 import type { CentaurConfig, Platform } from "../config/index.js";
-import { MCP_APPROVAL_SERVERS_MAX } from "../lambda/mcp-approvals.js";
+import { type ChatMessage, MCP_APPROVAL_SERVERS_MAX } from "../poster-contract.js";
 import type { SelfIdentity } from "../self-identity.js";
 import { fence } from "./clean-text.js";
 import { DEFAULT_INSTRUCTIONS, type Instructions } from "./instructions.js";
 import type { McpApprovalNotice } from "./mcp-approval.js";
 import type { TurnState } from "./prepare.js";
-import { type AttachmentPath, type ChatMessage, renderMessages } from "./transcript.js";
+import { type AttachmentPath, renderMessages } from "./transcript.js";
 
 const NO_ATTACHMENTS: AttachmentPath = () => undefined;
 

@@ -1,18 +1,13 @@
 import type { Message } from "chat";
 import type { Platform } from "../config/index.js";
 import { createAccessResolver } from "../lambda/access.js";
-import {
-  READ_CHANNEL_MAX,
-  readChannelMessages,
-  type Scan,
-  toScanned,
-  visibleTo,
-} from "../lambda/chat-context.js";
+import { readChannelMessages, type Scan, toScanned, visibleTo } from "../lambda/chat-context.js";
 import { STATE_TABLE_PARAMETER } from "../lambda/parameters.js";
 import type { PosterChat } from "../lambda/poster.js";
 import { botStatePrefix, requireBot } from "../lambda/registry.js";
 import { connectState } from "../lambda/state.js";
-import { clip } from "../lambda/text.js";
+import { READ_CHANNEL_MAX } from "../poster-contract.js";
+import { clip } from "../text.js";
 import { threadKey } from "../thread-key.js";
 import type { ChatAccess } from "./chat-access.js";
 import type { ParameterStore } from "./parameter-store.js";

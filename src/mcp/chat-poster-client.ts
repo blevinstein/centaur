@@ -1,5 +1,4 @@
-import type { ChannelMessage, Scanned, ThreadSummary } from "../lambda/chat-context.js";
-import type { ChatMessage } from "../workflows/transcript.js";
+import type { ChannelMessage, ChatMessage, Scanned, ThreadSummary } from "../poster-contract.js";
 
 export type { ChannelMessage, Scanned, ThreadSummary };
 

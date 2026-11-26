@@ -3,14 +3,6 @@ import type { OidcVerifier } from "./oidc.js";
 import type { ReadableParameters } from "./parameters.js";
 import { requireBound } from "./registry.js";
 
-/** The operations whose token is optional while `REQUIRE_POSTER_TOKEN` is off; the others always take one. */
-export const OPTIONAL_TOKEN_OPERATIONS: ReadonlySet<string> = new Set([
-  "post",
-  "unreact",
-  "start-thread",
-  "get-mcp-policy",
-]);
-
 export interface CallerClaim {
   operation: string;
   token?: string | undefined;

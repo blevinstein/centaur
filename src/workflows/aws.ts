@@ -5,24 +5,22 @@ import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
 import { CONTEXT_POLICIES } from "../config/index.js";
-import { OPTIONAL_TOKEN_OPERATIONS } from "../lambda/caller-check.js";
+import type { PosterRequest } from "../lambda/poster.js";
 import {
+  type ChatMessage,
   type ListThreadsRequest,
   type ListThreadsResult,
   listThreadsResultSchema,
-  type ReadChannelRequest,
-  type ReadChannelResult,
-  readChannelResultSchema,
-} from "../lambda/chat-context.js";
-import {
   type McpApprovalsRequest,
   type McpApprovalsResult,
   mcpApprovalsResultSchema,
-} from "../lambda/mcp-approvals.js";
-import type { PosterRequest } from "../lambda/poster.js";
-import { firstLine } from "../lambda/text.js";
+  OPTIONAL_TOKEN_OPERATIONS,
+  type ReadChannelRequest,
+  type ReadChannelResult,
+  readChannelResultSchema,
+} from "../poster-contract.js";
+import { firstLine } from "../text.js";
 import { SafeError } from "./safe-error.js";
-import type { ChatMessage } from "./transcript.js";
 
 export type Exec = (file: string, args: string[]) => Promise<string>;
 

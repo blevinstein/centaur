@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  LIST_THREADS_MAX,
-  MESSAGE_TEXT_MAX,
-  PARTICIPANTS_MAX,
-  READ_CHANNEL_DEFAULT,
-  READ_CHANNEL_MAX,
-  SNIPPET_MAX,
-} from "../src/lambda/chat-context.js";
+import { PARTICIPANTS_MAX, READ_CHANNEL_DEFAULT, SNIPPET_MAX } from "../src/lambda/chat-context.js";
+import { LIST_THREADS_MAX, MESSAGE_TEXT_MAX, READ_CHANNEL_MAX } from "../src/poster-contract.js";
 import {
   contextMessage,
   contextSetup,

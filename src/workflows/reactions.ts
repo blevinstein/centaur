@@ -1,4 +1,4 @@
-import { UNREACT_MAX_MESSAGES } from "../lambda/poster.js";
+import { UNREACT_MAX_MESSAGES } from "../poster-contract.js";
 import type { PosterClient } from "./aws.js";
 import { safeDetail } from "./safe-error.js";
 

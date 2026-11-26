@@ -1,8 +1,8 @@
-import { MESSAGE_TEXT_MAX } from "../lambda/chat-context.js";
-import { clip } from "../lambda/text.js";
+import type { ChatMessage } from "../poster-contract.js";
+import { MESSAGE_TEXT_MAX } from "../poster-contract.js";
+import { clip } from "../text.js";
 import { type PosterClient, readThreadMessages } from "../workflows/aws.js";
 import { SafeError } from "../workflows/safe-error.js";
-import type { ChatMessage } from "../workflows/transcript.js";
 import type { ChatPosterClient } from "./chat-poster-client.js";
 
 /** The newest messages the poster's `read` returns for a thread (the stored history window). */

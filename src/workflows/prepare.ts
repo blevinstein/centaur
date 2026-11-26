@@ -11,6 +11,7 @@ import {
   threadPlatform,
 } from "../config/index.js";
 import { CHAT_SERVER_NAME } from "../mcp/server-config.js";
+import type { ChatMessage } from "../poster-contract.js";
 import { selfIdentitySchema } from "../self-identity.js";
 import { threadKey } from "../thread-key.js";
 import {
@@ -61,7 +62,6 @@ import { doubleQuote, shellArg, singleQuote } from "./shell-arg.js";
 import { installSkills } from "./skills.js";
 import {
   type AttachmentPath,
-  type ChatMessage,
   markerBefore,
   pendingMessages,
   planTurn,

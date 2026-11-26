@@ -1,90 +1,27 @@
 import type { Logger, Message } from "chat";
-import { z } from "zod";
-import { type Platform, slug } from "../config/index.js";
+import type { z } from "zod";
+import type { Platform } from "../config/index.js";
+import {
+  type ChannelMessage,
+  type ChatMessage,
+  type listThreadsRequestSchema,
+  MESSAGE_TEXT_MAX,
+  type readChannelRequestSchema,
+  type Scanned,
+  type ThreadSummary,
+} from "../poster-contract.js";
+import { clip, firstLine } from "../text.js";
 import type { Access } from "./access.js";
 import type { OidcVerifier } from "./oidc.js";
 import type { ParameterStore } from "./parameters.js";
 import type { PosterChat } from "./poster.js";
 import { type Bot, requireBound } from "./registry.js";
-import { clip, firstLine } from "./text.js";
 
 export const LIST_THREADS_DEFAULT = 20;
-export const LIST_THREADS_MAX = 50;
 export const READ_CHANNEL_DEFAULT = 50;
-export const READ_CHANNEL_MAX = 200;
-export const MESSAGE_TEXT_MAX = 4000;
 export const SNIPPET_MAX = 200;
 export const TITLE_MAX = 100;
 export const PARTICIPANTS_MAX = 10;
-
-const nonEmpty = z.string().min(1);
-const count = (max: number) => z.number().int().positive().max(max);
-
-const target = {
-  token: nonEmpty,
-  bot: slug,
-  chatId: nonEmpty,
-  /** The thread the turn was dispatched for; the poster derives the one chat the turn may read from it. */
-  threadId: nonEmpty,
-  includeBots: z.boolean().optional(),
-};
-
-export const listThreadsRequestSchema = z.strictObject({
-  operation: z.literal("list-threads"),
-  ...target,
-  limit: count(LIST_THREADS_MAX).optional(),
-});
-
-export const readChannelRequestSchema = z.strictObject({
-  operation: z.literal("read-channel"),
-  ...target,
-  limit: count(READ_CHANNEL_MAX).optional(),
-  /** Only messages sent before this instant (ISO 8601), for paging backwards. */
-  before: z.iso.datetime().optional(),
-});
-
-export const threadSummarySchema = z.object({
-  threadId: z.string(),
-  title: z.string(),
-  lastActivity: z.string(),
-  messageCount: z.number().int(),
-  participants: z.array(z.string()),
-  snippet: z.string(),
-});
-
-export const channelMessageSchema = z.object({
-  id: z.string(),
-  threadId: z.string(),
-  userId: z.string(),
-  userName: z.string(),
-  fromBot: z.boolean(),
-  text: z.string(),
-  attachments: z.array(z.string()),
-  sentAt: z.string(),
-});
-
-/** The range a read examined: the oldest message seen, and whether nothing older was left to see. */
-export const scannedSchema = z.object({
-  oldest: z.string().nullable(),
-  exhausted: z.boolean(),
-});
-
-export const listThreadsResultSchema = z.object({
-  threads: z.array(threadSummarySchema),
-  scanned: scannedSchema,
-});
-export const readChannelResultSchema = z.object({
-  messages: z.array(channelMessageSchema),
-  scanned: scannedSchema,
-});
-
-export type ListThreadsRequest = z.input<typeof listThreadsRequestSchema>;
-export type ReadChannelRequest = z.input<typeof readChannelRequestSchema>;
-export type Scanned = z.infer<typeof scannedSchema>;
-export type ThreadSummary = z.infer<typeof threadSummarySchema>;
-export type ChannelMessage = z.infer<typeof channelMessageSchema>;
-export type ListThreadsResult = z.infer<typeof listThreadsResultSchema>;
-export type ReadChannelResult = z.infer<typeof readChannelResultSchema>;
 
 export type Visible = (message: Message) => boolean;
 
@@ -130,15 +67,23 @@ export const toScanned = ({ oldest, exhausted }: Scan): Scanned => ({
   exhausted,
 });
 
-const toChannelMessage = (message: Message): ChannelMessage => ({
+export const toChatMessage = (
+  message: Message,
+  attachments: string[],
+  text = message.text,
+): ChatMessage => ({
   id: message.id,
-  threadId: message.threadId,
   userId: message.author.userId,
   userName: message.author.userName,
   fromBot: message.author.isMe,
-  text: clip(message.text, MESSAGE_TEXT_MAX),
-  attachments: [],
+  text,
+  attachments,
   sentAt: message.metadata.dateSent.toISOString(),
+});
+
+const toChannelMessage = (message: Message): ChannelMessage => ({
+  ...toChatMessage(message, [], clip(message.text, MESSAGE_TEXT_MAX)),
+  threadId: message.threadId,
 });
 
 const summarize = (

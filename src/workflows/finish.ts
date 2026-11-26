@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
-import { MCP_APPROVAL_SERVERS_MAX } from "../lambda/mcp-approvals.js";
+import { MCP_APPROVAL_SERVERS_MAX } from "../poster-contract.js";
 import { threadKey } from "../thread-key.js";
 import type { PosterClient, ThreadStore } from "./aws.js";
 import { cleanBody, cleanTitle } from "./clean-text.js";
