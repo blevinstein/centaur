@@ -49,26 +49,25 @@ const stateCreator = (tableName: string) => {
 const buildAttachments = () =>
   createAttachmentStore(createS3ObjectStore(requiredEnv("SESSION_BUCKET_NAME")));
 
-async function buildDispatcher(params: ParameterStore) {
-  const token = await params.get(GITHUB_TOKEN_PARAMETER);
-  if (!token) throw new Error(`missing SSM parameter ${GITHUB_TOKEN_PARAMETER}`);
-  return createGitHubDispatcher(token);
-}
-
-/** Reads the token on the first dispatch, so a poster that never resumes a thread never needs it. */
-function lazyDispatcher(params: ParameterStore): RepositoryDispatcher {
-  const dispatcher = memoizeAsync(() => buildDispatcher(params));
-  return { dispatch: async (...args) => (await dispatcher()).dispatch(...args) };
+/** Reads the token (through the parameter store's cache) on every dispatch, so a rotated token reaches warm containers. */
+function tokenDispatcher(params: ParameterStore): RepositoryDispatcher {
+  return {
+    async dispatch(...args) {
+      const token = await params.get(GITHUB_TOKEN_PARAMETER);
+      if (!token) throw new Error(`missing SSM parameter ${GITHUB_TOKEN_PARAMETER}`);
+      return createGitHubDispatcher(token).dispatch(...args);
+    },
+  };
 }
 
 async function buildReceiver() {
-  const params = createSsmParameterStore();
+  const params = createCachedParameterStore(createSsmParameterStore());
   const tableName = requiredEnv("STATE_TABLE_NAME");
   return createReceiver({
-    params: createCachedParameterStore(params),
+    params,
     createState: stateCreator(tableName),
     attachments: buildAttachments(),
-    dispatcher: await buildDispatcher(params),
+    dispatcher: tokenDispatcher(params),
     telegram: createTelegramApi(),
     logger,
     history: readHistoryWindow(),
@@ -88,7 +87,7 @@ async function buildPoster() {
     chatFor: (bot, botState) => createChat({ bot, botState, logger, history }),
     attachments: buildAttachments(),
     telegram: createTelegramApi(),
-    dispatcher: lazyDispatcher(params),
+    dispatcher: tokenDispatcher(createCachedParameterStore(params)),
     requirePosterToken: readRequirePosterToken(),
     oidc: createGitHubOidcVerifier({
       owner: requiredEnv("GITHUB_OWNER"),

@@ -18,6 +18,7 @@ import { DEFAULT_HISTORY_WINDOW, type HistoryWindow } from "./history-window.js"
 import { createMessageHandler } from "./message-handler.js";
 import type { ThreadMetadata } from "./ownership.js";
 import type { ParameterStore } from "./parameters.js";
+import { withRedelivery } from "./redelivery.js";
 import { type Bot, readPlatformSettings } from "./registry.js";
 import { createSelfIdentityLookup, withSelfIdentity } from "./self-identity.js";
 import type { TelegramApi } from "./telegram.js";
@@ -115,18 +116,21 @@ export function createBotChat({
     requestApprover: createApproverRequester(requesterDeps),
     logger,
   });
-  const handle = createMessageHandler({
-    bot,
-    resolveAccess,
-    requestAccess: createAccessRequester(requesterDeps),
-    attachments,
-    claimAdmin: channel.commands ? undefined : claimAdmin,
-    approverCommand: channel.commands ? undefined : approverCommand,
-    resolveSettings: () => readPlatformSettings(registryState, bot, logger),
-    dispatcher,
-    threadMeta: createThreadMeta(botState),
-    logger,
-  });
+  const handle = withRedelivery(
+    createMessageHandler({
+      bot,
+      resolveAccess,
+      requestAccess: createAccessRequester(requesterDeps),
+      attachments,
+      claimAdmin: channel.commands ? undefined : claimAdmin,
+      approverCommand: channel.commands ? undefined : approverCommand,
+      resolveSettings: () => readPlatformSettings(registryState, bot, logger),
+      dispatcher,
+      threadMeta: createThreadMeta(botState),
+      logger,
+    }),
+    { state: botState, logger },
+  );
   registerAdminHandlers(
     chat,
     channel,

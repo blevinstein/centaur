@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PARAMETER_CACHE_TTL_MS } from "../src/lambda/cached-parameters.js";
 import { FUNCTION_URL_PARAMETER, GITHUB_TOKEN_PARAMETER } from "../src/lambda/parameters.js";
 import { HANDLER_ENV, handlerParams, importFreshHandler } from "./helpers/handler-fixtures.js";
 import { functionUrlEvent } from "./helpers/lambda-events.js";
@@ -57,7 +58,16 @@ describe("lambda handler routing", () => {
     }));
   });
 
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.useRealTimers();
+  });
+
+  const rotateToken = (value: string) =>
+    (mocks.params as ReturnType<typeof handlerParams>).entries.set(GITHUB_TOKEN_PARAMETER, {
+      value,
+      secure: false,
+    });
 
   it("routes function URL events to the receiver as web requests", async () => {
     const handler = await importFreshHandler();
@@ -92,16 +102,6 @@ describe("lambda handler routing", () => {
     await handler({ operation: "post" });
     expect(mocks.createReceiver).toHaveBeenCalledTimes(1);
     expect(mocks.createPoster).toHaveBeenCalledTimes(1);
-  });
-
-  it("rejects when the GitHub token parameter is missing, then retries the build", async () => {
-    mocks.params = handlerParams({});
-    const handler = await importFreshHandler();
-    await expect(handler(functionUrlEvent())).rejects.toThrow(
-      `missing SSM parameter ${GITHUB_TOKEN_PARAMETER}`,
-    );
-    mocks.params = handlerParams({ [GITHUB_TOKEN_PARAMETER]: "token" });
-    expect(await handler(functionUrlEvent())).toMatchObject({ statusCode: 200 });
   });
 
   describe("the poster's token requirement", () => {
@@ -146,29 +146,61 @@ describe("lambda handler routing", () => {
       expect(mocks.createDispatcher).not.toHaveBeenCalled();
     });
 
-    it("builds the dispatcher on the first dispatch and reuses it", async () => {
-      const handler = await importFreshHandler();
-
-      await dispatch(handler);
-      await dispatch(handler);
-
-      expect(mocks.createDispatcher).toHaveBeenCalledExactlyOnceWith("token");
-    });
-
-    it("rejects when the token read fails and retries on the next dispatch", async () => {
+    it("rejects when the token is missing and works once it exists", async () => {
       mocks.params = handlerParams({ [FUNCTION_URL_PARAMETER]: "https://fn.example" });
       const handler = await importFreshHandler();
 
       await expect(dispatch(handler)).rejects.toThrow(
         `missing SSM parameter ${GITHUB_TOKEN_PARAMETER}`,
       );
-      (mocks.params as ReturnType<typeof handlerParams>).entries.set(GITHUB_TOKEN_PARAMETER, {
-        value: "token",
-        secure: false,
-      });
+      rotateToken("token");
       await dispatch(handler);
 
       expect(mocks.createDispatcher).toHaveBeenCalledExactlyOnceWith("token");
+    });
+  });
+
+  describe("a rotated GitHub token", () => {
+    it("reaches a warm poster once the parameter cache expires", async () => {
+      vi.useFakeTimers();
+      const handler = await importFreshHandler();
+      await handler({ operation: "post" });
+      const [{ dispatcher }] = mocks.createPoster.mock.calls[0] as [
+        { dispatcher: { dispatch: (...args: string[]) => Promise<void> } },
+      ];
+
+      await dispatcher.dispatch("octo/garden", "event");
+      rotateToken("rotated");
+      await dispatcher.dispatch("octo/garden", "event");
+      vi.advanceTimersByTime(PARAMETER_CACHE_TTL_MS + 1);
+      await dispatcher.dispatch("octo/garden", "event");
+      vi.useRealTimers();
+
+      expect(mocks.createDispatcher.mock.calls.map(([token]) => token)).toEqual([
+        "token",
+        "token",
+        "rotated",
+      ]);
+    });
+
+    it("reaches a warm receiver once the parameter cache expires", async () => {
+      vi.useFakeTimers();
+      const handler = await importFreshHandler();
+      await handler(functionUrlEvent());
+      const [{ dispatcher }] = mocks.createReceiver.mock.calls[0] as [
+        { dispatcher: { dispatch: (...args: string[]) => Promise<void> } },
+      ];
+
+      await dispatcher.dispatch("octo/garden", "event");
+      rotateToken("rotated");
+      vi.advanceTimersByTime(PARAMETER_CACHE_TTL_MS + 1);
+      await dispatcher.dispatch("octo/garden", "event");
+      vi.useRealTimers();
+
+      expect(mocks.createDispatcher.mock.calls.map(([token]) => token)).toEqual([
+        "token",
+        "rotated",
+      ]);
     });
   });
 

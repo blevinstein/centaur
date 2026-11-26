@@ -1,3 +1,5 @@
+import { requestTimeout } from "./request-timeout.js";
+
 export interface TelegramMe {
   username: string;
   first_name?: string;
@@ -32,6 +34,7 @@ export function createTelegramApi(fetchImpl = fetch): TelegramApi {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(params),
+      signal: requestTimeout(),
     });
     const body = (await response.json().catch(() => ({}))) as BotApiResponse<T>;
     if (!response.ok || !body.ok) {

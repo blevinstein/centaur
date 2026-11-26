@@ -5,6 +5,7 @@ import type { RepositoryDispatcher } from "./github.js";
 import type { HistoryWindow } from "./history-window.js";
 import type { WebHandler } from "./http.js";
 import type { ParameterStore } from "./parameters.js";
+import { RedeliveryRequested, releaseWebhookMarker } from "./redelivery.js";
 import { type Bot, botStatePrefix, loadBots } from "./registry.js";
 import { connectState } from "./state.js";
 import type { TelegramApi } from "./telegram.js";
@@ -74,15 +75,29 @@ export async function createReceiver({
     if (!webhook || request.method !== "POST") {
       return new Response("not found", { status: 404 });
     }
+    const delivery = request.clone();
     const tasks: Promise<unknown>[] = [];
     const response = await webhook(request, {
       waitUntil: (task) => tasks.push(task),
+      propagateHandlerErrors: true,
     });
+    const settled: PromiseSettledResult<unknown>[] = [];
     for (let drained = 0; drained < tasks.length; ) {
       const pending = tasks.slice(drained);
       drained = tasks.length;
-      await Promise.allSettled(pending);
+      settled.push(...(await Promise.allSettled(pending)));
     }
-    return response;
+    const redeliver = settled.some(
+      (result) => result.status === "rejected" && result.reason instanceof RedeliveryRequested,
+    );
+    if (!redeliver) return response;
+    const { platform } = route.bot;
+    await releaseWebhookMarker(
+      platform,
+      route.chat.getAdapter(platform),
+      route.chat.getState(),
+      delivery,
+    );
+    return new Response("retry", { status: 500 });
   };
 }

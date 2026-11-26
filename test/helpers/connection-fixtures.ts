@@ -45,7 +45,8 @@ export const groupMessage = (text = "the tomatoes have yellow leaves") =>
     text,
   });
 
-export const slackMention = () => signedSlackRequest(channelMention(SLACK_TS), GARDEN_SLACK_BOT);
+export const slackMention = (delivery?: Parameters<typeof signedSlackRequest>[2]) =>
+  signedSlackRequest(channelMention(SLACK_TS), GARDEN_SLACK_BOT, delivery);
 
 export const slackChannelChat = () =>
   signedSlackRequest(channelMessage("1700000002.000100"), GARDEN_SLACK_BOT);
@@ -67,7 +68,7 @@ export async function twoConnectionHarness({
 } = {}) {
   const api = await startFakeSlackApi();
   vi.stubEnv("SLACK_API_URL", api.url);
-  stubTelegram();
+  const sent = stubTelegram();
   const strict = strictStates(failConnects ? { failConnects } : {});
   const registryState = strict.inner("");
   await registryState.connect();
@@ -94,6 +95,7 @@ export async function twoConnectionHarness({
     receive,
     dispatcher,
     dispatched,
+    sent,
     logger,
     strict,
     botState: strict.inner(botStatePrefix(GARDEN_BOT.name)),

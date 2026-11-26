@@ -66,11 +66,18 @@ export async function startFakeSlackApi() {
   };
 }
 
-export const signedSlackRequest = (event: object, bot: Bot = SLACK_BOT) => {
+export const signedSlackRequest = (
+  event: object,
+  bot: Bot = SLACK_BOT,
+  {
+    eventId = `Ev${Math.random().toString(36).slice(2)}`,
+    retryNum,
+  }: { eventId?: string; retryNum?: number } = {},
+) => {
   const body = JSON.stringify({
     type: "event_callback",
     team_id: "T1",
-    event_id: `Ev${Math.random().toString(36).slice(2)}`,
+    event_id: eventId,
     event,
   });
   const timestamp = Math.floor(Date.now() / 1000).toString();
@@ -81,6 +88,7 @@ export const signedSlackRequest = (event: object, bot: Bot = SLACK_BOT) => {
       "content-type": "application/json",
       "x-slack-signature": signature,
       "x-slack-request-timestamp": timestamp,
+      ...(retryNum === undefined ? {} : { "x-slack-retry-num": String(retryNum) }),
     },
     body,
   });

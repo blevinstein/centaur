@@ -1,4 +1,5 @@
 import type { SelfIdentity } from "../self-identity.js";
+import { requestTimeout } from "./request-timeout.js";
 
 export type ClientPayload = Record<string, string | SelfIdentity>;
 
@@ -29,6 +30,7 @@ export function createGitHubDispatcher(token: string, fetchImpl = fetch): Reposi
           "x-github-api-version": "2022-11-28",
         },
         body: JSON.stringify({ event_type: eventType, client_payload: clientPayload }),
+        signal: requestTimeout(),
       });
       if (!response.ok) throw new DispatchError(repo, response.status);
     },

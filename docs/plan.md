@@ -84,6 +84,13 @@ in the diagram because it's invoked over IAM, not a public URL.
      DispatchFailureNoticeMinutes=0`), and a bot without an admin, or one the admin never messaged,
      only logs. A 404 (or 401/403) means the GitHub token lacks access to the repository: a
      fine-grained token needs it added with Contents read/write.
+     A handler failure (a failed dispatch, state or access read) releases the message's dedupe
+     records and answers the webhook with a 500, so Slack and Telegram redeliver it. After two
+     redeliveries the sender is told to resend and the 👀 reaction is removed. A redelivery repeats
+     any side effect the failed attempt already had, and a dispatch that GitHub accepted but whose
+     response timed out can start a duplicate turn. Outbound calls to GitHub and Telegram time out
+     after 10 seconds, and the GitHub token is re-read through the 30-second parameter cache on
+     every dispatch, so a rotated token reaches warm containers.
 - Must finish before returning: Lambda freezes after the response, so no post-response work.
   Dispatching to GitHub is a single fast API call.
 - Secrets (bot tokens, webhook secrets, GitHub credential) in SSM Parameter Store or Secrets
