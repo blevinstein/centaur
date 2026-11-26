@@ -13,6 +13,7 @@ parameters-*.json
 !.yarn/versions
 .pnp.*
 .env*
+*.private.md
 
 # Beads / Dolt files (added by bd init)
 .dolt/
