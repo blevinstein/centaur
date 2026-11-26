@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { parse } from "yaml";
 
 export interface ActionStep {
@@ -7,6 +7,7 @@ export interface ActionStep {
   "continue-on-error"?: boolean;
   if?: string;
   env?: Record<string, string>;
+  run?: string;
 }
 
 interface Action {
@@ -19,3 +20,13 @@ export const loadAction = (name: string): Action =>
 
 export const stepsWithEnv = (steps: ActionStep[], name: string) =>
   steps.filter((step) => step.env?.[name] !== undefined);
+
+export const actionNames = () => readdirSync(".github/actions");
+
+/** The env of every composite-action step that runs `cli.js <command>`. */
+export const stepEnvsRunning = (command: string) =>
+  actionNames().flatMap((name) =>
+    loadAction(name)
+      .runs.steps.filter((step) => step.run?.endsWith(`/dist/workflows/cli.js" ${command}`))
+      .map((step) => step.env ?? {}),
+  );

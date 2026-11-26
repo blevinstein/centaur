@@ -52,3 +52,14 @@ describe("the poster client's caller token", () => {
     expect(aws.requests).toEqual([CALLER_CHECKED_OPERATIONS.post]);
   });
 });
+
+describe("the fake poster", () => {
+  it("rejects a request the poster's schema would reject", async () => {
+    const aws = createFakeAws();
+
+    await expect(
+      aws.poster.call({ ...CALLER_CHECKED_OPERATIONS.post, extra: true } as never),
+    ).rejects.toThrow(/poster post failed|aws lambda invoke failed/);
+    expect(aws.requests).toEqual([]);
+  });
+});

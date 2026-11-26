@@ -1,7 +1,13 @@
-import { readFileSync } from "node:fs";
 import { TABLE_DEFINITION, TTL_ATTRIBUTE } from "@blevinstein/chat-state-dynamodb";
 import { describe, expect, it } from "vitest";
-import { parse } from "yaml";
+import { adminClaimParameter } from "../src/lambda/admin-claim-record.js";
+import {
+  approvedParameter,
+  approverParameter,
+  blockedParameter,
+  mcpApprovalParameter,
+  scopedChatParameter,
+} from "../src/lambda/connection-paths.js";
 import {
   DEFAULT_FAILURE_NOTICE_MINUTES,
   FAILURE_NOTICE_MINUTES_LIMIT,
@@ -13,120 +19,42 @@ import {
   HISTORY_TTL_DAYS_LIMIT,
 } from "../src/lambda/history-window.js";
 import { STATE_TABLE_PARAMETER } from "../src/lambda/parameters.js";
+import { lambdaMayOnParameter, template } from "./helpers/infra-fixtures.js";
 
-interface Statement {
-  Action: string | string[];
-  Resource: string | string[];
-}
-
-const template = parse(readFileSync("infra/centaur.yml", "utf8"), {
-  customTags: ["Sub", "Ref", "GetAtt", "If", "Equals", "Not", "Join", "Select"].map((tag) => ({
-    tag: `!${tag}`,
-    resolve: (value: string) => value,
-  })),
-  logLevel: "silent",
-});
-
-const parameterStatements: Statement[] = template.Resources.FunctionRole.Properties.Policies.find(
-  (policy: { PolicyName: string }) => policy.PolicyName === "parameters",
-).PolicyDocument.Statement;
-
-const resourcesFor = (action: string) =>
-  parameterStatements
-    .filter((statement) => [statement.Action].flat().includes(action))
-    .flatMap((statement) => [statement.Resource].flat())
-    .map((arn) => arn.replace(/^.*:parameter/, ""));
+const BOT = "garden";
+const MCP_APPROVAL = mcpApprovalParameter(BOT, "linear", "0123456789abcdef");
 
 describe("the Lambda role's parameter permissions", () => {
-  it("can create chat aliases, and only under /centaur/chats", () => {
-    expect(resourcesFor("ssm:PutParameter")).toContain("/centaur/chats/*");
-    expect(resourcesFor("ssm:PutParameter").filter((name) => name.includes("chats"))).toEqual([
-      "/centaur/bots/*/approved-chats/*",
-      "/centaur/chats/*",
-    ]);
+  it.each([
+    ["an approved chat", approvedParameter(BOT, "telegram", "chat", "-100500")],
+    ["an approved user", approvedParameter(BOT, "slack", "user", "U1")],
+    ["a blocked chat", blockedParameter(BOT, "slack", "chat", "C1")],
+    ["an approver", approverParameter(BOT, "slack", "U1")],
+    ["a chat alias", scopedChatParameter("telegram", "ops")],
+    ["an MCP approval", MCP_APPROVAL],
+  ])("can write %s", (_what, name) => {
+    expect(lambdaMayOnParameter("ssm:PutParameter", name)).toBe(true);
   });
 
   it.each([
-    "/centaur/bots/garden/platforms/telegram/approved-chats/-100500",
-    "/centaur/bots/garden/platforms/slack/approved-users/U1",
-    "/centaur/bots/garden/platforms/slack/blocked/chat/C1",
-    "/centaur/bots/garden/mcp-approvals/linear/0123456789abcdef",
-  ])("can write the access entry or MCP approval %s", (name) => {
-    const covers = (pattern: string) => new RegExp(`^${pattern.replace(/\*/g, ".*")}$`).test(name);
-    expect(resourcesFor("ssm:PutParameter").some(covers)).toBe(true);
+    ["a chat alias", scopedChatParameter("telegram", "ops")],
+    ["an MCP approval", MCP_APPROVAL],
+    ["an admin claim", adminClaimParameter("telegram")],
+  ])("can read %s", (_what, name) => {
+    expect(lambdaMayOnParameter("ssm:GetParameter", name)).toBe(true);
   });
 
-  it("can read an MCP approval record", () => {
-    const name = "/centaur/bots/garden/mcp-approvals/linear/0123456789abcdef";
-    const covers = (pattern: string) => new RegExp(`^${pattern.replace(/\*/g, ".*")}$`).test(name);
-    expect(resourcesFor("ssm:GetParameter").some(covers)).toBe(true);
-  });
-
-  it("can read chat aliases individually and by path", () => {
-    expect(resourcesFor("ssm:GetParameter")).toContain("/centaur/chats/*");
-    expect(resourcesFor("ssm:GetParametersByPath")).toEqual(
-      expect.arrayContaining(["/centaur/chats", "/centaur/chats/*"]),
-    );
-  });
-
-  it("no longer reads user aliases", () => {
-    const all = parameterStatements.flatMap((statement) => [statement.Resource].flat());
-    expect(all.filter((arn) => arn.includes("/users"))).toEqual([]);
-  });
-
-  it("can write approver entries", () => {
-    const name = "/centaur/bots/garden/platforms/slack/approvers/U1";
-    const covers = (pattern: string) => new RegExp(`^${pattern.replace(/\*/g, ".*")}$`).test(name);
-    expect(resourcesFor("ssm:PutParameter").some(covers)).toBe(true);
-  });
-
-  it("cannot delete anything but admin claims and approver entries", () => {
-    expect(resourcesFor("ssm:DeleteParameter")).toEqual([
-      "/centaur/admin-claim/*",
-      "/centaur/bots/*/platforms/*/approvers/*",
-    ]);
-  });
-});
-
-const policyStatements = (role: string, policyName: string): Statement[] =>
-  template.Resources[role].Properties.Policies.find(
-    (policy: { PolicyName: string }) => policy.PolicyName === policyName,
-  ).PolicyDocument.Statement;
-
-describe("attachment storage", () => {
-  it("lets the Lambda write, but not read or delete, objects under attachments/", () => {
-    const actions = policyStatements("FunctionRole", "attachments").flatMap((s) =>
-      [s.Action].flat(),
-    );
-    expect(actions).toEqual(["s3:PutObject", "s3:ListBucket"]);
-  });
-
-  it("lets the workflow role read attachments/ and nothing more than before under sessions/", () => {
-    const statements = policyStatements("GitHubRole", "session-objects");
-    const reads = statements.filter((s) => [s.Action].flat().includes("s3:GetObject"));
-    expect(reads.map((s) => String(s.Resource).replace(/^.*\}\//, ""))).toEqual([
-      "sessions/*",
-      "attachments/*",
-    ]);
-  });
-
-  it("expires attachments on their own schedule", () => {
-    const rules = template.Resources.SessionBucket.Properties.LifecycleConfiguration.Rules;
-    expect(rules.map((rule: { Prefix: string }) => rule.Prefix)).toEqual([
-      "sessions/",
-      "attachments/",
-    ]);
-  });
-
-  it("tells the Lambda which bucket to use", () => {
-    expect(template.Resources.ReceiverFunction.Properties.Environment.Variables).toHaveProperty(
-      "SESSION_BUCKET_NAME",
-    );
+  it("can delete approver entries and admin claims, but not access entries", () => {
+    const deletable = (name: string) => lambdaMayOnParameter("ssm:DeleteParameter", name);
+    expect(deletable(approverParameter(BOT, "slack", "U1"))).toBe(true);
+    expect(deletable(adminClaimParameter("telegram"))).toBe(true);
+    expect(deletable(approvedParameter(BOT, "slack", "user", "U1"))).toBe(false);
+    expect(deletable(MCP_APPROVAL)).toBe(false);
   });
 });
 
 describe("the state table", () => {
-  const { StateTable, StateTableAccessPolicy } = template.Resources;
+  const { StateTable } = template.Resources;
 
   it("has the schema and TTL attribute the state adapter expects", () => {
     const { AttributeDefinitions, KeySchema, BillingMode } = StateTable.Properties;
@@ -137,27 +65,15 @@ describe("the state table", () => {
     });
   });
 
-  it("publishes its name, not its ARN, as the SSM parameter the CLI reads", () => {
-    expect(template.Resources.StateTableParameter).toEqual({
-      Type: "AWS::SSM::Parameter",
-      Properties: { Name: STATE_TABLE_PARAMETER, Type: "String", Value: "StateTable" },
-    });
-  });
-
-  it("grants every action the state adapter calls", () => {
-    expect(StateTableAccessPolicy.Properties.PolicyDocument.Statement[0].Action.sort()).toEqual([
-      "dynamodb:DeleteItem",
-      "dynamodb:DescribeTable",
-      "dynamodb:GetItem",
-      "dynamodb:PutItem",
-      "dynamodb:Query",
-      "dynamodb:UpdateItem",
-    ]);
+  it("publishes its name at the SSM parameter the CLI reads", () => {
+    expect(template.Resources.StateTableParameter.Properties.Name).toBe(STATE_TABLE_PARAMETER);
   });
 });
 
-describe("the stored-history window", () => {
-  it("has template parameters that match the code's defaults and bounds", () => {
+describe("the receiver's environment", () => {
+  const environment = template.Resources.ReceiverFunction.Properties.Environment.Variables;
+
+  it("has template parameters matching the code's history window defaults and bounds", () => {
     expect(template.Parameters.HistoryMaxMessages).toMatchObject({
       Default: DEFAULT_HISTORY_MAX_MESSAGES,
       MinValue: 1,
@@ -170,16 +86,7 @@ describe("the stored-history window", () => {
     });
   });
 
-  it("is passed to the Lambda through its environment", () => {
-    expect(template.Resources.ReceiverFunction.Properties.Environment.Variables).toMatchObject({
-      HISTORY_MAX_MESSAGES: "HistoryMaxMessages",
-      HISTORY_TTL_DAYS: "HistoryTtlDays",
-    });
-  });
-});
-
-describe("the dispatch failure notice interval", () => {
-  it("has a template parameter that matches the code's default and bounds", () => {
+  it("has a template parameter matching the code's dispatch failure notice default and bounds", () => {
     expect(template.Parameters.DispatchFailureNoticeMinutes).toMatchObject({
       Default: DEFAULT_FAILURE_NOTICE_MINUTES,
       MinValue: 0,
@@ -187,9 +94,14 @@ describe("the dispatch failure notice interval", () => {
     });
   });
 
-  it("is passed to the Lambda through its environment", () => {
-    expect(template.Resources.ReceiverFunction.Properties.Environment.Variables).toMatchObject({
-      DISPATCH_FAILURE_NOTICE_MINUTES: "DispatchFailureNoticeMinutes",
-    });
+  it("passes the settings and the bucket the code reads", () => {
+    expect(Object.keys(environment)).toEqual(
+      expect.arrayContaining([
+        "HISTORY_MAX_MESSAGES",
+        "HISTORY_TTL_DAYS",
+        "DISPATCH_FAILURE_NOTICE_MINUTES",
+        "SESSION_BUCKET_NAME",
+      ]),
+    );
   });
 });

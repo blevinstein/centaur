@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type { PosterRequest } from "../../src/lambda/poster.js";
+import { type PosterRequest, posterRequestSchema } from "../../src/lambda/poster.js";
 import type { ChatMessage } from "../../src/poster-contract.js";
 import {
   createAttachmentDownloader,
@@ -59,6 +59,7 @@ export function createFakeAws(
       const request = JSON.parse(
         await readFile(flag("--payload").replace("file://", ""), "utf8"),
       ) as PosterRequest;
+      posterRequestSchema.parse(request);
       requests.push(request);
       const outFile = args.at(-1) as string;
       try {
@@ -89,6 +90,7 @@ export function createFakeAws(
   };
 
   return {
+    exec,
     objects,
     requests,
     poster: createPosterClient("poster-fn", exec, fetchToken),

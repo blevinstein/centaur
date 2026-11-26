@@ -107,7 +107,7 @@
   target is validated; never trust a PR number from the turn state. The turn state lives outside the workspace
   (`src/workflows/turn-state.ts`, `$RUNNER_TEMP/centaur-turn/`); pass `stateDir`, never a workspace path, to `finish`, `notifyFailure` and `describePullRequest`.
 - A value that reaches `finish` through the turn action needs both an env entry in
-  `.github/actions/turn/action.yml` and a dep in the `finish` command in `src/workflows/cli.ts`.
+  `.github/actions/turn/action.yml` and a dep in the `finish` command in `src/workflows/program.ts`.
   `plan-pr` and `finish` get `CENTAUR_CONFIG_ROOT` from `inputs.config_root`
   (`test/turn-action.test.ts`).
 - Tests must not synchronize on side-effecting probes such as `acquireLock`; wait on a gate the
