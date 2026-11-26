@@ -155,6 +155,27 @@ Each Lambda zip is stored under a content-addressed key in the code bucket until
 older ref restores the older code with no extra step. Template changes in the older ref are
 deployed with it.
 
+### What the deploy role can change
+
+On roles named `<stack>-*`, `DeployPolicy` grants `iam:CreateRole`, `PutRolePolicy`,
+`DeleteRolePolicy`, `DetachRolePolicy` and `AttachRolePolicy` (all only for roles carrying
+`DeployPolicy` as their permissions boundary), plus `GetRole`, `GetRolePolicy`, `ListRolePolicies`,
+`ListAttachedRolePolicies`, `ListInstanceProfilesForRole`, `UpdateRole`, `UpdateAssumeRolePolicy`,
+`DeleteRole`, `TagRole` and `UntagRole`. It does not grant `iam:UpdateRoleDescription` or the
+permissions-boundary actions, so changing the `Description` (or boundary) of any role in this stack
+fails the CD update, and the rollback fails for the same reason, leaving the stack in
+`UPDATE_ROLLBACK_FAILED`. Deploy such a change by hand with admin credentials (`yarn deploy-prod`).
+To recover a stuck stack, skip the failed resources:
+
+```sh
+aws cloudformation continue-update-rollback --stack-name centaur \
+  --resources-to-skip InspectionRole ReceiverFunction
+```
+
+List every resource the stack's status reason names
+(`aws cloudformation describe-stacks --stack-name centaur --query 'Stacks[0].StackStatusReason'`);
+`aws cloudformation describe-stack-resources --stack-name centaur` shows which ones are stuck.
+
 ### One-time setup
 
 `scripts/setup-cd.sh` does the GitHub side (needs `gh` with admin on the repository, `aws` and `jq`;

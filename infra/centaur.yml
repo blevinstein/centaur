@@ -580,7 +580,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       PermissionsBoundary: !Ref DeployPolicy
-      Description: No-write access to the state table and bot parameters, including bot tokens and signing secrets, for inspection and chat tail.
+      Description: Read-only access to the state table and bot parameters, for inspection.
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
