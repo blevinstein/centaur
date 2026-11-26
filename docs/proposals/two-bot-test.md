@@ -110,3 +110,59 @@ spend cap.
 The key takes effect after the `Centaur register` run on merge and needs no deploy, provided the
 deployed Lambda already parses `bot_messages` (it was introduced in commit `a04e95f`, which precedes
 the current deployed Lambda); a Lambda without it rejects the unknown key.
+
+## Live checks (sub-folder slice 5)
+
+Two checks remain from [subfolder-support](subfolder-support.md): lazy loading of a nested guide, and
+a message that reaches both bots. Run them in the order below, with real turns on this repository.
+
+### Fixture
+
+`apps/centaur-test-2/livecheck/` holds `target.txt` (a one-line file with no marker) and its own
+`AGENTS.md`, the only file that contains the marker word (read it there to know the expected answer; it is written nowhere else, but the bot can search the repository, so the run log, not the reply alone, shows whether the guide loaded by itself). `centaur-test-2`'s root has
+no guide, so its prompt carries no instruction to read one, and the marker is in no config, persona or
+prompt. The agent can only know the word by loading `livecheck/AGENTS.md` itself.
+
+### Check 1: a nested guide loads lazily
+
+1. In the shared Slack chat, mention `centaur-test-2`: "Read apps/centaur-test-2/livecheck/target.txt
+   and tell me the nested marker word." Do not say where the word lives: the wording must not hint at the nested guide or its folder beyond naming `target.txt`.
+2. Expected: the bot replies with the marker word from `livecheck/AGENTS.md`. Read it with `centaur chat tail centaur-test-2
+   --platform slack --text --replies`.
+3. Negative check, in the same thread or a new one: mention the bot with "What is the nested marker
+   word?" without asking it to read the file. Expected: it does not know the word, or says it has to
+   read a file. The word appearing here means it leaked into the normal prompt or persona (the
+   guide is installed to the user memory only for a root guide, and this root has none).
+4. Evidence in the run log (`gh run view <id> --log` for the `Centaur Test 2 message` run): the
+   prompt step shows the project-folder line and no marker word; the agent's tool calls show a
+   `Read` of `target.txt`. `rg` for the marker word over the downloaded log should hit only the agent's
+   tool output and reply, never the prompt.
+5. If the bot does not know the word after reading `target.txt`, the guide did not load. Claude Code
+   documents `CLAUDE.md` lazy loading, not `AGENTS.md`, so repeat with the file renamed to
+   `CLAUDE.md` (a temporary change) to tell "nested guides do not load" from "`AGENTS.md` is not read".
+   Record the outcome in `docs/config.md` either way: if only `CLAUDE.md` loads lazily, the
+   explicit prompt instruction stays the only channel for `AGENTS.md`.
+
+### Check 2: one message to both bots
+
+`centaur-test` answers every message (`respond_to: all`); `centaur-test-2` answers only mentions.
+Run on Slack, then on Telegram, in the chat both bots are approved for. For each case note the reply
+count and the replying bot's identity (name and avatar on Slack, bot username on Telegram).
+
+1. A plain message that mentions neither bot. Expected: one reply, from `centaur-test`. No run for
+   `centaur-test-2`.
+2. A message mentioning only `centaur-test-2`. Expected: one reply, from `centaur-test-2`, and
+   `centaur-test` also answers because it takes all messages; so exactly one reply from each bot,
+   none duplicated.
+3. A message mentioning both bots. Expected: one reply from each, each bot's own identity, never
+   two from one bot.
+4. Evidence: `centaur chat tail centaur-test --platform <p> --replies` and the same for
+   `centaur-test-2`; each shows its own reply once. In Actions, each message has one `Centaur turn`
+   run per answering bot: the other bot's caller workflow is skipped by its `client_payload.bot`
+   filter, and the two runs sit in different concurrency groups (the group embeds the bot and
+   thread key), so neither cancels or queues behind the other. A cancelled or doubled run is a
+   failure.
+5. Expected for bot-to-bot: `centaur-test-2`'s reply must not start a further turn unless it
+   mentions the other bot (`bot_messages: mention`); the runs stop after one per bot.
+
+Report per case: reply count per bot, replying identity, run ids by bot, any skipped or cancelled run.
