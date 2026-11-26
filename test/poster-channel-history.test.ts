@@ -62,10 +62,10 @@ describe("poster posts are recorded in the chat's history", () => {
   });
 
   it("a failed record neither fails the post nor logs message text or IDs", async () => {
-    const { poster, appendHistory, logger } = await posterSetup();
+    const { poster, appendHistory, logger } = await posterSetup({ repository: "octo/garden" });
     appendHistory.mockRejectedValueOnce(new Error(`rejected hello ${CHANNEL} ${TOPIC_ID}`));
 
-    await expect(poster(POST)).resolves.toEqual({ messageId: "sent-1" });
+    await expect(poster({ ...POST, token: "jwt" })).resolves.toEqual({ messageId: "sent-1" });
 
     expect(logger.warn).toHaveBeenCalledExactlyOnceWith("channel history append failed", {
       bot: "garden",

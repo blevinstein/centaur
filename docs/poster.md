@@ -264,7 +264,8 @@ repo cannot act on another repo's bot.
 `post`, `unreact` and `start-thread` take the same check through an optional `token`
 (`src/lambda/caller-check.ts`): the token is verified and `bots/<bot>/repo` must equal its
 repository, so the bot is rejected when unbound or bound elsewhere. `get-mcp-policy` names no bot, so
-its token is only verified (signature, issuer, audience, expiry, owner). The workflow client
+its token is only verified (signature, issuer, audience, expiry, owner); it cannot require a bound
+repo, because `register` reads the policy before it binds a repo's first bot. The workflow client
 (`createPosterClient`) mints the job's token and attaches it to these four operations; when the job
 has no OIDC grant it sends none.
 
@@ -272,7 +273,9 @@ has no OIDC grant it sends none.
 that has no token:
 
 - `false`: the request is accepted, as it was before the check existed, so a repo still on an older
-  workflow version keeps working. A token that is present is always verified, so a wrong one is
+  workflow version keeps working. Each such request logs a warning (`poster call without a token`
+  with the `operation` and, where the request names one, the `bot`); once the logs show none, it is
+  safe to flip the parameter. A token that is present is always verified, so a wrong one is
   rejected even here.
 - `true`: the request is rejected. Any other value fails the Lambda's cold start rather than
   relaxing the check.

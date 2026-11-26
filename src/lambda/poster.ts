@@ -166,6 +166,7 @@ export async function createPoster(deps: PosterDeps) {
     params,
     oidc: deps.oidc,
     required: deps.requirePosterToken,
+    logger,
   });
 
   const loadBot = (botName: string, platform?: Platform) =>

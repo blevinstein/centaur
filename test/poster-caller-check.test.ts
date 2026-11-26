@@ -48,6 +48,51 @@ describe("poster caller check on a bound bot", () => {
   });
 });
 
+describe("poster caller check on get-mcp-policy", () => {
+  it("serves the policy to a valid token from a repository not yet bound to any bot", async () => {
+    const { poster } = await posterSetup({
+      requirePosterToken: true,
+      repository: "octo/new-repo",
+      globalMcpPolicy: "permit;",
+    });
+
+    await expect(
+      poster({ ...CALLER_CHECKED_OPERATIONS["get-mcp-policy"], token: "jwt" }),
+    ).resolves.toEqual({ policy: "permit;" });
+  });
+});
+
+describe("poster calls without a token", () => {
+  it.each(all)(
+    "%s warns with the operation and bot only when not required",
+    async (_name, request) => {
+      const { poster, logger } = await posterSetup();
+
+      await poster(request);
+
+      expect(logger.warn).toHaveBeenCalledWith("poster call without a token", {
+        operation: request.operation,
+        ...("bot" in request ? { bot: request.bot } : {}),
+      });
+    },
+  );
+
+  it.each(all)("%s does not warn when a token is present", async (_name, request) => {
+    const { poster, logger } = await posterSetup({ repository: "octo/garden" });
+
+    await poster({ ...request, token: "jwt" });
+
+    expect(logger.warn).not.toHaveBeenCalledWith("poster call without a token", expect.anything());
+  });
+
+  it("does not warn when the token is required", async () => {
+    const { poster, logger } = await posterSetup({ requirePosterToken: true });
+
+    await expect(poster(CALLER_CHECKED_OPERATIONS.post)).rejects.toThrow();
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+});
+
 describe("REQUIRE_POSTER_TOKEN", () => {
   it.each(all)("%s rejects a request with no token when required", async (_name, request) => {
     const { poster, chatFor } = await posterSetup({ requirePosterToken: true });
