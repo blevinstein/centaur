@@ -31,7 +31,7 @@
   `yarn test` (Vitest, `test/**/*.test.ts`), `yarn build` (tsc to `dist/`).
 - `yarn test` starts `amazon/dynamodb-local` through Docker, or uses `DYNAMODB_ENDPOINT` if set.
 - CloudFormation templates in `infra/` are validated with cfn-lint, pinned in
-  `requirements-dev.txt`. One-time setup: `pyenv install 3.10.9` if missing (see `.python-version`),
+  `requirements-dev.txt`. One-time setup: `pyenv install 3.12` if missing (see `.python-version`),
   then `python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt`. Run `yarn lint:cfn`.
 - CLI (`src/cli/`, bin `centaur`): all SSM access goes through the `ParameterStore` interface in
   `src/cli/parameter-store.ts`; tests use `test/helpers/fake-parameter-store.ts`. The SSM parameter
