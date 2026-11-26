@@ -92,8 +92,8 @@ Still unverified after the live run (see [Live check results](#live-check-result
 - Whether a skill's body is retained in a `--resume`d session (the docs say it persists in the
   conversation, and `resume` restores the conversation) and whether the listing is rebuilt from the
   current skills directory on resume.
-- Whether `--setting-sources user` also drops the project `CLAUDE.md` (the rules text says project
-  rules are skipped; `CLAUDE.md` is not stated the same way).
+- ~~Whether `--setting-sources user` also drops the project `CLAUDE.md`~~: verified 2026-11-26, the
+  trusted `CLAUDE.md` did not reach a comment turn.
 - The runner image's Claude Code version, which several skills features depend on (for example the
   version-gated worktree and add-dir behaviors).
 
@@ -206,10 +206,10 @@ All nine were accepted as recommended.
    turns pass `--setting-sources user` and `prepare` copies the trusted checkout's consumer
    skills, (C) every turn does that. **Recommend B**: only comment turns run on untrusted branch
    content, and chat turns already run on the default branch. The live check confirmed that branch
-   skills are not visible; that the trusted `CLAUDE.md` and rules still reach the agent is untested;
-   if `--setting-sources user` drops the
-   project `CLAUDE.md`, copy the trusted `CLAUDE.md` into the home (`$HOME/.claude/CLAUDE.md`); do
-   not re-enable `project` or `local`, which read the untrusted branch.
+   skills are not visible; a second live check showed the trusted `CLAUDE.md` does not reach the
+   agent either, so it is copied into the home (`$HOME/.claude/CLAUDE.md`), which Claude Code reads
+   under `--setting-sources user`; do not re-enable `project` or `local`, which read the untrusted
+   branch.
 5. **Consumer skills validation.** (A) none, (B) reject `hooks`, `.claude-plugin`, and an
    `allowed-tools` outside the config's `allowed_tools`, failing the turn with a message that names
    the skill. **Recommend B**, applied to whatever is loaded from the trusted copy; with Decision 4
@@ -311,7 +311,9 @@ Not verified (open):
   shows whether the body was retained or re-invoked.
 - [x] The trusted `CLAUDE.md` did not reach a comment turn under `--setting-sources user` (2026-11-26);
   `prepare` now copies it into `$HOME/.claude/CLAUDE.md` ([workflows.md](workflows.md#repository-instructions)).
-  Still to verify live: that the copy is loaded.
+  Verified live (2026-11-26): a comment turn received both guides, so Claude Code reads
+  `$HOME/.claude/CLAUDE.md` under `--setting-sources user`. HTML comment labels were stripped, so
+  the labels are `# Instructions from <path>` headings; naming both headings is still to recheck.
 
 Method for a repeat: use a scheduled prompt so no chat message is needed; read the reply with
 `centaur chat tail <bot>`; read the run's execution file (the `execution_file` output) for a

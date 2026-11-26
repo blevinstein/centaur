@@ -442,10 +442,9 @@ the repository); a root at the repository top yields one guide.
   so keep the guide self-contained.
 - **HOME.** `prepare` writes to `os.homedir()` of the runner process, the same `$HOME` it uses for
   skills and sessions; the repository sets neither `HOME` nor `CLAUDE_CONFIG_DIR`. That Claude Code
-  reads `$HOME/.claude/CLAUDE.md` as user memory under `--setting-sources user` follows from its
-  documented memory hierarchy, but the action's launch of `claude` is outside this repository, so it
-  is checked live: a scheduled prompt asking the agent to quote the first line of its guide on a
-  comment turn.
+  reads `$HOME/.claude/CLAUDE.md` as user memory under `--setting-sources user` was verified live
+  on 2026-11-26 (a comment turn received both guides); the action's launch of `claude` is outside
+  this repository. Claude Code strips HTML comments, which is why the guide labels are headings.
 
 ## Agent turn
 

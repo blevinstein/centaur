@@ -63,10 +63,11 @@ facts so they do not drift across four instruction files, six contracts and five
 
 Claude Code loads `CLAUDE.md`, not `AGENTS.md`. A consumer that keeps only `AGENTS.md` (the usual
 case for tool-neutral repos) gets none of it unless its `CLAUDE.md` imports it (`@AGENTS.md`). On a
-comment turn nothing from the branch is loaded at all (`--setting-sources user`), and the live
-check left open whether even the trusted `CLAUDE.md` arrives ([skills-rules.md](../skills-rules.md#live-check-results)).
-So today a consumer's own instructions reach the agent only by luck on chat turns and probably not
-on comment turns, which is the larger half of "merge harness instructions with AGENTS.md".
+comment turn nothing from the branch is loaded at all (`--setting-sources user`), and a live check
+(2026-11-26) showed the trusted `CLAUDE.md` does not arrive either
+([skills-rules.md](../skills-rules.md#live-check-results)). Without the copy described below, a
+consumer's own instructions would reach the agent only by luck on chat turns and not on comment
+turns, which is the larger half of "merge harness instructions with AGENTS.md".
 
 Proposed precedence, highest first, stated once in the prompt so the agent can resolve conflicts:
 
@@ -136,8 +137,11 @@ enabled, max_bytes }`, default on; over the cap fails the turn; a user memory wi
 is never overwritten; see [workflows.md](../workflows.md#repository-instructions)). Steps 2 and 4 are
 not done.
 
-1. Live-check the open question: does the trusted `CLAUDE.md` or an `AGENTS.md` reach a comment turn
-   under `--setting-sources user`? The answer decides whether step 3 is a fix or a duplicate.
+1. Done (2026-11-26): the trusted `CLAUDE.md` does not reach a comment turn under
+   `--setting-sources user`, so step 3 is a fix. A live comment turn then received both copied
+   guides, so `$HOME/.claude/CLAUDE.md` is read under `--setting-sources user`; the `<!-- from -->`
+   labels were stripped (Claude Code drops HTML comments), so they are now `# Instructions from
+   <path>` headings. Still to recheck live: the agent names both headings.
 2. Add `harness.md` and `scheduled.md` to `INSTRUCTION_KINDS` (`src/workflows/instructions.ts`) with
    the config's `instructions` override (`src/config/schema.ts`, `docs/config.md`, the fixtures that
    build config by hand). Trim `chat.md` and `comment.md`. Update the prompt tests.

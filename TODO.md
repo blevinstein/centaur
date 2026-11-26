@@ -290,8 +290,8 @@ Design and decisions: [docs/skills-rules.md](docs/skills-rules.md).
 - [ ] **[HUMAN ACTION]** Remaining live-check points (see the same section): the resume check (two
       chat messages from the maintainer in one `resume` thread: is the invoked skill body
       retained?); whether `Skill` must be in `--allowedTools` (run without it; harmless to leave);
-      whether the trusted `CLAUDE.md` still reaches the agent under `--setting-sources user` (needs
-      a consumer that has a `CLAUDE.md`).
+      (The trusted `CLAUDE.md` question under `--setting-sources user` is answered: it does not
+      reach a comment turn on its own; see the harness instructions item in Needs triage.)
 
 ## 20. Sub-folder support
 
@@ -301,13 +301,16 @@ Design: [docs/proposals/subfolder-support.md](docs/proposals/subfolder-support.m
       (project-folder line in the prompt), the MCP policy path, `register` and `config check`, the
       `root` input on the actions, and the multi-bot workflow guidance.
 - [ ] **[HUMAN ACTION]** Sub-folder 5, live check on a scratch monorepo with two sub-folder bots.
-      It must confirm:
+      Partly done 2026-11-26 on the self-consumer repo (`apps/centaur-test` and `apps/centaur-test-2`).
+      Verified: a sub-folder bot registers (a matrix per root); a scheduled prompt and a comment
+      turn run on a sub-folder root; with two bots in one repo, each comment is answered by exactly
+      one workflow (the other copy's turn is skipped). Note: Claude Code strips HTML comments from
+      the guide, so guide labels are headings.
+      Still open:
       1. A nested `AGENTS.md` or `CLAUDE.md` under the root loads lazily when the agent reads files
          in that folder, in addition to the explicit prompt instruction.
-      2. Whether the PR-comment workflows need one copy per bot (their trigger is the PR comment, not
-         the per-bot dispatch filter).
-      3. Two bots in one repo do not run each other's messages (the `client_payload.bot` filter) and
-         their concurrency groups do not collide.
+      2. Two bots in shared Slack and Telegram chats: a message to both (the `client_payload.bot`
+         filter and concurrency groups).
       Then finish the docs wrap-up in `docs/config.md` (location section).
 - Decided 2026-11-25: auto-detecting sub-folder bots is not wanted; the explicit `root` input stays.
 
@@ -355,12 +358,16 @@ for detailed tracking.
 - [ ] Centaur-provided prompt instructions explaining harness quirks etc, and merging harness
       instructions with AGENTS.md and the situational prompt. Proposal:
       [docs/proposals/harness-instructions.md](docs/proposals/harness-instructions.md).
-  - [ ] **[HUMAN ACTION]** Live check: does the trusted `CLAUDE.md` or `AGENTS.md` reach a comment
-        turn under `--setting-sources user`? It decides whether delivering it is a fix or a duplicate.
-  - [x] Delivery channel decided: copy the trusted file into `$HOME/.claude/CLAUDE.md`. Built as the
-        `repository_instructions` key.
-  - [ ] **[HUMAN ACTION]** Live check the copy: on a comment turn the agent quotes the first line of
-        its guide (not the marker).
+  - [x] **[HUMAN ACTION]** Live check: the trusted `CLAUDE.md` did not reach a comment turn under
+        `--setting-sources user` (2026-11-26), so delivering it is a fix.
+  - [x] Delivery channel decided (2026-11-26): copy the trusted file into `$HOME/.claude/CLAUDE.md`.
+        Built as the `repository_instructions` key (repo-root guide, then the Centaur root's, under
+        one cap).
+  - [x] **[HUMAN ACTION]** Live check the copy (2026-11-26): a comment turn showed the agent received
+        both guides, so Claude Code reads `$HOME/.claude/CLAUDE.md` under `--setting-sources user`.
+        It did not show the `<!-- from -->` labels: Claude Code strips HTML comments.
+  - [ ] **[HUMAN ACTION]** Recheck after the push: labels are now `# Instructions from <path>`
+        headings; ask the agent on a comment turn to name both headings.
   - [ ] `harness.md`, `scheduled.md` and turn facts (proposal steps 2 and 4).
 - [ ] Setup .centaur config for ~/dev/turo-accounting repo - try to use playwright to integrate
       with Turo admin portal?
@@ -384,7 +391,9 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
 - [ ] The receiver reads every bot, with its token and secrets, once per Lambda container
       (`createReceiver`), so a new bot or a changed token is ignored until the container restarts.
       Reload bots when a request names an unknown bot or a platform call fails with an auth error,
-      or cache them with a short TTL like the parameter store wrapper.
+      or cache them with a short TTL like the parameter store wrapper. It bit the second-bot setup
+      on 2026-11-26: the receiver 404s a bot with no `bots/<bot>/repo` binding until the warm
+      environment is replaced; a deploy was the workaround.
 - [ ] Per-call MCP policy (proposal): filter MCP tool calls by argument (for example a mutating
       tool only for selected IDs) with a `CallTool` Cedar action, evaluated per call by a Claude
       Code `PreToolUse` hook, failing closed. Design, the catalogue of ways a misconfiguration could
@@ -413,8 +422,10 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       the agent fetch images beyond the newest 10 that `prepare` loads (`MAX_PROMPT_IMAGES`); and
       what the privacy story is for stored personal photos.
 - [x] Test how a turn behaves when `--max-budget-usd` stops a run before a structured reply.
-- [ ] Two bots in one group: with a second bot from BotFather, confirm the ownership rules route
-      messages correctly (**[HUMAN ACTION]**: the maintainer creates the second bot in BotFather).
+- [ ] Two bots in one group: routing is now guarded (2026-11-26: `ownsMessage` ignores
+      bot-authored messages in every mode, and the second bot `centaur-test-2` exists on Slack and
+      Telegram). Still to confirm live (**[HUMAN ACTION]**): messages to both bots in one shared
+      Slack channel and Telegram group route to the right bot and do not loop.
 - [ ] Agent-scheduled follow-ups via EventBridge Scheduler.
 - [ ] Per-thread turn or token caps for `resume` sessions.
 - [x] Contribute the DynamoDB state adapter upstream. Chat SDK declined it and points to community
