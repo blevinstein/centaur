@@ -8,8 +8,10 @@ import {
 } from "../src/config/index.js";
 import {
   DEFAULT_CHAT_TOOLS,
+  DIRECT_EXECUTION,
   fullConfig,
   invalidConfigs,
+  invalidExecutionExtras,
   localServerYaml,
   minimalConfig,
   remoteServerYaml,
@@ -37,6 +39,7 @@ describe("parseCentaurConfig", () => {
           existing: "bot",
           comment_authors: ["OWNER", "MEMBER", "COLLABORATOR"],
         },
+        execution: { mode: "pull_request" },
         chat_tools: DEFAULT_CHAT_TOOLS,
         skills: { builtin: true, consumer: true },
         mcp_servers: {},
@@ -101,6 +104,7 @@ describe("parseCentaurConfig", () => {
           existing: "bot",
           comment_authors: ["OWNER", "MEMBER", "COLLABORATOR"],
         },
+        execution: { mode: "pull_request" },
         chat_tools: DEFAULT_CHAT_TOOLS,
         skills: { builtin: true, consumer: true },
         mcp_servers: {},
@@ -158,6 +162,20 @@ describe("parseCentaurConfig", () => {
       "pull_requests: {comment_new: yes please}",
       "pull_requests: {other: 1}",
     ]) {
+      expect(parseCentaurConfig(withExtra(extra)).ok).toBe(false);
+    }
+  });
+
+  it("parses and validates the execution block", () => {
+    expect(parseCentaurConfig(withExtra(DIRECT_EXECUTION))).toMatchObject({
+      ok: true,
+      config: { execution: { mode: "direct" } },
+    });
+    expect(parseCentaurConfig(withExtra("execution: {mode: pull_request}"))).toMatchObject({
+      ok: true,
+      config: { execution: { mode: "pull_request" }, pull_requests: { existing: "bot" } },
+    });
+    for (const extra of invalidExecutionExtras) {
       expect(parseCentaurConfig(withExtra(extra)).ok).toBe(false);
     }
   });

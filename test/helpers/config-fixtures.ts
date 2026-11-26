@@ -65,6 +65,16 @@ prompts:
 
 export const withExtra = (line: string) => `${yamlOf()}\n${line}`;
 
+export const DIRECT_EXECUTION = "execution: {mode: direct}\npull_requests: {existing: off}";
+
+export const invalidExecutionExtras = [
+  "execution: {mode: direct}",
+  "execution: {mode: push}",
+  "execution: {mode: direct, branch: main}",
+  "execution: {mode: direct, on_failure: fail}\npull_requests: {existing: off}",
+  "execution: direct",
+];
+
 export const withMcp = (servers: string, tools: string) =>
   `${yamlOf({ allowed_tools: undefined })}\nmcp_servers:\n${servers}\nallowed_tools: [${tools}]`;
 

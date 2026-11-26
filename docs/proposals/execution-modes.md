@@ -20,7 +20,7 @@ where it is authorized, what happens when it fails, and how the agent is told wh
 
 ## Modes
 
-| | `pull_request` (today, the default) | `direct` |
+| | `pull_request` (today, the default) | `direct` (opt-in) |
 |---|---|---|
 | Where changes land | `centaur/<bot>-<thread>` branch, a pull request opened or updated | the repository's default branch |
 | Human gate | merge review | none from Centaur; whatever branch protection enforces |
@@ -34,7 +34,8 @@ apply (title and body cleaning, `NEVER_COMMITTED`, the plain non-forced push).
 
 Comment turns are not affected. They already push to the pull request's own branch
 ([workflows.md](../workflows.md#comment-turns)) and a pull request exists by definition. Mode
-applies to chat and scheduled turns only, the same scope as `pull_requests.existing`.
+applies to chat and scheduled turns only, the same scope as `pull_requests.existing`. `direct` is
+allowed on both, and is never on by default (see [Decisions](#decisions)).
 
 ### Naming
 
@@ -49,20 +50,16 @@ A new strict block, bot-wide like `pull_requests`:
 ```yaml
 execution:
   mode: direct            # pull_request (default) | direct
-  branch: main            # optional; default is the repository's default branch
-  on_failure: pull_request  # pull_request (default) | fail
 ```
 
-- `mode` selects the behavior above. Default `pull_request` keeps every existing config valid.
-- `branch` is only accepted when it equals the default branch name in the config's own checkout; see
-  the open question. Omitted, the default branch is resolved from the GitHub API, the way
-  `mcp-policy-check.ts` already resolves it, never from the agent or the workspace.
-- `on_failure` chooses between the safe fallback (open the usual pull request) and failing the
-  push step so `finish` reports it. `pull_request` is the default because it never loses the work.
+- `mode` selects the behavior above. Default `pull_request` keeps every existing config valid, so
+  `direct` is opt-in per bot and never on by default.
+- The target is always the repository's default branch, resolved from the GitHub API the way
+  `mcp-policy-check.ts` already resolves it, never from the agent or the workspace. There is no
+  `branch` key and no `on_failure` key: a failed push always falls back to a pull request.
 
-Per-prompt override (`prompts.<name>.execution`) is attractive, since a scheduled "refresh the data
-file" prompt may be direct while chat stays reviewed. It is deferred to slice 4 and the open
-questions, because it lets a prompt widen privilege and so deserves its own validation.
+A per-prompt override (`prompts.<name>.execution`) is deferred to slice 5, since it lets a prompt
+widen privilege and so deserves its own validation.
 
 `pull_requests.existing` and `comment_new` are ignored in `direct` mode on chat and scheduled
 turns, and the schema rejects `existing` set to anything but `off` together with `mode: direct`
@@ -87,9 +84,8 @@ default branch. The authorization therefore has to be as hard to forge as `.cent
    `Bash`; see [Turn state](../workflows.md#turn-state)) is not the source of truth. Same rule as
    `plan-pr`: authorization comes from the config and GitHub, never from the agent.
 3. **Registration.** `register` already validates the config on the default branch and binds the bot.
-   It should print the execution mode, and optionally the poster could refuse `direct` for a bot
-   whose connection was not approved for it (see open questions): the admin approves chats and users
-   today, and "may push unreviewed" is a larger grant than either.
+   It should print the execution mode. Authorization comes from the config alone; there is no
+   poster-side approval of `direct` in v1.
 4. **Branch protection is the real enforcement.** The push uses the workflow's `GITHUB_TOKEN`, so it
    is subject to the branch's protection or rulesets. This is a feature: a repository that requires
    reviews or status checks on `main` rejects the push, `push_rejected` fires, and the fallback opens
@@ -107,17 +103,21 @@ default branch. The authorization therefore has to be as hard to forge as `.cent
    that means CI does not run on the agent's commit. State it in the docs and in the agent's mode
    text ("your change is not tested by CI before landing"). Consumers needing CI must run it in the
    turn (an allowed test command) or accept the gap.
-7. **Always-on guards stay.** `NEVER_COMMITTED` paths are never staged; a path under
+7. **Prompt injection.** In `direct` mode on a chat turn, anyone approved in the thread, or a pasted
+   web page the agent reads, can steer a commit to the default branch with no human review from
+   Centaur. This is the cost of opting in. The mitigations are branch protection (point 4) and the
+   protected-paths fallback below; an operator who cannot accept the risk keeps `pull_request`.
+8. **Always-on guards stay.** `NEVER_COMMITTED` paths are never staged; a path under
    `.github/workflows/` still fails with the existing "permission for it" push rejection (the job
    token lacks `workflows`), which falls back to a pull request, so an agent cannot grant itself
    new workflows or edit the config that grants direct mode through this path. The `.centaur*` config
    files should additionally be refused outright in `direct` mode (a patch touching them falls back
    to a pull request), so the agent can never edit its own authorization even where branch
-   protection is absent.
+   protection is absent. The protected paths are `.github/workflows/*` and `.centaur*`.
 
 Net effect: the three layers are the config (default branch only), the trusted push step (never agent
 output), and branch protection (the repository owner's decision). An operator who wants safety keeps
-the default; an operator who wants speed opts in per repository and still has the ruleset as a
+the default; an operator who wants speed opts in per bot and still has the ruleset as a
 backstop.
 
 ## Implementation: how the push works
@@ -137,8 +137,7 @@ A new CLI command `push-direct` (like `plan-pr`) runs in the `turn` action when 
 says `direct` and `inputs.comment == ''`. It writes `fallback`, `reason`, `pull-request-url`
 (absent: no pull request) and `commit-sha` outputs. The existing step conditions become: `plan-pr`
 runs only in `pull_request` mode; `push-direct` runs only in `direct` mode; `create-pull-request`
-runs when the plan is `thread`, `push-existing` fell back, or `push-direct` fell back and
-`on_failure` is `pull_request`. The mode is decided by one step (`plan-pr` generalized to an
+runs when the plan is `thread`, `push-existing` fell back, or `push-direct` fell back. The mode is decided by one step (`plan-pr` generalized to an
 execution plan with `target: existing | thread | direct`), so the action's `if:` conditions keep
 reading one output rather than a second config query. That also keeps a single place that reads the
 trusted config for the whole step graph.
@@ -149,11 +148,10 @@ trusted config for the whole step graph.
 |---|---|
 | Nothing changed | success, nothing pushed, like `push-existing` |
 | Patch does not apply cleanly to the tip (`conflict`) | fall back to a pull request; the 3-way merge already tolerates unrelated concurrent commits, so this is a real overlap |
-| The default branch moved between fetch and push (`push_rejected`, non-fast-forward) | retry once from a fresh fetch; a second rejection falls back. Never force-push. The retry is safe because the patch is re-applied, not the old commit re-pushed |
+| The default branch moved between fetch and push (`push_rejected`, non-fast-forward) | retry once from a fresh fetch; a second rejection always falls back to a pull request. Never force-push. The retry is safe because the patch is re-applied, not the old commit re-pushed |
 | Branch protection or a ruleset rejects the push | `push_rejected`: fall back to a pull request. This is the expected result in a protected repository, so it is a `::notice::`, not a warning, and the reply says the change went through review |
 | `.github/workflows/*` or a `.centaur*` path in the patch | fall back (see above) |
 | Fallback pull request also fails | existing behavior: `finish` appends "I couldn't open the pull request, so the changes were not saved" |
-| `on_failure: fail` and the push fails | the step fails the same way, with no repository content in the note |
 
 Reporting: the chat reply gets `Pushed to <branch>: <commit url>` in place of `Pull request: <url>`;
 a fallback uses the existing "opened the usual pull request instead" sentence with the reason code.
@@ -162,6 +160,10 @@ Reason codes stay content-free (`conflict`, `push_rejected`, `invalid_ref`, `fet
 paths. A direct push does not link a pull request to the thread, since none exists; the thread record
 stores nothing. Follow-up chat messages simply continue from the new default branch state, which
 removes the "stale pull request" problem of the other mode.
+
+The commit message ends with a run-URL footer, like the pull request body's, so the audit context a
+pull request would hold is on the commit. Commits are not signed. The push is tried and, if the
+repository rejects it, falls back; branch protection is not detected up front.
 
 Concurrency: chat turns of different threads can race on the default branch. The retry-once covers
 the narrow window; the workflow's per-thread concurrency group does not serialize across threads, and
@@ -183,7 +185,7 @@ facts; this proposal does not restate that design. Concretely:
   `NEW_PR_CONTRACT` and `EXISTING_PR_CONTRACT`.
 - `pull_request` text: you edit files; the harness opens a pull request that a person reviews and
   merges; nothing you do changes the default branch; write `pr_title` and `pr_body` for that reviewer.
-- `direct` text: you edit files; the harness commits them to `<branch>` and pushes, with no review
+- `direct` text: you edit files; the harness commits them to the default branch and pushes, with no review
   and no CI run; write `pr_title` as the commit message and `pr_body` as its body; the change is
   durable and visible to everyone immediately, so only change what the request asks for, and do not
   guess. If the push is rejected the harness opens a pull request instead; you need not handle it.
@@ -213,8 +215,8 @@ per-mode note.
 Unit tests with the fake `Exec` and fake GitHub client already used by `push-existing.test.ts` and
 `plan-pr`:
 
-- Config: `execution` defaults, rejects unknown keys and unknown modes, rejects `existing` other
-  than `off` with `direct`, and `branch` that is not a safe ref.
+- Config: `execution` defaults, rejects unknown keys (including `branch` and `on_failure`) and
+  unknown modes, rejects `existing` other than `off` with `direct`.
 - `pushDirect` (through the shared transplant): applies onto the tip, commits as the bot, pushes the
   default branch, never forces; `conflict`, `fetch_failed`, `push_rejected` map to the codes; the
   retry happens once on a non-fast-forward and re-applies the patch; a second rejection falls back;
@@ -237,7 +239,7 @@ output is what the tests above cover.
 
 ## Implementation slices
 
-1. **Config and docs skeleton.** `execution` block in `src/config/schema.ts` with its refinements,
+1. **Config and docs skeleton (built).** `execution` block in `src/config/schema.ts` with its refinements,
    `docs/config.md`, no behavior change (default is today's mode).
 2. **Refactor.** Extract the transplant from `push-existing.ts` into a shared function, add
    `pushDirect`, unit tests. No action wiring.
@@ -247,27 +249,27 @@ output is what the tests above cover.
 4. **Prompt and schema.** The generated `# Execution mode` section, schema descriptions and the
    skill paragraph; reconcile with the harness-instructions work (build after it, or move the one
    sentence now and fold into the brief later).
-5. **Optional.** Per-prompt override, poster-side approval of direct mode per bot.
+5. **Optional.** Per-prompt override. Poster-side approval of direct mode per bot is not planned.
 
 Rollout follows [skills-rules.md](../skills-rules.md#rollout-order): the config key must not reach a
 consumer's default branch before the action that understands it, or `register` fails the parse
 (strict block).
 
-## Open questions
+## Decisions
 
-- Should `direct` be allowed at all on chat turns, or only on scheduled prompts? Scheduled prompts
-  have a fixed, reviewed instruction; chat turns take instructions from anyone approved in the
-  thread, so a chat participant (or a pasted web page) steers a commit to the default branch.
-  Starting with scheduled-only (via the per-prompt override) is the conservative cut.
-- Is `execution.branch` needed? Pushing somewhere other than the default branch (a long-lived
-  `notes` branch) is a natural variant and costs only a ref check, but it widens the validation
-  surface. Proposed: omit in the first version.
-- Should the poster, not only the config, authorize `direct` for a bot (an admin approval like
-  access requests)? It adds a second control outside the repository, at the cost of a new request
-  kind and storage.
-- Retry count and whether `on_failure: fail` earns its keep, versus always falling back.
-- Should the commit be signed or carry a trailer naming the thread and run, for audit, given there is
-  no pull request to hold that context? A run-URL footer like the pull request body's is cheap.
-- Whether a repository whose default branch has required status checks should be detected up front
-  (the API exposes branch protection) to skip the doomed push and go straight to a pull request, or
-  whether trying and falling back is simpler and always correct. The proposal picks try-and-fall-back.
+- **Direct on chat turns, or only scheduled prompts?** Allowed on both chat and scheduled turns,
+  opt-in per bot in config, never on by default. Consequence: a chat participant (or a pasted web
+  page) can steer a commit to the default branch, so branch protection and the protected-paths
+  fallback (`.github/workflows/*`, `.centaur*`) are the mitigations, and the docs say so plainly.
+- **`execution.branch`?** Not in v1. Consequence: the target is always the default branch resolved
+  from the API, with no extra ref validation. A non-default target is a possible later variant.
+- **Poster-side approval of `direct`?** No; authorization comes from the config only in v1.
+  Consequence: no new request kind or storage; the default-branch config is the single control.
+  Not planned, even as slice 5.
+- **Retry count and `on_failure: fail`?** One retry on a moved branch, then always fall back to a
+  pull request. `on_failure` is dropped from the config. Consequence: work is never lost on a failed
+  push.
+- **Signing or audit trailer?** No signing; the commit message carries a run-URL footer.
+  Consequence: the audit context a pull request would hold is on the commit.
+- **Detect branch protection up front?** No; try the push and fall back on rejection. Consequence:
+  one doomed push attempt in a protected repository, in exchange for logic that is always correct.

@@ -5,6 +5,7 @@ export const PLATFORMS = ["telegram", "slack"] as const;
 export const CONTEXT_POLICIES = ["fresh", "transcript", "resume"] as const;
 export const THREAD_MODES = ["new", "persistent"] as const;
 export const PR_EXISTING_SCOPES = ["off", "bot"] as const;
+export const EXECUTION_MODES = ["pull_request", "direct"] as const;
 export const AUTHOR_ASSOCIATIONS = [
   "OWNER",
   "MEMBER",
@@ -217,6 +218,9 @@ export const centaurConfigSchema = z
         existing: "bot",
         comment_authors: [...DEFAULT_COMMENT_AUTHORS],
       }),
+    execution: z
+      .strictObject({ mode: z.enum(EXECUTION_MODES).default("pull_request") })
+      .default({ mode: "pull_request" }),
     chat_tools: z
       .strictObject({
         scope: z.enum(CHAT_TOOLS_SCOPES).default(DEFAULT_CHAT_TOOLS.scope),
@@ -269,6 +273,13 @@ export const centaurConfigSchema = z
         issue("context", "resume needs one target: a session belongs to one thread");
       }
     }
+    if (config.execution.mode === "direct" && config.pull_requests.existing !== "off") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["pull_requests", "existing"],
+        message: "must be off with execution.mode: direct",
+      });
+    }
     if (config.chat_tools.slack_search) {
       const requires = (path: string, ok: boolean, message: string) =>
         ok || ctx.addIssue({ code: "custom", path: ["chat_tools", path], message });
@@ -318,6 +329,7 @@ export const centaurConfigSchema = z
 export type CentaurConfig = z.output<typeof centaurConfigSchema>;
 export type PlatformSettings = z.output<typeof platformSettingsSchema>;
 export type PullRequestsConfig = CentaurConfig["pull_requests"];
+export type ExecutionMode = (typeof EXECUTION_MODES)[number];
 export type ChatToolsConfig = CentaurConfig["chat_tools"];
 export type ChatToolsScope = (typeof CHAT_TOOLS_SCOPES)[number];
 export type Platform = (typeof PLATFORMS)[number];
