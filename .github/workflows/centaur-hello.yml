@@ -3,6 +3,11 @@ name: Centaur hello
 on:
   workflow_dispatch:
     inputs:
+      root:
+        description: Folder of the bot to run.
+        type: choice
+        options: [apps/centaur-test]
+        default: apps/centaur-test
       prompt_name:
         description: Prompt in the Centaur config to run.
         default: hello
@@ -28,6 +33,7 @@ jobs:
       - id: resolve
         uses: ./.github/actions/resolve-schedule
         with:
+          root: ${{ inputs.root }}
           prompt_name: ${{ inputs.prompt_name }}
 
   hello:
@@ -51,6 +57,7 @@ jobs:
       - uses: ./.github/actions/setup-runtime
       - uses: ./.github/actions/turn
         with:
+          root: ${{ inputs.root }}
           prompt_name: ${{ inputs.prompt_name }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}

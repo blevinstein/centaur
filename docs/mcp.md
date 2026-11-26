@@ -264,7 +264,7 @@ The permit fixes the whole argument list, so it matches this command, source and
 different first package, an extra argument or another entrypoint does not match. A new commit SHA
 is a reviewed edit of the permit.
 
-This repo's own policy permits only the read-only endpoints of the remote GitHub MCP server, and only
+This repo's own policy (`apps/centaur-test/.centaur/mcp-policy.cedar`) permits only the read-only endpoints of the remote GitHub MCP server, and only
 with a decision by the admin or an approver (the maintainer's own repo uses approval):
 
 ```cedar

@@ -38,7 +38,7 @@ import {
   uvxArgsServers,
   uvxGitServers,
 } from "./helpers/mcp-policy-fixtures.js";
-import { loadSelfConfig } from "./helpers/self-config.js";
+import { loadSelfConfig, selfPath } from "./helpers/self-config.js";
 
 describe("isPinned", () => {
   it.each<[string, string, string[], boolean]>([
@@ -307,8 +307,8 @@ describe("validateMcpPolicy", () => {
   });
 });
 
-describe("this repo's .centaur/mcp-policy.cedar", async () => {
-  const policy = readFileSync(".centaur/mcp-policy.cedar", "utf8");
+describe("this repo's apps/centaur-test/.centaur/mcp-policy.cedar", async () => {
+  const policy = readFileSync(selfPath(".centaur/mcp-policy.cedar"), "utf8");
   const { bot, mcp_servers } = await loadSelfConfig();
 
   it("validates against the schema", () => {
@@ -330,7 +330,7 @@ describe("this repo's .centaur/mcp-policy.cedar", async () => {
 
 describe("this repo's infra/mcp-policy.cedar", () => {
   const global = readFileSync("infra/mcp-policy.cedar", "utf8");
-  const repo = readFileSync(".centaur/mcp-policy.cedar", "utf8");
+  const repo = readFileSync(selfPath(".centaur/mcp-policy.cedar"), "utf8");
 
   it("validates against the schema", () => {
     expect(validateMcpPolicy(global, "global")).toEqual([]);

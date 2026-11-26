@@ -201,7 +201,7 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
         bounds the server today. Once the Per-call MCP policy item below lands, add a test that a
         `forbid` on `centaur-chat` is honored.
   - [ ] **[HUMAN ACTION]** Chat context 7: real run on `centaur-hello` (or `centaur-test`) in each
-        platform with `chat_tools: { scope: chat }` on the default branch (set in `.centaur/config.yml`). Telegram forum group,
+        platform with `chat_tools: { scope: chat }` on the default branch (set in `apps/centaur-test/.centaur/config.yml`). Telegram forum group,
         then Slack channel; in each:
         1. In thread A say: "We decided the garden party is Saturday at 6pm and we need tomatoes
            and basil."

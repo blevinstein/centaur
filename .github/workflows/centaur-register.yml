@@ -3,7 +3,9 @@ name: Centaur register
 on:
   push:
     branches: [main]
-    paths: [.centaur.yml, .centaur/config.yml]
+    paths:
+      - apps/centaur-test/.centaur.yml
+      - apps/centaur-test/.centaur/**
   workflow_dispatch:
 
 permissions:
@@ -12,6 +14,10 @@ permissions:
 
 jobs:
   register:
+    strategy:
+      fail-fast: false
+      matrix:
+        root: [apps/centaur-test]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -26,3 +32,5 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup-runtime
       - uses: ./.github/actions/register
+        with:
+          root: ${{ matrix.root }}

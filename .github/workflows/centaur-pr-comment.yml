@@ -39,6 +39,8 @@ jobs:
       - uses: ./.github/actions/setup-runtime
       - id: resolve
         uses: ./.github/actions/resolve-pr-comment
+        with:
+          root: apps/centaur-test
 
   turn:
     needs: resolve
@@ -76,6 +78,7 @@ jobs:
       - uses: ./.centaur-trusted/.github/actions/turn
         with:
           comment: ${{ needs.resolve.outputs.pull_request }}
+          root: apps/centaur-test
           config_root: ${{ github.workspace }}/.centaur-trusted
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}

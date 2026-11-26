@@ -240,7 +240,7 @@ keys.
 
 **Dispatch payload.** `{bot, thread_id, thread_key, message_id}` is unchanged: `bot` is still the
 bot name, `thread_key` keeps its value, and the platform is the prefix of `thread_id`, validated
-against `PLATFORMS`. So `centaur-message.yml`, the template in `workflows.md`, `centaur-pr-comment.yml`
+against `PLATFORMS`. So `centaur-turn.yml`, the template in `workflows.md`, `centaur-pr-comment.yml`
 and the concurrency group `centaur-<bot>-<thread key>` do not change, and the AGENTS.md rule about
 payload changes is not triggered. If the maintainer prefers an explicit field (Decision 9), the
 change is `platform` added in `message-handler.ts`, `dispatchPayload` in `prepare.ts`, the payload

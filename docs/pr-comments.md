@@ -141,7 +141,7 @@ jobs:
 
 Notes on the shape:
 
-- The group string is identical to the one in `centaur-message.yml`, so a comment turn and a chat
+- The group string is identical to the one in `centaur-turn.yml`, so a comment turn and a chat
   turn on the same thread run one at a time and never push to the branch concurrently. The key is
   the hashed thread key, never the raw thread ID.
 - The actions come from the centaur repository, never from the checkout of the pull request branch:

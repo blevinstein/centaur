@@ -1,16 +1,17 @@
-name: Centaur message
+name: Centaur turn
 
 on:
-  repository_dispatch:
-    types: [centaur-message]
-
-permissions:
-  contents: write
-  pull-requests: write
-  id-token: write
+  workflow_call:
+    inputs:
+      bot:
+        type: string
+        required: true
+      root:
+        type: string
+        required: true
 
 concurrency:
-  group: centaur-${{ github.event.client_payload.bot }}-${{ github.event.client_payload.thread_key }}
+  group: centaur-${{ inputs.bot }}-${{ github.event.client_payload.thread_key }}
   cancel-in-progress: false
 
 jobs:
@@ -31,6 +32,7 @@ jobs:
       - uses: ./.github/actions/setup-runtime
       - uses: ./.github/actions/turn
         with:
+          root: ${{ inputs.root }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
       - if: failure()

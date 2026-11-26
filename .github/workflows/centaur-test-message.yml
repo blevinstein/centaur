@@ -1,0 +1,19 @@
+name: Centaur test message
+
+on:
+  repository_dispatch:
+    types: [centaur-message]
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  turn:
+    if: github.event.client_payload.bot == 'centaur-slack'
+    uses: ./.github/workflows/centaur-turn.yml
+    with:
+      bot: centaur-slack
+      root: apps/centaur-test
+    secrets: inherit

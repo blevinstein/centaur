@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { findConfigFile } from "../src/workflows/config-file.js";
-import { loadSelfConfig } from "./helpers/self-config.js";
+import { loadSelfConfig, SELF_ROOT, selfPath } from "./helpers/self-config.js";
 
 describe("this repo's Centaur config", () => {
-  it("lives at .centaur/config.yml", async () => {
-    expect(await findConfigFile(".")).toBe(".centaur/config.yml");
+  it("lives at apps/centaur-test/.centaur/config.yml", async () => {
+    expect(await findConfigFile(".", SELF_ROOT)).toBe(selfPath(".centaur/config.yml"));
   });
 
   it("declares Slack and Telegram, and points at files that exist", async () => {
@@ -16,7 +16,7 @@ describe("this repo's Centaur config", () => {
     });
     expect(config.prompts.hello?.file).toBe(".centaur/prompts/hello.md");
     for (const file of [config.persona, config.prompts.hello?.file ?? ""]) {
-      expect(readFileSync(file, "utf8")).not.toBe("");
+      expect(readFileSync(selfPath(file), "utf8")).not.toBe("");
     }
   });
 

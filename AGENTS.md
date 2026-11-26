@@ -58,7 +58,7 @@
 - The dispatch payload carries `thread_key` (`src/thread-key.ts`, the 12-hex hash of bot and thread
   ID), which the concurrency group and the PR branch use instead of raw thread IDs. A new public
   name that would embed a thread ID must use `threadKey`, and a payload change must also update
-  `centaur-message.yml`, the template in `docs/workflows.md`, and `docs/plan.md`.
+  `centaur-turn.yml`, the template in `docs/workflows.md`, and `docs/plan.md`.
 - The state adapter is the published `@blevinstein/chat-state-dynamodb` package (a fork of the
   community one; see its README). Its `TABLE_DEFINITION` and `TTL_ATTRIBUTE` define the test table,
   and `test/infra.test.ts` checks them against `infra/centaur.yml`.
