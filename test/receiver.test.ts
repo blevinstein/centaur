@@ -1,5 +1,5 @@
 import { createMemoryState } from "@chat-adapter/state-memory";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createReceiver } from "../src/lambda/receiver.js";
 import {
   fakeAttachments,
@@ -7,6 +7,8 @@ import {
   fakeLogger,
   fakeParameterStore,
 } from "./helpers/receiver-fixtures.js";
+import { startFakeSlackApi } from "./helpers/slack-fixtures.js";
+import { stubTelegram } from "./helpers/telegram-fixtures.js";
 
 const receiver = () =>
   createReceiver({
@@ -21,6 +23,20 @@ const post = (path: string, init: RequestInit = {}) =>
   new Request(`https://example.test${path}`, { method: "POST", body: "{}", ...init });
 
 describe("receiver routing", () => {
+  let slackApi: Awaited<ReturnType<typeof startFakeSlackApi>>;
+
+  beforeAll(async () => {
+    slackApi = await startFakeSlackApi();
+    vi.stubEnv("SLACK_API_URL", slackApi.url);
+    stubTelegram();
+  });
+
+  afterAll(async () => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    await slackApi.close();
+  });
+
   it.each([
     ["an unknown bot", post("/telegram/ghost")],
     ["a bot on the wrong platform", post("/slack/garden")],
