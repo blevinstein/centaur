@@ -19,9 +19,9 @@ remove one. If neither exists, they fail naming both paths.
 
 Paths inside the config (`persona`, `instructions`, prompt files) are relative to the Centaur root,
 not to the config file, and the MCP policy is `.centaur/mcp-policy.cedar` at the Centaur root,
-wherever the config lives. The Centaur root is the repo root unless the workflow sets `CENTAUR_ROOT`
-to a sub-folder (a relative path inside the repo; see
-[subfolder-support](proposals/subfolder-support.md)). The register workflow's `paths` filter lists both locations.
+wherever the config lives. The Centaur root is the repo root unless the workflow sets the actions' `root`
+input (`CENTAUR_ROOT`) to a sub-folder, a relative path inside the repo; see
+[Bots in sub-folders](workflows.md#bots-in-sub-folders). The register workflow's `paths` filter lists both locations.
 
 ```yaml
 bot: garden

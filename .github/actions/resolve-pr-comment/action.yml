@@ -4,6 +4,9 @@ inputs:
   github_token:
     description: Token used to read the pull request and the commenter's repository permission.
     default: ${{ github.token }}
+  root:
+    description: Directory, relative to the repository root, that holds the Centaur config and the files it references. Set it for a bot that lives in a sub-folder; the default is the repository root.
+    default: "."
 outputs:
   skip:
     description: "'true' when the event should not start a turn."
@@ -27,5 +30,6 @@ runs:
       id: resolve
       shell: bash
       env:
+        CENTAUR_ROOT: ${{ inputs.root }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" resolve

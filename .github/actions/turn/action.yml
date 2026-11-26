@@ -7,6 +7,9 @@ inputs:
   config_root:
     description: Directory to read the Centaur config, the instructions and the persona from, instead of the workspace. Set it to a checkout of the default branch for a pull request comment turn, so the pull request cannot change the agent's tools or persona.
     default: ""
+  root:
+    description: Directory, relative to the repository root, that holds the Centaur config and the files it references. Set it for a bot that lives in a sub-folder; the default is the repository root.
+    default: "."
   prompt_name:
     description: Name of a prompt in the Centaur config; starts a new thread instead of answering a dispatched message.
     default: ""
@@ -33,6 +36,7 @@ runs:
         PROMPT_NAME: ${{ inputs.prompt_name }}
         COMMENT_PULL_REQUEST: ${{ inputs.comment }}
         CENTAUR_CONFIG_ROOT: ${{ inputs.config_root }}
+        CENTAUR_ROOT: ${{ inputs.root }}
         CENTAUR_SKILLS_DIR: ${{ github.action_path }}/../../../skills
         GITHUB_TOKEN: ${{ github.token }}
       run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" prepare
@@ -70,6 +74,7 @@ runs:
       env:
         EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
         CENTAUR_CONFIG_ROOT: ${{ inputs.config_root }}
+        CENTAUR_ROOT: ${{ inputs.root }}
         GITHUB_TOKEN: ${{ github.token }}
       run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" plan-pr
 
@@ -108,6 +113,7 @@ runs:
         PULL_REQUEST_FAILED: ${{ steps.push_existing.outcome == 'failure' || steps.pr.outcome == 'failure' }}
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         CENTAUR_CONFIG_ROOT: ${{ inputs.config_root }}
+        CENTAUR_ROOT: ${{ inputs.root }}
         COMMENT_PULL_REQUEST: ${{ inputs.comment }}
         GITHUB_TOKEN: ${{ github.token }}
       run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" finish

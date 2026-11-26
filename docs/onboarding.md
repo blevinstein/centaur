@@ -172,6 +172,23 @@ Repeat for each consumer repo, after the bot exists (Telegram above, Slack below
 8. If the repo is public, check that its workflow follows the no-content-in-logs rules in
    [plan.md](plan.md#security).
 
+### A bot in a sub-folder
+
+For a monorepo that keeps a bot's files under a sub-folder, or one bot per sub-folder:
+
+1. Put `.centaur.yml` or `.centaur/config.yml`, the persona, prompts, instructions, `.claude/skills`
+   and optionally an `AGENTS.md` or `CLAUDE.md` under the folder (say `apps/garden/`). Give each
+   folder's config its own `bot`. A repo uses either one config at its top or configs in
+   sub-folders, never both, so move a root bot into a folder before adding another.
+2. Copy the workflows from [Bots in sub-folders](workflows.md#bots-in-sub-folders): `root` on the
+   `register`, `turn`, `resolve-pr-comment` and `resolve-schedule` steps, a `paths` filter and a
+   `register` job per folder, and per bot a message workflow filtered on
+   `github.event.client_payload.bot`, calling a shared reusable workflow with distinct concurrency
+   groups.
+3. Register each bot (push to the default branch or run the workflow), then continue with the steps
+   above for each bot. The agent still starts at the repo root and is told to read the folder's
+   `AGENTS.md` or `CLAUDE.md` first.
+
 ## Slack (personal projects)
 
 Only the maintainer uses these, so there's no non-technical onboarding. Nothing here is validated.

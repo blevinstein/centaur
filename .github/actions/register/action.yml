@@ -1,10 +1,15 @@
 name: Centaur register
 description: Validate the Centaur config and bind its bot to this repository. Needs the id-token write permission and the centaur setup-runtime step before it.
+inputs:
+  root:
+    description: Directory, relative to the repository root, that holds the Centaur config and the files it references. Set it for a bot that lives in a sub-folder; the default is the repository root.
+    default: "."
 runs:
   using: composite
   steps:
     - name: Register the bot
       shell: bash
       env:
+        CENTAUR_ROOT: ${{ inputs.root }}
         GITHUB_TOKEN: ${{ github.token }}
       run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" register

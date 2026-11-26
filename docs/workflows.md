@@ -8,10 +8,10 @@ operations they invoke, and [config.md](config.md) for the config.
 | Action | Purpose |
 |---|---|
 | `setup-runtime` | Builds the workflow scripts from the action's own checkout and assumes the AWS role through OIDC. Run once per job, after checking out the consumer repo. |
-| `register` | Validates the config, requests a GitHub OIDC token for the poster's audience and invokes `register`. |
+| `register` | Validates the config (at `root`, default the repo root), requests a GitHub OIDC token for the poster's audience and invokes `register`. |
 | `resolve-pr-comment` | Decides whether a pull request comment event starts a turn and which bot and thread it belongs to; see [Comment turns](#comment-turns). |
-| `resolve-schedule` | Computes the concurrency group of a scheduled prompt's turn job; see [Persistent scheduled threads](#persistent-scheduled-threads). |
-| `turn` | One agent turn: answers a dispatched chat message, or (with `prompt_name`) starts a new thread from a scheduled prompt, or (with `comment`) answers the comments on a pull request. Outputs `skip` and `pull-request-url`. |
+| `resolve-schedule` | Computes the concurrency group of a scheduled prompt's turn job (config at `root`); see [Persistent scheduled threads](#persistent-scheduled-threads). |
+| `turn` | One agent turn: answers a dispatched chat message, or (with `prompt_name`) starts a new thread from a scheduled prompt, or (with `comment`) answers the comments on a pull request. Outputs `skip` and `pull-request-url`. Reads the config from `root`; see [Bots in sub-folders](#bots-in-sub-folders). |
 | `notify-failure` | Posts a failure notice in the thread (and, with `comment`, on the pull request) and clears the 👀 reactions. Use with `if: failure()`; does nothing if the turn never started. |
 
 ## Consumer workflows
@@ -166,6 +166,119 @@ destination's one thread instead of a new one, and the run sees what the thread 
 - **Deploy order.** The runner calls `resolve-destination` and sends `thread` to `start-thread`,
   which the poster Lambda must understand first. Deploy the Lambda (`yarn deploy-prod`) before any
   config sets `thread: persistent`; prompts without it work against either Lambda.
+
+## Bots in sub-folders
+
+A monorepo can keep a bot's config and files under a sub-folder, and run one bot per sub-folder. Each
+of `register`, `turn`, `resolve-pr-comment` and `resolve-schedule` takes a `root` input (default `.`,
+the repo root, so existing workflows are unchanged): a directory relative to the repo root that holds
+`.centaur.yml` or `.centaur/config.yml`. The action passes it to its steps as `CENTAUR_ROOT`. The
+config's `persona`, `instructions` and prompt `file` paths, the default `.centaur/` paths, the consumer
+skills in `.claude/skills` and the MCP policy `.centaur/mcp-policy.cedar` are all relative to `root`.
+`root` comes only from the workflow YAML, never from the config or the pull request. See
+[subfolder-support](proposals/subfolder-support.md) for the design.
+
+- **One style per repo.** A repo uses either a config at its top or configs in sub-folders, never
+  both; `register` and `prepare` fail naming both paths otherwise. A repo that wants a sub-folder bot
+  moves its root bot into a folder first.
+- **The agent still runs at the repo root.** `prepare` adds a `Project folder` section to the prompt
+  naming `root` and, when `<root>/AGENTS.md` or `<root>/CLAUDE.md` exists, telling the agent to read
+  it first. It is guidance, not confinement: the workspace, the token and the commit cover the whole
+  repository.
+- **Register once per root.** Each bot has its own `register` job with `root`, and the `paths` filter
+  lists every sub-folder's config. All bots bind to the same repository.
+- **Filter dispatches by bot.** Every `repository_dispatch` reaches every `centaur-message` workflow
+  in the repo, so each bot's caller workflow runs its job only when
+  `github.event.client_payload.bot` is its bot.
+- **Share the steps in a reusable workflow.** A `workflow_call` workflow takes `bot` and `root`; each
+  bot's thin caller supplies the trigger, the filter and the two values.
+- **Distinct concurrency groups.** The group is built from the `bot` input, so two bots' turns never
+  queue behind or cancel each other.
+
+```yaml
+# .github/workflows/centaur-register.yml
+name: Centaur register
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/garden/.centaur.yml
+      - apps/garden/.centaur/**
+      - apps/shop/.centaur.yml
+      - apps/shop/.centaur/**
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  register:
+    strategy:
+      matrix:
+        root: [apps/garden, apps/shop]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: <owner>/centaur/.github/actions/setup-runtime@main
+      - uses: <owner>/centaur/.github/actions/register@main
+        with:
+          root: ${{ matrix.root }}
+```
+
+```yaml
+# .github/workflows/centaur-garden-message.yml (one per bot)
+name: Centaur garden message
+on:
+  repository_dispatch:
+    types: [centaur-message]
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+jobs:
+  turn:
+    if: github.event.client_payload.bot == 'garden'
+    uses: ./.github/workflows/centaur-turn.yml
+    with:
+      bot: garden
+      root: apps/garden
+    secrets: inherit
+```
+
+```yaml
+# .github/workflows/centaur-turn.yml (reusable)
+name: Centaur turn
+on:
+  workflow_call:
+    inputs:
+      bot: { type: string, required: true }
+      root: { type: string, required: true }
+concurrency:
+  group: centaur-${{ inputs.bot }}-${{ github.event.client_payload.thread_key }}
+  cancel-in-progress: false
+jobs:
+  turn:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: <owner>/centaur/.github/actions/setup-runtime@main
+      - uses: <owner>/centaur/.github/actions/turn@main
+        with:
+          root: ${{ inputs.root }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+      - if: failure()
+        uses: <owner>/centaur/.github/actions/notify-failure@main
+```
+
+Scheduled prompts pass `root` to both `resolve-schedule` and `turn`. For pull request comments, keep
+one copy of the comment workflow per bot that passes `root` to `resolve-pr-comment` and `turn`
+(`root` is read inside `config_root`, the trusted checkout),
+and skip the `turn` job unless `needs.resolve.outputs.bot` is that bot.
 
 ## MCP server secrets
 

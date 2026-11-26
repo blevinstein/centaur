@@ -4,6 +4,9 @@ inputs:
   prompt_name:
     description: Name of the prompt in the Centaur config, the same value the turn step receives.
     required: true
+  root:
+    description: Directory, relative to the repository root, that holds the Centaur config and the files it references. Set it for a bot that lives in a sub-folder; the default is the repository root.
+    default: "."
 outputs:
   group:
     description: The concurrency group for the turn job. Built from hashed names, never a chat or thread ID.
@@ -15,5 +18,6 @@ runs:
       id: resolve
       shell: bash
       env:
+        CENTAUR_ROOT: ${{ inputs.root }}
         PROMPT_NAME: ${{ inputs.prompt_name }}
       run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" resolve-schedule
