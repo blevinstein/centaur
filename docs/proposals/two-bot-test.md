@@ -80,3 +80,26 @@ Not verified (tracked in `TODO.md` section 22):
   The maintainer asked both bots in a shared chat to edit the trial bot's persona (a protected path); both
   refused at the persona level, so the harness path was not reached and only the unit tests on real git
   repos cover it. A live check needs a bot whose persona allows editing a protected path.
+
+## Bot-to-bot mentions
+
+Both bots set `platforms.slack.bot_messages: mention`, so each accepts a Slack message written by the
+other when it explicitly @mentions it (in both `respond_to` modes). Telegram stays at `ignore`: the
+Bot API does not normally deliver other bots' messages to a bot, so the setting would be inert there.
+
+The sender approval check still applies, so the maintainer approves each bot's Slack user ID on the
+other bot's Slack connection (the ID is in the bot's own messages, or in `centaur access list`):
+
+```sh
+centaur access approve centaur-slack user <centaur-test-2 Slack user ID> --platform slack
+centaur access approve centaur-test-2 user <centaur-slack Slack user ID> --platform slack
+```
+
+Loop risk: there is no allowlist and no hop cap, so two bots that keep mentioning each other will
+loop; the per-turn spend cap and the agents not re-mentioning each other are the only brakes. To stop
+a loop, set `bot_messages: ignore` on one bot and push (register applies it), or lower the per-turn
+spend cap.
+
+The key takes effect after the `Centaur register` run on merge and needs no deploy, provided the
+deployed Lambda already parses `bot_messages` (it was introduced in commit `a04e95f`, which precedes
+the current deployed Lambda); a Lambda without it rejects the unknown key.

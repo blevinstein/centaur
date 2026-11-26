@@ -2,6 +2,7 @@ bot: centaur-test-2
 platforms:
   slack:
     respond_to: mention
+    bot_messages: mention
   telegram:
     respond_to: mention
 context:

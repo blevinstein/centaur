@@ -458,6 +458,10 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       bot-authored messages in every mode, and the second bot `centaur-test-2` exists on Slack and
       Telegram). Still to confirm live (**[HUMAN ACTION]**): messages to both bots in one shared
       Slack channel and Telegram group route to the right bot and do not loop.
+      Both self-test bots now set `bot_messages: mention` on Slack (Telegram stays `ignore`); live
+      checks still open: **[HUMAN ACTION]** approve each bot's Slack user ID on the other bot
+      (`centaur access approve <bot> user <id> --platform slack`), then send a mention from each
+      bot to the other and confirm it answers once without looping.
 - [ ] Agent-scheduled follow-ups via EventBridge Scheduler.
 - [ ] Per-thread turn or token caps for `resume` sessions.
 - [x] Contribute the DynamoDB state adapter upstream. Chat SDK declined it and points to community
