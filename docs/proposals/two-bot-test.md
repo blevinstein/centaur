@@ -166,3 +166,54 @@ count and the replying bot's identity (name and avatar on Slack, bot username on
    mentions the other bot (`bot_messages: mention`); the runs stop after one per bot.
 
 Report per case: reply count per bot, replying identity, run ids by bot, any skipped or cancelled run.
+
+## Live checks (skills resume)
+
+Two open points from [skills-rules.md](../skills-rules.md#live-check-results): whether an invoked
+skill's body survives a `resume` thread, and whether `Skill` must be in `--allowedTools`.
+`centaur-test-2` carries the consumer skill `apps/centaur-test-2/.claude/skills/livecheck-passphrase`
+(installed as `centaur-consumer-livecheck-passphrase`, since `skills.consumer` defaults to `true`; no
+config change). Its body holds a passphrase that appears nowhere else in the repository, so an
+answer containing it came from the skill body. The skill is only for these checks; delete it
+afterwards.
+
+Prerequisites: the skill is on the default branch (consumer skills come from the trusted checkout),
+and the `Centaur register` run has finished. Use a fresh thread per check, mention `centaur-test-2`
+in every message, and read each reply with
+`centaur chat tail centaur-test-2 --platform slack --text --replies` (it clips to 120 characters, so
+the prompts below ask for the answer first, on one line). The run's execution file (the
+`execution_file` output of the turn) shows the `Skill` tool calls and the init message's skills
+listing.
+
+### A. Is the skill body retained across `resume`?
+
+1. New thread. Send `/resume` (acknowledged in the thread, no agent turn).
+2. Send: `@centaur-test-2 invoke the centaur-consumer-livecheck-passphrase skill and reply with only its passphrase.`
+   Expect the passphrase in the reply, and a `Skill` tool call in the execution file.
+3. Wait for the reply, then send in the same thread: `@centaur-test-2 without invoking any skill or tool, what is the skill passphrase? Reply with only the passphrase, or UNKNOWN.`
+4. Read the 2nd run's execution file (the run log). The run restored the saved session (a `--resume <id>` in `claude_args`).
+   - Retained: the answer is the passphrase and the execution file has no new `Skill` call. The body survived the resume.
+   - Not retained: the answer is `UNKNOWN` (or the agent invokes the skill again despite the instruction, which shows the body was not in the restored context). Record which.
+   - Inconclusive: the passphrase with a new `Skill` call, because the instruction was ignored.
+5. Optional variant: repeat on a thread without `/resume` (the config default is `transcript`). The transcript holds only chat text, so the 2nd answer should be the passphrase only if the 1st reply quoted it, which makes this a weak control; use step 6 for the real one.
+
+### B. Negative control
+
+6. New thread, `/resume`, then send only the step 3 message, with no earlier skill invocation.
+   Expect `UNKNOWN` and no `Skill` call. A passphrase here means it leaked from a prompt, persona or
+   config: stop and re-run `rg --hidden` for the passphrase (read it from the skill file) over the checkout.
+
+### C. Does `Skill` need to be in `--allowedTools`?
+
+`prepare` adds `Skill` to `--allowedTools` whenever a skill was installed. To test without it,
+push an experiment branch (AGENTS.md "Workflow experiments") whose `prepare` omits `skillRule` in
+`buildClaudeArgs` (`src/workflows/prepare.ts`), dispatch the workflow from it, and repeat steps 1 and 2
+in a new thread.
+
+7. Confirm in the run's `claude_args` that `Skill` is absent from `--allowedTools`.
+8. Evidence: if the passphrase is returned and the execution file has a successful `Skill` call,
+   `Skill` is not required (still harmless to leave). If the tool call is denied or the agent says it
+   cannot load the skill, it is required. Record the wording, and drop the experiment branch.
+
+Never paste chat IDs or tokens into the results; record outcomes in
+[skills-rules.md](../skills-rules.md#live-check-results) and tick the TODO item.
