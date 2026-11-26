@@ -78,7 +78,7 @@ Open findings ordered by priority (severity, then confidence, then effort).
 | TEST-006 | medium | `src/workflows/cli.ts` has no test | M | open | fix |
 | SEC-008 | low | OIDC trust is broad | S | open | decide |
 | SEC-010 | low | Some runner errors print IDs to the Actions log | S | open | fix |
-| SEC-013 | low | Third-party actions pinned by tag; install scripts enabled | S | open | fix |
+| SEC-015 | low | Install scripts enabled; MCP token scoped to the whole job | S | open | fix |
 | SEC-009 | low | `register` binding is first-come | M | open | decide |
 | SEC-011 | low | MCP approval summary is unverified text | M | open | decide |
 | SEC-012 | low | Turn directory writes don't check for symlinks | S | open | investigate |
@@ -234,18 +234,30 @@ Detail for every open finding in this area is in the private addendum.
 #### SEC-013: Third-party actions pinned by tag; install scripts enabled
 
 - **Severity / confidence / effort:** low / confirmed / S
-- **Status:** open (first seen 2026-11-26)
+- **Status:** wontfix 2026-11-26 (first seen 2026-11-26): maintainer prefers major-tag pins (e.g.
+  `actions/checkout@v7`) over commit SHAs; accepted risk: a moved upstream tag runs with consumers'
+  secrets.
 - **Evidence:**
   - `.github/actions/turn/action.yml:54, 109`
   - `.github/actions/setup-runtime/action.yml`
-  - `.yarnrc.yml`
-  - the job-level `GITHUB_MCP_TOKEN` in `centaur-turn.yml`
 - **Impact:** a moved upstream tag runs in every consumer's turn, with their secrets.
+- **Recommendation:** SHA-pin the actions inside `.github/actions` (start with `claude-code-action`).
+  Declined; see the status.
+- **Notes:** this absorbed the Build & CI finding on action pinning. The install-script and token
+  scope recommendations were split out as SEC-015.
+
+#### SEC-015: Install scripts enabled; MCP token scoped to the whole job
+
+- **Severity / confidence / effort:** low / confirmed / S
+- **Status:** open (first seen 2026-11-26, split from SEC-013)
+- **Evidence:**
+  - `.yarnrc.yml`: dependency install scripts are not disabled.
+  - the job-level `GITHUB_MCP_TOKEN` in `centaur-turn.yml`
+- **Impact:** a compromised dependency can run code at install time, and every step in the job can
+  read the MCP token.
 - **Recommendation:**
-  - SHA-pin the actions inside `.github/actions` (start with `claude-code-action`);
-  - set `enableScripts: false`;
+  - set `enableScripts: false` in `.yarnrc.yml`;
   - move `GITHUB_MCP_TOKEN` to step level.
-- **Notes:** this absorbs the Build & CI finding on action pinning.
 
 #### SEC-014: Access-request rate limit is shared by all subjects
 
@@ -779,8 +791,9 @@ The CD deploy role and `scripts/setup-cd.sh`, both added in `942d0d7`, were not 
 - **Severity / confidence / effort:** low / confirmed / S
 - **Status:** open (first seen 2026-11-26)
 - **Evidence:** `docs/workflows.md:125` advises pinning to a tag, but none exist.
-- **Recommendation:** cut a moving `v0` tag after each verified deploy, or reword the doc to say
-  "pin to a SHA".
+- **Recommendation:** cut a moving tag (such as `v0`) for centaur's own actions after each verified
+  deploy, or reword the doc to say to pin `@main` for the latest, or a tag. The maintainer pins by
+  tag rather than SHA (see SEC-013).
 
 #### CI-007: `setup-runtime` installs every devDependency without a cache
 
@@ -1017,7 +1030,7 @@ private identifiers have been fixed.
 - Does GitHub evaluate `failure()` as true when a job hits `timeout-minutes`? (REL-005)
 - How often does "Message processing error" appear in CloudWatch, and how many Slack acks take
   longer than 3s? (REL-001)
-- Do any external consumers run `@main` today? This sets the urgency of CI-002 and SEC-013.
+- Do any external consumers run `@main` today? This sets the urgency of CI-002.
 - Should PRs from scheduled prompts and new threads be eligible as update targets? (CODE-002)
 
 ## Inspection log
@@ -1030,3 +1043,5 @@ private identifiers have been fixed.
   - Verification: every high finding was re-checked at `5b61006`, as were DOCS-002, DOCS-005 and
     DOCS-006.
   - Not covered: the CD changes from `942d0d7`.
+- 2026-11-26: SEC-013 reclassified wontfix by maintainer decision (third-party actions are pinned by
+  major tag, not commit SHA); 1 finding split out (SEC-015). CI-006 recommendation updated.
