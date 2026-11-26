@@ -228,6 +228,18 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
     "skills.builtin",
     /./,
   ],
+  [
+    "repository_instructions with an unknown key",
+    withExtra("repository_instructions: {file: AGENTS.md}"),
+    "repository_instructions",
+    /unrecognized key/i,
+  ],
+  [
+    "repository_instructions with a zero max_bytes",
+    withExtra("repository_instructions: {max_bytes: 0}"),
+    "repository_instructions.max_bytes",
+    /./,
+  ],
   ["empty document", "", "(root)", /expected object/i],
   ["malformed YAML", "bot: [unclosed", "(root)", /invalid YAML/],
   ["missing model", yamlOf({ model: undefined }), "model", /./],

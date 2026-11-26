@@ -41,6 +41,7 @@ describe("parseCentaurConfig", () => {
         },
         execution: { mode: "pull_request" },
         chat_tools: DEFAULT_CHAT_TOOLS,
+        repository_instructions: { enabled: true, max_bytes: 32768 },
         skills: { builtin: true, consumer: true },
         mcp_servers: {},
         prompts: {},
@@ -56,6 +57,15 @@ describe("parseCentaurConfig", () => {
     expect(parseCentaurConfig(withExtra("skills: {builtin: false}"))).toMatchObject({
       ok: true,
       config: { skills: { builtin: false, consumer: true } },
+    });
+  });
+
+  it("parses the repository_instructions block over its defaults", () => {
+    expect(
+      parseCentaurConfig(withExtra("repository_instructions: {max_bytes: 100}")),
+    ).toMatchObject({
+      ok: true,
+      config: { repository_instructions: { enabled: true, max_bytes: 100 } },
     });
   });
 
@@ -106,6 +116,7 @@ describe("parseCentaurConfig", () => {
         },
         execution: { mode: "pull_request" },
         chat_tools: DEFAULT_CHAT_TOOLS,
+        repository_instructions: { enabled: true, max_bytes: 32768 },
         skills: { builtin: true, consumer: true },
         mcp_servers: {},
         prompts: {

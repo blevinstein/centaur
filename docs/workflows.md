@@ -407,11 +407,38 @@ off ([config.md](config.md)):
 - `Skill` is added to `--allowedTools` when any skill was installed.
 - A comment turn also passes `--setting-sources user`, so the pull request branch's
   `.claude/skills`, `.claude/settings.json`, rules and `CLAUDE.md` are not loaded; a chat turn keeps
-  the action's default sources. The trusted `CLAUDE.md` may not reach a comment turn under `user`
-  alone (live check); if it does not, copy it into `$HOME/.claude`, never re-enable `project` or
-  `local`.
+  the action's default sources. The trusted guide reaches a comment turn through a copy in `$HOME/.claude/CLAUDE.md` (see
+  [Repository instructions](#repository-instructions)); `project` and `local` stay off.
 
 See [skills-rules.md](skills-rules.md) for the design and the live check.
+
+## Repository instructions
+
+`prepare` also installs the repository's guide (`installRepositoryInstructions`,
+`src/workflows/repository-instructions.ts`), unless `repository_instructions.enabled` is `false`
+([config.md](config.md)). It writes the Centaur root's `AGENTS.md`, else `CLAUDE.md`, to
+`$HOME/.claude/CLAUDE.md`, the user memory that Claude Code reads under `--setting-sources user`, so
+a comment turn gets the repository's rules although it loads no project source.
+
+- **Trusted source only.** The root is resolved in `config_root`: the default-branch checkout for a
+  comment turn (never the pull request branch), the workspace for a chat or scheduled turn.
+- **Every turn rewrites it.** The file starts with a marker comment. The turn removes a marker file
+  it wrote earlier before writing, so a guide that was deleted or switched off does not linger.
+- **A user memory Centaur did not write is never touched.** Without the marker, the turn fails
+  naming the file (or leaves it alone when the key is off); a self-hosted runner's own
+  `$HOME/.claude/CLAUDE.md` is not overwritten.
+- **Size cap.** Past `max_bytes` the turn fails with the file name and size; truncating rules
+  silently could drop the one that matters.
+- **Chat turns.** Claude Code also loads the workspace `CLAUDE.md` through the `project` source, so a
+  repository whose guide is `CLAUDE.md` shows it twice there. The copy is the only channel on
+  comment turns, and `@file` imports inside the guide resolve against `$HOME/.claude`, not the repo,
+  so keep the guide self-contained.
+- **HOME.** `prepare` writes to `os.homedir()` of the runner process, the same `$HOME` it uses for
+  skills and sessions; the repository sets neither `HOME` nor `CLAUDE_CONFIG_DIR`. That Claude Code
+  reads `$HOME/.claude/CLAUDE.md` as user memory under `--setting-sources user` follows from its
+  documented memory hierarchy, but the action's launch of `claude` is outside this repository, so it
+  is checked live: a scheduled prompt asking the agent to quote the first line of its guide on a
+  comment turn.
 
 ## Agent turn
 

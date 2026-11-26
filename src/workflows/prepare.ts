@@ -52,6 +52,7 @@ import {
   truncateDiff,
 } from "./pull-request-comments.js";
 import { clearReactions, type ReactionSource } from "./reactions.js";
+import { installRepositoryInstructions } from "./repository-instructions.js";
 import { installSkills } from "./skills.js";
 import {
   type AttachmentPath,
@@ -614,6 +615,11 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     sourceDir: config.skills.builtin ? deps.skillsDir : undefined,
     consumerDir: config.skills.consumer ? join(rootDir, CONSUMER_SKILLS_DIR) : undefined,
     allowedTools: config.allowed_tools,
+  });
+  await installRepositoryInstructions({
+    home: deps.home,
+    rootDir: config.repository_instructions.enabled ? rootDir : undefined,
+    maxBytes: config.repository_instructions.max_bytes,
   });
   const { dropped, notice, pendingServers } =
     approvals.length > 0

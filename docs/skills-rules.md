@@ -309,9 +309,9 @@ Not verified (open):
 - [ ] Whether a skill body is retained across `--resume`: no resume check was run. It needs two
   chat messages in one `resume` thread; the second asks the sentinel again and the execution file
   shows whether the body was retained or re-invoked.
-- [ ] Whether the trusted `CLAUDE.md` still reaches the agent under `--setting-sources user`: this
-  repository has no `CLAUDE.md`, so a consumer with one is needed. If it does not, copy the
-  trusted `CLAUDE.md` into `$HOME/.claude` (never re-enable `project` or `local`).
+- [x] The trusted `CLAUDE.md` did not reach a comment turn under `--setting-sources user` (2026-11-26);
+  `prepare` now copies it into `$HOME/.claude/CLAUDE.md` ([workflows.md](workflows.md#repository-instructions)).
+  Still to verify live: that the copy is loaded.
 
 Method for a repeat: use a scheduled prompt so no chat message is needed; read the reply with
 `centaur chat tail <bot>`; read the run's execution file (the `execution_file` output) for a

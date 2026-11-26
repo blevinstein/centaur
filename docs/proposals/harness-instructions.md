@@ -1,6 +1,6 @@
 # Harness instructions
 
-Status: **proposal**, not built. It covers two backlog items in [TODO.md](../../TODO.md): Centaur-provided
+Status: **proposal**; the repository-instructions delivery (step 3, as a copy) is built, the rest is not. It covers two backlog items in [TODO.md](../../TODO.md): Centaur-provided
 instructions that explain harness quirks to the agent, and merging them with the consumer's
 `AGENTS.md` and the situational prompt. It builds on [skills-rules.md](../skills-rules.md), which
 shipped the first slice (built-in `centaur-*` skills). Terms (turn, poster, `config_root`) are in
@@ -129,8 +129,12 @@ Alternatives considered:
 
 ## Implementation steps
 
-None is done by this change; it is a design only because each step changes consumer-visible prompt
-text and the delivery of `AGENTS.md` is a trust decision.
+Step 3 is built, as the maintainer's 2026-11-26 decision (a live check showed the trusted `CLAUDE.md` does
+not reach a comment turn under `--setting-sources user`): not a prompt section but a copy of the
+trusted `AGENTS.md`, else `CLAUDE.md`, into `$HOME/.claude/CLAUDE.md` (`repository_instructions: {
+enabled, max_bytes }`, default on; over the cap fails the turn; a user memory without the Centaur marker
+is never overwritten; see [workflows.md](../workflows.md#repository-instructions)). Steps 2 and 4 are
+not done.
 
 1. Live-check the open question: does the trusted `CLAUDE.md` or an `AGENTS.md` reach a comment turn
    under `--setting-sources user`? The answer decides whether step 3 is a fix or a duplicate.
@@ -148,11 +152,8 @@ text and the delivery of `AGENTS.md` is a trust decision.
 
 ## Open questions
 
-- Should the prompt section be the guaranteed channel for repository instructions, or should the
-  harness only make sure Claude Code loads them (for example by copying the trusted file into
-  `$HOME/.claude/CLAUDE.md`, the fallback already noted in skills-rules.md)? The copy keeps one code
-  path and Claude Code's own `@import` handling; the prompt section is explicit and testable.
-- Size cap for repository instructions, and whether to follow `@file` imports inside `AGENTS.md`.
+- Decided: the copy into `$HOME/.claude/CLAUDE.md`, a 32 KB default cap that fails the turn, and no
+  `@file` import following (imports resolve against the home, so a guide must be self-contained).
 - Should the agent be allowed to disagree with a harness fact in its reply, or only follow it
   (precedence level 2)? A consumer who wants a direct-push workflow needs the execution-modes item,
   not a prompt override.

@@ -357,9 +357,11 @@ for detailed tracking.
       [docs/proposals/harness-instructions.md](docs/proposals/harness-instructions.md).
   - [ ] **[HUMAN ACTION]** Live check: does the trusted `CLAUDE.md` or `AGENTS.md` reach a comment
         turn under `--setting-sources user`? It decides whether delivering it is a fix or a duplicate.
-  - [ ] **[HUMAN APPROVAL]** Decide the delivery channel: a prompt section (explicit, testable) or
-        copying the trusted file to `$HOME/.claude/CLAUDE.md` (one code path, native `@import`).
-        Blocked on the live check above (the maintainer runs it first).
+  - [x] Delivery channel decided: copy the trusted file into `$HOME/.claude/CLAUDE.md`. Built as the
+        `repository_instructions` key.
+  - [ ] **[HUMAN ACTION]** Live check the copy: on a comment turn the agent quotes the first line of
+        its guide (not the marker).
+  - [ ] `harness.md`, `scheduled.md` and turn facts (proposal steps 2 and 4).
 - [ ] Setup .centaur config for ~/dev/turo-accounting repo - try to use playwright to integrate
       with Turo admin portal?
 - [x] Better guides - basic response-only bot, adding scheduled actions

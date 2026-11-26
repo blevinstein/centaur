@@ -239,6 +239,12 @@ export const centaurConfigSchema = z
         slack_search: z.boolean().default(DEFAULT_CHAT_TOOLS.slack_search),
       })
       .default(DEFAULT_CHAT_TOOLS),
+    repository_instructions: z
+      .strictObject({
+        enabled: z.boolean().default(true),
+        max_bytes: z.number().int().min(1).max(262144).default(32768),
+      })
+      .default({ enabled: true, max_bytes: 32768 }),
     skills: z
       .strictObject({
         builtin: z.boolean().default(true),
