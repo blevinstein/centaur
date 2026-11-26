@@ -127,9 +127,9 @@ That's all that's needed for group use. Optionally, to DM a bot: open its link
   is done (also after a failure, when the bot posts a notice and retries the message on the next
   turn). While an MCP server waits for admin approval the message shows a waiting reaction, then an
   approved or denied one ([details](mcp-approval.md#suspend-and-resume)).
-- **Commands**, at the start of a message: `/new` opens a new topic without the old context;
-  `/resume` and `/transcript` switch how the thread's context is rebuilt
-  ([policies](workflows.md#context-policies)).
+- **Commands** (Telegram only; Slack does not support them), at the start of a message: `/new` opens
+  a new topic without the old context; `/resume` and `/transcript` switch how the thread's context
+  is rebuilt ([policies](workflows.md#context-policies)).
 - **Approvers:** to help the admin decide MCP requests, DM the bot `/approver request` (Telegram) or
   `approver request` (Slack); `/approver leave` (`approver leave`) removes you again
   ([details](#approvers)).
@@ -247,10 +247,10 @@ reinstall, so the bot token should stay valid (unverified here; if Slack issues 
 it with `centaur bot add`). To see which scopes the installed token has, call `auth.test` with the
 bot token and read the `x-oauth-scopes` response header (every Web API response carries it).
 
-Slack decisions are reactions only; there is no `/approve` text fallback on Slack. Slack intercepts
-only a message that starts with `/`, so on Slack `/new`, `/resume` and `/transcript` (see
-[Day-to-day use](#day-to-day-use)) are sent with a leading mention, as `@bot /resume`; the command
-parser accepts a leading `<@U...>` or `@name` (inferred from code, not yet confirmed live).
+Slack decisions are reactions only; there is no `/approve` text fallback on Slack. Slack rejects a
+message that starts with `/` as an unknown command, so the thread commands `/new`, `/resume` and
+`/transcript` (see [Day-to-day use](#day-to-day-use)) are not supported on Slack, with no text-form
+workaround. A Slack thread's context policy comes from the prompt's `context` in the config.
 
 ## Adding a platform to a bot
 
@@ -369,7 +369,6 @@ Telegram topic is recreated on the next run and starts without the old transcrip
       durations stayed under it; the cold start has the closest margin, see `TODO.md`).
 - [ ] Slack search (`slack_search`) and the Slack history rate limits on a real install (`TODO.md`,
       Chat search 4 and 6).
-- [ ] `/new`, `/resume` and `/transcript` on Slack, as `@bot /resume` (live re-check after deploy).
 - [ ] Bot-to-bot mentions in the reverse direction.
 
 Validated in the first live run: deploy, a Telegram bot with a Topics group, registration,

@@ -116,7 +116,7 @@ Lambda to post the reply. Details: [docs/plan.md](docs/plan.md).
 ## Limits
 
 - Telegram and Slack are validated live. Not yet verified on Slack: the opt-in search, the history
-  rate limits on a real install, and the `/new`, `/resume` and `/transcript` commands.
+  rate limits on a real install. The `/new`, `/resume` and `/transcript` commands are Telegram-only.
 - Every non-ignored turn is a model run, and `respond_to: all` runs one for every message from an
   approved sender. Set a budget.
 - One Lambda per deployment, shared by all bots and repos under the configured GitHub owner.

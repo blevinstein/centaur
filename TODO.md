@@ -86,49 +86,6 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
       `parameters-prod.json`, so later deploys keep it. Unblocks chat search and `list-threads`
       seeing more than the newest 100 messages of a Telegram chat.
 
-## 19. Agent skills
-
-Design and decisions: [docs/skills-rules.md](docs/skills-rules.md).
-
-- [x] **[HUMAN APPROVAL]** Accept the decisions in [docs/skills-rules.md](docs/skills-rules.md):
-      all nine accepted as recommended.
-- [x] Built-in skills `skills/centaur-{reactions,mcp-approval,thread-commands,pull-requests,chat-tools}`,
-      each statement checked against the code.
-- [x] `installSkills` (`src/workflows/skills.ts`), the `CENTAUR_SKILLS_DIR` env on the turn action,
-      consumer skill validation from the trusted checkout.
-- [x] `skills: { builtin, consumer }` config key, `Skill` in `--allowedTools`, comment turns pass
-      `--setting-sources user`.
-- [x] `description` strings on the `replySchema` fields, a "Skills" prompt section, the chat tools
-      detail moved out of `chat_tools.md`.
-- [x] **[HUMAN APPROVAL]** Deploy the Lambda that knows the `skills` key (`yarn deploy-prod`) before
-      any consumer's default branch sets `skills`; then check the `register` run. Consumers that do
-      not set the key need no change.
-      Done: deployed repeatedly since the skills commit (622aefe); deployed on every push to `main`
-      since 2026-11-26 (section 23, in [DONE.md](DONE.md)).
-- [x] Live check of the built-in skills on an `experiment/*` branch (2026-11-24): discovery,
-      invocation, the consumer-skill name (`centaur-consumer-<folder name>`) and the comment-turn
-      trust check (branch-committed skills are not visible) are done and recorded in
-      [docs/skills-rules.md](docs/skills-rules.md#live-check-results).
-- [x] **[HUMAN ACTION]** Live check, `Skill` in `--allowedTools` (2026-11-26): answered by the code
-      and the run. `prepare` adds `Skill` whenever any skill is installed (`skillRule`,
-      `src/workflows/prepare.ts`), and the live run's `claude_args` carried it and the skill
-      invoked; there is no variant without it to test.
-- [ ] **[HUMAN ACTION]** Live check, resume (2026-11-26): the skill invoked and returned its
-      passphrase in a `/resume` thread, but its body was not retained on the next turn (a sentence
-      from the body that no reply had shown was answered UNKNOWN), and the later turns passed no
-      `--resume`, got new session ids and saved no session object. Tracked as bug `centaur-g5j`.
-      Likely cause (inferred from code and the SDK source, pending live re-check): `<@bot> /resume`
-      never parsed as a command because Slack keeps the leading mention in the text, so no ack turn
-      ran and the thread policy stayed at the default; the "Context policy ... is now resume" text
-      was the agent's own, not the code's ("Context policy for this thread: resume."). Fixed in
-      `src/workflows/commands.ts` by accepting a leading mention; re-run the check after deploy,
-      starting the thread with `<@bot> /resume`, with the corrected step 3 in
-      [two-bot-test.md](docs/proposals/two-bot-test.md#live-checks-skills-resume).
-      Separately unexplained: the `last-processed` marker did not advance on later turns (bead
-      filed).
-      (The trusted `CLAUDE.md` question under `--setting-sources user` is answered: it does not
-      reach a comment turn on its own; see the harness instructions item in Needs triage.)
-
 ## 20. Sub-folder support
 
 Design: [docs/proposals/subfolder-support.md](docs/proposals/subfolder-support.md).
@@ -210,6 +167,13 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       the persona level, so the harness never saw a diff and the protected-path fallback is still
       covered only by unit tests on real git repos. Exercising it live needs a bot whose persona allows
       editing a protected path (for example on a scratch repository).
+- [ ] Optional manual check, skill-body retention across turns of a prompt with `context: resume`
+      (**[HUMAN ACTION]**; backlogged 2026-11-26): on Telegram (`/resume` works there), or via a
+      scheduled or test prompt whose config sets `context: resume`, check that a skill invoked on an
+      earlier turn keeps its body on the next turn (steps in
+      [two-bot-test.md](docs/proposals/two-bot-test.md#live-checks-skills-resume)). Separately
+      unexplained: the `last-processed` marker did not advance on later turns of the earlier run
+      (bead filed).
 - [ ] Branch protection for `main` and required reviewers on `production` (decided 2026-11-26 to
       backlog; manual). The `production` environment already limits deploys to `main`; requiring
       pull requests would also stop direct pushes to `main`.

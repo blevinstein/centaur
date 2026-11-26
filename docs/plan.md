@@ -215,7 +215,8 @@ Each thread has a context policy.
 
 - Defaults come from the config (`context.default`, and `context.scheduled` or the prompt's
   own `context` for scheduled runs).
-- In-chat overrides: `/new` (start a new thread), `/resume` and `/transcript` (switch the
+- In-chat overrides (Telegram only; Slack rejects a message starting with `/`, so a Slack thread's
+  policy comes from the prompt's `context`): `/new` (start a new thread), `/resume` and `/transcript` (switch the
   current thread's policy). Telegram slash commands aren't an SDK feature, so these are parsed
   from message text. Each turn takes the latest `/resume` or `/transcript` in the thread, else the
   thread's stored policy, else the default (see [workflows.md](workflows.md#context-policies)).

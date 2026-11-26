@@ -178,10 +178,9 @@ Report per case: reply count per bot, replying identity, run ids by bot, any ski
 ## Live checks (skills resume)
 
 Two points from [skills-rules.md](../skills-rules.md#live-check-results): whether an invoked
-skill's body survives a `resume` thread (open: the 2026-11-26 run found it was not retained, and
-that the later turns passed no `--resume`, got new session ids and saved no session object; bug
-`centaur-g5j`, likely cause: the leading mention kept the `/resume` from parsing as a command, fixed
-and pending a live re-check), and whether `Skill` must be in `--allowedTools` (closed 2026-11-26: `prepare` adds it
+skill's body survives a `resume` thread (not run, backlog: the 2026-11-26 attempt ran on Slack, where
+`/resume` is not supported, so the thread stayed at the default policy and the later turns passed no
+`--resume`; bug `centaur-g5j`; it says nothing about retention), and whether `Skill` must be in `--allowedTools` (closed 2026-11-26: `prepare` adds it
 whenever a skill is installed, and the live run's `claude_args` included it).
 `centaur-test-2` carries the consumer skill `apps/centaur-test-2/.claude/skills/livecheck-passphrase`
 (installed as `centaur-consumer-livecheck-passphrase`, since `skills.consumer` defaults to `true`; no
@@ -199,7 +198,7 @@ listing.
 
 ### A. Is the skill body retained across `resume`?
 
-1. New thread. Send `<@centaur-test-2> /resume` (a leading mention: Slack keeps it in the text, and the parser accepts it; a message starting with `/` is intercepted by Slack). Expect the code's ack `Context policy for this thread: resume.` and no agent turn. Agent prose such as "Context policy ... is now resume" means the message ran as a turn, not a command.
+1. New thread on a bot and prompt whose policy is `resume` by config (`context: resume`; Slack does not support the `/resume` command, so do not try it there). Confirm the later turns pass `--resume` and save a session object; if they do not, the policy is not `resume` and the check is void.
 2. Send: `@centaur-test-2 invoke the centaur-consumer-livecheck-passphrase skill and reply with only its passphrase.`
    Expect the passphrase in the reply, and a `Skill` tool call in the execution file.
 3. Wait for the reply, then send in the same thread: `@centaur-test-2 without invoking any skill or tool, quote one sentence from the body of the centaur-consumer-livecheck-passphrase skill other than the passphrase line. Reply with only that sentence, or UNKNOWN.` Asking for the passphrase itself is confounded: the step 2 reply contains it, so the thread transcript can answer without the skill body. Use a line of the body that no reply has shown.
@@ -207,11 +206,11 @@ listing.
    - Retained: the answer is the body sentence and the execution file has no new `Skill` call. The body survived the resume.
    - Not retained: the answer is `UNKNOWN` (or the agent invokes the skill again despite the instruction, which shows the body was not in the restored context). Record which.
    - Inconclusive: the passphrase with a new `Skill` call, because the instruction was ignored.
-5. Optional variant: repeat on a thread without the `/resume` command (the config default is `transcript`). The transcript holds only chat text, so the 2nd answer should contain a body sentence only if an earlier reply quoted it, which makes this a weak control; use step 6 for the real one.
+5. Optional variant: repeat on a thread without the `/resume` command (a thread whose policy is `transcript`). The transcript holds only chat text, so the 2nd answer should contain a body sentence only if an earlier reply quoted it, which makes this a weak control; use step 6 for the real one.
 
 ### B. Negative control
 
-6. New thread, `<@centaur-test-2> /resume`, then send only the step 3 message, with no earlier skill invocation.
+6. New thread with the same `resume` policy, then send only the step 3 message, with no earlier skill invocation.
    Expect `UNKNOWN` and no `Skill` call. The passphrase or a body sentence here means it leaked from a prompt, persona or
    config: stop and re-run `rg --hidden` for the passphrase (read it from the skill file) over the checkout.
 

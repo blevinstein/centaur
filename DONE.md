@@ -283,11 +283,11 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
 - [x] App manifest template with the required scopes and event URL
       ([docs/slack-app-manifest.yml](docs/slack-app-manifest.yml), steps in `docs/onboarding.md`).
 - [x] **[HUMAN APPROVAL]** One Slack app per repo.
-- [x] ~~Slack `/new`, `/resume` and `/transcript`.~~ Abandoned 2026-11-26: Slack stays without
-      these commands (a slash command never lands in channel history and can't target an existing
-      thread). The text form works on Slack as `@bot /resume`: Slack intercepts only messages that
-      start with `/`, and the command parser accepts a leading mention (inferred from code, pending
-      a live re-check after deploy).
+- [x] ~~Slack `/new`, `/resume` and `/transcript`.~~ Abandoned 2026-11-26, final: Slack does not
+      support thread commands. Slack rejects a message that starts with `/` as an unknown command, a
+      slash command never lands in channel history and can't target an existing thread, and no
+      text-form workaround is wanted. Slack threads set the context policy with the prompt's
+      `context` (`resume`, `transcript` or `fresh`) in the config. The commands stay on Telegram.
 - [x] **[HUMAN ACTION]** Onboard one personal-project repo on Slack: create the app from the
       manifest once it exists, install it, store its secrets, invite the bot. Done: a
       personal-project repo runs on its own app and channel. Top-level messages get a reply with
@@ -503,6 +503,40 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       bound thread; a record bound to a topic with a `new` prompt posts a fresh thread; `persistent`
       on a record with no thread creates and binds one; `thread` applies to every fan-out target;
       `persistent` rejected by the schema until slice 16).
+
+## 19. Agent skills
+
+Design and decisions: [docs/skills-rules.md](docs/skills-rules.md).
+
+- [x] **[HUMAN APPROVAL]** Accept the decisions in [docs/skills-rules.md](docs/skills-rules.md):
+      all nine accepted as recommended.
+- [x] Built-in skills `skills/centaur-{reactions,mcp-approval,thread-commands,pull-requests,chat-tools}`,
+      each statement checked against the code.
+- [x] `installSkills` (`src/workflows/skills.ts`), the `CENTAUR_SKILLS_DIR` env on the turn action,
+      consumer skill validation from the trusted checkout.
+- [x] `skills: { builtin, consumer }` config key, `Skill` in `--allowedTools`, comment turns pass
+      `--setting-sources user`.
+- [x] `description` strings on the `replySchema` fields, a "Skills" prompt section, the chat tools
+      detail moved out of `chat_tools.md`.
+- [x] **[HUMAN APPROVAL]** Deploy the Lambda that knows the `skills` key (`yarn deploy-prod`) before
+      any consumer's default branch sets `skills`; then check the `register` run. Consumers that do
+      not set the key need no change.
+      Done: deployed repeatedly since the skills commit (622aefe); deployed on every push to `main`
+      since 2026-11-26 (section 23, in [DONE.md](DONE.md)).
+- [x] Live check of the built-in skills on an `experiment/*` branch (2026-11-24): discovery,
+      invocation, the consumer-skill name (`centaur-consumer-<folder name>`) and the comment-turn
+      trust check (branch-committed skills are not visible) are done and recorded in
+      [docs/skills-rules.md](docs/skills-rules.md#live-check-results).
+- [x] **[HUMAN ACTION]** Live check, `Skill` in `--allowedTools` (2026-11-26): answered by the code
+      and the run. `prepare` adds `Skill` whenever any skill is installed (`skillRule`,
+      `src/workflows/prepare.ts`), and the live run's `claude_args` carried it and the skill
+      invoked; there is no variant without it to test.
+- [x] **[HUMAN ACTION]** Live check, resume (2026-11-26): moved to Backlog as an optional check.
+      The failed run was a Slack thread where `/resume` never took effect (Slack rejects a message
+      that starts with `/`, and Slack thread commands are not supported), so the thread ran at the
+      default policy and passed no `--resume`; it says nothing about skill-body retention.
+      (The trusted `CLAUDE.md` question under `--setting-sources user` is answered: it does not
+      reach a comment turn on its own; see the harness instructions item in Needs triage.)
 
 ## 21. Poster caller check
 

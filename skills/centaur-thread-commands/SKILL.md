@@ -5,7 +5,8 @@ description: How the chat commands /new, /resume and /transcript and the thread'
 
 # Thread commands and context policy
 
-A message that starts with `/new`, `/resume` or `/transcript` (also `/cmd@bot`, any case, and after a leading mention of the bot) is a
+On Telegram (Slack does not support these commands; its threads use the prompt's `context`), a
+message that starts with `/new`, `/resume` or `/transcript` (also `/cmd@bot`, any case) is a
 command for the harness. The command word is removed from the new messages you see; any text after
 it is an ordinary message.
 
@@ -24,7 +25,7 @@ it is an ordinary message.
 | `transcript` | shown before the new messages, up to `context.transcript_max_chars` | none |
 | `resume` | not shown when your previous session is restored; shown like `transcript` when it is not | restored and saved after the turn |
 
-The policy is the latest `/resume` or `/transcript` a person used in the thread, else the one stored
+The policy is the latest `/resume` or `/transcript` a person used in the thread (Telegram), else the one stored
 on the thread, else the config's `context.default`.
 
 When the budget leaves messages out, the transcript says how many and whether they can be fetched;

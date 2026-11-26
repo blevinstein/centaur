@@ -164,7 +164,8 @@ Names (`bot`, `destination` entries, prompt names) are lowercase
 names matching `[a-z0-9][a-z0-9_-]*`, the same pattern the CLI enforces; real IDs never appear in the repo. Paths must be relative
 and stay inside the repo (no leading `/`, no `..`). Unknown keys are errors.
 
-`/new` starts its thread in the chat the command came from (a DM stays in that DM), so it needs no
+The thread commands `/new`, `/resume` and `/transcript` are Telegram-only (Slack does not support
+them); a Slack thread's policy comes from `context`. `/new` starts its thread in the chat the command came from (a DM stays in that DM), so it needs no
 configured destination. Replies go to the originating thread.
 
 ## Responding to all messages

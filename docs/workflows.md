@@ -882,7 +882,9 @@ cannot crowd out the persona, the repo and the agent's own work. The poster's `r
 
 ### Commands
 
-Parsed from the start of a message (`/cmd` or `/cmd@bot`, case-insensitive); any text after the
+Telegram only: Slack rejects a message that starts with `/`, so Slack threads take their policy from
+the prompt's `context`. Parsed from the start of a message (`/cmd` or `/cmd@bot`, case-insensitive;
+a leading bot mention is also accepted, which no current platform relies on); any text after the
 command is a normal message.
 
 - `/new [text]`: acknowledges in the current thread, then starts a new thread in the same chat
