@@ -224,7 +224,8 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       `docs/research.md`).
 - [x] Bump `@blevinstein/chat-state-dynamodb` to 0.4.0 (adapter rejects calls before `connect()`);
       `connectState` already connects every adapter the Lambda creates.
-- [ ] Run a security audit to explore weaknesses and fix vulnerabillities
+- [x] Run a security audit to explore weaknesses and fix vulnerabilities. Done 2026-11-26; the open findings are the triage list in
+      [docs/HEALTH_REPORT.md](docs/HEALTH_REPORT.md).
 - [ ] Hosted option (BYOKs, central AWS infra instead of self-hosted). Proposal:
       [docs/proposals/hosted.md](docs/proposals/hosted.md). Deferred 2026-11-25; no deeper plans for
       now. The poster caller check (its slice 1) is implemented (section 21 in [DONE.md](DONE.md)); self-hosted still

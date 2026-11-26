@@ -1,6 +1,6 @@
 # Repository Health Report
 
-_Last inspected: 2026-11-26 at `5b61006`. See the inspection log for history._
+_Last inspected: 2026-11-26 at `33f395c`. See the inspection log for history._
 
 This repository is public. Security findings that are still open are summarized here, and their
 exploit detail is kept in a gitignored private addendum (`docs/HEALTH_REPORT.private.md`), which is
@@ -9,21 +9,27 @@ held by the maintainer only.
 ## Summary
 
 The core design is sound. Webhook signatures, chat-side authorization, approval claims, OIDC
-verification and the comment-turn gate are all carefully built and well tested.
+verification and the comment-turn gate are all carefully built and well tested. Since the first
+run, most of the first run's medium findings were fixed or closed, and the per-call MCP gate and
+continuous deployment were reviewed.
 
-The main risks fall into three groups:
+The main risks now fall into three groups:
 
-- **Trust between repositories and bots in AWS.** Tokenless poster calls are still accepted, and
-  shared storage is not isolated per repository.
-- **Ways a consumer config or a prompt-injected agent can step around the operator's controls.**
-  This affects argument building, the MCP "pinned" check, the direct-mode protected paths, and git
-  hooks during finish.
-- **Reliability.** A message that fails after the webhook is acknowledged is silently lost.
-- **Privacy.** Private identifiers committed in this public repository (DOCS-001 and DOCS-002)
-  were replaced with placeholders on 2026-11-26. They remain in git history.
+- **The agent and the trusted steps share one runner.** An agent with `Bash` can write the files
+  and environment that the later trusted steps (the MCP audit, the push and finish steps) and the
+  tool gate read: `GITHUB_ENV`, the turn state directory, the built CLI (SEC-006, SEC-016 (accepted),
+  SEC-019). The full fix is the job split already tracked as `centaur-9af.7`.
+- **Operator controls that a consumer config can still step around.** The MCP "pinned" check and
+  the policy ignore a server's `env` (SEC-017). Shared session storage is still not isolated per
+  repository (SEC-002).
+- **Continuous deployment.** The deploy job installs dependencies, with install scripts on, while
+  the OIDC token for the deploy role is available (SEC-018). Merging to `main` is still equivalent
+  to administering the stack (CI-002, documented in `docs/deploy.md`).
 
-Between `05cbef6` and `5b61006`, CI and gated continuous deployment were added, a `main` ruleset was
-created, and the direct-mode trial bot was switched back to pull requests.
+Closed since the first run: the tokenless poster calls (live setting `RequirePosterToken=true`),
+the argument-building and direct-mode path findings, the lost-message and timeout findings, three
+of the architecture findings and three of the testing findings, and four documentation findings.
+Privacy findings DOCS-001 to DOCS-003 remain fixed; the identifiers remain in git history.
 
 Maintainability is otherwise good. It is held back by contracts that are defined twice, once on the
 Lambda side and once on the runner side. Many of the "update N places" rules in `AGENTS.md` come
@@ -31,72 +37,44 @@ from that.
 
 | Area | Status | Open findings | Last inspected |
 | --- | --- | --- | --- |
-| Security | needs attention | 2 high, 5 medium, 6 low, 1 info | 2026-11-26 |
-| Reliability | needs attention | 1 high, 6 medium, 6 low, 1 info | 2026-11-26 |
-| Architecture | minor issues | 7 medium, 1 low | 2026-11-26 |
+| Security | needs attention | 1 high, 5 medium, 7 low, 1 info | 2026-11-26 |
+| Reliability | minor issues | 1 medium, 11 low, 1 info | 2026-11-26 |
+| Architecture | minor issues | 5 medium, 1 low | 2026-11-26 |
 | Code quality | minor issues | 9 low, 1 info | 2026-11-26 |
-| Testing | minor issues | 4 medium, 6 low, 1 info | 2026-11-26 |
-| Build & CI | minor issues | 1 medium, 6 low, 1 info | 2026-11-26 |
+| Testing | minor issues | 1 medium, 6 low, 1 info | 2026-11-26 |
+| Build & CI | minor issues | 1 medium, 7 low, 1 info | 2026-11-26 |
 | Dependencies | healthy | 3 info | 2026-11-26 |
-| Docs & DX | minor issues | 4 medium, 7 low | 2026-11-26 |
+| Docs & DX | minor issues | 1 medium, 6 low | 2026-11-26 |
 
 ## Triage
 
-Open findings ordered by priority (severity, then confidence, then effort).
+Open findings ordered by priority (severity, then confidence, then effort). Lower-severity
+findings are grouped at the end. Fixed and wontfix findings are listed in each area below, not here.
 
 | ID | Severity | Title | Effort | Status | Next step |
 | --- | --- | --- | --- | --- | --- |
-| SEC-001 | high | Poster accepts tokenless calls | S | open | decide |
-| SEC-002 | high | Shared session storage not isolated per repository | M | open | fix |
-| REL-001 | high | A message that fails after dedup is lost silently | S | open | fix |
-| DOCS-005 | medium | `CLAUDE.md` is unfilled template | S | open | fix |
-| DOCS-006 | medium | Reactions skill shows the wrong Slack denial emoji | S | open | fix |
-| DOCS-007 | medium | README and onboarding still say Slack is unverified | S | open | fix |
-| DOCS-004 | medium | `TODO.md` and Beads both claim to be the tracker | M | open | decide |
-| SEC-003 | medium | A config value reaches the agent's arguments unescaped | S | open | fix |
-| SEC-004 | medium | MCP "pinned" check can be defeated | S | open | fix |
-| SEC-005 | medium | Direct-mode protected paths are incomplete | S | open | fix |
-| SEC-006 | medium | Post-agent git steps trust agent-writable state | S | open | fix |
-| SEC-007 | medium | Inspection role is broader than read-only inspection needs | S | open | fix |
-| REL-002 | medium | No timeout on outbound `fetch` | S | open | fix |
-| REL-003 | medium | Rotated GitHub token not picked up by warm containers | S | open | fix |
-| REL-004 | medium | A `prepare` failure gives the user no notice | S | open | fix |
-| REL-006 | medium | `finish` can post the reply and then fail | S | open | fix |
-| REL-007 | medium | An aborted access request blocks its subject for 7 days | S | open | fix |
-| REL-005 | medium | `if: failure()` likely skips job timeouts | S | open | investigate |
+| SEC-002 | high | Shared session storage not isolated per repository | M | open (documented) | fix |
+| SEC-017 | medium | MCP `pinned` check and policy ignore a server's `env` | S | open | fix |
+| SEC-018 | medium | Deploy job runs install scripts while the deploy role's OIDC token is available | S | open | fix |
 | CI-002 | medium | `main` ruleset has no required status check | S | in-progress | decide |
+| REL-006 | medium | `finish` writes the processed marker after posting the reply, unguarded | S | partly done | fix |
+| SEC-007 | medium | Inspection role is broader than read-only inspection needs | S | open (documented) | decide |
+| SEC-006 | medium | Post-agent git steps trust agent-writable state | S | open | fix |
+| SEC-019 | medium | Tool-gate policy, hook settings and entry script are agent-writable (suspicion) | S | open | investigate |
 | ARCH-007 | medium | Lambda `register` parses the full config schema | S | open | fix |
-| ARCH-001 | medium | Runner imports Lambda runtime modules for constants | S | open | fix |
-| TEST-007 | medium | Fake AWS never validates requests against the poster schema | S | open | fix |
-| TEST-003 | medium | `infra.test.ts` mixes mirrors with correspondence tests | S | open | fix |
+| DOCS-004 | medium | `TODO.md` and Beads both claim to be the tracker | M | open | decide |
+| TEST-002 | medium | `turn-action.test.ts` is almost all mirror tests | M | open | fix |
 | ARCH-002 | medium | Poster results are untyped on the runner | M | open | fix |
 | ARCH-003 | medium | Structured-output contract is defined in three places | M | open | fix |
 | ARCH-004 | medium | Two `ParameterStore` implementations | M | open | decide |
 | ARCH-005 | medium | Three hand-rolled GitHub REST clients | M | open | decide |
-| ARCH-006 | medium | `ChatMessage` shape is defined three times | S | open | fix |
-| TEST-002 | medium | `turn-action.test.ts` is almost all mirror tests | M | open | fix |
-| TEST-006 | medium | `src/workflows/cli.ts` has no test | M | open | fix |
-| SEC-008 | low | OIDC trust is broad | S | open | decide |
-| SEC-010 | low | Some runner errors print IDs to the Actions log | S | open | fix |
-| SEC-015 | low | Install scripts enabled; MCP token scoped to the whole job | S | open | fix |
-| SEC-009 | low | `register` binding is first-come | M | open | decide |
-| SEC-011 | low | MCP approval summary is unverified text | M | open | decide |
-| SEC-012 | low | Turn directory writes don't check for symlinks | S | open | investigate |
-| REL-008 | low | Poster's MCP resume dispatch skips the failure notice | M | open | fix |
-| REL-009 | low | A narrow race can leave a suspended turn never resumed | S | open | investigate |
-| REL-010 | low | Poster `read` pages a whole Slack thread | M | open | fix |
-| REL-011 | low | Non-atomic read-modify-write on two counters | S | open | fix |
-| REL-012 | low | Failure-notice slot is used up before the DM is sent | S | open | fix |
-| REL-013 | low | No alarms, reserved concurrency or point-in-time recovery | S | open | fix |
-| ARCH-008 | low | Lambda bundle exclusion is checked only by hand | S | open | fix |
-| CODE-002 | low | Thread branch names have two grammars | S | open | decide |
-| CODE-001 | low | `prepare.ts` `Turn` duplicates `TurnState` | S | open | fix |
-| CODE-003..009 | low | Ad hoc ID composition, duplicated literals and helpers, type holes | S | open | fix |
-| TEST-004, 005 | low | Smaller mirror tests | S | open | fix |
-| TEST-008 | low | Scripted chats hide real behavior; no real Slack fixture | M | open | fix |
-| TEST-009..011 | low | Docker for every run, local harnesses, order-dependent test | S | open | fix |
-| DOCS-008..014 | low | Doc gaps and stale references, `AGENTS.md` duplication | S | open | fix |
-| CI-004..010 | low | Local deploy unguarded, rollback zip expiry, no tags, no Dependabot, leftovers, unlinted YAML | S | open | fix |
+| SEC-008, 009, 011, 012, 015, 020 | low | OIDC trust breadth, first-come `register`, unverified approval summary, symlink writes, install scripts and MCP token scope, name-prefix IAM scoping | S-M | open | fix or decide |
+| SEC-010 | low | The top-level runner error handler still prints any error message | S | partly done | fix |
+| REL-008..013, REL-015..019 | low | Resume dispatch skips the failure notice, small races, unbounded reads and loops, no alarms | S-M | open | fix |
+| ARCH-008, CODE-001..009 | low | Bundle check by hand, duplicated shapes and literals, type holes | S | open | fix |
+| TEST-004, 005, 008..011 | low | Smaller mirror tests, scripted chats, Docker for every run, local harnesses | S-M | open | fix |
+| DOCS-008, 009, 011..014 | low | Doc gaps and stale references, `AGENTS.md` duplication | S | open | fix |
+| CI-004..006, 008..011 | low | Local deploy unguarded, rollback zip expiry, no tags, no Dependabot, leftovers, unlinted YAML, redeploy of older commits | S | open | fix |
 
 "Next step" is one of: fix, investigate, decide (needs a human call), monitor.
 
@@ -104,19 +82,26 @@ Open findings ordered by priority (severity, then confidence, then effort).
 
 ### Security
 
-**Status:** needs attention. Cross-repository and cross-bot trust in AWS has gaps. Several paths let a
-config or an injected agent step around operator controls.
+**Status:** needs attention. Shared session storage is not isolated per repository, and an agent
+that is allowed `Bash` can reach the files and environment that the trusted steps and the MCP tool
+gate depend on.
 
 **Coverage:**
 
 - **Lambda:** entry points, OIDC and caller check, registry and register, access requests,
   decisions, approvers, admin claims, message handler, MCP approvals, thread starter.
 - **Adapters:** webhook verification in the Telegram and Slack adapters.
-- **Infra:** `infra/centaur.yml` and `infra/mcp-policy.cedar`.
-- **GitHub:** all actions and workflows.
+- **Infra:** `infra/centaur.yml` (including `DeployRole` and `DeployPolicy`) and
+  `infra/mcp-policy.cedar`.
+- **GitHub:** all actions and workflows, including `deploy.yml` and `ci.yml`.
 - **Runner:** prepare, AWS, MCP config and policy check, skills, resolve, the push paths and
-  transplant.
-- **Config:** schema, MCP policy and fingerprint.
+  transplant; the per-call tool gate and audit (`tool-gate.ts`, `tool-audit.ts`); repository
+  instructions.
+- **Config:** schema, MCP policy and fingerprint, `checkToolCall`.
+- **Added 2026-11-26 (code merged since `5b61006`):** the Slack search token capture and
+  `search-chat` (`search-token.ts`, `search-chat.ts`, `slack-search.ts`), access requests for chat
+  and user together, `ownsMessage` and `bot_messages`, self-identity, the redelivery wrapper, and
+  the CLI-locate step in the composite actions.
 
 **Verified sound:**
 
@@ -127,24 +112,40 @@ config or an injected agent step around operator controls.
 - `isUserId` is checked before any approver path is built.
 - The admin claim uses a timing-safe compare and an attempt cap.
 - The comment-turn gate and the trusted checkout behave as `AGENTS.md` describes.
-- No `${{ }}` interpolation reaches `run:` scripts.
+- No `${{ }}` interpolation of attacker-controlled values reaches `run:` scripts. The only
+  interpolation is `github.action_path` in the CLI-locate step, which the workflow author chooses.
+- The per-call MCP gate is built to fail closed: a `PreToolUse` hook with `onFailure: block`, a
+  shell wrapper that maps every failure to exit 2, `--setting-sources user` so the workspace cannot
+  switch hooks off, and an audit step that re-checks the execution file
+  (`src/workflows/tool-gate.ts`, `tool-audit.ts`, `prepare.ts:92, 606-609`).
+- `search-chat` only returns messages from the thread's own approved chat and only from approved
+  senders (`src/lambda/chat-context.ts:243-253`, `search-chat.ts:104-111`); the stored Slack
+  `action_token` expires after 10 minutes.
+- Self-identity strings are reduced to a short single line without markup (`src/self-identity.ts`).
+- The deploy role cannot edit its own trust, policies or boundary, and the `production` environment
+  accepts only `main` (`infra/centaur.yml`, `DeployPolicy` denies; `scripts/setup-cd.sh`).
 
 Detail for every open finding in this area is in the private addendum.
 
 #### SEC-001: Poster accepts tokenless calls
 
 - **Severity / confidence / effort:** high / confirmed / S
-- **Status:** open (first seen 2026-11-26, last verified 2026-11-26)
-- **Evidence:** `src/lambda/caller-check.ts:32-35`. When `RequirePosterToken` is off (the default),
-  a call with no token passes with a warning.
-- **Impact:** a holder of the shared GitHub role can act as a bot it is not bound to.
-- **Recommendation:** set `RequirePosterToken=true` once the tokenless warnings stop.
+- **Status:** fixed 2026-11-26 in the maintainer's deployment (first seen 2026-11-26, last verified
+  2026-11-26): `RequirePosterToken=true` is live, after 3 days with no tokenless calls.
+- **Evidence:** `src/lambda/caller-check.ts:26-30` rejects a call with no token when `required` is
+  set; `infra/centaur.yml:44, 492` wires the parameter to `REQUIRE_POSTER_TOKEN`.
+- **Impact:** the template default is still `false`, so an installation that has not set the
+  parameter still accepts tokenless calls. That is documented (`docs/deploy.md:28`,
+  `docs/poster.md:305-317`).
+- **Recommendation:** none for this deployment. Consider defaulting the template to `true` before
+  anyone else installs it.
 - **Tracking:** `centaur-8qj`
 
 #### SEC-002: Shared session storage not isolated per repository
 
 - **Severity / confidence / effort:** high / confirmed (code and IAM; not exploited) / M
-- **Status:** open (first seen 2026-11-26, last verified 2026-11-26)
+- **Status:** open (first seen 2026-11-26, last verified 2026-11-26): the risk is now documented in
+  `docs/poster.md` ("Session and attachment storage", `ed5bb4d`) but not fixed.
 - **Evidence:** `src/workflows/aws.ts:183` (key layout), and the `session-objects` policy on the
   GitHub role in `infra/centaur.yml`.
 - **Impact:** one consumer repository can affect another bot's saved state.
@@ -154,44 +155,51 @@ Detail for every open finding in this area is in the private addendum.
 #### SEC-003: A config value reaches the agent's arguments unescaped
 
 - **Severity / confidence / effort:** medium / likely / S
-- **Status:** open (first seen 2026-11-26, last verified 2026-11-26)
-- **Evidence:** `src/workflows/prepare.ts:588`
-- **Impact:** a consumer config could weaken operator-enforced limits.
-- **Recommendation:** quote the value the same way the neighboring arguments are quoted, and
-  restrict the value in the schema.
+- **Status:** fixed (first seen 2026-11-26; fixed in `8172a42`, verified 2026-11-26)
+- **Evidence:** `src/workflows/prepare.ts:604-617` passes `--model`, `--effort`, `--max-turns` and
+  `--max-budget-usd` through `shellArg`; `src/config/schema.ts:192-194` restricts `model` to a model
+  id. Tool lists use `doubleQuote`, which falls back to single quotes (`src/workflows/shell-arg.ts`).
 
 #### SEC-004: MCP "pinned" check can be defeated
 
 - **Severity / confidence / effort:** medium / confirmed / S
-- **Status:** open (first seen 2026-11-26, last verified 2026-11-26)
-- **Evidence:** the launcher flag tables in `src/config/mcp-policy.ts`
-- **Impact:** the global policy's guarantee that stdio servers run fixed code can be bypassed.
-- **Recommendation:** tighten `isPinned`, which fails closed, and add test cases.
+- **Status:** fixed for the launcher arguments (first seen 2026-11-26; fixed in `8172a42`,
+  verified 2026-11-26). The server's `env` is still not checked: see SEC-017.
+- **Evidence:** `src/config/mcp-policy.ts:14-142`: the launcher flag tables are allow-lists, any
+  unknown flag, a missing value or a mutable git ref makes `isPinned` false, and `--with` extras and
+  the launched command are checked too.
 
 #### SEC-005: Direct-mode protected paths are incomplete
 
 - **Severity / confidence / effort:** medium / confirmed / S
-- **Status:** open (first seen 2026-11-26, last verified 2026-11-26)
-- **Evidence:** `src/workflows/push-direct.ts:18-25`
-- **Impact:** in direct mode, an injected agent could make lasting changes that affect later turns.
-  No bot in this repo uses direct mode since `7b7d222`.
-- **Recommendation:** extend `isProtectedPath`. See the addendum for the list.
+- **Status:** fixed (first seen 2026-11-26; fixed in `8172a42`, verified 2026-11-26)
+- **Evidence:** `src/workflows/push-direct.ts:18-37` now protects, at any depth and ignoring case,
+  `.centaur*`, `.claude*`, `.codex`, `.gemini`, `.cursor`, `.mcp.json`, `.gitmodules`, `AGENTS.md`,
+  `CLAUDE.md`, all of `.github/` and CODEOWNERS. No bot in this repo uses direct mode since
+  `7b7d222`.
 
 #### SEC-006: Post-agent git steps trust agent-writable state
 
 - **Severity / confidence / effort:** medium / likely / S
 - **Status:** open (first seen 2026-11-26, last verified 2026-11-26)
-- **Evidence:** `src/workflows/push.ts` and `src/workflows/transplant.ts`
+- **Evidence:** `src/workflows/push.ts:14-67` and `src/workflows/transplant.ts:48-101` run plain
+  `git` in the workspace with no hardening flags; nothing under `src/workflows` sets `core.hooksPath`
+  or disables repository config.
 - **Impact:** code the agent plants could run in the trusted finish steps.
 - **Recommendation:** harden the git invocations now; the full fix is the job split.
-- **Tracking:** overlaps `centaur-9af.7`
+- **Tracking:** overlaps `centaur-9af.7`; see also SEC-016 and SEC-019, which have the same root
+  cause.
 
 #### SEC-007: Inspection role is broader than read-only inspection needs
 
 - **Severity / confidence / effort:** medium / confirmed / S
-- **Status:** open (first seen 2026-11-26, last verified 2026-11-26)
-- **Evidence:** the inspection role in `infra/centaur.yml`
-- **Recommendation:** deny the secret leaf parameters, and require an explicit principal.
+- **Status:** open (first seen 2026-11-26, last verified 2026-11-26): documented, not changed
+  (`ed5bb4d`). An explicit deny would break `centaur chat tail`, and a required principal would
+  break the next deploy until the parameters secret is edited.
+- **Evidence:** the inspection role in `infra/centaur.yml`. It can also `Scan` the state table,
+  which now holds short-lived Slack search tokens (`search-token:*`).
+- **Recommendation:** decide whether to split `chat tail` onto its own role, then deny the secret
+  leaf parameters on the inspection role and require an explicit principal.
 
 #### SEC-008: OIDC trust is broad
 
@@ -213,9 +221,11 @@ Detail for every open finding in this area is in the private addendum.
 #### SEC-010: Some runner errors print IDs to the Actions log
 
 - **Severity / confidence / effort:** low / likely / S
-- **Status:** open (first seen 2026-11-26)
-- **Evidence:** the S3 `exec` calls in `src/workflows/aws.ts`, and `src/workflows/cli.ts:349`
-- **Recommendation:** wrap these errors the way `PosterClient.call` wraps its own.
+- **Status:** partly done (first seen 2026-11-26; `6b71cc2`, verified 2026-11-26)
+- **Evidence:** the S3 calls in `src/workflows/aws.ts:46-52, 175` now go through `runAws`, which masks
+  `s3://` URIs, and two warnings use `safeDetail`. The top-level handler `runCli` in
+  `src/workflows/program.ts:379-382` still prints any error's `message` as an `::error::` line.
+- **Recommendation:** print only `safeDetail(error)` there, or wrap the remaining sources.
 
 #### SEC-011: MCP approval summary is unverified text
 
@@ -249,23 +259,113 @@ Detail for every open finding in this area is in the private addendum.
 #### SEC-015: Install scripts enabled; MCP token scoped to the whole job
 
 - **Severity / confidence / effort:** low / confirmed / S
-- **Status:** open (first seen 2026-11-26, split from SEC-013)
+- **Status:** open (first seen 2026-11-26, split from SEC-013, last verified 2026-11-26)
 - **Evidence:**
   - `.yarnrc.yml`: dependency install scripts are not disabled.
-  - the job-level `GITHUB_MCP_TOKEN` in `centaur-turn.yml`
+  - the job-level `GITHUB_MCP_TOKEN` in `centaur-turn.yml:27`
 - **Impact:** a compromised dependency can run code at install time, and every step in the job can
   read the MCP token.
 - **Recommendation:**
   - set `enableScripts: false` in `.yarnrc.yml`;
-  - move `GITHUB_MCP_TOKEN` to step level.
+  - move `GITHUB_MCP_TOKEN` to step level;
+  - the deploy job is the sharper case: see SEC-018.
 
 #### SEC-014: Access-request rate limit is shared by all subjects
 
 - **Severity / confidence / effort:** info / confirmed / S
 - **Status:** open (first seen 2026-11-26)
-- **Evidence:** `src/lambda/access-request-store.ts:5-6, 75-83`. The limit is 10 per hour per bot.
+- **Evidence:** `src/lambda/access-request-store.ts:6, 76-85`. The limit is 10 per hour per bot, and an addressed message from an unknown user in an unknown chat now spends two of them (`src/lambda/message-handler.ts:109-117`).
 - **Impact:** a stranger can use up the limit, so legitimate requests get "limited".
 - **Recommendation:** add a cap per chat or per user.
+
+#### SEC-016: The agent can redirect later trusted steps through `GITHUB_ENV`
+
+- **Severity / confidence / effort:** medium / likely (read from code; not exploited, and not
+  confirmed that `claude-code-action` leaves `GITHUB_ENV` in the agent's environment) / S
+- **Status:** accepted risk 2026-11-26 (first seen 2026-11-26, in the CLI-locate step added in `fea8855`): the maintainer chose to leave it, because `Bash` is not in the bots' allowed tools, so it only matters if someone enables it. Revisit if `Bash` is enabled for a bot.
+- **Evidence:** the first step of `.github/actions/turn/action.yml:32-34` (and `notify-failure`,
+  `register`, `resolve-schedule`, `resolve-pr-comment`) writes `CENTAUR_CLI=<path>` to `$GITHUB_ENV`.
+  Every later step, from `Audit MCP tool calls` through `finish`, runs `node "$CENTAUR_CLI"`
+  (`turn/action.yml:46, 70, 79, 90, 101, 114, 147`). The agent step runs in between.
+- **Impact:** an injected agent that is allowed `Bash` can append `CENTAUR_CLI=/path/to/its/script` to
+  `$GITHUB_ENV`. The audit, the push steps and `finish` then run its script with their tokens and
+  the AWS credentials, and the audit that is meant to catch a bypassed tool gate is itself
+  replaced. `GITHUB_PATH` allows the same with `node`. The Write tool is limited to the workspace,
+  so this needs `Bash`.
+- **Recommendation:** compute the CLI path in each step from `github.action_path` through a
+  step-level `env:` value instead of `$GITHUB_ENV`. The job split (`centaur-9af.7`) is the full fix,
+  because `GITHUB_PATH` and the built `dist/` stay reachable on a shared runner.
+
+#### SEC-017: MCP `pinned` check and policy ignore a server's `env`
+
+- **Severity / confidence / effort:** medium / confirmed (code and docs; not exploited) / S
+- **Status:** open (first seen 2026-11-26)
+- **Evidence:** `src/config/mcp-policy.ts:145-166` (`describeServer`) builds the policy's `McpServer`
+  entity from `command`, `args` and the URL only, and `src/config/mcp-policy-schema.ts:3-12` has no
+  `env` or `headers` attribute. `src/config/schema.ts:88-90` lets a local server set any `env`
+  strings. `docs/mcp.md:242` mentions `.npmrc` and `uv.toml` as the residual gap but not `env`.
+- **Impact:** a consumer config can keep a launcher call pinned and still change what runs, for
+  example with `UV_INDEX_URL`, `UV_DEFAULT_INDEX`, `NPM_CONFIG_REGISTRY` or `PIP_INDEX_URL` to
+  redirect resolution, or `PATH` and `PYTHONPATH` to run other code. The global policy's
+  `pinned` guarantee then does not hold.
+- **Recommendation:** treat any `env` key that is not a plain value (or is on a short list of
+  resolution and loader variables) as `pinned: false`, and expose the key names in the policy
+  entity. Mention the workspace `.npmrc` and `uv.toml` in `docs/mcp.md` as the same class.
+- **Notes:** completes SEC-004.
+
+#### SEC-018: Deploy job runs install scripts while the deploy role's OIDC token is available
+
+- **Severity / confidence / effort:** medium / confirmed (reading the workflow; not exploited) / S
+- **Status:** open (first seen 2026-11-26)
+- **Evidence:** `.github/workflows/deploy.yml:23-42`. The `deploy` job has `id-token: write` for its
+  whole run. Its `install` step (`.github/actions/install/action.yml`, `yarn install --immutable`)
+  runs dependency install scripts (`.yarnrc.yml` does not set `enableScripts: false`, see SEC-015),
+  then `yarn deploy-prod` runs the build with the AWS credentials in the environment.
+- **Impact:** a compromised dependency can request an OIDC token for the `production` environment and
+  assume `DeployRole`, which can replace the Lambda code that holds every bot's secrets
+  (`docs/deploy.md`, "Residual risk"). This is the same trust as write access to `main`, but it
+  widens the set of parties who can use it to anyone who can land a malicious package version.
+- **Recommendation:** install with `--mode=skip-build` (or `enableScripts: false`) in the deploy job
+  and build only what `deploy-prod` needs; configure the AWS credentials after the build and
+  keep `id-token: write` off any step that runs third-party code. Dependabot for `npm` (CI-008)
+  would also reduce the exposure.
+
+#### SEC-019: Tool-gate policy, hook settings and entry script are agent-writable (suspicion)
+
+- **Severity / confidence / effort:** medium / speculative (not tested under `claude-code-action`) / S
+- **Status:** open (first seen 2026-11-26)
+- **Evidence:**
+  - `src/workflows/prepare.ts:728-730` writes `tool-policy.json` and the hook settings file under
+    `$RUNNER_TEMP/centaur-turn` (`src/workflows/turn-state.ts:18-23, 62-78`) with mode 0600, owned by
+    the same user as the agent.
+  - `tool-gate.ts:71-90` points `--settings` at that file; the hook runs
+    `dist/workflows/cli.js` (`tool-gate.ts:10`), which is inside the workspace for a pull request
+    comment turn (`.centaur-trusted/`, `.github/workflows/centaur-comment-turn.yml:66-80`).
+  - `tool-audit.ts:11-26` reads the same policy file back, so a changed file defeats the gate and
+    the audit together.
+- **Impact:** an agent allowed `Bash` could rewrite the policy or the hook script and call MCP
+  tools the operator forbade. Without `Bash`, the Write tool cannot reach the temp directory.
+- **Recommendation:** have the audit step re-fetch both policy layers (the poster and the default
+  branch) instead of reading the saved file, so a tampered file is detected; the job split is the
+  full fix. Confirm with a throwaway turn that a `Bash` agent can or cannot write to the state
+  directory.
+- **Notes:** same root cause as SEC-006 and SEC-016. The 0600 mode protects from other users only.
+
+#### SEC-020: Name-prefix IAM scoping and the legacy deploy subject (suspicion)
+
+- **Severity / confidence / effort:** low / speculative / S
+- **Status:** open (first seen 2026-11-26)
+- **Evidence:** `DeployPolicy` scopes IAM, S3 and policy resources to `${AWS::StackName}-*`
+  (`infra/centaur.yml:171-380`), which also matches another stack whose name starts with the same
+  prefix. `DeployRole` trust (`infra/centaur.yml:621-641`) also accepts the legacy subject
+  `repo:<owner>/centaur:environment:production` without ids.
+- **Impact:** with the default stack name `centaur`, a second stack named `centaur-<something>` in the
+  same account falls inside the deploy role's reach. The legacy subject form is what SEC-008 warns
+  about: it names owner and repository by text, which a renamed or transferred account can
+  reuse.
+- **Recommendation:** document the one-stack-per-account assumption, or end the prefix with a
+  stack-specific separator. Drop the legacy subject once the immutable form is verified (it was
+  proved by the first deploy).
 
 ### Reliability
 
@@ -290,82 +390,78 @@ nothing alerts the operator.
 #### REL-001: A message that fails after dedup is lost silently
 
 - **Severity / confidence / effort:** high / confirmed / S
-- **Status:** open (first seen 2026-11-26, last verified 2026-11-26)
-- **Evidence:**
-  - The Chat SDK writes the dedup key before the handler runs and only logs handler errors.
-  - `src/lambda/receiver.ts:74-82` always returns the adapter's 200.
-  - `src/lambda/message-handler.ts:134-139` adds 👀 and then dispatches.
-  - `src/lambda/github.ts:18-29` makes a single `fetch` with no retry.
-- **Impact:**
-  - A GitHub 5xx, an SSM throttle or a DynamoDB error loses the message.
-  - A platform retry can't recover it: the platform got a 200, and the retry hits the dedup key.
-  - Only dispatch errors reach the admin.
-- **Recommendation:** retry the dispatch with backoff. On final failure, reply "couldn't start,
-  please resend" and remove 👀.
+- **Status:** fixed (first seen 2026-11-26; fixed in `de3ddac`, verified 2026-11-26). The mechanism
+  differs from the first recommendation: the platform redelivers rather than the Lambda retrying.
+- **Evidence:** `src/lambda/redelivery.ts:42-62` wraps the handler. A failure releases the Chat SDK
+  dedupe key and throws `RedeliveryRequested`; `src/lambda/receiver.ts:77-101` drains the
+  `waitUntil` tasks, releases the adapter's own marker and answers 500. After `MAX_REDELIVERIES`
+  (2) the sender is told to resend and 👀 is removed (`redelivery.ts:49-81`).
+- **Notes:** residual risks are REL-018 (a repeated side effect) and REL-019 (time spent before the
+  acknowledgement).
 
 #### REL-002: No timeout on outbound `fetch`
 
 - **Severity / confidence / effort:** medium / confirmed / S
-- **Status:** open (first seen 2026-11-26)
-- **Evidence:** `src/lambda/github.ts:18` and `src/lambda/telegram.ts:25`, against `Timeout: 30` in
-  `infra/centaur.yml`.
-- **Impact:** a hung call uses up the Lambda's 30s, and `withFailureNotice` never runs.
-- **Recommendation:** pass `signal: AbortSignal.timeout(10_000)`.
+- **Status:** fixed for the two calls named (first seen 2026-11-26; fixed in `de3ddac`, verified
+  2026-11-26). The Slack search call has no timeout: see REL-016.
+- **Evidence:** `src/lambda/request-timeout.ts` is used at `src/lambda/github.ts:33` and
+  `src/lambda/telegram.ts:37` (10 seconds).
 
 #### REL-003: Rotated GitHub token not picked up by warm containers
 
 - **Severity / confidence / effort:** medium / confirmed / S
-- **Status:** open (first seen 2026-11-26)
-- **Evidence:** `src/lambda/handler.ts:59-61, 71, 102` memoize the dispatcher for the container's
-  life.
-- **Recommendation:** read the token through the cached parameter store, or re-read it on a 401.
+- **Status:** fixed (first seen 2026-11-26; fixed in `de3ddac`, verified 2026-11-26)
+- **Evidence:** `src/lambda/handler.ts:52-61` (`tokenDispatcher`) reads the token through the
+  30-second cached parameter store on every dispatch, in both the receiver and the poster.
 
 #### REL-004: A `prepare` failure gives the user no notice
 
 - **Severity / confidence / effort:** medium / confirmed / S
-- **Status:** open (first seen 2026-11-26)
-- **Evidence:**
-  - `src/workflows/finish.ts:506-510` returns early when there is no turn state.
-  - The state is written late in `prepare` (`prepare.ts:706`).
-- **Recommendation:** fall back to the dispatch `client_payload` for the bot and thread.
+- **Status:** fixed (first seen 2026-11-26; fixed in `ee4bf69`, verified 2026-11-26)
+- **Evidence:** `src/workflows/finish.ts:540-600` falls back to the dispatch `client_payload` when
+  there is no turn state, posts the notice, clears 👀, and for comment turns comments on the pull
+  request. Scheduled turns have no payload and still post nothing, by design.
 
 #### REL-005: `if: failure()` likely skips job timeouts
 
 - **Severity / confidence / effort:** medium / likely / S
-- **Status:** open (first seen 2026-11-26)
-- **Evidence:** `.github/workflows/centaur-turn.yml:20, 38`. The same pattern appears in the other
-  turn workflows and in the templates in `docs/workflows.md`.
-- **Recommendation:** use `if: failure() || cancelled()`. Confirm GitHub's behavior with a job that
-  sleeps past its timeout.
+- **Status:** fixed in code (first seen 2026-11-26; fixed in `ee4bf69`, verified 2026-11-26). Not
+  confirmed live: nothing here has run a turn past its timeout.
+- **Evidence:** `.github/workflows/centaur-turn.yml:41-53` and
+  `.github/workflows/centaur-comment-turn.yml:91-111` add a `notify-timeout` job with
+  `if: always() && needs.turn.result == 'cancelled'`; the in-job notice stays `failure()`.
+  `docs/workflows.md` templates match.
+- **Notes:** a manual cancellation of a run also satisfies `cancelled`, so it posts a "did not
+  finish" notice too. `.github/workflows/centaur-hello.yml:64` keeps only `failure()`.
 
 #### REL-006: `finish` can post the reply and then fail
 
 - **Severity / confidence / effort:** medium / confirmed / S
-- **Status:** open (first seen 2026-11-26)
-- **Evidence:** `src/workflows/finish.ts:451, 468, 471`. The reply is posted first, and the marker
-  write and session save that follow are unguarded.
-- **Impact:** the user gets the reply, then a "turn failed" notice, and the next turn answers the
-  same messages again.
-- **Recommendation:** write the marker before delivering, and make `saveSession` best effort.
+- **Status:** partly done (first seen 2026-11-26; `ee4bf69`, verified 2026-11-26)
+- **Evidence:** `src/workflows/finish.ts:493-510`. The session save is now best effort, and the
+  turn state records `replied`, so the failure notice says "I replied, but could not finish
+  recording that turn" (`finish.ts:561`). The marker write (`finish.ts:502`) still comes after the
+  reply and is unguarded.
+- **Impact:** if the marker write fails, the next turn answers the same messages again.
+- **Recommendation:** write the marker before delivering, or make that write best effort too.
 
 #### REL-007: An aborted access request blocks its subject for 7 days
 
 - **Severity / confidence / effort:** medium / confirmed / S
-- **Status:** open (first seen 2026-11-26)
-- **Evidence:**
-  - `src/lambda/access-request-store.ts:86-87, 98-99`
-  - `src/lambda/access-requests.ts:89-98`: nothing releases the slot when a step after `claimSlot`
-    throws.
-- **Recommendation:** when anything after `claimSlot` throws, call `releaseSubject` and rethrow.
+- **Status:** fixed (first seen 2026-11-26; fixed in `6b71cc2`, verified 2026-11-26)
+- **Evidence:** `src/lambda/access-requests.ts:93-151`: a `finally` removes the stored request and
+  releases the slot on any outcome but `raised`, and `access-request-store.ts:86-98` holds the first
+  claim for only 5 minutes until `linkSubject` extends it. A process crash between the link and the
+  DM still holds the slot, as the commit notes. See REL-017 for a narrow race in the stale-slot path.
 
 #### REL-008: Poster's MCP resume dispatch skips the failure notice
 
 - **Severity / confidence / effort:** low / confirmed / M
-- **Status:** open (first seen 2026-11-26)
+- **Status:** open (first seen 2026-11-26, last verified 2026-11-26)
 - **Evidence:**
-  - `src/lambda/handler.ts:90` uses the raw dispatcher, which goes against the `createBotChat` rule
-    in `AGENTS.md`.
-  - `src/lambda/mcp-approvals.ts:185-187` dispatches through it.
+  - `src/lambda/handler.ts:90` still passes the raw token dispatcher to the poster, which goes
+    against the `createBotChat` rule in `AGENTS.md`.
+  - `src/lambda/mcp-approvals.ts:153-158` dispatches through it (with the self-identity added).
 
 #### REL-009: A narrow race can leave a suspended turn never resumed
 
@@ -420,6 +516,70 @@ nothing alerts the operator.
 - **Evidence:** `src/lambda/poster.ts:175-179`
 - **Impact:** an extra platform API round trip on every poster call.
 
+#### REL-015: Two bots that accept each other's mentions can loop without a cap
+
+- **Severity / confidence / effort:** low / confirmed (documented, not exercised) / S
+- **Status:** open (first seen 2026-11-26)
+- **Evidence:** `src/lambda/ownership.ts:28` owns a bot-authored message that mentions the bot when
+  `bot_messages` is `mention`; `src/lambda/message-handler.ts:101-134` then only needs the other bot
+  to be an approved user. `docs/plan.md:257-261` says there is no hop or loop cap, and that
+  per-turn spend caps and the agent not re-mentioning the other bot are the only brakes. The
+  self-test bots on Slack are configured this way (`TODO.md`).
+- **Impact:** a prompt-injected or confused reply that mentions the other bot starts a loop that
+  costs a turn per message until someone stops it.
+- **Recommendation:** count bot-authored hops per thread in the state store and stop at a small
+  limit, or require a human message to reset the count.
+
+#### REL-016: The Slack search call has no timeout
+
+- **Severity / confidence / effort:** low / confirmed / S
+- **Status:** open (first seen 2026-11-26)
+- **Evidence:** `src/lambda/slack-search.ts:55-72` calls `fetch` without `signal`, unlike
+  `github.ts` and `telegram.ts` (REL-002).
+- **Impact:** a hung search uses up the poster's 30s and returns a generic Lambda timeout to the
+  agent instead of the `rate_limited` or `unavailable` results it understands.
+- **Recommendation:** pass `requestTimeout()` from `src/lambda/request-timeout.ts`.
+
+#### REL-017: The stale-slot release in access requests can race (suspicion)
+
+- **Severity / confidence / effort:** low / speculative / S
+- **Status:** open (first seen 2026-11-26)
+- **Evidence:** `src/lambda/access-requests.ts:87-92` releases a stale slot and claims it again;
+  `src/lambda/access-request-store.ts:120-123` deletes the slot key without checking what it holds.
+  Two concurrent messages that both find the same stale slot can each release and claim in turn.
+- **Impact:** the second release removes the first caller's fresh claim, so two requests (and two
+  DMs) can be raised for one subject.
+- **Recommendation:** make `releaseSubject` conditional on the slot still pointing at the stale
+  request id.
+
+#### REL-018: A redelivered message can dispatch twice (suspicion)
+
+- **Severity / confidence / effort:** low / speculative / S
+- **Status:** open (first seen 2026-11-26)
+- **Evidence:** `src/lambda/redelivery.ts:36-41` states that a handler that failed after a side
+  effect repeats it. The dispatch is the last step of `src/lambda/message-handler.ts:158`, but a
+  10-second timeout (`src/lambda/github.ts:33`) can abort a dispatch that GitHub already accepted.
+- **Impact:** the platform redelivers, and the message starts a second turn. The thread's
+  concurrency group serializes the two, and the processed marker normally makes the second a no-op,
+  but a second turn queued while the first is still running can answer the same message again.
+- **Recommendation:** treat a timeout on the dispatch as unknown and check the marker, or record a
+  per-message dispatch key before dispatching.
+
+#### REL-019: Time spent before the acknowledgement (suspicion)
+
+- **Severity / confidence / effort:** low / speculative / S
+- **Status:** open (first seen 2026-11-26)
+- **Evidence:** `src/lambda/receiver.ts:76-89` drains every `waitUntil` task before returning, so
+  the response waits for the whole handler: the attachment save, the search token write, the
+  identity lookup (`src/lambda/self-identity.ts:41-47, 64-83`, up to 2 seconds, and a failed lookup
+  is not cached) and the dispatch (up to 10 seconds).
+- **Impact:** Slack's acknowledgement budget is about 3 seconds. A slow step makes Slack redeliver;
+  the adapter's marker (`slack:event-delivered:*`) and the dedupe key drop the duplicate, so the
+  cost is repeated work rather than a lost or double message. This is the open question under
+  REL-001 about how often Slack acknowledgements are slow.
+- **Recommendation:** measure first. If acks are slow, read the identity from a cache on the
+  dispatch path only and start the dispatch before the optional steps.
+
 ### Architecture
 
 **Status:** minor issues. The Lambda bundle boundary holds: nothing in `src/lambda` imports the
@@ -433,29 +593,26 @@ runner or the MCP code. Contracts between the Lambda and the runner are defined 
 - **CLI and MCP:** parts of `src/cli` and `src/mcp`.
 - **Scans:** import graph, casts, duplicated literals.
 
-Most `AGENTS.md` "update N places" rules can be traced to ARCH-002, 003, 004, 006 and 007.
+Most `AGENTS.md` "update N places" rules can be traced to ARCH-002, 003, 004 and 007 (ARCH-006 is fixed).
 
 #### ARCH-001: Runner imports Lambda runtime modules for constants
 
 - **Severity / confidence / effort:** medium / confirmed / S-M
-- **Status:** open (first seen 2026-11-26)
-- **Evidence:**
-  - `src/workflows/reactions.ts:1`
-  - `src/workflows/prompt.ts:2`, `src/workflows/finish.ts:3`, `src/workflows/mcp-approval.ts:4`
-  - `src/workflows/aws.ts:8-23`
-  - `src/mcp/poster-chat-client.ts:1`
-  
-  These pull in `chat` and `@aws-sdk/client-ssm` at runner startup.
-- **Recommendation:** add a dependency-free poster contract module that both sides import.
+- **Status:** fixed (first seen 2026-11-26; fixed in `1bf6317`, verified 2026-11-26)
+- **Evidence:** `src/poster-contract.ts` (zod and config only) and `src/text.ts` are imported by
+  both sides. `src/workflows` and `src/mcp` import nothing at runtime from `src/lambda`; the one
+  remaining reference is the type-only `import type { PosterRequest }` at `src/workflows/aws.ts:8`.
+  `src/cli` still imports Lambda modules, by design.
 
 #### ARCH-002: Poster results are untyped on the runner
 
 - **Severity / confidence / effort:** medium / confirmed / M
-- **Status:** open (first seen 2026-11-26)
+- **Status:** open (first seen 2026-11-26, last verified 2026-11-26; the list-threads, read-channel,
+  search-chat and MCP-approval results now have schemas in `src/poster-contract.ts`)
 - **Evidence:**
-  - `src/workflows/aws.ts:47, 94, 133` (`call<T = unknown>`, then `z.custom` for the result);
-  - the `resolve-pull-request` result is redeclared in `prepare.ts:458`, `pr-target.ts:113` and
-    `resolve.ts:135`;
+  - `src/workflows/aws.ts:58, 85, 148` (`call<T = unknown>`, then `z.custom` for the result);
+  - the `resolve-pull-request` result is redeclared in `prepare.ts:475`, `pr-target.ts:114` and
+    `resolve.ts:137`;
   - `OPTIONAL_TOKEN_OPERATIONS` is a plain `ReadonlySet<string>`.
 - **Recommendation:** add a result schema per operation, keyed by operation name, and make `call`
   generic over the operation.
@@ -492,17 +649,16 @@ Most `AGENTS.md` "update N places" rules can be traced to ARCH-002, 003, 004, 00
 #### ARCH-006: `ChatMessage` shape is defined three times
 
 - **Severity / confidence / effort:** medium / confirmed / S
-- **Status:** open (first seen 2026-11-26)
-- **Evidence:**
-  - the type: `src/workflows/transcript.ts:4-12`;
-  - the schema: `src/lambda/chat-context.ts:55-64`;
-  - the mappers: `src/lambda/poster.ts:294-302` and `chat-context.ts:133-142`.
+- **Status:** fixed (first seen 2026-11-26; fixed in `1bf6317`, verified 2026-11-26)
+- **Evidence:** the shape is `chatMessageSchema` and `ChatMessage` in `src/poster-contract.ts:68-139`;
+  `src/workflows/transcript.ts:2` and `src/mcp/chat-server.ts:4` import the type. The two Lambda
+  mappers remain but build that one shape (`src/lambda/chat-context.ts:81-96`).
 
 #### ARCH-007: Lambda `register` parses the full config schema
 
 - **Severity / confidence / effort:** medium / confirmed / S
 - **Status:** open (first seen 2026-11-26)
-- **Evidence:** `src/lambda/register.ts:38` parses the full schema but uses only `bot` and
+- **Evidence:** `src/lambda/register.ts:39` parses the full schema but uses only `bot` and
   `platforms`.
 - **Impact:** forces the "deploy before pushing a new config key" rules in `AGENTS.md`.
 - **Recommendation:** parse a narrow passthrough schema in the Lambda, and leave full validation to
@@ -557,14 +713,14 @@ Most `AGENTS.md` "update N places" rules can be traced to ARCH-002, 003, 004, 00
 - **Severity / confidence / effort:** low / confirmed / S
 - **Status:** open (first seen 2026-11-26)
 - **Evidence:**
-  - encoded again in `src/lambda/access-requests.ts:208`;
+  - encoded again in `src/lambda/access-requests.ts:239`;
   - decoded in two different ways, in `src/workflows/mcp-approval.ts:74` and `connection-paths.ts`.
 
 #### CODE-005: Dispatch payload schema defined on each side
 
 - **Severity / confidence / effort:** low / confirmed / S
 - **Status:** open (first seen 2026-11-26)
-- **Evidence:** `src/lambda/message-handler.ts:26-31` and `src/workflows/prepare.ts:87-91`.
+- **Evidence:** `src/lambda/message-handler.ts:22-33` and `src/workflows/prepare.ts:95-103`.
 
 #### CODE-006: Config schema repeats nested defaults
 
@@ -599,7 +755,7 @@ Most `AGENTS.md` "update N places" rules can be traced to ARCH-002, 003, 004, 00
 - **Severity / confidence / effort:** low / confirmed / S
 - **Status:** open (first seen 2026-11-26)
 - **Evidence:**
-  - `src/workflows/turn-state.ts:57` (`JSON.parse(...) as TurnState`)
+  - `src/workflows/turn-state.ts:60, 72` (`JSON.parse(...) as TurnState` and `as ToolPolicyState`, the latter read by the tool gate)
   - `src/workflows/mcp-approval.ts:76`
   - `src/workflows/pull-request-comments.ts:242, 287`
   - `src/workflows/aws.ts:58`
@@ -619,7 +775,7 @@ Most `AGENTS.md` "update N places" rules can be traced to ARCH-002, 003, 004, 00
 
 **Status:** minor issues. Critical paths are well covered: OIDC with real JWTs, the comment gate,
 MCP policy fail-closed paths, access decisions, and the push paths on real git. DynamoDB tables are
-per test. But several tests mirror YAML, and the runner's glue file is untested.
+per test. But several tests still mirror YAML.
 
 **Coverage:**
 
@@ -638,7 +794,7 @@ The bodies of the largest suites were not read.
 #### TEST-002: `turn-action.test.ts` is almost all mirror tests
 
 - **Severity / confidence / effort:** medium / confirmed / M
-- **Status:** open (first seen 2026-11-26)
+- **Status:** open (first seen 2026-11-26, last verified 2026-11-26)
 - **Evidence:** `test/turn-action.test.ts:9-85` asserts step IDs, `if:` strings and env-key lists
   as literals.
 - **Recommendation:** replace with the correspondence test in TEST-006, then delete these. Also
@@ -647,14 +803,10 @@ The bodies of the largest suites were not read.
 #### TEST-003: `infra.test.ts` mixes mirrors with correspondence tests
 
 - **Severity / confidence / effort:** medium / confirmed / S
-- **Status:** open (first seen 2026-11-26)
-- **Evidence:**
-  - Mirrors: `test/infra.test.ts:41-47, 65-75, 83-119, 147-156`.
-  - Correspondence tests whose code side is typed by hand: `:49-63, 77-81, 121-125, 173-194`.
-  - Real correspondence tests: `:131-145, 160-188`.
-  - The `covers` lambda is duplicated three times.
-- **Recommendation:** delete the mirrors, and take the code side of the correspondence tests from
-  code.
+- **Status:** fixed (first seen 2026-11-26; fixed in `695b953`, verified 2026-11-26)
+- **Evidence:** `test/infra.test.ts` is now four short `describe` blocks (the Lambda role's
+  parameter permissions, the state table, the receiver's environment); the code side of each
+  comes from the code and `test/helpers/infra-fixtures.ts`.
 
 #### TEST-004: `self-consumer.test.ts` mirrors the test bots' configs
 
@@ -675,18 +827,17 @@ The bodies of the largest suites were not read.
 #### TEST-006: `src/workflows/cli.ts` has no test
 
 - **Severity / confidence / effort:** medium / confirmed / M
-- **Status:** open (first seen 2026-11-26)
-- **Evidence:** no test imports it. It holds the validation and output mapping for every composite
-  action.
-- **Recommendation:** have each command export the env names it reads, and assert that each
-  `action.yml` step provides them.
+- **Status:** fixed (first seen 2026-11-26; fixed in `695b953`, verified 2026-11-26)
+- **Evidence:** the program moved to `src/workflows/program.ts` with an exported `runCli`, and
+  `src/workflows/cli.ts` is two lines; `test/workflow-cli.test.ts` runs commands against fakes.
+- **Notes:** the correspondence check between each command's env names and each `action.yml` step
+  was not added; that part of the recommendation remains optional.
 
 #### TEST-007: Fake AWS never validates requests against the poster schema
 
 - **Severity / confidence / effort:** medium / likely / S
-- **Status:** open (first seen 2026-11-26)
-- **Evidence:** `test/helpers/workflow-fixtures.ts:58-62` casts `as PosterRequest`.
-- **Recommendation:** run `posterRequestSchema.parse` in `createFakeAws`.
+- **Status:** fixed (first seen 2026-11-26; fixed in `695b953`, verified 2026-11-26)
+- **Evidence:** `test/helpers/workflow-fixtures.ts:62` runs `posterRequestSchema.parse(request)`.
 
 #### TEST-008: Scripted chats hide real behavior; no real Slack fixture
 
@@ -738,7 +889,10 @@ a ruleset.
 - the manifests and lockfile;
 - the GitHub repository settings.
 
-The CD deploy role and `scripts/setup-cd.sh`, both added in `942d0d7`, were not audited.
+The CD deploy role and `scripts/setup-cd.sh`, both added in `942d0d7`, were reviewed on
+2026-11-26 (`deploy.yml`, `ci.yml`, `DeployRole`, `DeployPolicy`): see SEC-018, SEC-020 and CI-011.
+The live state of the `main` ruleset and the `production` environment was not re-checked in this
+run; the CI-002 evidence below is from the first run.
 
 #### CI-001: No CI ran `verify` or `lint:cfn`
 
@@ -759,6 +913,12 @@ The CD deploy role and `scripts/setup-cd.sh`, both added in `942d0d7`, were not 
   but consumer actions are not.
 - **Recommendation:** require the `CI / verify` status check. Turn off "Allow GitHub Actions to
   approve pull requests" unless something needs it.
+- **Notes:** continuous deployment raises the stakes. A commit that lands on `main` deploys
+  automatically, and the `production` environment has no required reviewers
+  (`scripts/setup-cd.sh` restricts only the branch), so a merge with 0 approvals and no required
+  check is production code execution (`docs/deploy.md`, "Threat model"). `ci.yml` no longer has a
+  `push` trigger (`2f839a6`), so the required check must be the pull request `verify` job, not
+  `verify / verify`.
 
 #### CI-003: Direct-mode test bot pushed to this repo's `main`
 
@@ -824,6 +984,18 @@ The CD deploy role and `scripts/setup-cd.sh`, both added in `942d0d7`, were not 
 - **Status:** open (first seen 2026-11-26)
 - **Evidence:** `biome.json` covers code and JSON only.
 - **Recommendation:** add `actionlint` and `shellcheck` to CI.
+
+#### CI-011: A manual deploy can redeploy any older commit on `main`
+
+- **Severity / confidence / effort:** low / confirmed / S
+- **Status:** open (first seen 2026-11-26)
+- **Evidence:** `.github/workflows/deploy.yml:5-9, 29-34`. `workflow_dispatch` takes a `ref` and the
+  only check is that it is an ancestor of `origin/main`.
+- **Impact:** someone who can dispatch the workflow on `main` can roll the stack back to an older
+  commit, for example one before a security fix, without any review. That is within the trust
+  already granted to write access (`docs/deploy.md`), but it is a quiet way to undo a fix.
+- **Recommendation:** accept only the tip of `main` (or require it for a push), or put required
+  reviewers on the `production` environment.
 
 ### Dependencies
 
@@ -921,9 +1093,9 @@ private identifiers have been fixed.
 #### DOCS-005: `CLAUDE.md` is unfilled template and doesn't point to `AGENTS.md`
 
 - **Severity / confidence / effort:** medium / confirmed / S
-- **Status:** open (first seen 2026-11-26)
-- **Evidence:** `CLAUDE.md:61-77` still holds placeholders such as "_Add your build and test commands
-  here_".
+- **Status:** fixed (first seen 2026-11-26; fixed in `1c89248`, verified 2026-11-26)
+- **Evidence:** `CLAUDE.md` now has a "Repository instructions" section that points to `AGENTS.md`,
+  gives the setup and `yarn verify` commands, and links `docs/plan.md` and `TODO.md`.
 - **Impact:** Claude Code loads `CLAUDE.md`, so it misses every rule in `AGENTS.md`.
 - **Recommendation:** replace the placeholders with `@AGENTS.md`, or symlink `CLAUDE.md` to
   `AGENTS.md`.
@@ -931,29 +1103,26 @@ private identifiers have been fixed.
 #### DOCS-006: The reactions skill shows the wrong emoji for a Slack denial
 
 - **Severity / confidence / effort:** medium / confirmed / S
-- **Status:** open (first seen 2026-11-26, last verified 2026-11-26)
-- **Evidence:**
-  - the code uses `no_entry_sign`, which is 🚫 (`src/lambda/approval-reactions.ts:24`);
-  - `skills/centaur-reactions/SKILL.md:3, 20` says ⛔.
-- **Recommendation:** change ⛔ to 🚫 in both places.
+- **Status:** fixed (first seen 2026-11-26; fixed in `1c89248`, verified 2026-11-26)
+- **Evidence:** `skills/centaur-reactions/SKILL.md:3, 20` now say 🚫, matching
+  `src/lambda/approval-reactions.ts:24` (`no_entry_sign`).
 
 #### DOCS-007: README and onboarding still say Slack is unverified
 
 - **Severity / confidence / effort:** medium / confirmed / S
-- **Status:** open (first seen 2026-11-26)
-- **Evidence:**
-  - `README.md:117` and `docs/onboarding.md:5, 360-362` say Slack is untested end to end.
-  - `TODO.md` §12 records a live Slack onboarding and a measured acknowledgement time.
-- **Recommendation:** update the Limits section and the "Still unverified" list.
+- **Status:** fixed (first seen 2026-11-26; fixed in `1c89248`, verified 2026-11-26)
+- **Evidence:** `docs/onboarding.md:5-6` now says Slack ran live on two bots, with the remaining
+  steps listed under "Still unverified" (`docs/onboarding.md:364`); `README.md:124` points to
+  that list.
 
 #### DOCS-008: `docs/workflows.md` omits three workflow CLI commands
 
 - **Severity / confidence / effort:** low / confirmed / S
-- **Status:** open (first seen 2026-11-26)
+- **Status:** open (first seen 2026-11-26, last verified 2026-11-26)
 - **Evidence:**
-  - `docs/workflows.md:394` doesn't list `plan-pr`, `push-existing` or `push-direct`, which are
-    defined in `src/workflows/cli.ts:208, 223, 247`.
-  - Line 388 has the typo "theactions".
+  - `docs/workflows.md:449` doesn't list `plan-pr`, `push-existing` or `push-direct`, which are
+    defined in `src/workflows/program.ts` (the commands moved there from `cli.ts`).
+  - Line 443 still has the typo "theactions".
 
 #### DOCS-009: `config check --root` is not documented
 
@@ -965,9 +1134,10 @@ private identifiers have been fixed.
 #### DOCS-010: `docs/config.md` miscounts the per-platform keys
 
 - **Severity / confidence / effort:** low / confirmed / S
-- **Status:** open (first seen 2026-11-26)
-- **Evidence:** `docs/config.md:94` says "two optional keys", but the schema has three
-  (`src/config/schema.ts:97-104`).
+- **Status:** fixed (first seen 2026-11-26; became moot when `84aeb5d` dropped the `handle` key,
+  verified 2026-11-26)
+- **Evidence:** `docs/config.md:98` says "two optional keys", and the schema has two
+  (`respond_to`, `bot_messages`, `src/config/schema.ts:99-102`).
 
 #### DOCS-011: `AGENTS.md` repeats rules and is hard to navigate
 
@@ -983,18 +1153,18 @@ private identifiers have been fixed.
 #### DOCS-012: The SSM layout table is incomplete
 
 - **Severity / confidence / effort:** low / confirmed / S
-- **Status:** open (first seen 2026-11-26)
-- **Evidence:** the table in `docs/plan.md#ssm-parameter-layout` lacks three keys: the approvers,
-  the MCP approvals, and `/centaur/state-table`.
+- **Status:** partly done (first seen 2026-11-26, last verified 2026-11-26)
+- **Evidence:** the table in `docs/plan.md#ssm-parameter-layout` now has the MCP approvals row
+  (`:427`) but still lacks the approvers and `/centaur/state-table`.
 
 #### DOCS-013: Finished design docs name files that don't exist
 
 - **Severity / confidence / effort:** low / confirmed / S
-- **Status:** open (first seen 2026-11-26)
+- **Status:** open (first seen 2026-11-26, last verified 2026-11-26)
 - **Evidence:**
-  - `docs/platforms-and-destinations.md:506-510, 582-588` (files such as `chat-aliases.ts` and
+  - `docs/platforms-and-destinations.md:505-508, 581` (files such as `chat-aliases.ts` and
     `commands/destination.ts`);
-  - `docs/chat-context.md:261`, which names `chat-server-main.js`.
+  - `docs/chat-context.md:263`, which names `src/mcp/chat-server-main.js`.
 - **Recommendation:** fix `chat-context.md:261`, and mark `platforms-and-destinations.md` as
   historical.
 
@@ -1011,27 +1181,32 @@ private identifiers have been fixed.
 
 **Not covered by any area:**
 
-- the CD deploy role in `infra/centaur.yml` and `scripts/setup-cd.sh`, both added in `942d0d7`;
 - `src/workflows/finish.ts` validation of agent output (`start` targets, PR targets) and
   `pr-target.ts`/`checkCandidate`, both in depth;
-- the tool surface of `src/mcp/chat-server.ts`;
+- the tool surface of `src/mcp/chat-server.ts` (the `search_chat` tool in particular);
 - `src/cli/**` beyond the parameter store and destinations;
 - the Chat SDK adapters' own outbound timeouts and retries;
 - performance;
 - the data model (the SSM layout and DynamoDB keys, which were inspected only as needed for
-  security).
+  security);
+- the live state of GitHub settings (the `main` ruleset, the `production` environment) and of the
+  deployed stack: this run read code and docs only.
 
 **Open questions that need runtime access or the maintainer:**
 
-- Does claude-code-action split `claude_args` shell-style? This confirms SEC-003.
 - In headless runs, does Claude Code load the workspace `.mcp.json` and `.claude/settings.json` when
-  `--setting-sources` is unset? Can its Write tool write under `.git/`? These decide SEC-005 and
-  SEC-006.
-- Does GitHub evaluate `failure()` as true when a job hits `timeout-minutes`? (REL-005)
-- How often does "Message processing error" appear in CloudWatch, and how many Slack acks take
-  longer than 3s? (REL-001)
+  `--setting-sources` is unset? Does `--setting-sources user` also stop it loading the workspace
+  `CLAUDE.md`? Can its Write tool write under `.git/`?
+- Does `claude-code-action` leave `GITHUB_ENV`, `GITHUB_PATH` and `RUNNER_TEMP` reachable to a
+  `Bash` tool call, and does it honor `onFailure: "block"` in a hook? (SEC-016, SEC-019, and the
+  live confirmation of the tool gate.)
+- Does a job that hits `timeout-minutes` report `cancelled` to `needs.turn.result`? (REL-005, now
+  assumed in `notify-timeout`.)
+- How often does "Message processing error" appear in CloudWatch, how often does the receiver
+  answer 500 for redelivery, and how many Slack acks take longer than 3s? (REL-001, REL-019)
 - Do any external consumers run `@main` today? This sets the urgency of CI-002.
 - Should PRs from scheduled prompts and new threads be eligible as update targets? (CODE-002)
+- Should the stack template default `RequirePosterToken` to `true`? (SEC-001)
 
 ## Inspection log
 
@@ -1045,3 +1220,15 @@ private identifiers have been fixed.
   - Not covered: the CD changes from `942d0d7`.
 - 2026-11-26: SEC-013 reclassified wontfix by maintainer decision (third-party actions are pinned by
   major tag, not commit SHA); 1 finding split out (SEC-015). CI-006 recommendation updated.
+- 2026-11-26 `5b61006` to `33f395c`: refresh.
+  - Re-verified against the code: every finding that was open or partly done.
+  - Statuses changed: fixed SEC-001 (deployment setting), SEC-003, SEC-004 (launcher arguments),
+    SEC-005, REL-001 to REL-005, REL-007, ARCH-001, ARCH-006, TEST-003, TEST-006, TEST-007,
+    DOCS-005, DOCS-006, DOCS-007, DOCS-010; partly done SEC-010, REL-006, DOCS-012.
+  - New findings from a focused pass on code merged since `5b61006`: SEC-016 to SEC-020, REL-015 to
+    REL-019, CI-011. Areas read: the continuous deployment workflows and `DeployRole`, the per-call
+    MCP gate and audit, the Slack search token and `search-chat`, access requests, `ownsMessage` and
+    `bot_messages`, self-identity, repository instructions, the CLI-locate step, the redelivery
+    wrapper.
+  - Not verified: anything that needs live GitHub, AWS or `claude-code-action` behavior (see the open
+    questions above). The suspicions (SEC-019, SEC-020, REL-017 to REL-019) are marked as such.
