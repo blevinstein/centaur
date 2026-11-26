@@ -145,14 +145,18 @@ export async function readRegistryEntry(
 const warnedUnregistered = new Set<string>();
 
 /** The connection's settings; undefined when the entry does not list it, as with the old shape. An entry
- * stored before `bot_messages` existed reads as `ignore`. */
+ * stored before `bot_messages` existed reads as `ignore`; keys the schema no longer
+ * defines (an old `handle`) are dropped. */
 export async function readPlatformSettings(
   state: StateAdapter,
   { name, platform }: Pick<Bot, "name" | "platform">,
   logger?: Pick<Logger, "warn">,
 ): Promise<PlatformSettings | undefined> {
   const stored = (await readRegistryEntry(state, name))?.platforms?.[platform];
-  const entry = stored && { ...stored, bot_messages: stored.bot_messages ?? "ignore" };
+  const entry = stored && {
+    respond_to: stored.respond_to,
+    bot_messages: stored.bot_messages ?? "ignore",
+  };
   if (!entry && logger && !warnedUnregistered.has(name)) {
     warnedUnregistered.add(name);
     logger.warn(`bot "${name}" has no registry entry for a connection; not served until register`);

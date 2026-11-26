@@ -26,7 +26,7 @@ Goals:
 
 1. One bot with several platform connections (each with its own secrets, webhook route, approved
    chats and users, and destinations), one repo binding, one config and one persona.
-2. A repo declares its connections, per-platform settings (`respond_to`, `handle`) and prompts whose
+2. A repo declares its connections, per-platform settings (`respond_to`) and prompts whose
    destinations resolve per platform, for example the same weekly plan in a Telegram topic and a
    Slack channel.
 3. Named destinations that hold a chat and an optional topic or thread, so a recurring prompt keeps
@@ -42,7 +42,7 @@ bot (access stays admin-approved, per connection).
 
 | Where | Assumption |
 |---|---|
-| `.centaur.yml` (`src/config/schema.ts`) | `bot` plus one top-level `platform`, `respond_to` and `handle`; prompt `destination` is one chat name. |
+| `.centaur.yml` (`src/config/schema.ts`) | `bot` plus one top-level `platform` and `respond_to`; prompt `destination` is one chat name. |
 | SSM (`src/lambda/registry.ts`, `src/cli/registry.ts`) | `bots/<bot>/platform`, `token`, `webhook-secret` or `signing-secret`; `Bot` has one `platform`. `centaur bot add` refuses an existing name. |
 | Access (`src/lambda/access.ts`, `access-entries.ts`) | `bots/<bot>/approved-chats/<id>`, `approved-users/<id>`, `blocked/...` have no platform; the admin is looked up by `bot.platform`. |
 | Receiver (`src/lambda/receiver.ts`, `chat.ts`) | One `Chat` per bot with one adapter, `chat.webhooks[bot.platform]`, one route `/<platform>/<bot>`, `ADMIN_CHANNELS[bot.platform]`. |
@@ -158,7 +158,6 @@ bot: garden
 platforms:
   telegram:
     respond_to: all
-    handle: garden_helper_bot
   slack:
     respond_to: mention
 prompts:
@@ -178,11 +177,11 @@ prompts:
 A bot that declares one platform may use a string instead: `destination: household` (with
 `platforms: { telegram: ... }` above, it means `{ telegram: household }`).
 
-- `platforms` is a map from `telegram`/`slack` to `{respond_to?, handle?}` (strict). Its keys are the
+- `platforms` is a map from `telegram`/`slack` to `{respond_to?, bot_messages?}` (strict). Its keys are the
   connections the repo expects; `register` fails if one has no secrets in SSM, and the receiver
   serves a connection only while the registry entry lists it.
 - Per-platform settings are the platform-bound ones: `respond_to` (default `mention`) and
-  `handle`. Everything else (`context`, `provider`, `model`, tools, MCP, `pull_requests`) stays
+  `bot_messages`. Everything else (`context`, `provider`, `model`, tools, MCP, `pull_requests`) stays
   bot-wide.
 - A prompt's `destination` is a name or a map from platform to name, and the platform is always
   explicit when the bot has several. A string is valid only when the bot declares exactly one platform
@@ -203,8 +202,8 @@ A bot that declares one platform may use a string instead: `destination: househo
   one thread.
 
 **No legacy keys.** The parser accepts only this schema. The old top-level `platform`, `respond_to`
-and `handle` are rejected with an error that names the replacement
-(`platforms: { <platform>: { respond_to, handle } }`). Every consumer repo (`garden`, `centaur-hello`, the self-consumer and
+are rejected with an error that names the replacement
+(`platforms: { <platform>: { respond_to } }`). Every consumer repo (`garden`, `centaur-hello`, the self-consumer and
 any other repo bound in `bots/*/repo`) was rewritten once during the cutover; see
 [Migration](#migration). Because the Lambda and the runner share the parser, a consumer config in the
 old form fails `register` and `prepare` until it is rewritten.
@@ -238,7 +237,7 @@ read-only `resolve-destination` (`bot`, `platform`, `name`) returns `{ threadId,
 `{ found: false }` without creating anything, for the runner. Strict schemas still reject unknown
 keys.
 
-**Dispatch payload.** `{bot, thread_id, thread_key, message_id}` is unchanged: `bot` is still the
+**Dispatch payload.** `{bot, thread_id, thread_key, message_id}` (plus the optional `self`, the bot's own identity, see [workflows.md](workflows.md#the-bots-own-identity)) is unchanged: `bot` is still the
 bot name, `thread_key` keeps its value, and the platform is the prefix of `thread_id`, validated
 against `PLATFORMS`. So `centaur-turn.yml`, the template in `workflows.md`, `centaur-pr-comment.yml`
 and the concurrency group `centaur-<bot>-<thread key>` do not change, and the AGENTS.md rule about
@@ -249,7 +248,7 @@ completeness, with an optional field first so an old runner ignores it.
 
 **Runner (`prepare`, `finish`, turn state).**
 
-- Per-platform settings (`respond_to` for `canStaySilent`, `handle`) are read for the dispatched
+- Per-platform settings (`respond_to` for `canStaySilent`) are read for the dispatched
   thread's platform. Scheduled turns read them for each target.
 - The turn state's `start` changes from `{ destination }` to a list of targets
   `{ platform, name }`, or `{ fromThreadId }` for `/new`. `finish` posts the one reply to every
@@ -427,8 +426,8 @@ keys and the consumer `.centaur.yml` files. Decisions that relied on compatibili
 3. **One state prefix per bot**, shared by connections (keeps `garden`'s history), rather than a
    prefix per connection. State keys other than `registry:<bot>` are unchanged, so they need no
    migration.
-4. **Config shape: a `platforms` map only.** The legacy top-level `platform`, `respond_to` and
-   `handle` are rejected, with an error naming the replacement; there is no normalization.
+4. **Config shape: a `platforms` map only.** The legacy top-level `platform`, `respond_to` are
+   rejected, with an error naming the replacement; there is no normalization.
 5. **Prompt destination: a name or a per-platform map.** A string is valid only when the bot declares
    exactly one platform; a bot with several uses the map, where one entry is one target and several
    are a fan-out. The alternative, fan out to every declared platform, would make adding Slack change

@@ -107,7 +107,7 @@ describe("parseCentaurConfig", () => {
       config: {
         bot: "garden",
         platforms: {
-          telegram: { respond_to: "all", bot_messages: "mention", handle: "garden_helper_bot" },
+          telegram: { respond_to: "all", bot_messages: "mention" },
           slack: { respond_to: "mention", bot_messages: "ignore" },
         },
         effort: "low",
@@ -283,7 +283,6 @@ describe("parseCentaurConfig", () => {
     expect(platformSettings(result.config, "telegram")).toEqual({
       respond_to: "all",
       bot_messages: "mention",
-      handle: "garden_helper_bot",
     });
     expect(declaredPlatforms(result.config)).toEqual(["telegram", "slack"]);
     expect(threadPlatform("slack:C1:1.2")).toBe("slack");

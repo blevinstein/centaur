@@ -1,6 +1,7 @@
 import type { Logger, StateAdapter } from "chat";
 import { z } from "zod";
 import { slug } from "../config/index.js";
+import type { SelfIdentity } from "../self-identity.js";
 import { createAccessRequestStore } from "./access-request-store.js";
 import { createMcpApprovalRequester } from "./access-requests.js";
 import { ADMIN_CHANNELS, type DirectMessenger } from "./admin-channel.js";
@@ -15,6 +16,7 @@ import { dispatchMessage } from "./message-handler.js";
 import type { OidcVerifier } from "./oidc.js";
 import type { ParameterStore } from "./parameters.js";
 import { type Bot, requireBound } from "./registry.js";
+import { withSelfIdentity } from "./self-identity.js";
 
 export const MCP_APPROVAL_SERVERS_MAX = 20;
 export const MCP_SUMMARY_MAX = 2000;
@@ -67,6 +69,8 @@ export interface McpApprovalsDeps {
     messenger: DirectMessenger;
     state: StateAdapter;
     adapter: ApprovalReaction["adapter"];
+    /** Reads the bot's identity for the resume dispatch; the dispatch omits it when absent. */
+    identify?: () => Promise<SelfIdentity | undefined>;
   }>;
   /** The bot's state without a thread or a platform, for reads that never ask. */
   openBotState: (botName: string) => Promise<StateAdapter>;
@@ -183,7 +187,12 @@ export function createMcpApprovals({
     const servers: Record<string, McpApprovalStatus> = {};
     for (const server of request.servers) servers[server.name] = await statusOf(server);
     if (resume && thread) {
-      await dispatchMessage(dispatcher, thread.bot, thread.threadId, thread.messageId);
+      await dispatchMessage(
+        thread.identify ? withSelfIdentity(dispatcher, thread.identify) : dispatcher,
+        thread.bot,
+        thread.threadId,
+        thread.messageId,
+      );
     }
     return { servers };
   };

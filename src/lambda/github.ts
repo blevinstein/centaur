@@ -1,5 +1,9 @@
+import type { SelfIdentity } from "../self-identity.js";
+
+export type ClientPayload = Record<string, string | SelfIdentity>;
+
 export interface RepositoryDispatcher {
-  dispatch(repo: string, eventType: string, clientPayload: Record<string, string>): Promise<void>;
+  dispatch(repo: string, eventType: string, clientPayload: ClientPayload): Promise<void>;
 }
 
 export class DispatchError extends Error {

@@ -54,7 +54,7 @@ in the diagram because it's invoked over IAM, not a public URL.
   the others keep serving, and startup fails only when no connection starts. `concurrency` is
   `concurrent`, because the default `drop` strategy loses messages that arrive close together.
   The webhook path selects the connection: `/telegram/<bot>`, `/slack/<bot>`.
-- The registry entry `{ platforms: { <platform>: { respond_to, bot_messages, handle? } } }` for each bot is stored
+- The registry entry `{ platforms: { <platform>: { respond_to, bot_messages } } }` for each bot is stored
   in state under `registry:<bot>` (written by `register`); the bound repo is in SSM at
   `bots/<bot>/repo`. A connection whose platform the entry does not list (no entry, or the old
   `{respond_to}` shape) is not served. An entry stored without `bot_messages` reads as `ignore`. Access does not come from the entry: it is the admin plus the
@@ -72,8 +72,9 @@ in the diagram because it's invoked over IAM, not a public URL.
      the workflow removes when the turn finishes. A failed reaction is logged and does not block
      the dispatch.
   5. Send a `repository_dispatch` of type `centaur-message` to the bot's repo with payload
-     `{bot, thread_id, thread_key, message_id}`. The message text stays out of GitHub so it never lands in
-     public logs.
+     `{bot, thread_id, thread_key, message_id, self?}`, where `self` is the bot's own
+     `{username, display_name}` on that platform (omitted when unknown). The message text stays out of
+     GitHub so it never lands in public logs.
      When the dispatch fails (any path: messages, slash fallbacks, a resumed MCP approval), the
      error still reaches the Chat SDK log, and the platform's admin gets a direct message with the
      bot, platform, repository and HTTP status, plus a hint. It never carries message text or
@@ -167,7 +168,7 @@ prompts:
     destination: household      # destination name; the chat must be approved for the bot
 ```
 
-The remaining fields (per-platform `handle`, per-platform prompt `destination`, `effort`, `max_turns`, `max_budget_usd`, per-prompt `file` and
+The remaining fields (per-platform prompt `destination`, `effort`, `max_turns`, `max_budget_usd`, per-prompt `file` and
 `context`) are in [config.md](config.md).
 
 Names in the config are destination names; the real IDs never appear in any repo, so a public consumer
@@ -184,7 +185,7 @@ The receiver has to map an incoming webhook to a repo without reading every repo
 2. It invokes the Lambda's `register` operation through the GitHub OIDC role, sending the parsed
    config and the calling repo name taken from the OIDC token's claims, not from input the
    workflow could forge.
-3. The Lambda upserts the registry entry (`bot → platforms → respond_to, bot_messages, handle`) in the state store. For Telegram it also calls `setWebhook` with the bot's token and secret from SSM, so
+3. The Lambda upserts the registry entry (`bot → platforms → respond_to, bot_messages`) in the state store. For Telegram it also calls `setWebhook` with the bot's token and secret from SSM, so
    webhook setup is never a manual step.
 4. Registration fails if a declared platform's secrets aren't in SSM. Creating them is the maintainer's
    explicit consent that a bot exists; registration only binds it to a repo. A bot already bound
@@ -257,7 +258,7 @@ does not deliver other bots' messages to a bot, so the setting is mostly inert t
 A bot configured with `respond_to: all` replaces rules 1-4 with: every message from a human (or, with
 `bot_messages: mention`, a bot that mentions it) from an approved
 sender in any approved chat of the bot belongs to it, and the agent decides per turn whether to reply or
-stay silent. The default silence instruction tells it to stay silent when a message @mentions someone else, such as another bot, and not it. The agent sees mentions as text only (Slack: the mentioned user's display name as `@Name`; Telegram: the `@username` as typed) with no marker for bots or for itself, so it recognises its own mention only through the configured `handle`; set `handle` for `respond_to: all` bots in shared chats. The checks keep
+stay silent. The default silence instruction tells it to stay silent when a message @mentions someone else, such as another bot, and not it. The agent sees mentions as text only (Slack: the mentioned user's display name as `@Name`; Telegram: the `@username` as typed) with no marker for bots or for itself. A chat turn's prompt therefore has a `# Who you are` section naming the bot's own username and display name (`self` in the dispatch payload), so it recognises its own mention. Without a known identity the prompt carries no mention hint. The checks keep
 their order (ownership, chat approval, sender approval), but an unenrolled sender whose message
 is not a mention or DM is dropped without a refusal (only logged with their ID, so enrollment
 still works), and messages from other chats are dropped without a log. Two bots set to `all` in

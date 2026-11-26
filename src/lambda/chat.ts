@@ -19,6 +19,8 @@ import { createMessageHandler } from "./message-handler.js";
 import type { ThreadMetadata } from "./ownership.js";
 import type { ParameterStore } from "./parameters.js";
 import { type Bot, readPlatformSettings } from "./registry.js";
+import { createSelfIdentityLookup, withSelfIdentity } from "./self-identity.js";
+import type { TelegramApi } from "./telegram.js";
 import { createThreadMeta } from "./thread-meta.js";
 
 const ADAPTER_FACTORIES: Record<Platform, (bot: Bot, logger: Logger) => Adapter> = {
@@ -49,6 +51,8 @@ export interface BotChatDeps extends BotChatBaseDeps {
   registryState: StateAdapter;
   attachments: AttachmentStore;
   dispatcher: RepositoryDispatcher;
+  /** Reads the bot's own display name on Telegram; without it the Telegram identity is the user name. */
+  telegram?: Pick<TelegramApi, "getMe"> | undefined;
 }
 
 export const createChat = ({
@@ -73,6 +77,7 @@ export function createBotChat({
   botState,
   attachments,
   dispatcher: rawDispatcher,
+  telegram,
   failureNoticeIntervalMs = DEFAULT_FAILURE_NOTICE_MINUTES * 60_000,
   logger,
   history,
@@ -89,7 +94,11 @@ export function createBotChat({
     logger,
   });
   const requesterDeps = { bot, params, store, channel, messenger: chat, logger };
-  const dispatcher = withFailureNotice(rawDispatcher, {
+  const lookupIdentity = createSelfIdentityLookup({ telegram, logger });
+  const identifiedDispatcher = withSelfIdentity(rawDispatcher, () =>
+    lookupIdentity(bot, chat.getAdapter(bot.platform)),
+  );
+  const dispatcher = withFailureNotice(identifiedDispatcher, {
     bot,
     intervalMs: failureNoticeIntervalMs,
     params,

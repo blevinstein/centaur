@@ -15,6 +15,13 @@ const RESUME = [
   },
 ] as const;
 
+const [REPO, EVENT, PAYLOAD] = RESUME;
+const IDENTIFIED_RESUME = [
+  REPO,
+  EVENT,
+  { ...PAYLOAD, self: { username: "garden_bot", display_name: "garden_bot" } },
+] as const;
+
 describe("a suspend call after the decision", () => {
   it.each([
     ["approved", "/approve"],
@@ -29,7 +36,7 @@ describe("a suspend call after the decision", () => {
 
       expect(await h.statuses({ suspend: true })).toEqual({ servers: { linear: status } });
 
-      expect(h.dispatcher.dispatch).toHaveBeenCalledExactlyOnceWith(...RESUME);
+      expect(h.dispatcher.dispatch).toHaveBeenCalledExactlyOnceWith(...IDENTIFIED_RESUME);
     },
   );
 
@@ -107,7 +114,7 @@ describe("a suspend call before the decision", () => {
 
       expect(await h.statuses({ suspend: true })).toEqual({ servers: { linear: status } });
 
-      expect(h.dispatcher.dispatch).toHaveBeenCalledExactlyOnceWith(...RESUME);
+      expect(h.dispatcher.dispatch).toHaveBeenCalledExactlyOnceWith(...IDENTIFIED_RESUME);
       expect(await h.store.read((await h.pendingRequest())?.id ?? "")).toBeNull();
     },
   );

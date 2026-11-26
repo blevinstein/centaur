@@ -11,6 +11,7 @@ import {
   threadPlatform,
 } from "../config/index.js";
 import { CHAT_SERVER_NAME } from "../mcp/server-config.js";
+import { selfIdentitySchema } from "../self-identity.js";
 import { threadKey } from "../thread-key.js";
 import {
   type AttachmentDownloader,
@@ -88,6 +89,8 @@ const dispatchPayload = z.object({
   bot: slug,
   thread_id: z.string().min(1),
   message_id: z.string().min(1).optional(),
+  /** Absent from older receivers; a malformed value is ignored rather than failing the turn. */
+  self: selfIdentitySchema.optional().catch(undefined),
 });
 
 export type StartTarget =
@@ -435,7 +438,7 @@ async function chatTurn(
           ...targets,
           chatTools: chatToolsEnabled(config),
           instructions,
-          handle: settings.handle,
+          self: payload.self && { ...payload.self, platform: threadPlatform(threadId) },
           history,
           omitted,
           messages: plan.pending,

@@ -206,7 +206,7 @@ Then it parses `config` with `parseCentaurConfig` and, in order:
    A connection in SSM that the config does not declare is left untouched and is not served;
 2. refuses if `bots/<bot>/repo` holds a different repo (`centaur bot unbind` first);
 3. writes `bots/<bot>/repo`, then the registry entry `registry:<bot>` =
-   `{ platforms: { <platform>: { respond_to, handle? } } }`, one item per declared platform. The
+   `{ platforms: { <platform>: { respond_to, bot_messages } } }`, one item per declared platform. The
    receiver serves a connection only while this entry lists its platform; an entry in the old shape
    (`{ respond_to }`), or none, serves nothing until `register` rewrites it, with one log line naming
    the bot;

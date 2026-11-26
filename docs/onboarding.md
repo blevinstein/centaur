@@ -115,7 +115,7 @@ That's all that's needed for group use. Optionally, to DM a bot: open its link
 - **Start a conversation:** by default a bot answers mentions, DMs, and messages in topics it
   created. Mention it in the General topic, e.g. `@garden_helper_bot the tomatoes have yellow
   leaves`; it replies there for quick questions or opens a topic for longer ones.
-- **Answering everything:** a bot with `respond_to: all` (and `handle` set to its username)
+- **Answering everything:** a bot with `respond_to: all`
   treats every message from an approved sender in an approved group as possibly for it, and the agent may
   stay silent. Use it in small private groups with at most one such bot
   ([config](config.md#responding-to-all-messages)).
@@ -137,7 +137,7 @@ That's all that's needed for group use. Optionally, to DM a bot: open its link
 Repeat for each consumer repo, after the bot exists (Telegram above, Slack below).
 
 1. In the repo, add:
-   - `.centaur.yml`, or `.centaur/config.yml` for a repo with many files under `.centaur/` ([schema](config.md): bot, `platforms` with per-platform `respond_to` and `handle`, context, model
+   - `.centaur.yml`, or `.centaur/config.yml` for a repo with many files under `.centaur/` ([schema](config.md): bot, `platforms` with per-platform `respond_to`, context, model
      and cost-tuning fields, tool allowlist, persona, and a `destination` name on each
      scheduled prompt); it holds no list of chats or users;
    - `.centaur/persona.md`, and any scheduled prompts under `.centaur/prompts/`;

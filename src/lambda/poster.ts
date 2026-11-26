@@ -26,6 +26,7 @@ import type { ParameterStore } from "./parameters.js";
 import { createPullRequests } from "./pull-requests.js";
 import { createRegister } from "./register.js";
 import { type Bot, botStatePrefix, requireBot, requireBound } from "./registry.js";
+import { createSelfIdentityLookup } from "./self-identity.js";
 import { connectState } from "./state.js";
 import type { TelegramApi } from "./telegram.js";
 import { createThreadMeta } from "./thread-meta.js";
@@ -204,12 +205,20 @@ export async function createPoster(deps: PosterDeps) {
     logger,
   });
 
+  const lookupIdentity = createSelfIdentityLookup({ telegram, logger });
   const mcpApprovals = createMcpApprovals({
     params,
     oidc: deps.oidc,
     open: async (botName, threadId) => {
       const { bot, chat, state } = await openThreadChat(botName, threadId);
-      return { bot, messenger: chat, state, adapter: chat.thread(threadId).adapter };
+      const adapter = chat.thread(threadId).adapter;
+      return {
+        bot,
+        messenger: chat,
+        state,
+        adapter,
+        identify: () => lookupIdentity(bot, adapter),
+      };
     },
     openBotState: (botName) => stateFor(botStatePrefix(botName)),
     dispatcher: deps.dispatcher,

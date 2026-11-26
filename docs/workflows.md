@@ -323,6 +323,23 @@ is polled: a decision that arrives later is used by the next turn. A turn with a
 `/new`, pull request comment turns and persistent scheduled prompts) can raise the request; a
 scheduled prompt without a persistent thread only reads stored decisions.
 
+### The bot's own identity
+
+The dispatch payload carries an optional `self: { username, display_name }`, the bot's own names on
+the platform. The receiver resolves it on the dispatch path (not at startup or registration, with a 2 second timeout) and caches
+it per bot for an hour in a warm environment, so a rename shows up after the cache expires or on the
+next cold start. Slack: the username is the adapter's (`auth.test`) and the display name comes from
+`users.info` on the bot user (display name, then real name, then username). Telegram: `getMe`
+username, and `first_name` plus `last_name` as the display name. A failed lookup falls back to the
+adapter's user name, or sends no `self`; it never fails the dispatch. `prepare` accepts a payload
+without it (an older receiver) and ignores a malformed one, and reduces both names to one short line
+without quotes, backticks or brackets, since whoever administers the bot chose them.
+
+A chat reply turn with a known `self` gets a `# Who you are` section: the bot's username and display
+name, that people may mention it as `@<display name>` or `@<username>`, that messages by others are not its own, and, for `respond_to: all`, a pointer to the
+silence instruction. Without `self` the prompt has no such section and no mention hint. Comment turns and scheduled prompts get
+no section, since they have no chat thread.
+
 The prompt gets one `# MCP server approvals` section: the servers awaiting the admin, with their
 tools, and a line for each server the admin denied ("answer without it").
 

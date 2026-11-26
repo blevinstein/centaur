@@ -34,6 +34,14 @@ describe("a bot with a Telegram and a Slack connection", () => {
     ]);
   });
 
+  it("adds the connection's own identity to each dispatch", async () => {
+    await harness.receive(groupMessage());
+
+    expect(harness.dispatched()).toEqual([
+      expect.objectContaining({ self: { username: "garden_bot", display_name: "garden_bot" } }),
+    ]);
+  });
+
   it("applies each platform's respond_to: all answers an unaddressed Telegram message, mention ignores an unaddressed Slack one", async () => {
     await harness.receive(groupMessage());
     await harness.receive(slackChannelChat());

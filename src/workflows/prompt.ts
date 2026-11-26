@@ -1,5 +1,6 @@
-import type { CentaurConfig } from "../config/index.js";
+import type { CentaurConfig, Platform } from "../config/index.js";
 import { MCP_APPROVAL_SERVERS_MAX } from "../lambda/mcp-approvals.js";
+import type { SelfIdentity } from "../self-identity.js";
 import { fence } from "./clean-text.js";
 import { DEFAULT_INSTRUCTIONS, type Instructions } from "./instructions.js";
 import type { McpApprovalNotice } from "./mcp-approval.js";
@@ -81,8 +82,30 @@ const omissionNote = (omitted: number, chatTools: boolean | undefined) => {
     : `${lead} They are not available this turn: ask the user for anything you need from them.`;
 };
 
-const mentionHint = (handle: string | undefined) =>
-  handle ? `People mention you as @${handle}.` : undefined;
+export interface SelfPrompt extends SelfIdentity {
+  platform: Platform;
+}
+
+const SILENCE_POINTER =
+  "A message that mentions someone else and not you is for them: follow the instruction on staying silent.";
+
+/** Tells the agent who it is in the chat, so it does not answer as another bot; absent when its identity is unknown. */
+export function identitySection(
+  { username, display_name, platform }: SelfPrompt,
+  canStaySilent: boolean,
+) {
+  const names = display_name === username ? [username] : [display_name, username];
+  const known =
+    display_name === username
+      ? `\`${username}\``
+      : `\`${username}\` (display name "${display_name}")`;
+  return [
+    `You are the bot ${known} on ${platform}.`,
+    `People may mention you as ${names.map((n) => `@${n}`).join(" or ")}.`,
+    "Messages written by other bots or people are not yours; only act on a message addressed to you or that asks something you can help with.",
+    ...(canStaySilent ? [SILENCE_POINTER] : []),
+  ].join(" ");
+}
 
 export interface PullRequestPrompt {
   title: string;
@@ -107,7 +130,8 @@ export interface PromptParts {
   /** Describes the chat context tools; set only when the turn has them. */
   chatTools?: boolean | undefined;
   candidates?: PullRequestCandidate[] | undefined;
-  handle?: string | undefined;
+  /** The bot's own identity on the platform; chat reply turns only. */
+  self?: SelfPrompt | undefined;
   scheduledTask?: string | undefined;
   history?: ChatMessage[] | undefined;
   /** How many of the oldest earlier messages the transcript budget left out of `history`. */
@@ -127,7 +151,7 @@ export function buildPrompt({
   executionMode = "pull_request",
   chatTools,
   candidates,
-  handle,
+  self,
   scheduledTask,
   history,
   omitted = 0,
@@ -151,10 +175,12 @@ export function buildPrompt({
             ...chatToolsGuidance,
             CHAT_CONTRACT,
             ...(allowExisting ? [EXISTING_PR_CONTRACT] : []),
-            ...(canStaySilent
-              ? [`${instructions.silence} ${mentionHint(handle) ?? ""}`.trim(), SILENCE_CONTRACT]
-              : []),
+            ...(canStaySilent ? [instructions.silence, SILENCE_CONTRACT] : []),
           ),
+    ],
+    [
+      "Who you are",
+      !pullRequest && self ? identitySection(self, canStaySilent === true) : undefined,
     ],
     ["Execution mode", pullRequest ? undefined : EXECUTION_TEXT[executionMode].section],
     ["Scheduled task", scheduledTask],

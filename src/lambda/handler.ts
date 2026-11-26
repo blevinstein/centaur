@@ -69,6 +69,7 @@ async function buildReceiver() {
     createState: stateCreator(tableName),
     attachments: buildAttachments(),
     dispatcher: await buildDispatcher(params),
+    telegram: createTelegramApi(),
     logger,
     history: readHistoryWindow(),
     failureNoticeIntervalMs: readFailureNoticeIntervalMs(),

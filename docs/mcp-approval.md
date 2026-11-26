@@ -146,7 +146,7 @@ request):
 **Resume.** The decision arrives in the receiver as it does for access requests (reaction or
 `/approve` / `/deny`, from the admin or an approver, single-use claim). On approval the receiver writes the SSM record.
 If `suspended`, it then sends a `repository_dispatch` of type `centaur-message` with the original
-`{bot, thread_id, thread_key, message_id}`. This is a normal turn, so the payload, the three consumer
+`{bot, thread_id, thread_key, message_id}` (and `self` when known). This is a normal turn, so the payload, the three consumer
 workflows and the concurrency group do not change. Because the marker was not advanced, the turn finds
 the same pending messages; under `resume` it continues the saved session. On denial it dispatches the
 same way so the agent answers without the server. If the dispatch fails the claim is released so the

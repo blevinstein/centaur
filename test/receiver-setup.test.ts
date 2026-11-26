@@ -11,6 +11,17 @@ import {
 describe("readPlatformSettings", () => {
   it("reads the settings of the connection's platform", async () => {
     const state = await registryStateWith({
+      garden: { platforms: { telegram: { respond_to: "all", bot_messages: "mention" } } },
+    });
+
+    await expect(readPlatformSettings(state, GARDEN_BOT)).resolves.toEqual({
+      respond_to: "all",
+      bot_messages: "mention",
+    });
+  });
+
+  it("drops the handle an entry stored before it was removed still carries", async () => {
+    const state = await registryStateWith({
       garden: {
         platforms: {
           telegram: { respond_to: "all", handle: "garden_bot", bot_messages: "mention" },
@@ -20,7 +31,6 @@ describe("readPlatformSettings", () => {
 
     await expect(readPlatformSettings(state, GARDEN_BOT)).resolves.toEqual({
       respond_to: "all",
-      handle: "garden_bot",
       bot_messages: "mention",
     });
   });

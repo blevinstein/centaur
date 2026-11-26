@@ -356,13 +356,11 @@ parses it is deployed, so it needs the deploy approval first (section 21).
       the persona level, so the harness never saw a diff and the protected-path fallback is still
       covered only by unit tests on real git repos. Exercising it live needs a bot whose persona allows
       editing a protected path (for example on a scratch repository).
-- [ ] **[HUMAN ACTION]** Set `handle` for the `respond_to: all` test bot (`centaur-slack`) in
-      `apps/centaur-test/.centaur/config.yml`: its Slack display name and its Telegram username (the
-      maintainer supplies them). In the same shared chat it answered in the first person as the other
-      test bot ("my persona… in direct mode my changes are pushed straight to the default branch"):
-      without a `handle` the agent cannot recognise its own mention, so the default silence guidance
-      (stay silent when another participant is mentioned) cannot work. It also needs to know it is not
-      the other bot; a one-line persona note identifying itself is an option.
+- [x] ~~**[HUMAN ACTION]** Set `handle` for the `respond_to: all` test bot (`centaur-slack`)~~
+      Not needed: the receiver sends the bot's own username and display name in the dispatch payload
+      and the prompt's `# Who you are` section tells the agent both (the `handle` config key was
+      removed). It had answered in the first person as the other test bot in a shared chat. Still to
+      confirm live after deploy: the bot no longer speaks as the other bot.
 - [ ] Execution 4: prompt text and `replySchema` fields for the mode.
 
 ## 23. Continuous deployment

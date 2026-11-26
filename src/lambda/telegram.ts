@@ -1,5 +1,11 @@
+export interface TelegramMe {
+  username: string;
+  first_name?: string;
+  last_name?: string;
+}
+
 export interface TelegramApi {
-  getMe(token: string): Promise<{ username: string }>;
+  getMe(token: string): Promise<TelegramMe>;
   setWebhook(token: string, url: string, secretToken: string): Promise<void>;
   createForumTopic(token: string, chatId: string, name: string): Promise<number>;
   reopenForumTopic(token: string, chatId: string, topicId: number): Promise<void>;
@@ -36,7 +42,7 @@ export function createTelegramApi(fetchImpl = fetch): TelegramApi {
     return body.result as T;
   };
   return {
-    getMe: (token) => call<{ username: string }>(token, "getMe", {}),
+    getMe: (token) => call<TelegramMe>(token, "getMe", {}),
     async setWebhook(token, url, secretToken) {
       await call(token, "setWebhook", {
         url,

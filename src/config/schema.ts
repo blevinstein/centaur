@@ -97,10 +97,6 @@ const platformName = z.enum(PLATFORMS);
 const platformSettingsSchema = z.strictObject({
   respond_to: z.enum(RESPOND_TO).default("mention"),
   bot_messages: z.enum(BOT_MESSAGES).default("ignore"),
-  handle: z
-    .string()
-    .regex(/^[A-Za-z0-9_]{3,64}$/, "must be the bot's username without the @")
-    .optional(),
 });
 
 const platformsSchema = z
@@ -152,7 +148,7 @@ const promptTargets = (prompt: PromptInput, declared: Platform[]): PromptTarget[
 };
 
 const LEGACY_PLATFORM_KEY_ERROR =
-  "is not supported: declare it under `platforms: { <platform>: { respond_to, handle } }`";
+  "is not supported: declare it under `platforms: { <platform>: { respond_to } }`";
 
 const removedPlatformKey = z.never({ error: LEGACY_PLATFORM_KEY_ERROR }).optional();
 
@@ -176,7 +172,6 @@ export const centaurConfigSchema = z
     platforms: platformsSchema,
     platform: removedPlatformKey,
     respond_to: removedPlatformKey,
-    handle: removedPlatformKey,
     allow: removedAccessKey,
     chats: removedAccessKey,
     context: z

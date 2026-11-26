@@ -28,7 +28,6 @@ bot: garden
 platforms:
   telegram:
     respond_to: mention
-    handle: garden_helper_bot  # the bot's @username; only used with respond_to: all
   slack: {}                    # a bot may be on several platforms; settings default as below
 context:
   default: transcript
@@ -97,17 +96,28 @@ parser only checks the shape; a destination name is resolved when the run starts
 |---|---|---|
 | `respond_to` | `mention` | Which messages the bot answers: `mention` (mentions, DMs, topics it created, and on Slack the rest of a thread it was mentioned in) or `all` (every message from an approved sender in any approved chat of the bot on that platform). Messages authored by bots are governed by `bot_messages`, and the bot's own messages are never answered. See [plan.md](plan.md#routing-in-a-shared-telegram-group). |
 | `bot_messages` | `ignore` | Whether messages authored by other bots are answered. `ignore` drops every bot-authored message, so two bots in one chat cannot answer each other. `mention` answers a bot-authored message only when it explicitly mentions this bot (DMs and threads the bot owns do not count without the mention); it applies under both `respond_to` modes. The bot's own messages are never answered. Any bot that mentions this one can trigger it, and there is no hop or loop cap: the per-turn spend caps (see [Cost controls](#tuning-cost)) and the agent not re-mentioning the other bot are the only brakes, so two bots that keep mentioning each other will loop. The sender approval check still applies to the other bot. On Telegram the Bot API does not normally deliver other bots' messages to a bot, so the setting has little effect there. Register parses this key in the Lambda, so merge it to a consumer's default branch only after the Lambda that knows it is deployed (an older Lambda rejects the unknown key). |
-| `handle` | | The bot's username on that platform without `@`. With `respond_to: all` the prompt tells the agent people mention it as `@<handle>`. The workflow cannot learn it cheaply from the bot's identity, so it is configured. Set it for every `respond_to: all` bot in a chat shared with another bot: the default silence guidance tells the agent to stay silent when a message mentions someone else and not it, and without the handle the agent cannot tell which mention is its own. On Slack mentions reach the agent as the mentioned user's display name (`@Name`, not the user ID), so use the bot's display name there. |
+
+The bot's own names need no setting: the receiver reads the bot's username and display name from the
+platform, sends them in the dispatch payload, and a chat turn's prompt has a `# Who you are` section
+that tells the agent both, so it recognises its own mention and does not answer as another bot. When
+the names cannot be read the prompt has no such section and no mention hint; that is the only
+degradation. Comment and scheduled turns have no chat thread and no section.
+
+**Rollout: removing `handle`.** A config that still sets `platforms.<platform>.handle` is rejected
+(unrecognized key) at `register` by a Lambda that has this change. Remove the `handle` lines from
+every consumer config and merge that first: the older Lambda treats the key as optional, so removing
+it is safe before the deploy. Deploy the Lambda afterwards. A registry entry stored earlier that still
+carries `handle` is read normally and the key is ignored.
 
 Everything else (`context`, `provider`, `model`, tools, MCP, `pull_requests`) is bot-wide. `register`
 fails if a declared platform has no secrets in SSM. A turn reads the settings of the platform in its
 thread ID's prefix (`telegram:...`, `slack:...`); a scheduled turn reads those of its target.
 
-The top-level `platform`, `respond_to` and `handle` are not accepted. Each fails with an error that
+The top-level `platform` and `respond_to` are not accepted. Each fails with an error that
 names the replacement:
 
 ```text
-platform: is not supported: declare it under `platforms: { <platform>: { respond_to, handle } }`
+platform: is not supported: declare it under `platforms: { <platform>: { respond_to } }`
 ```
 
 ## MCP servers
@@ -275,8 +285,8 @@ invalid YAML). Parsing never throws on bad input.
   first, and the two callers handle failure differently (reject registration vs fail the job).
 - **Cron stays in the workflow.** GitHub Actions only honors `schedule:` in workflow files, so
   duplicating cron in the config would drift. The config only describes what a prompt is.
-- **No legacy keys.** The parser accepts one schema; the old top-level `platform`, `respond_to` and
-  `handle` fail with an error naming the replacement, so there is no normalization layer.
+- **No legacy keys.** The parser accepts one schema; the old top-level `platform` and `respond_to`
+  fail with an error naming the replacement, so there is no normalization layer.
 - **No allowlist in the repo.** Who may talk to the bot is the admin's decision, made from their
   phone, so it cannot be widened by a pull request. The repo only names where a scheduled prompt
   posts (`prompts.<name>.destination`), and that chat must still be approved.

@@ -7,12 +7,14 @@ import type { WebHandler } from "./http.js";
 import type { ParameterStore } from "./parameters.js";
 import { type Bot, botStatePrefix, loadBots } from "./registry.js";
 import { connectState } from "./state.js";
+import type { TelegramApi } from "./telegram.js";
 
 export interface ReceiverDeps {
   params: ParameterStore;
   createState: (keyPrefix: string) => StateAdapter;
   attachments: AttachmentStore;
   dispatcher: RepositoryDispatcher;
+  telegram?: Pick<TelegramApi, "getMe"> | undefined;
   logger: Logger;
   history?: HistoryWindow | undefined;
   failureNoticeIntervalMs?: number | undefined;
@@ -27,6 +29,7 @@ export async function createReceiver({
   createState,
   attachments,
   dispatcher,
+  telegram,
   logger,
   history,
   failureNoticeIntervalMs,
@@ -43,6 +46,7 @@ export async function createReceiver({
           botState: await connectState(createState(botStatePrefix(bot.name))),
           attachments,
           dispatcher,
+          telegram,
           logger,
           history,
           failureNoticeIntervalMs,

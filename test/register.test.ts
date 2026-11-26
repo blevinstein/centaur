@@ -81,14 +81,13 @@ describe("register", () => {
     await register(
       poster,
       registerConfigText({
-        platforms:
-          "{telegram: {respond_to: all, handle: sprout_bot, bot_messages: mention}, slack: {}}",
+        platforms: "{telegram: {respond_to: all, bot_messages: mention}, slack: {}}",
       }),
     );
 
     expect(await readRegistryEntry(registryState, "sprout")).toEqual({
       platforms: {
-        telegram: { respond_to: "all", handle: "sprout_bot", bot_messages: "mention" },
+        telegram: { respond_to: "all", bot_messages: "mention" },
         slack: { respond_to: "mention", bot_messages: "ignore" },
       },
     });

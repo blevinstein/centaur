@@ -39,7 +39,6 @@ platforms:
   telegram:
     respond_to: all
     bot_messages: mention
-    handle: garden_helper_bot
   slack: {}
 context:
   default: resume
@@ -105,10 +104,10 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
   ["negative max_budget_usd", withExtra("max_budget_usd: -1"), "max_budget_usd", /./],
   ["excessive max_budget_usd", withExtra("max_budget_usd: 5000"), "max_budget_usd", /./],
   [
-    "handle with an @",
-    yamlOf({ platforms: '{slack: {handle: "@garden_bot"}}' }),
-    "platforms.slack.handle",
-    /without the @/,
+    "a removed handle key",
+    yamlOf({ platforms: "{slack: {handle: garden_bot}}" }),
+    "platforms.slack",
+    /unrecognized key/i,
   ],
   [
     "unknown respond_to value",
@@ -130,13 +129,13 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
   ],
   ["missing platforms", yamlOf({ platforms: undefined }), "platforms", /./],
   ["empty platforms", yamlOf({ platforms: "{}" }), "platforms", /at least one platform/],
-  ...["platform: slack", "respond_to: all", "handle: garden_bot"].map(
+  ...["platform: slack", "respond_to: all"].map(
     (line) =>
       [
         `the legacy top-level ${line.split(":")[0]}`,
         withExtra(line),
         line.split(":")[0] as string,
-        /platforms: \{ <platform>: \{ respond_to, handle \} \}/,
+        /platforms: \{ <platform>: \{ respond_to \} \}/,
       ] as [string, string, string, RegExp],
   ),
   [
