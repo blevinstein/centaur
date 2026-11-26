@@ -11,7 +11,7 @@ export const installedMemory = (home: string) =>
 export const memoryOf = (...guides: [path: string, text: string][]) =>
   [
     REPOSITORY_INSTRUCTIONS_MARKER,
-    guides.map(([path, text]) => `<!-- from ${path} -->\n${text}`).join("\n\n"),
+    guides.map(([path, text]) => `# Instructions from ${path}\n\n${text}`).join("\n\n"),
   ].join("\n");
 
 export async function writeUserMemory(home: string, text: string) {

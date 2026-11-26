@@ -1,6 +1,6 @@
 # Harness instructions
 
-Status: **proposal**; the repository-instructions delivery (step 3, as a copy) is built, the rest is not. It covers two backlog items in [TODO.md](../../TODO.md): Centaur-provided
+Status: **proposal**; the repository-instructions delivery (step 3, as a copy) is built (each guide under a `# Instructions from <path>` heading, as Claude Code strips HTML comments from memory files), the rest is not. It covers two backlog items in [TODO.md](../../TODO.md): Centaur-provided
 instructions that explain harness quirks to the agent, and merging them with the consumer's
 `AGENTS.md` and the situational prompt. It builds on [skills-rules.md](../skills-rules.md), which
 shipped the first slice (built-in `centaur-*` skills). Terms (turn, poster, `config_root`) are in

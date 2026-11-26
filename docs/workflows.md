@@ -424,7 +424,7 @@ See [skills-rules.md](skills-rules.md) for the design and the live check.
 ([config.md](config.md)). It writes the repository's top-directory `AGENTS.md` (else `CLAUDE.md`),
 then the Centaur root's, when the root is a sub-folder, to `$HOME/.claude/CLAUDE.md`, the user memory
 that Claude Code reads under `--setting-sources user`, so a comment turn gets the repository's rules
-although it loads no project source. Each guide follows a `<!-- from path -->` line (path relative to
+although it loads no project source. Each guide follows a `# Instructions from <path>` heading (path relative to
 the repository); a root at the repository top yields one guide.
 
 - **Trusted source only.** Both directories are resolved in `config_root`: the default-branch checkout for a

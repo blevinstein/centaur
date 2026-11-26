@@ -10,7 +10,7 @@ export const REPOSITORY_INSTRUCTIONS_MARKER =
 
 export interface RepositoryInstructionsInstall {
   home: string;
-  /** The trusted checkout's top directory; the paths in the labels are relative to it. */
+  /** The trusted checkout's top directory; the paths in the headings are relative to it. */
   repoDir: string;
   /** The trusted checkout's Centaur root; undefined removes the installed file. */
   rootDir: string | undefined;
@@ -34,7 +34,7 @@ async function firstGuide(repoDir: string, dir: string) {
 
 /**
  * Makes `$HOME/.claude/CLAUDE.md`, the user memory Claude Code reads under `--setting-sources user`,
- * hold the trusted checkout's guides, each under a `<!-- from path -->` line: the first existing of
+ * hold the trusted checkout's guides, each under a `# Instructions from <path>` heading: the first existing of
  * `AGENTS.md`, `CLAUDE.md` in the repository's top directory, then the same in the Centaur root when
  * that is a sub-folder. Returns the guides' paths. Removes the file it wrote earlier when there is
  * nothing to install. Throws, rather than truncate someone's rules, when the guides together exceed
@@ -69,7 +69,9 @@ export async function installRepositoryInstructions({
       `${parts}: ${total} bytes together, over repository_instructions.max_bytes (${maxBytes}); shorten them or raise the limit`,
     );
   }
-  const body = guides.map(({ path, text }) => `<!-- from ${path} -->\n${text}`).join("\n\n");
+  const body = guides
+    .map(({ path, text }) => `# Instructions from ${path}\n\n${text}`)
+    .join("\n\n");
   await mkdir(join(home, ".claude"), { recursive: true });
   await writeFile(target, `${REPOSITORY_INSTRUCTIONS_MARKER}\n${body}`);
   return guides.map(({ path }) => path);
