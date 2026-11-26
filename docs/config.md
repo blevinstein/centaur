@@ -23,10 +23,8 @@ wherever the config lives. The Centaur root is the repo root unless the workflow
 input (`CENTAUR_ROOT`) to a sub-folder, a relative path inside the repo; see
 [Bots in sub-folders](workflows.md#bots-in-sub-folders). The register workflow's `paths` filter lists both locations.
 
-A guide nested under a sub-folder root does not load on its own: a live check (2026-11-26) found that an
-`AGENTS.md` there is not picked up when the agent reads a file in that folder. The root's guide reaches
-the agent through the prompt's explicit instruction to read it (and `repository_instructions`), so put
-anything the agent must know in the root's own guide.
+A nested `AGENTS.md` under a sub-folder root does not load on its own (live check 2026-11-26), so the
+root guide must name anything else the agent should read.
 
 ```yaml
 bot: garden

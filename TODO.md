@@ -100,14 +100,10 @@ Design: [docs/proposals/subfolder-support.md](docs/proposals/subfolder-support.m
       one workflow (the other copy's turn is skipped). Note: Claude Code strips HTML comments from
       the guide, so guide labels are headings.
       Still open:
-      1. [x] A nested `AGENTS.md` or `CLAUDE.md` under the root loads lazily when the agent reads files
-         in that folder, in addition to the explicit prompt instruction. Answered 2026-11-26: a
-         nested `AGENTS.md` does not load; see `centaur-bdt` for the decision (the `CLAUDE.md`
-         rename variant is not yet tested).
+      1. [x] Nested guides under the root: abandoned 2026-11-26: nested guides are not supported.
       2. Two bots in shared Slack and Telegram chats: a message to both (the `client_payload.bot`
          filter and concurrency groups). Needs messages from the maintainer: the queen cannot
          puppet `centaur-test` (`centaur-o7u`).
-      Then finish the docs wrap-up in `docs/config.md` (location section).
 - Decided 2026-11-25: auto-detecting sub-folder bots is not wanted; the explicit `root` input stays.
 
 ## Needs triage

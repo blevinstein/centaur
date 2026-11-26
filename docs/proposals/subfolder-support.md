@@ -73,9 +73,9 @@ cross-package changes, git operations, `create-pull-request` and the existing se
 assume it, and the turn state and attachments stay in `.centaur-turn/` at the top. Instead, `prepare`
 tells the agent where its area is: the prompt gains one line naming `<root>` as the project folder
 and, when `<root>/AGENTS.md` or `<root>/CLAUDE.md` exists, an explicit instruction to read it first.
-Claude Code loads `CLAUDE.md` upward from the cwd, so a sub-folder file is not loaded eagerly. The live
-check in slice 5 (2026-11-26) showed a nested `AGENTS.md` does not load lazily when the agent reads files in
-that folder; a nested `CLAUDE.md` is untested. This
+Claude Code loads `CLAUDE.md` upward from the cwd, so a sub-folder file is not loaded eagerly. A nested
+`AGENTS.md` under a sub-folder root does not load on its own (live check 2026-11-26), so the root guide
+must name anything else the agent should read. This
 reuses the persona mechanism, which already passes a path.
 
 ### Several bots in one repository
@@ -188,8 +188,7 @@ at `@main`, and an older runner ignores an unknown input (a warning), so land th
   `CENTAUR_ROOT`.
 - A live check on a scratch monorepo with two sub-folder bots: a message to each produces a PR
   touching its sub-folder, the comment turn answers it, the two bots do not run each other's turns
-  and their concurrency groups do not collide, and whether a nested `AGENTS.md`/`CLAUDE.md` loads
-  lazily in addition to the explicit instruction.
+  and their concurrency groups do not collide.
 
 ## Slices
 
@@ -221,10 +220,9 @@ at `@main`, and an older runner ignores an unknown input (a warning), so land th
    `CENTAUR_ROOT` as the derived internal env var, following how `turn` already maps `config_root` to
    `CENTAUR_CONFIG_ROOT` per step. Consequence: explicit in the YAML, no hidden job-level state.
 5. **Nested `AGENTS.md`/`CLAUDE.md`: explicit instruction or live check?** The explicit prompt
-   instruction stays, and the slice 5 live check is the way to learn whether lazy loading also works.
-   Result (2026-11-26): a nested `AGENTS.md` does not load on its own, so the instruction is the only
-   channel for it; the `CLAUDE.md` variant is untested. Consequence: behaviour does not depend on
-   lazy loading.
+   instruction for the root guide stays. A nested `AGENTS.md` under a sub-folder root does not load on
+   its own (live check 2026-11-26), so the root guide must name anything else the agent should read.
+   Consequence: behaviour does not depend on lazy loading.
 6. **May a root config and sub-folder configs coexist?** No. A directory holding both
    `.centaur/config.yml` and `.centaur.yml` stays an error (`findConfigFile`, unchanged), and a repo
    uses either one root config or sub-folder configs, never a mix. Consequence: multi-bot repos put

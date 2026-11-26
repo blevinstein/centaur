@@ -113,45 +113,10 @@ the current deployed Lambda); a Lambda without it rejects the unknown key.
 
 ## Live checks (sub-folder slice 5)
 
-Two checks remain from [subfolder-support](subfolder-support.md): lazy loading of a nested guide, and
-a message that reaches both bots. Run them in the order below, with real turns on this repository.
+One check remains from [subfolder-support](subfolder-support.md): a message that reaches both bots. It
+needs messages from the maintainer: the queen cannot puppet `centaur-test` (bead `centaur-o7u`).
 
-Result of check 1 (2026-11-26, mention-only test bot): a nested `AGENTS.md` under a sub-folder root
-does not load on its own when the agent reads a file in that folder. Told to use only `Read` once,
-the bot answered UNKNOWN; with no tool, UNKNOWN; a loose request found the marker only because the
-agent searched the repository. The `CLAUDE.md` rename variant (step 5) is not yet tested (bead
-`centaur-bdt`). Check 2 needs messages from the maintainer: the queen cannot puppet `centaur-test`
-(bead `centaur-o7u`).
-
-### Fixture
-
-`apps/centaur-test-2/livecheck/` holds `target.txt` (a one-line file with no marker) and its own
-`AGENTS.md`, the only file that contains the marker word (read it there to know the expected answer; it is written nowhere else, but the bot can search the repository, so the run log, not the reply alone, shows whether the guide loaded by itself). `centaur-test-2`'s root has
-no guide, so its prompt carries no instruction to read one, and the marker is in no config, persona or
-prompt. The agent can only know the word by loading `livecheck/AGENTS.md` itself.
-
-### Check 1: a nested guide loads lazily
-
-1. In the shared Slack chat, mention `centaur-test-2`: "Read apps/centaur-test-2/livecheck/target.txt
-   and tell me the nested marker word." Do not say where the word lives: the wording must not hint at the nested guide or its folder beyond naming `target.txt`.
-2. Expected: the bot replies with the marker word from `livecheck/AGENTS.md`. Read it with `centaur chat tail centaur-test-2
-   --platform slack --text --replies`.
-3. Negative check, in the same thread or a new one: mention the bot with "What is the nested marker
-   word?" without asking it to read the file. Expected: it does not know the word, or says it has to
-   read a file. The word appearing here means it leaked into the normal prompt or persona (the
-   guide is installed to the user memory only for a root guide, and this root has none).
-4. Evidence in the run log (`gh run view <id> --log` for the `Centaur Test 2 message` run): the
-   prompt step shows the project-folder line and no marker word; the agent's tool calls show a
-   `Read` of `target.txt`. `rg` for the marker word over the downloaded log should hit only the agent's
-   tool output and reply, never the prompt.
-5. If the bot does not know the word after reading `target.txt`, the guide did not load. Claude Code
-   documents `CLAUDE.md` lazy loading, not `AGENTS.md`, so repeat with the file renamed to
-   `CLAUDE.md` (a temporary change) to tell "nested guides do not load" from "`AGENTS.md` is not read".
-   Record the outcome in `docs/config.md` either way: if only `CLAUDE.md` loads lazily, the
-   explicit prompt instruction stays the only channel for `AGENTS.md`. Outcome so far: the
-   `AGENTS.md` form does not load (see above); the `CLAUDE.md` variant is open.
-
-### Check 2: one message to both bots
+### One message to both bots
 
 `centaur-test` answers every message (`respond_to: all`); `centaur-test-2` answers only mentions.
 Run on Slack, then on Telegram, in the chat both bots are approved for. For each case note the reply
