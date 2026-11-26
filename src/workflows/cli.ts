@@ -9,7 +9,7 @@ import {
   execCommand,
 } from "./aws.js";
 import { cleanTitle } from "./clean-text.js";
-import { parseConfigOrThrow, readConfigText } from "./config-file.js";
+import { committedExecutionMode, parseConfigOrThrow, readConfigText } from "./config-file.js";
 import { requireEnv as env } from "./env.js";
 import { finish, notifyFailure } from "./finish.js";
 import { maskValue, writeOutputs } from "./github-output.js";
@@ -19,9 +19,15 @@ import { prepare } from "./prepare.js";
 import { describePullRequest } from "./pull-request.js";
 import { createPullRequestReader, createPullRequestWriter } from "./pull-request-comments.js";
 import { pushChanges, pushNewBranch } from "./push.js";
+import { pushDirect } from "./push-direct.js";
 import { pushExisting } from "./push-existing.js";
 import { registerRepo } from "./register.js";
-import { createGitHubClient, createGitHubRequester, resolve } from "./resolve.js";
+import {
+  createGitHubClient,
+  createGitHubRequester,
+  fetchDefaultBranch,
+  resolve,
+} from "./resolve.js";
 import { scheduleGroup } from "./schedule-group.js";
 import { turnStateDir } from "./turn-state.js";
 
@@ -196,6 +202,9 @@ program.command("prepare").action(async () => {
   });
 });
 
+const trustedExecutionMode = () =>
+  committedExecutionMode(process.env.CENTAUR_CONFIG_ROOT || workspace(), centaurRoot());
+
 program.command("plan-pr").action(async () => {
   const config = parseConfigOrThrow(await configText());
   const targets = targetDeps();
@@ -203,6 +212,7 @@ program.command("plan-pr").action(async () => {
     targets && { ...targets, bot: config.bot, poster: poster() },
     config.pull_requests.existing,
     await readFile(env("EXECUTION_FILE"), "utf8"),
+    await trustedExecutionMode(),
   );
   if (plan.target === "thread" && plan.fallbackReason) {
     console.log(`::notice::Using the thread's pull request (${plan.fallbackReason})`);
@@ -234,6 +244,33 @@ program.command("push-existing").action(async () => {
   });
 });
 
+program.command("push-direct").action(async () => {
+  if ((await trustedExecutionMode()) !== "direct") {
+    console.log("::notice::Not pushing directly: the committed config does not say direct");
+    await writeOutputs(env("GITHUB_OUTPUT"), { fallback: "true", reason: "not_direct" });
+    return;
+  }
+  const repository = env("GITHUB_REPOSITORY");
+  const defaultBranch = await fetchDefaultBranch(
+    createGitHubRequester(env("GITHUB_TOKEN"), process.env.GITHUB_API_URL),
+    repository,
+  );
+  const result = await pushDirect({
+    workspace: workspace(),
+    defaultBranch,
+    message: cleanTitle(process.env.PR_TITLE) || "Centaur agent changes",
+    runUrl: env("RUN_URL"),
+    tempDir: process.env.RUNNER_TEMP || undefined,
+  });
+  if (!result.ok) console.log(`::notice::Could not push to ${defaultBranch} (${result.reason})`);
+  await writeOutputs(env("GITHUB_OUTPUT"), {
+    fallback: String(!result.ok),
+    reason: result.ok ? "" : result.reason,
+    branch: defaultBranch,
+    ...(result.ok && result.commits === 1 ? { "commit-sha": result.sha } : {}),
+  });
+});
+
 program.command("pr-details").action(async () => {
   const details = await describePullRequest({
     stateDir: turnStateDir(),
@@ -242,6 +279,18 @@ program.command("pr-details").action(async () => {
   });
   await writeOutputs(env("GITHUB_OUTPUT"), { ...details });
 });
+
+const directPushDeps = () => {
+  if (process.env.DIRECT_PUSH !== "true") return undefined;
+  const sha = process.env.DIRECT_COMMIT_SHA;
+  return {
+    branch: process.env.DIRECT_BRANCH || "the default branch",
+    fallbackReason: process.env.DIRECT_FALLBACK_REASON || undefined,
+    commitUrl: sha
+      ? `${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${env("GITHUB_REPOSITORY")}/commit/${sha}`
+      : undefined,
+  };
+};
 
 const updatedPullRequestDeps = () => {
   const number = Number(process.env.PULL_REQUEST_NUMBER);
@@ -265,6 +314,7 @@ program.command("finish").action(async () => {
     executionFile: env("EXECUTION_FILE"),
     comment: comment && { ...comment, newPullRequest: await newPullRequestDeps() },
     updatedPullRequest: updatedPullRequestDeps(),
+    directPush: directPushDeps(),
     fallbackReason: process.env.FALLBACK_REASON || undefined,
     pullRequestUrl: process.env.PULL_REQUEST_URL || undefined,
     pullRequestFailed: process.env.PULL_REQUEST_FAILED === "true",

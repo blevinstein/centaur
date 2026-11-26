@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createGitHubClient,
+  createGitHubRequester,
+  fetchDefaultBranch,
   GitHubRequestError,
   REPLY_MARKER,
   resolve,
@@ -191,5 +193,29 @@ describe("createGitHubClient", () => {
     const client = createGitHubClient("t", "https://api.test", respond(403, { message: "secret" }));
 
     await expect(client.permission("o/r", "a")).rejects.toThrow(/^GitHub request failed \(403\)$/);
+  });
+});
+
+describe("fetchDefaultBranch", () => {
+  const requesterReturning = (status: number, body: unknown) =>
+    createGitHubRequester(
+      "token",
+      "https://api.example.test",
+      vi.fn(async () => new Response(JSON.stringify(body), { status })) as typeof fetch,
+    );
+
+  it("reads the branch name from the repository API", async () => {
+    await expect(
+      fetchDefaultBranch(requesterReturning(200, { default_branch: "trunk" }), "o/r"),
+    ).resolves.toBe("trunk");
+  });
+
+  it("fails on an API error or an empty name", async () => {
+    await expect(fetchDefaultBranch(requesterReturning(500, {}), "o/r")).rejects.toBeInstanceOf(
+      GitHubRequestError,
+    );
+    await expect(
+      fetchDefaultBranch(requesterReturning(200, { default_branch: "" }), "o/r"),
+    ).rejects.toThrow();
   });
 });

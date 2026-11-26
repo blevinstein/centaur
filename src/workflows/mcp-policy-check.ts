@@ -9,7 +9,7 @@ import {
   type PolicyLayers,
 } from "../config/mcp-policy.js";
 import type { PosterClient } from "./aws.js";
-import { GitHubRequestError, type GitHubRequester } from "./resolve.js";
+import { fetchDefaultBranch, GitHubRequestError, type GitHubRequester } from "./resolve.js";
 
 export const MCP_POLICY_FILE = ".centaur/mcp-policy.cedar";
 
@@ -21,7 +21,6 @@ export interface McpPolicyDeps {
   poster: PosterClient;
 }
 
-const repositoryResponse = z.object({ default_branch: z.string().min(1) });
 const globalPolicyResponse = z.object({ policy: z.string().nullable() });
 
 /** The repo-relative path of the policy file for a Centaur root, as a URL path. */
@@ -34,10 +33,10 @@ export function mcpPolicyPath(root = "."): string {
 
 /** Reads the repo layer from the default branch, never the checkout: a turn can run on any branch. */
 async function fetchRepoPolicy({ repository, root, github }: McpPolicyDeps) {
-  const { default_branch } = await github.json(`/repos/${repository}`, repositoryResponse);
+  const defaultBranch = await fetchDefaultBranch(github, repository);
   try {
     return await github.text(
-      `/repos/${repository}/contents/${mcpPolicyPath(root)}?ref=${encodeURIComponent(default_branch)}`,
+      `/repos/${repository}/contents/${mcpPolicyPath(root)}?ref=${encodeURIComponent(defaultBranch)}`,
       "application/vnd.github.raw+json",
     );
   } catch (error) {

@@ -223,6 +223,7 @@ describe("planOutputs", () => {
       fallback_reason: "not_open",
     });
     expect(planOutputs({ target: "thread" })).toEqual({ target: "thread", fallback_reason: "" });
+    expect(planOutputs({ target: "direct" })).toEqual({ target: "direct" });
   });
 });
 
@@ -269,5 +270,29 @@ describe("planForTurn", () => {
     await expect(
       planForTurn(candidateDeps, "bot", executionText({ reply: "ok" })),
     ).resolves.toEqual({ target: "thread" });
+  });
+
+  it("plans a direct push from the trusted mode without reading the agent or GitHub", async () => {
+    const { candidateDeps, github, aws } = targetSetup({ open: [candidatePr(5)] });
+
+    await expect(planForTurn(candidateDeps, "bot", execution, "direct")).resolves.toEqual({
+      target: "direct",
+    });
+    await expect(planForTurn(undefined, "off", "not json", "direct")).resolves.toEqual({
+      target: "direct",
+    });
+    expect(github.listOpenPullRequests).not.toHaveBeenCalled();
+    expect(aws.requests).toEqual([]);
+  });
+
+  it("plans exactly as before in pull_request mode", async () => {
+    const { candidateDeps } = targetSetup({ open: [candidatePr(5)] });
+
+    await expect(planForTurn(candidateDeps, "bot", execution, "pull_request")).resolves.toEqual(
+      await planForTurn(candidateDeps, "bot", execution),
+    );
+    await expect(planForTurn(candidateDeps, "off", execution, "pull_request")).resolves.toEqual({
+      target: "thread",
+    });
   });
 });

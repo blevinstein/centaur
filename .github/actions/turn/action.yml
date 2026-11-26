@@ -89,10 +89,23 @@ runs:
         PR_TITLE: ${{ steps.pr_details.outputs.title }}
       run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" push-existing
 
+    - name: Push to the default branch
+      id: push_direct
+      continue-on-error: true
+      if: steps.prepare.outputs.skip != 'true' && inputs.comment == '' && steps.plan.outputs.target == 'direct'
+      shell: bash
+      env:
+        PR_TITLE: ${{ steps.pr_details.outputs.title }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        CENTAUR_CONFIG_ROOT: ${{ inputs.config_root }}
+        CENTAUR_ROOT: ${{ inputs.root }}
+        GITHUB_TOKEN: ${{ github.token }}
+      run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" push-direct
+
     - name: Open pull request
       id: pr
       continue-on-error: true
-      if: steps.prepare.outputs.skip != 'true' && inputs.comment == '' && (steps.plan.outputs.target == 'thread' || steps.push_existing.outputs.fallback == 'true')
+      if: steps.prepare.outputs.skip != 'true' && inputs.comment == '' && (steps.plan.outputs.target == 'thread' || steps.push_existing.outputs.fallback == 'true' || steps.push_direct.outputs.fallback == 'true')
       uses: peter-evans/create-pull-request@v8
       with:
         token: ${{ github.token }}
@@ -110,7 +123,11 @@ runs:
         PULL_REQUEST_NUMBER: ${{ steps.push_existing.outputs.pull-request-number || steps.pr.outputs.pull-request-number }}
         PULL_REQUEST_UPDATED: ${{ steps.push_existing.outputs.pull-request-url != '' }}
         FALLBACK_REASON: ${{ steps.plan.outputs.fallback_reason || steps.push_existing.outputs.reason }}
-        PULL_REQUEST_FAILED: ${{ steps.push_existing.outcome == 'failure' || steps.pr.outcome == 'failure' }}
+        PULL_REQUEST_FAILED: ${{ steps.push_existing.outcome == 'failure' || steps.push_direct.outcome == 'failure' || steps.pr.outcome == 'failure' }}
+        DIRECT_PUSH: ${{ steps.plan.outputs.target == 'direct' }}
+        DIRECT_BRANCH: ${{ steps.push_direct.outputs.branch }}
+        DIRECT_COMMIT_SHA: ${{ steps.push_direct.outputs.commit-sha }}
+        DIRECT_FALLBACK_REASON: ${{ steps.push_direct.outputs.reason }}
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         CENTAUR_CONFIG_ROOT: ${{ inputs.config_root }}
         CENTAUR_ROOT: ${{ inputs.root }}

@@ -335,8 +335,8 @@ Rollout rule: the `execution` key must not reach a consumer's default branch bef
 parses it is deployed, so it needs the deploy approval first (section 21).
 
 - [x] Execution 1: config block `execution` and docs.
-- [ ] Execution 2: extract the transplant from `push-existing.ts` and add `pushDirect`.
-- [ ] Execution 3: wire the `turn` action (`plan-pr` generalization, `push-direct`).
+- [x] Execution 2: extract the transplant from `push-existing.ts` and add `pushDirect`.
+- [x] Execution 3: wire the `turn` action (`plan-pr` generalization, `push-direct`).
 - [ ] **[HUMAN ACTION]** Execution 3 real run: `direct` on a scratch repo, including the fall back
       to a pull request. After 3.
 - [ ] Execution 4: prompt text and `replySchema` fields for the mode.

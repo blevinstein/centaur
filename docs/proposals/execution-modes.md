@@ -83,6 +83,11 @@ default branch. The authorization therefore has to be as hard to forge as `.cent
    mode field, and the turn state (which the agent can in principle rewrite under an unrestricted
    `Bash`; see [Turn state](../workflows.md#turn-state)) is not the source of truth. Same rule as
    `plan-pr`: authorization comes from the config and GitHub, never from the agent.
+   On chat and scheduled turns the workspace is writable by the agent, so `plan-pr` and `push-direct`
+   take the mode from the config as committed at the checkout's HEAD (`git show`), never from the
+   workspace file. A missing, ambiguous or invalid committed config means `pull_request`, and
+   `push-direct` refuses unless the committed config says `direct` (reason `not_direct`), so the
+   protected-path check is not the only defense against an agent editing its own mode.
 3. **Registration.** `register` already validates the config on the default branch and binds the bot.
    It should print the execution mode. Authorization comes from the config alone; there is no
    poster-side approval of `direct` in v1.
@@ -244,9 +249,9 @@ output is what the tests above cover.
 2. **Refactor (built).** The transplant is `transplantAndPush` in `src/workflows/transplant.ts`;
    `pushDirect` is in `src/workflows/push-direct.ts`, with unit tests. Its success result carries
    the commit `sha`. No action wiring.
-3. **Wire the turn action.** Generalize `plan-pr` to the execution plan, add `push-direct`, update
-   the `if:` conditions in `.github/actions/turn/action.yml`, `finish` reporting. Real-run check on a
-   scratch repository.
+3. **Wire the turn action (built).** Generalize `plan-pr` to the execution plan, add `push-direct`, update
+   the `if:` conditions in `.github/actions/turn/action.yml`, `finish` reporting. The real run on a
+   scratch repository remains a human action.
 4. **Prompt and schema.** The generated `# Execution mode` section, schema descriptions and the
    skill paragraph; reconcile with the harness-instructions work (build after it, or move the one
    sentence now and fold into the brief later).

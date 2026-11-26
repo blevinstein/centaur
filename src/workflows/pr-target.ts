@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { CentaurConfig } from "../config/index.js";
 import type { PosterClient } from "./aws.js";
 import { extractResult } from "./finish.js";
 import { paginate } from "./pull-request-comments.js";
@@ -36,7 +37,8 @@ export interface CandidateDeps extends TargetDeps {
 
 export type PrTarget =
   | { target: "thread"; fallbackReason?: Rejection }
-  | { target: "existing"; number: number; headRef: string; title: string };
+  | { target: "existing"; number: number; headRef: string; title: string }
+  | { target: "direct" };
 
 const candidateResponse = z.object({
   number: z.number().int().positive(),
@@ -163,10 +165,16 @@ export async function planTarget(
   }
 }
 
-export const planOutputs = (plan: PrTarget): Record<string, string> =>
-  plan.target === "existing"
-    ? { target: "existing", number: String(plan.number), head_ref: plan.headRef }
-    : { target: "thread", fallback_reason: plan.fallbackReason ?? "" };
+export const planOutputs = (plan: PrTarget): Record<string, string> => {
+  switch (plan.target) {
+    case "existing":
+      return { target: "existing", number: String(plan.number), head_ref: plan.headRef };
+    case "direct":
+      return { target: "direct" };
+    case "thread":
+      return { target: "thread", fallback_reason: plan.fallbackReason ?? "" };
+  }
+};
 
 /** The agent's `existing_pr_number`, read from its structured output; absent when unreadable. */
 export function requestedPullRequest(executionFileText: string): number | undefined {
@@ -177,12 +185,17 @@ export function requestedPullRequest(executionFileText: string): number | undefi
   }
 }
 
-/** Plans the turn's target; without GitHub access or with `existing: off` it is the thread's. */
+/**
+ * Plans the turn's target from the trusted config. `direct` ignores the agent's output and
+ * `existing`; otherwise, without GitHub access or with `existing: off`, it is the thread's.
+ */
 export async function planForTurn(
   deps: CandidateDeps | undefined,
   existing: "bot" | "off",
   executionFileText: string,
+  mode: CentaurConfig["execution"]["mode"] = "pull_request",
 ): Promise<PrTarget> {
+  if (mode === "direct") return { target: "direct" };
   if (!deps || existing === "off") return { target: "thread" };
   return planTarget(deps, requestedPullRequest(executionFileText));
 }

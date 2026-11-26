@@ -1098,6 +1098,7 @@ describe("prepare pull request candidates", () => {
 
 describe("finish with an existing pull request target", () => {
   const URL = "https://example.test/pr/9";
+  const COMMIT_URL = "https://example.test/commit/abc123";
 
   async function finished(
     structured: object,
@@ -1190,6 +1191,51 @@ describe("finish with an existing pull request target", () => {
     );
 
     expect(text).toBe("Done.");
+  });
+
+  it("reports the commit a direct push landed, without linking a pull request", async () => {
+    const { text, aws } = await finished(
+      { reply: "Done." },
+      { directPush: { branch: "main", commitUrl: COMMIT_URL }, pullRequestLink: undefined },
+    );
+
+    expect(text).toBe(`Done.\n\nPushed to main: ${COMMIT_URL}`);
+    expect(aws.requests.map((r) => r.operation)).not.toContain("link-pull-request");
+  });
+
+  it("posts only the reply when a direct push had nothing to commit", async () => {
+    const { text } = await finished({ reply: "Done." }, { directPush: { branch: "main" } });
+
+    expect(text).toBe("Done.");
+  });
+
+  it("names the reason, and links the pull request, when a direct push fell back", async () => {
+    const { text, aws } = await finished(
+      { reply: "Done." },
+      {
+        directPush: { branch: "main", fallbackReason: "push_rejected" },
+        pullRequestUrl: URL,
+      },
+    );
+
+    expect(text).toBe(
+      `Done.\n\nPull request: ${URL}\n\nCould not push to main (push_rejected); opened the usual pull request instead.`,
+    );
+    expect(aws.requests.map((r) => r.operation)).toContain("link-pull-request");
+  });
+
+  it("says the changes were not saved when the direct push fell back and the pull request failed", async () => {
+    const { text } = await finished(
+      { reply: "Done." },
+      {
+        directPush: { branch: "main", fallbackReason: "conflict" },
+        pullRequestFailed: true,
+        runUrl: "https://example.test/run/1",
+      },
+    );
+
+    expect(text).toContain("the changes were not saved");
+    expect(text).not.toContain("Could not push");
   });
 });
 

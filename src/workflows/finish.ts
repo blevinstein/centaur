@@ -94,7 +94,16 @@ export interface UpdatedPullRequestDeps {
   github: Pick<PullRequestWriter, "comment">;
 }
 
+/** Present when the turn's plan was a direct push; `commitUrl` is set when a commit landed. */
+export interface DirectPushDeps {
+  branch: string;
+  commitUrl?: string | undefined;
+  /** Why the push did not land; the usual pull request was opened instead. */
+  fallbackReason?: string | undefined;
+}
+
 export interface FinishDeps {
+  directPush?: DirectPushDeps | undefined;
   updatedPullRequest?: UpdatedPullRequestDeps | undefined;
   /** Why the agent's chosen pull request was not updated; the usual pull request was opened. */
   fallbackReason?: string | undefined;
@@ -168,9 +177,10 @@ async function deliverReply(
   state: TurnState,
   result: ReturnType<typeof extractResult>,
 ) {
-  const { pullRequestUrl, updatedPullRequest, fallbackReason } = deps;
+  const { pullRequestUrl, updatedPullRequest, fallbackReason, directPush } = deps;
   const text = [
     result.reply,
+    directPush?.commitUrl && `Pushed to ${directPush.branch}: ${directPush.commitUrl}`,
     pullRequestUrl &&
       `${updatedPullRequest ? "Updated pull request" : "Pull request"}: ${pullRequestUrl}`,
     pullRequestUrl &&
@@ -178,6 +188,9 @@ async function deliverReply(
       fallbackReason &&
       result.existingPr !== undefined &&
       `Could not update #${result.existingPr} (${fallbackReason}); opened the usual pull request instead.`,
+    pullRequestUrl &&
+      directPush?.fallbackReason &&
+      `Could not push to ${directPush.branch} (${directPush.fallbackReason}); opened the usual pull request instead.`,
     !pullRequestUrl && deps.pullRequestFailed && pullRequestFailureNote(deps.runUrl),
   ]
     .filter(Boolean)

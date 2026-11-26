@@ -1,11 +1,12 @@
 import { access, readdir, readFile, realpath } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, relative } from "node:path";
+import { basename, dirname, isAbsolute, join, posix, relative } from "node:path";
 import {
   type CentaurConfig,
   formatIssues,
   isRepoRelativePath,
   parseCentaurConfig,
 } from "../config/index.js";
+import { type Exec, execCommand } from "./aws.js";
 
 export const CONFIG_FILES = [".centaur/config.yml", ".centaur.yml"] as const;
 
@@ -101,4 +102,42 @@ export function parseConfigOrThrow(text: string): CentaurConfig {
   const result = parseCentaurConfig(text);
   if (!result.ok) throw new Error(`The Centaur config is invalid:\n${formatIssues(result.issues)}`);
   return result.config;
+}
+
+const inGitRepository = (base: string, exec: Exec) =>
+  exec("git", ["-C", base, "rev-parse", "--git-dir"]).then(
+    () => true,
+    () => false,
+  );
+
+const committedConfigText = async (base: string, root: string, exec: Exec) => {
+  if (!isRepoRelativePath(root)) throw new Error(`Invalid Centaur root "${root}"`);
+  const texts = await Promise.all(
+    CONFIG_FILES.map((file) =>
+      exec("git", ["-C", base, "show", `HEAD:./${posix.join(root, file)}`]).catch(() => undefined),
+    ),
+  );
+  const found = texts.filter((text) => text !== undefined);
+  if (found.length !== 1) throw new Error("no single committed Centaur config");
+  return found[0] as string;
+};
+
+/**
+ * The execution mode of the config as committed at the checkout's HEAD, which the agent cannot
+ * edit during a turn. Only outside a git repository is the file read. A committed config that is
+ * missing, ambiguous or invalid yields `pull_request`, never `direct`.
+ */
+export async function committedExecutionMode(
+  base: string,
+  root = ".",
+  exec: Exec = execCommand,
+): Promise<CentaurConfig["execution"]["mode"]> {
+  try {
+    const text = (await inGitRepository(base, exec))
+      ? await committedConfigText(base, root, exec)
+      : await readConfigText(base, root);
+    return parseConfigOrThrow(text).execution.mode;
+  } catch {
+    return "pull_request";
+  }
 }

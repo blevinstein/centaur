@@ -480,7 +480,8 @@ the repository); a root at the repository top yields one guide.
    `allowed_tools` lacks `Read`, `Read(./.centaur-turn/**)` is added so it can.
 3. `pr-details` builds the pull request title and body from the agent's optional `pr_title` and
    `pr_body` structured output (see below). `plan-pr` then decides where the changes land (see
-   below). Unless the plan chose an existing pull request and `push-existing` updated it,
+   below). Unless the plan chose an existing pull request and `push-existing` updated it, or chose a
+   direct push and `push-direct` landed it ([Execution modes](#execution-modes)),
    `create-pull-request` opens (or updates) `centaur/<bot>-<thread>` when files changed, using the
    title as both commit message and title.
 4. `finish` takes the reply from the action's execution file, appends the pull request link, posts
@@ -643,6 +644,44 @@ new commits are pushed" in the branch protection rule or ruleset for the default
 agent update cannot ride an earlier approval. Also protect the default branch (required reviews or
 rulesets), since Centaur never merges and relies on that review. Setting `pull_requests.existing:
 off` removes the path.
+
+### Execution modes
+
+`execution.mode` ([config.md](config.md)) decides where a chat or scheduled turn lands its changes.
+`pull_request`, the default and every config without the key, is the flow above, unchanged. In
+`direct` the plan is `direct` and `push-direct` commits the agent's changes onto the tip of the
+repository's default branch. The design is in [proposals/execution-modes.md](proposals/execution-modes.md).
+
+`plan-pr` reads the mode each turn from the config as committed at HEAD of the checkout at `CENTAUR_CONFIG_ROOT` (or the workspace), never from the workspace file, which the agent can edit; a missing or invalid committed config means `pull_request`. Only a checkout without git reads the file. A
+`direct` plan is written without reading the agent's output, the turn state or GitHub, ignores
+`pull_requests.existing` (the schema requires it `off` with `direct`) and has the single output
+`target: direct`. Comment turns skip `plan-pr` and `push-direct` and keep pushing to the pull
+request's own branch.
+
+`centaur-workflow push-direct` first re-checks the committed mode the same way and, unless it is `direct`, outputs `fallback` with reason `not_direct`. It then resolves the default branch from the GitHub API (`GET
+/repos/<repository>`), never from the agent or the turn state. It reads `PR_TITLE` for the commit
+message and `RUN_URL` for the run-URL footer, and shares the transplant with `push-existing`:
+stage everything except `.centaur-turn` and `.centaur-trusted`, apply the patch with `git apply
+--3way` onto a fresh fetch of the branch, commit as `github-actions[bot]` and push with a plain
+`git push`, never forced. A rejected push is retried once from a fresh fetch. A patch touching a
+protected path (anything under `.github/`, a path segment starting with `.centaur`, or `CODEOWNERS`
+at the root or under `docs/`) is refused.
+
+Outputs: `fallback` (`true` on any failure), `reason` (`conflict`, `push_rejected`,
+`protected_path`, `invalid_ref`, `fetch_failed`, `patch_failed`; never file contents), `branch`
+and, when a commit landed, `commit-sha`. A failure logs `::notice::Could not push to <branch>
+(<reason>)`; this is the expected result where branch protection rejects the job token. With no
+changes the step succeeds and sets no `commit-sha`. The push uses the workflow's `GITHUB_TOKEN`,
+so branch protection and rulesets apply, and, like every push made with that token, it triggers no
+workflows (CI does not run on the commit). Direct mode bypasses protection only where the
+repository lets `github-actions[bot]` push.
+
+`create-pull-request` also runs when `push-direct` reported `fallback`, so the changes are not
+lost. `finish` gets `DIRECT_PUSH`, `DIRECT_BRANCH`, `DIRECT_COMMIT_SHA` and
+`DIRECT_FALLBACK_REASON`. A landed commit is reported as `Pushed to <branch>: <commit url>` in
+place of the pull request link; a fallback adds `Could not push to <branch> (<reason>); opened the
+usual pull request instead.` after `Pull request: <url>`. A direct push links no pull request to the
+thread. Nothing in the job logs or step outputs carries message text, thread IDs or chat IDs.
 
 ### Comment turns
 

@@ -5,6 +5,7 @@ export interface ActionStep {
   id?: string;
   name?: string;
   "continue-on-error"?: boolean;
+  if?: string;
   env?: Record<string, string>;
 }
 

@@ -68,3 +68,11 @@ export async function createClone(options: { ignoreTurnDir?: boolean } = {}) {
     rejectPushes,
   };
 }
+
+/** Commits `content` at `file` in the clone's work tree. */
+export async function commitFile(work: string, file: string, content: string) {
+  await mkdir(dirname(join(work, file)), { recursive: true });
+  await writeFile(join(work, file), content);
+  await git(work, "add", file);
+  await git(work, "commit", "-m", `add ${file}`);
+}

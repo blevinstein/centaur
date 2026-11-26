@@ -161,6 +161,13 @@ export interface GitHubRequester {
   postJson<T>(path: string, body: unknown, schema: z.ZodType<T>): Promise<T>;
 }
 
+const repositoryResponse = z.object({ default_branch: z.string().min(1) });
+
+/** The repository's default branch, always from the API, never from the checkout or the agent. */
+export async function fetchDefaultBranch(github: GitHubRequester, repository: string) {
+  return (await github.json(`/repos/${repository}`, repositoryResponse)).default_branch;
+}
+
 export class GitHubRequestError extends Error {
   constructor(readonly status: number) {
     super(`GitHub request failed (${status})`);
