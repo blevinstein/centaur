@@ -1,0 +1,54 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit, tag or branch to deploy. Must already be merged into main.
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ inputs.ref }}
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require a commit merged into main
+        run: git merge-base --is-ancestor HEAD origin/main
+      - uses: ./.github/actions/install
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.CENTAUR_AWS_REGION }}
+      - name: Write parameters file
+        env:
+          DEPLOY_PARAMETERS: ${{ secrets.DEPLOY_PARAMETERS }}
+        run: |
+          (umask 077 && printf '%s' "$DEPLOY_PARAMETERS" > parameters-prod.json)
+          jq -r '.[].ParameterValue | select(length >= 8)' parameters-prod.json |
+            while IFS= read -r value; do echo "::add-mask::$value"; done
+      - run: yarn deploy-prod
+      - name: Remove parameters file
+        if: always()
+        run: rm -f parameters-prod.json

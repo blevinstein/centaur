@@ -112,7 +112,147 @@ export AWS_ACCESS_KEY_ID=$(jq -r .AccessKeyId <<<"$creds") \
   AWS_SESSION_TOKEN=$(jq -r .SessionToken <<<"$creds")
 ```
 
+The deploy role (`DeployRoleArn` output) is assumed only by the `production` environment of this repository's workflows; see [Continuous deployment](#continuous-deployment). Every role in the stack carries `DeployPolicy` as its permissions boundary.
+
 The function URL is public (`AuthType NONE`) so Telegram and Slack can reach it.
 
 After the first deploy, store secrets with the [CLI](cli.md) and register repos as described in
 [onboarding](onboarding.md).
+
+## Continuous deployment
+
+`.github/workflows/deploy.yml` deploys the stack on every push to `main` and on manual dispatch.
+`.github/workflows/ci.yml` (`yarn verify` and `yarn lint:cfn`) runs on pull requests and pushes
+to `main`, and `deploy.yml` calls it as its first job; the `deploy` job runs only if it passes.
+
+The `deploy` job:
+
+1. Runs in the GitHub `production` environment, one at a time (`concurrency: deploy-prod`, queued
+   rather than cancelled).
+2. Refuses a commit that is not an ancestor of `origin/main`, so a dispatch cannot deploy an
+   unmerged branch.
+3. Assumes `DeployRole` through GitHub OIDC (repository variable `DEPLOY_ROLE_ARN`, region from
+   `CENTAUR_AWS_REGION`).
+4. Writes the repository secret `DEPLOY_PARAMETERS` (the contents of `parameters-prod.json`) to a
+   mode 600 `parameters-prod.json`, masks its longer values, runs `yarn deploy-prod` and deletes the
+   file.
+
+Bots that push to `main` with `GITHUB_TOKEN` do not trigger it, so only pushes by people (and
+merges) deploy. To redeploy or roll back, run the `Deploy` workflow with `ref` set to a commit,
+tag or branch that is already on `main`:
+
+```sh
+gh workflow run deploy.yml -f ref=<sha>
+```
+
+Each Lambda zip is stored under a content-addressed key in the code bucket until
+`CodeExpirationDays` passes, and the deploy rebuilds the bundle from the chosen ref, so deploying an
+older ref restores the older code with no extra step. Template changes in the older ref are
+deployed with it.
+
+### One-time setup
+
+`scripts/setup-cd.sh` does the GitHub side (needs `gh` with admin on the repository, `aws` and `jq`;
+`--repo`, `--stack`, `--params-file` and `--dry-run` are accepted by every subcommand, and
+`--dry-run` prints the commands without running anything).
+
+Order matters: the role's trust accepts any token whose subject is the `production` environment,
+and GitHub creates a missing environment, unrestricted, the first time a workflow references it.
+Restrict the environment before the role exists.
+
+1. `scripts/setup-cd.sh environment` creates the `production` environment limited to `main`, before
+   merging or pushing this change. It is idempotent and verifies the result.
+2. Merge and push. The first push runs CI; the `deploy` job fails harmlessly at the credentials
+   step because `DEPLOY_ROLE_ARN` is not set yet.
+3. From the merged commit, deploy by hand with admin credentials, which creates the role:
+   `yarn deploy-prod`. Review the change set (the existing roles gain `PermissionsBoundary`) and
+   check afterwards that the Lambda still reaches its table, bucket and parameters for every bot.
+4. `scripts/setup-cd.sh credentials` reads the `DeployRoleArn` output, re-verifies the environment
+   (it refuses otherwise), requires the `CENTAUR_AWS_REGION` repository variable, sets the
+   `DEPLOY_ROLE_ARN` variable and sets the `DEPLOY_PARAMETERS` secret from `jq -c . parameters-prod.json`
+   on stdin (minified: GitHub masks a multi-line secret line by line).
+5. Run the `Deploy` workflow (`gh workflow run deploy.yml`) to confirm it assumes the role.
+
+`scripts/setup-cd.sh check` shows what is done and what is still missing, in step order.
+
+Branch protection on `main` (pull requests and the `verify` check) is recommended but a separate,
+manual decision: requiring pull requests also stops direct pushes to `main`, including the
+direct-execution-mode bots' pushes. To require approval before each deploy, add required reviewers
+to the `production` environment; nothing else changes.
+
+<details>
+<summary>What the script runs</summary>
+
+```sh
+# environment (skipped when already restricted to main)
+gh api -X PUT repos/<owner>/<repo>/environments/production \
+  --input - <<<'{"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}'
+gh api -X POST repos/<owner>/<repo>/environments/production/deployment-branch-policies \
+  -f name=main -f type=branch
+
+# credentials
+role_arn=$(aws cloudformation describe-stacks --stack-name centaur \
+  --query "Stacks[0].Outputs[?OutputKey=='DeployRoleArn'].OutputValue" --output text)
+gh variable set DEPLOY_ROLE_ARN --repo <owner>/<repo> --body "$role_arn"
+jq -c . parameters-prod.json | gh secret set DEPLOY_PARAMETERS --repo <owner>/<repo>
+```
+
+</details>
+
+### Threat model
+
+An unrestricted `production` environment is how the role's trust is bypassed: with it, a workflow on any branch by anyone with write access can obtain the credentials. Setup step 1 is not optional.
+
+Anyone who can get a commit onto `main` can change what the deploy runs: the workflow, the build
+scripts and the template all come from the pushed commit. The controls are:
+
+- The role's trust accepts only the `production` environment of this repository under the
+  configured owner (`repo:<owner>/centaur:environment:production`, in both the name and the
+  owner-id form that `GitHubRole` uses), and the environment accepts only `main`. A pull request,
+  a fork or another branch cannot obtain the credentials. The workflow also refuses unmerged refs.
+- `DeployPolicy` limits the role to this stack's resources (names built from the stack name). IAM
+  actions are limited to roles and policies with the stack's name prefix, and role changes are only
+  allowed on roles carrying `DeployPolicy` as their permissions boundary. `DeployPolicy` is that
+  boundary for every role in the stack (including `DeployRole`) and is also the deploy role's whole
+  permission set, so no role the deploy creates or edits can exceed it, and it cannot attach a
+  policy from outside the stack prefix.
+- `DeployPolicy` explicitly denies the deploy role from changing `DeployRole` (trust, policies,
+  boundary, deletion) and from creating, editing or deleting a version of `DeployPolicy`. A commit
+  that edits those fails the deploy and CloudFormation rolls back. They change only through a
+  manual `yarn deploy-prod` with admin credentials.
+
+Residual risk: a commit on `main` can still do anything `DeployPolicy` allows within the stack:
+replace the Lambda code (which can read and write the state table, the session and code buckets
+and `/centaur/*` parameters, including secrets, through the function role), widen the function URL,
+or change other roles inside the boundary. The role also holds that data access itself, because one
+document serves as both the ceiling and the deploy permissions. Treat write access to `main` as
+equivalent to administering the Centaur stack, require reviews on `main` and consider required
+reviewers on the `production` environment.
+
+Claim names that GitHub documents beyond `aud` and `sub` (for example `job_workflow_ref`) are not
+used as IAM conditions; the environment plus the environment's branch restriction cover the same
+ground. The `sub` formats (name form and `<owner>@<id>` owner-id form) are copied from `GitHubRole`
+and are unverified against a real token: if the first run fails with `Not authorized to perform
+sts:AssumeRoleWithWebIdentity`, compare the token's `sub` with the role's trust policy.
+
+### Lockout
+
+The deploy role updates its own stack, so a template that breaks it can strand later deploys:
+removing an action from `DeployPolicy` that a later deploy needs, a boundary that no longer covers a
+role's permissions (the Lambda then fails at runtime although the deploy succeeds), or a failed
+update that leaves the stack in `UPDATE_ROLLBACK_FAILED`. The frozen statements above make the
+destructive cases fail the deploy rather than apply. Recovery is a manual deploy with admin
+credentials from a known-good commit:
+
+```sh
+git switch --detach <good-sha>
+yarn deploy-prod
+```
+
+If the stack is stuck in `UPDATE_ROLLBACK_FAILED`, continue the rollback in the CloudFormation
+console (or `aws cloudformation continue-update-rollback`) before redeploying.
+
+Changing `DeployPolicy`, `DeployRole` or any role's boundary, and adding an AWS service to the
+template, requires a manual deploy first, because the deploy role cannot grant itself new
+permissions. `DeployPolicy` is capped at 6144 characters (IAM's managed policy limit), so the
+policy may need to be split when the stack grows.

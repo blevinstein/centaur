@@ -341,6 +341,25 @@ parses it is deployed, so it needs the deploy approval first (section 21).
       to a pull request. After 3.
 - [ ] Execution 4: prompt text and `replySchema` fields for the mode.
 
+## 23. Continuous deployment
+
+Workflows `ci.yml` and `deploy.yml`, `DeployRole` in `infra/centaur.yml` and the setup are
+described in [docs/deploy.md](docs/deploy.md#continuous-deployment). Decided 2026-11-26: the role
+lives in the main stack, every push to `main` deploys through the `production` environment (no
+required reviewer), and a dispatch redeploys a chosen ref.
+
+- [ ] **[HUMAN ACTION]** Before merging or pushing: `scripts/setup-cd.sh environment`. Unrestricted,
+      the `production` environment lets any branch's workflow assume the role.
+- [ ] **[HUMAN APPROVAL]** Merge and push (the first `deploy` job fails harmlessly at credentials),
+      then deploy by hand (`yarn deploy-prod`) from the merged commit, reviewing the change set
+      (existing roles gain a permissions boundary) and smoke-testing both bots.
+- [ ] **[HUMAN ACTION]** `scripts/setup-cd.sh credentials` (sets `DEPLOY_ROLE_ARN` and
+      `DEPLOY_PARAMETERS`; `CENTAUR_AWS_REGION` must already exist).
+- [ ] **[HUMAN APPROVAL]** Run the `Deploy` workflow to confirm it assumes the role. If it fails to
+      assume it, check the `sub` formats in the doc.
+- [ ] **[HUMAN APPROVAL]** Decide on branch protection for `main` and required reviewers on
+      `production` (manual; requiring pull requests also stops direct pushes to `main`).
+
 ## Needs triage
 
 Some of these are items that can be implemented in a single task; others require planning and

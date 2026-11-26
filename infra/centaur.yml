@@ -168,6 +168,217 @@ Resources:
               - dynamodb:DescribeTable
             Resource: !GetAtt StateTable.Arn
 
+  DeployPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Upper bound for every role in the stack (permissions boundary) and the whole permission set of the deploy role. Creating or editing roles is only allowed when the role carries this boundary.
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - cloudformation:CreateStack
+              - cloudformation:UpdateStack
+              - cloudformation:CreateChangeSet
+              - cloudformation:DescribeChangeSet
+              - cloudformation:ExecuteChangeSet
+              - cloudformation:DeleteChangeSet
+              - cloudformation:DescribeStacks
+              - cloudformation:DescribeStackEvents
+              - cloudformation:DescribeStackResources
+              - cloudformation:ListStackResources
+              - cloudformation:GetTemplate
+              - cloudformation:GetTemplateSummary
+            Resource:
+              - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*
+              - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/*/*
+          - Effect: Allow
+            Action:
+              - s3:CreateBucket
+              - s3:ListBucket
+              - s3:GetBucketPublicAccessBlock
+              - s3:PutBucketPublicAccessBlock
+              - s3:GetBucketTagging
+              - s3:PutBucketTagging
+              - s3:GetEncryptionConfiguration
+              - s3:PutEncryptionConfiguration
+              - s3:GetLifecycleConfiguration
+              - s3:PutLifecycleConfiguration
+            Resource:
+              - !GetAtt SessionBucket.Arn
+              - !GetAtt CodeBucket.Arn
+              - !Sub arn:${AWS::Partition}:s3:::${AWS::StackName}-sessionbucket-*
+              - !Sub arn:${AWS::Partition}:s3:::${AWS::StackName}-codebucket-*
+          - Effect: Allow
+            Action: [s3:GetObject, s3:PutObject]
+            Resource:
+              - !Sub ${SessionBucket.Arn}/sessions/*
+              - !Sub ${SessionBucket.Arn}/attachments/*
+              - !Sub ${CodeBucket.Arn}/centaur/*
+          - Effect: Allow
+            Action:
+              - dynamodb:CreateTable
+              - dynamodb:UpdateTable
+              - dynamodb:DescribeTable
+              - dynamodb:DescribeContinuousBackups
+              - dynamodb:DescribeTimeToLive
+              - dynamodb:UpdateTimeToLive
+              - dynamodb:ListTagsOfResource
+              - dynamodb:TagResource
+              - dynamodb:UntagResource
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:DeleteItem
+              - dynamodb:Query
+              - dynamodb:Scan
+            Resource:
+              - !GetAtt StateTable.Arn
+              - !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AWS::StackName}-StateTable-*
+          - Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:DeleteLogGroup
+              - logs:PutRetentionPolicy
+              - logs:DeleteRetentionPolicy
+              - logs:TagResource
+              - logs:UntagResource
+              - logs:ListTagsForResource
+              - logs:ListTagsLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-receiver
+              - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-receiver:*
+          - Effect: Allow
+            Action: logs:DescribeLogGroups
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - lambda:CreateFunction
+              - lambda:DeleteFunction
+              - lambda:GetFunction
+              - lambda:GetFunctionConfiguration
+              - lambda:GetFunctionCodeSigningConfig
+              - lambda:UpdateFunctionCode
+              - lambda:UpdateFunctionConfiguration
+              - lambda:ListTags
+              - lambda:TagResource
+              - lambda:UntagResource
+              - lambda:GetPolicy
+              - lambda:AddPermission
+              - lambda:RemovePermission
+              - lambda:CreateFunctionUrlConfig
+              - lambda:UpdateFunctionUrlConfig
+              - lambda:GetFunctionUrlConfig
+              - lambda:DeleteFunctionUrlConfig
+              - lambda:InvokeFunction
+            Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-receiver
+          - Effect: Allow
+            Action:
+              - ssm:GetParameter
+              - ssm:GetParameters
+              - ssm:GetParametersByPath
+              - ssm:PutParameter
+              - ssm:DeleteParameter
+              - ssm:AddTagsToResource
+              - ssm:RemoveTagsFromResource
+              - ssm:ListTagsForResource
+            Resource:
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/centaur
+              - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/centaur/*
+          - Effect: Allow
+            Action: ssm:DescribeParameters
+            Resource: '*'
+          - Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub ssm.${AWS::Region}.amazonaws.com
+          - Effect: Allow
+            Action:
+              - iam:CreateRole
+              - iam:PutRolePolicy
+              - iam:DeleteRolePolicy
+              - iam:DetachRolePolicy
+            Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AWS::StackName}-*
+            Condition:
+              StringLike:
+                iam:PermissionsBoundary: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${AWS::StackName}-DeployPolicy-*
+          - Effect: Allow
+            Action: iam:AttachRolePolicy
+            Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AWS::StackName}-*
+            Condition:
+              StringLike:
+                iam:PermissionsBoundary: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${AWS::StackName}-DeployPolicy-*
+                iam:PolicyARN:
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${AWS::StackName}-*
+          - Effect: Allow
+            Action:
+              - iam:GetRole
+              - iam:GetRolePolicy
+              - iam:ListRolePolicies
+              - iam:ListAttachedRolePolicies
+              - iam:ListInstanceProfilesForRole
+              - iam:UpdateRole
+              - iam:UpdateAssumeRolePolicy
+              - iam:DeleteRole
+              - iam:TagRole
+              - iam:UntagRole
+            Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AWS::StackName}-*
+          - Effect: Allow
+            Action:
+              - iam:CreatePolicy
+              - iam:DeletePolicy
+              - iam:CreatePolicyVersion
+              - iam:DeletePolicyVersion
+              - iam:GetPolicy
+              - iam:GetPolicyVersion
+              - iam:ListPolicyVersions
+              - iam:TagPolicy
+              - iam:UntagPolicy
+            Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${AWS::StackName}-*
+          - Effect: Allow
+            Action: iam:PassRole
+            Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AWS::StackName}-*
+            Condition:
+              StringEquals:
+                iam:PassedToService: lambda.amazonaws.com
+          - !If
+            - CreateProvider
+            - Effect: Allow
+              Action:
+                - iam:CreateOpenIDConnectProvider
+                - iam:GetOpenIDConnectProvider
+                - iam:TagOpenIDConnectProvider
+                - iam:UntagOpenIDConnectProvider
+                - iam:AddClientIDToOpenIDConnectProvider
+                - iam:RemoveClientIDFromOpenIDConnectProvider
+                - iam:UpdateOpenIDConnectProviderThumbprint
+              Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            - !Ref AWS::NoValue
+          # The workflow cannot loosen its own role's trust, permissions or boundary; such changes need an admin deploy.
+          - Effect: Deny
+            Action:
+              - iam:UpdateAssumeRolePolicy
+              - iam:PutRolePolicy
+              - iam:DeleteRolePolicy
+              - iam:AttachRolePolicy
+              - iam:DetachRolePolicy
+              - iam:DeleteRole
+              - iam:UpdateRole
+              - iam:PutRolePermissionsBoundary
+              - iam:DeleteRolePermissionsBoundary
+            Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AWS::StackName}-DeployRole-*
+          - Effect: Deny
+            Action:
+              - iam:CreatePolicyVersion
+              - iam:DeletePolicyVersion
+              - iam:SetDefaultPolicyVersion
+              - iam:DeletePolicy
+            Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${AWS::StackName}-DeployPolicy-*
+
   FunctionLogGroup:
     Type: AWS::Logs::LogGroup
     Condition: ShouldDeployLambda
@@ -179,6 +390,7 @@ Resources:
     Type: AWS::IAM::Role
     Condition: ShouldDeployLambda
     Properties:
+      PermissionsBoundary: !Ref DeployPolicy
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -325,6 +537,7 @@ Resources:
   GitHubRole:
     Type: AWS::IAM::Role
     Properties:
+      PermissionsBoundary: !Ref DeployPolicy
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -366,6 +579,7 @@ Resources:
   InspectionRole:
     Type: AWS::IAM::Role
     Properties:
+      PermissionsBoundary: !Ref DeployPolicy
       Description: Read-only access to the state table and bot parameters, for inspection.
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
@@ -404,6 +618,28 @@ Resources:
                   StringEquals:
                     kms:ViaService: !Sub ssm.${AWS::Region}.amazonaws.com
 
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Assumed by the production deploy workflow to update this stack. Its permissions are DeployPolicy.
+      MaxSessionDuration: 3600
+      PermissionsBoundary: !Ref DeployPolicy
+      ManagedPolicyArns:
+        - !Ref DeployPolicy
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRoleWithWebIdentity
+            Principal:
+              Federated: !If [CreateProvider, !Ref GitHubOidcProvider, !Ref ExistingOidcProviderArn]
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub:
+                  - !Sub repo:${GitHubOwner}/centaur:environment:production
+                  - !Sub repo:${GitHubOwner}@${GitHubOwnerId}/centaur:environment:production
+
 Outputs:
   CodeBucketName:
     Value: !Ref CodeBucket
@@ -411,6 +647,8 @@ Outputs:
     Value: !Ref SessionBucket
   RoleArn:
     Value: !GetAtt GitHubRole.Arn
+  DeployRoleArn:
+    Value: !GetAtt DeployRole.Arn
   InspectionRoleArn:
     Value: !GetAtt InspectionRole.Arn
   StateTableName:

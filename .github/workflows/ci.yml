@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+    inputs:
+      ref:
+        description: Ref to check out. Empty uses the triggering commit.
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - uses: ./.github/actions/install
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install cfn-lint
+        run: python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+      - run: yarn verify
+      - run: yarn lint:cfn

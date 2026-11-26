@@ -37,7 +37,9 @@
   `src/cli/parameter-store.ts`; tests use `test/helpers/fake-parameter-store.ts`. The SSM parameter
   layout is in `docs/plan.md`. Never accept secrets as flags.
 - `yarn bundle:lambda` builds the Lambda to `dist/lambda/index.mjs`; `scripts/deploy.sh`
-  (`yarn deploy-prod`) bundles, uploads and deploys the stack (see `docs/deploy.md`).
+  (`yarn deploy-prod`) bundles, uploads and deploys the stack (see `docs/deploy.md`). Pushes to
+  `main` deploy through `.github/workflows/deploy.yml`; changes to `infra/` that touch `DeployPolicy`
+  or `DeployRole` need a manual deploy first. `scripts/setup-cd.sh` does the one-time GitHub setup.
 - The `approver` words (`request`, `leave`, `list`, `add`, `remove`) are parsed once in `src/lambda/approver-commands.ts` and reached from the Telegram slash handler and the Slack DM word.
 - A user ID that becomes part of an SSM path (an approver ID) is validated against the platform's ID alphabet (`isUserId`, `src/lambda/approvers.ts`) first.
 - A `DecisionRefused` thrown by an applier (`access-decisions.ts`) becomes a reply to the decider and releases the claim.

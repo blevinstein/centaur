@@ -1,0 +1,14 @@
+name: Install
+description: Set up Node from .nvmrc, enable Corepack and install the locked dependencies.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version-file: .nvmrc
+    - name: Enable Corepack
+      shell: bash
+      run: corepack enable
+    - name: Install dependencies
+      shell: bash
+      run: yarn install --immutable
