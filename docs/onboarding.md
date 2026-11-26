@@ -77,7 +77,10 @@ Expires in 7 days.
 ```
 
 - **👍** approves: the chat or person is added for that bot and the requester is told. A new group
-  needs its chat approved, and each person in it needs their own user approval. Approving a chat
+  needs its chat approved, and each person needs a user approval (once per bot, not per chat). A
+  mention from an unknown person in an unknown chat sends both requests together: the chat request
+  admits the chat for everyone already approved, and the user request admits the person in every
+  approved chat of this bot. Approving a chat
   also creates the destination shown on the request (`Destination:`), a slug of the chat's title with a
   numeric suffix if the name is taken (`chat-<last 4 digits>` when the title is unknown). Existing
   destinations are never overwritten. A scheduled prompt's `destination` names such a destination.
@@ -86,7 +89,7 @@ Expires in 7 days.
   days. The text commands `/approve <id>` and `/deny <id>` do the same if reactions don't work.
 - If the bot can't DM you (you never tapped **Start**), the requester sees "I couldn't reach my
   admin." and the failure is logged with the request's IDs.
-- A bot ignores unaddressed messages from unknown chats and creates at most 10 requests per hour.
+- A bot ignores unaddressed messages from unknown chats and creates at most 10 requests per hour (a chat and user pair uses two).
 
 Without an admin for the bot's platform, unknown chats are ignored and unknown users get "Sorry,
 you aren't enrolled to talk to me." (a bot with `respond_to: all` ignores unenrolled people in the

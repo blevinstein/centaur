@@ -327,7 +327,13 @@ users without touching SSM by hand: the bot asks them, and they answer from thei
    slash command, so Slack decisions are reactions only.
 
 A chat request and a user request are separate: a new group needs its chat approved, and each
-person in it still needs approval to talk to the bot (DMs only need the user).
+person needs approval to talk to the bot (DMs only need the user). When an addressed message comes
+from an unknown user in an unknown chat, both requests are raised together, each with its own DM,
+claim slot and decision, and the requester gets one "I've asked my admin" reply. Approving the chat
+admits it for every approved user; approving the user admits them in every approved chat of that
+bot, so nobody is approved once per chat. If the hourly limit stops the first request, the second is
+not attempted; if it stops only the second, the missing request is raised on the sender's next
+addressed message.
 
 **Who may decide.** The platform admin decides every kind. Users in the connection's approver set
 (`bots/<bot>/platforms/<platform>/approvers/<userId>`, read uncached on every decision, so a removal

@@ -1,6 +1,7 @@
 import { emoji, type Logger, type Message, type Thread } from "chat";
 import { threadKey } from "../thread-key.js";
 import type { AccessResolver } from "./access.js";
+import type { AccessKind } from "./access-entries.js";
 import type { AccessRequester } from "./access-requests.js";
 import { type AdminClaimer, CLAIM_MESSAGE } from "./admin-claims.js";
 import { type ApproverCommand, commandText, readApproverCommand } from "./approver-commands.js";
@@ -105,13 +106,20 @@ export function createMessageHandler({
       logger.info("ignoring message from blocked subject", { ...where, chatId, userId });
       return;
     }
-    if (!thread.isDM && !access.chatIds.has(chatId)) {
-      if (addressed && (await requestAccess("chat", thread, message))) return;
+    const unknownChat = !thread.isDM && !access.chatIds.has(chatId);
+    const unknownUser = !access.userIds.has(userId);
+    if (addressed && (unknownChat || unknownUser)) {
+      const kinds: AccessKind[] = [
+        ...(unknownChat ? ["chat" as const] : []),
+        ...(unknownUser ? ["user" as const] : []),
+      ];
+      if (await requestAccess(kinds, thread, message)) return;
+    }
+    if (unknownChat) {
       if (refusable) logger.warn("ignoring message from unknown chat", { ...where, chatId });
       return;
     }
-    if (!access.userIds.has(userId)) {
-      if (addressed && (await requestAccess("user", thread, message))) return;
+    if (unknownUser) {
       if (refusable) {
         logger.warn("refusing unknown sender", { ...where, chatId, userId });
         await thread.post(REFUSAL_TEXT);

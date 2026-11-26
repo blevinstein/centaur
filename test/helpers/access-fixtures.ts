@@ -280,7 +280,7 @@ export async function pendingAccessHarness(
 ) {
   const h = await accessHarness(options);
   const { thread } = fakeThread();
-  await h.requestAccess(kind, thread, fakeMessage({ userId: STRANGER_USER_ID, isMention: true }));
+  await h.requestAccess([kind], thread, fakeMessage({ userId: STRANGER_USER_ID, isMention: true }));
   return h;
 }
 

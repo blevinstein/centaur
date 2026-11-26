@@ -22,7 +22,7 @@ describe("access requester", () => {
       const h = await accessHarness();
       const { thread, post } = fakeThread();
 
-      expect(await h.requestAccess(kind, thread, strangerMessage())).toBe(true);
+      expect(await h.requestAccess([kind], thread, strangerMessage())).toBe(true);
 
       expect(h.messenger.openDM).toHaveBeenCalledExactlyOnceWith("5001");
       const text = h.adminText();
@@ -45,7 +45,7 @@ describe("access requester", () => {
     const h = await accessHarness();
 
     await h.requestAccess(
-      "user",
+      ["user"],
       fakeThread({ isDM: true, chatId: STRANGER_USER_ID }).thread,
       strangerMessage(),
     );
@@ -57,7 +57,7 @@ describe("access requester", () => {
     const h = await accessHarness({ admin: null });
     const { thread, post } = fakeThread();
 
-    expect(await h.requestAccess("user", thread, strangerMessage())).toBe(false);
+    expect(await h.requestAccess(["user"], thread, strangerMessage())).toBe(false);
 
     expect(h.messenger.openDM).not.toHaveBeenCalled();
     expect(post).not.toHaveBeenCalled();
@@ -68,14 +68,14 @@ describe("access requester", () => {
     const first = fakeThread();
     const second = fakeThread();
 
-    await h.requestAccess("chat", first.thread, strangerMessage());
-    await h.requestAccess("chat", second.thread, fakeMessage({ isMention: true }));
+    await h.requestAccess(["chat"], first.thread, strangerMessage());
+    await h.requestAccess(["chat"], second.thread, fakeMessage({ isMention: true }));
 
     expect(h.adminPost).toHaveBeenCalledOnce();
     expect(second.post).toHaveBeenCalledExactlyOnceWith(PENDING_TEXT);
 
     const third = fakeThread();
-    await h.requestAccess("chat", third.thread, fakeMessage({ isMention: true }));
+    await h.requestAccess(["chat"], third.thread, fakeMessage({ isMention: true }));
     expect(h.adminPost).toHaveBeenCalledOnce();
     expect(third.post).not.toHaveBeenCalled();
   });
@@ -84,10 +84,64 @@ describe("access requester", () => {
     const h = await accessHarness();
     const { thread } = fakeThread();
 
-    await h.requestAccess("chat", thread, strangerMessage());
-    await h.requestAccess("user", thread, strangerMessage());
+    await h.requestAccess(["chat"], thread, strangerMessage());
+    await h.requestAccess(["user"], thread, strangerMessage());
 
     expect(h.adminPost).toHaveBeenCalledTimes(2);
+  });
+
+  it("raises a chat and a user request together, each with its scope, and replies once", async () => {
+    const h = await accessHarness();
+    const { thread, post } = fakeThread();
+
+    expect(await h.requestAccess(["chat", "user"], thread, strangerMessage())).toBe(true);
+
+    expect(h.adminPost).toHaveBeenCalledTimes(2);
+    expect(h.adminText(0)).toContain("Kind: chat");
+    expect(h.adminText(0)).toContain("for every user already approved");
+    expect(h.adminText(1)).toContain("Kind: user");
+    expect(h.adminText(1)).toContain("in every approved chat of this bot");
+    expect(h.requestId(0)).not.toBe(h.requestId(1));
+    expect(post).toHaveBeenCalledExactlyOnceWith(REQUESTED_TEXT);
+  });
+
+  it("raises only the user request when the chat's request is already pending", async () => {
+    const h = await accessHarness();
+    await h.requestAccess(["chat"], fakeThread().thread, fakeMessage({ isMention: true }));
+    const { thread, post } = fakeThread();
+
+    await h.requestAccess(["chat", "user"], thread, strangerMessage());
+
+    expect(h.adminPost).toHaveBeenCalledTimes(2);
+    expect(h.adminText(1)).toContain("Kind: user");
+    expect(post).toHaveBeenCalledExactlyOnceWith(REQUESTED_TEXT);
+  });
+
+  it("sends one pending notice when both requests are already pending", async () => {
+    const h = await accessHarness();
+    await h.requestAccess(["chat", "user"], fakeThread().thread, strangerMessage());
+    const { thread, post } = fakeThread();
+
+    await h.requestAccess(["chat", "user"], thread, strangerMessage());
+
+    expect(h.adminPost).toHaveBeenCalledTimes(2);
+    expect(post).toHaveBeenCalledExactlyOnceWith(PENDING_TEXT);
+  });
+
+  it("stops after the first request hits the hourly cap and stays silent", async () => {
+    const h = await accessHarness({ limits: { perHour: 1 } });
+    await h.requestAccess(
+      ["user"],
+      fakeThread().thread,
+      fakeMessage({ userId: "1", isMention: true }),
+    );
+    const { thread, post } = fakeThread();
+
+    expect(await h.requestAccess(["chat", "user"], thread, strangerMessage())).toBe(true);
+
+    expect(h.adminPost).toHaveBeenCalledOnce();
+    expect(post).not.toHaveBeenCalled();
+    expect(await h.store.claimSubject("user", STRANGER_USER_ID)).toBe(true);
   });
 
   it("silently drops requests over the hourly cap and logs at info", async () => {
@@ -95,17 +149,17 @@ describe("access requester", () => {
     const fresh = fakeThread({ chatId: "-100999" });
 
     await h.requestAccess(
-      "user",
+      ["user"],
       fakeThread().thread,
       fakeMessage({ userId: "1", isMention: true }),
     );
     await h.requestAccess(
-      "user",
+      ["user"],
       fakeThread().thread,
       fakeMessage({ userId: "2", isMention: true }),
     );
     expect(
-      await h.requestAccess("user", fresh.thread, fakeMessage({ userId: "3", isMention: true })),
+      await h.requestAccess(["user"], fresh.thread, fakeMessage({ userId: "3", isMention: true })),
     ).toBe(true);
 
     expect(h.adminPost).toHaveBeenCalledTimes(2);
@@ -120,11 +174,11 @@ describe("access requester", () => {
     vi.useFakeTimers();
     try {
       const h = await accessHarness({ limits: { perHour: 1, ttlMs: 2 * 60 * 60 * 1000 } });
-      await h.requestAccess("user", fakeThread().thread, strangerMessage());
+      await h.requestAccess(["user"], fakeThread().thread, strangerMessage());
       vi.advanceTimersByTime(61 * 60 * 1000);
 
       await h.requestAccess(
-        "user",
+        ["user"],
         fakeThread().thread,
         fakeMessage({ userId: "2", isMention: true }),
       );
@@ -139,12 +193,12 @@ describe("access requester", () => {
     vi.useFakeTimers();
     try {
       const h = await accessHarness({ limits: { ttlMs: 1000 } });
-      await h.requestAccess("user", fakeThread().thread, strangerMessage());
+      await h.requestAccess(["user"], fakeThread().thread, strangerMessage());
       const firstId = h.requestId();
       vi.advanceTimersByTime(1001);
 
       expect(await h.store.read(firstId)).toBeNull();
-      await h.requestAccess("user", fakeThread().thread, strangerMessage());
+      await h.requestAccess(["user"], fakeThread().thread, strangerMessage());
 
       expect(h.adminPost).toHaveBeenCalledTimes(2);
     } finally {
@@ -156,7 +210,7 @@ describe("access requester", () => {
     const h = await accessHarness({ dmFails: true });
     const { thread, post } = fakeThread();
 
-    expect(await h.requestAccess("chat", thread, strangerMessage())).toBe(true);
+    expect(await h.requestAccess(["chat"], thread, strangerMessage())).toBe(true);
 
     expect(post).toHaveBeenCalledExactlyOnceWith(UNREACHABLE_TEXT);
     expect(JSON.stringify(post.mock.calls)).not.toContain("5001");
@@ -170,10 +224,10 @@ describe("access requester", () => {
 
   it("allows another attempt after a failed notification", async () => {
     const h = await accessHarness({ dmFails: true });
-    await h.requestAccess("chat", fakeThread().thread, strangerMessage());
+    await h.requestAccess(["chat"], fakeThread().thread, strangerMessage());
     const retry = fakeThread();
 
-    await h.requestAccess("chat", retry.thread, strangerMessage());
+    await h.requestAccess(["chat"], retry.thread, strangerMessage());
 
     expect(retry.post).toHaveBeenCalledExactlyOnceWith(UNREACHABLE_TEXT);
     expect(h.messenger.openDM).toHaveBeenCalledTimes(2);
@@ -185,7 +239,7 @@ describe("access requester", () => {
     for (let i = 0; i < 8; i++) {
       h.adminPost.mockClear();
       await h.requestAccess(
-        "user",
+        ["user"],
         fakeThread().thread,
         fakeMessage({ userId: `u${i}`, isMention: true }),
       );
@@ -203,7 +257,7 @@ describe("access request chat title and destination name", () => {
     h: Awaited<ReturnType<typeof accessHarness>>,
     thread = fakeThread().thread,
   ) => {
-    await h.requestAccess("chat", thread, strangerMessage());
+    await h.requestAccess(["chat"], thread, strangerMessage());
     return h.store.read(h.requestId());
   };
 
@@ -265,7 +319,7 @@ describe("access request chat title and destination name", () => {
   it("proposes no destination name for a user request", async () => {
     const h = await accessHarness();
 
-    await h.requestAccess("user", fakeThread().thread, strangerMessage());
+    await h.requestAccess(["user"], fakeThread().thread, strangerMessage());
 
     expect(h.adminText()).not.toContain("Destination:");
     expect(await h.store.read(h.requestId())).not.toHaveProperty("alias");

@@ -291,17 +291,43 @@ describe("message handler", () => {
 
         await handle(thread, message);
 
-        expect(requestAccess).toHaveBeenCalledExactlyOnceWith(kind, thread, message);
+        expect(requestAccess).toHaveBeenCalledExactlyOnceWith([kind], thread, message);
         expect(post).not.toHaveBeenCalled();
         expect(dispatcher.dispatch).not.toHaveBeenCalled();
       },
     );
+
+    it("asks for the chat and the user together when both are unknown", async () => {
+      const { handle, dispatcher, requestAccess } = setup();
+      requestAccess.mockResolvedValue(true);
+      const { thread, post } = fakeThread({ chatId: "-100777" });
+      const message = fakeMessage({ isMention: true, userId: STRANGER_USER_ID });
+
+      await handle(thread, message);
+
+      expect(requestAccess).toHaveBeenCalledExactlyOnceWith(["chat", "user"], thread, message);
+      expect(post).not.toHaveBeenCalled();
+      expect(dispatcher.dispatch).not.toHaveBeenCalled();
+    });
+
+    it("ignores an unknown chat without refusing when no request is created", async () => {
+      const { handle } = setup();
+      const { thread, post } = fakeThread({ chatId: "-100777" });
+
+      await handle(thread, fakeMessage({ isMention: true, userId: STRANGER_USER_ID }));
+
+      expect(post).not.toHaveBeenCalled();
+    });
 
     it("never requests access for unaddressed messages", async () => {
       const { handle, requestAccess } = setup(accessFor(), "all");
 
       await handle(fakeThread({ chatId: "-100777" }).thread, fakeMessage());
       await handle(fakeThread().thread, fakeMessage({ userId: STRANGER_USER_ID }));
+      await handle(
+        fakeThread({ chatId: "-100777" }).thread,
+        fakeMessage({ userId: STRANGER_USER_ID }),
+      );
 
       expect(requestAccess).not.toHaveBeenCalled();
     });

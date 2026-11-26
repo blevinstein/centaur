@@ -175,7 +175,7 @@ describe("a request aborted before the admin could decide", () => {
     vi.spyOn(h.params, "getByPath").mockRejectedValueOnce(new Error("ssm unavailable"));
 
     await expect(
-      h.requestAccess("chat", fakeThread().thread, fakeMessage({ userId: STRANGER_USER_ID })),
+      h.requestAccess(["chat"], fakeThread().thread, fakeMessage({ userId: STRANGER_USER_ID })),
     ).rejects.toThrow("ssm unavailable");
 
     expect(await h.store.claimSubject("chat", GROUP_CHAT_ID)).toBe(true);

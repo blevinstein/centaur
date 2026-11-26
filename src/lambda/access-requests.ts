@@ -42,11 +42,17 @@ export interface AccessRequesterDeps {
   logger: Pick<Logger, "info" | "warn" | "error">;
 }
 
+/** Raises one request per kind and sends the sender a single reply; `false` when the bot has no admin. */
 export type AccessRequester = (
-  kind: AccessKind,
+  kinds: readonly AccessKind[],
   thread: Thread<ThreadMetadata>,
   message: Message,
 ) => Promise<boolean>;
+
+const SCOPE_LINES: Record<AccessKind, string> = {
+  chat: "Approving admits this chat for every user already approved.",
+  user: "Approving admits this user in every approved chat of this bot.",
+};
 
 async function chatTitle(thread: Thread<ThreadMetadata>): Promise<string | undefined> {
   try {
@@ -148,49 +154,62 @@ function createRequestRaiser({
 export function createAccessRequester(deps: AccessRequesterDeps): AccessRequester {
   const { bot, params, store } = deps;
   const raise = createRequestRaiser(deps);
-  return async (kind, thread, message) => {
+  return async (kinds, thread, message) => {
     const adminId = await lookupAdminId(params, bot.platform);
     if (!adminId) return false;
 
     const chatId = thread.channelId.slice(bot.platform.length + 1);
     const requesterId = message.author.userId;
     const requesterName = oneLine(message.author.fullName || message.author.userName);
-    const subjectId = kind === "chat" ? chatId : requesterId;
+    const subjectIdOf = (kind: AccessKind) => (kind === "chat" ? chatId : requesterId);
 
-    const outcome = await raise(adminId, {
-      kind,
-      subjectId,
-      describe: async () => {
-        const title = thread.isDM ? DM_TITLE : await chatTitle(thread);
-        const destinationName =
-          kind === "chat"
-            ? proposeDestinationName(
-                parseDestinations(await params.getByPath(scopedChatPrefix(bot.platform))),
-                chatId,
-                title,
-              )
-            : undefined;
-        return {
-          fields: {
-            subjectName: kind === "chat" ? (title ?? UNKNOWN_NAME) : requesterName,
-            ...(destinationName ? { alias: destinationName } : {}),
-            threadId: thread.id,
-          },
-          lines: [
-            `Kind: ${kind}`,
-            `Requester: ${requesterName} (${requesterId})`,
-            `Chat: ${title ?? UNKNOWN_NAME} (${chatId})`,
-            ...(destinationName ? [`Destination: ${destinationName}`] : []),
-          ],
-        };
-      },
-    });
-    if (outcome === "pending") {
-      if (await store.claimPendingNotice(kind, subjectId)) await thread.post(PENDING_TEXT);
-    } else if (outcome === "unreachable") {
-      await thread.post(UNREACHABLE_TEXT);
-    } else if (outcome === "raised") {
+    const outcomes: [AccessKind, RaiseOutcome][] = [];
+    for (const kind of kinds) {
+      const outcome = await raise(adminId, {
+        kind,
+        subjectId: subjectIdOf(kind),
+        describe: async () => {
+          const title = thread.isDM ? DM_TITLE : await chatTitle(thread);
+          const destinationName =
+            kind === "chat"
+              ? proposeDestinationName(
+                  parseDestinations(await params.getByPath(scopedChatPrefix(bot.platform))),
+                  chatId,
+                  title,
+                )
+              : undefined;
+          return {
+            fields: {
+              subjectName: kind === "chat" ? (title ?? UNKNOWN_NAME) : requesterName,
+              ...(destinationName ? { alias: destinationName } : {}),
+              threadId: thread.id,
+            },
+            lines: [
+              `Kind: ${kind}`,
+              `Requester: ${requesterName} (${requesterId})`,
+              `Chat: ${title ?? UNKNOWN_NAME} (${chatId})`,
+              ...(destinationName ? [`Destination: ${destinationName}`] : []),
+              SCOPE_LINES[kind],
+            ],
+          };
+        },
+      });
+      outcomes.push([kind, outcome]);
+      if (outcome === "limited") break;
+    }
+
+    const has = (wanted: RaiseOutcome) => outcomes.some(([, outcome]) => outcome === wanted);
+    if (has("raised")) {
       await thread.post(REQUESTED_TEXT);
+    } else if (has("unreachable")) {
+      await thread.post(UNREACHABLE_TEXT);
+    } else {
+      const noticed = await Promise.all(
+        outcomes
+          .filter(([, outcome]) => outcome === "pending")
+          .map(([kind]) => store.claimPendingNotice(kind, subjectIdOf(kind))),
+      );
+      if (noticed.includes(true)) await thread.post(PENDING_TEXT);
     }
     return true;
   };
