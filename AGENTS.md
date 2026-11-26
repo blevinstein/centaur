@@ -30,9 +30,9 @@
 - `yarn lint` (Biome check: lint, format, import order; `yarn format` fixes), `yarn typecheck`,
   `yarn test` (Vitest, `test/**/*.test.ts`), `yarn build` (tsc to `dist/`).
 - `yarn test` starts `amazon/dynamodb-local` through Docker, or uses `DYNAMODB_ENDPOINT` if set.
-- CloudFormation templates in `infra/` are validated with cfn-lint, pinned in
-  `requirements-dev.txt`. One-time setup: `pyenv install 3.12` if missing (see `.python-version`),
-  then `python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt`. Run `yarn lint:cfn`.
+- Python tooling is uv-only: run Python tools with `uvx` or `uv run`; never use pyenv, pip, venv or a
+  pinned Python version, and never document manual Python setup. `yarn lint:cfn` (cfn-lint on
+  `infra/`) needs `uv` (`brew install uv`).
 - CLI (`src/cli/`, bin `centaur`): all SSM access goes through the `ParameterStore` interface in
   `src/cli/parameter-store.ts`; tests use `test/helpers/fake-parameter-store.ts`. The SSM parameter
   layout is in `docs/plan.md`. Never accept secrets as flags.
@@ -49,8 +49,7 @@
 - The Lambda `ParameterStore` (`src/lambda/parameters.ts`) and the CLI one
   (`src/cli/parameter-store.ts`) are separate interfaces; adding a method means updating
   `fakeParameterStore` (`test/helpers/receiver-fixtures.ts`) or `FakeParameterStore`.
-- Run `yarn lint:cfn` after IAM or template changes; set up with `python3 -m venv .venv &&
-  .venv/bin/pip install -r requirements-dev.txt`.
+- Run `yarn lint:cfn` after IAM or template changes.
 - `src/lambda/handler.ts` builds the receiver and poster lazily at module scope. Test it with
   `importFreshHandler()` from `test/helpers/handler-fixtures.ts`, which resets modules. Declare the
   `vi.mock` calls for the factory modules in the test file, because `vi.mock` only hoists there.
@@ -180,8 +179,6 @@
 - The DM-to-request link is keyed `<channelId>:<messageId>` (`MessageRef`, `access-request-store.ts`); a
   new platform adds nothing but must return both from `AdminChannel.notify`. Recipients of a request
   come only from `recipientsFor` (`src/lambda/approvers.ts`).
-- In a fresh worktree also run `python3 -m venv .venv && .venv/bin/pip install -r
-  requirements-dev.txt` before `yarn lint:cfn`.
 - The poster's `mcp-approvals` (`src/lambda/mcp-approvals.ts`) reads decisions only through
   `mcpApprovalParameter`, the store's `isDenied` and `createMcpApprovalRequester`, and an error is
   thrown, never answered as `approved`.

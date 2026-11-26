@@ -80,8 +80,7 @@ The persona sets the voice: terse progress, the outcome first, the pull request 
 
 The runtime is already there: `setup-runtime` runs `yarn install --immutable && yarn build` in the
 action's checkout, which for this repository is the workspace, and `ubuntu-latest` has Docker for
-the DynamoDB Local container `yarn test` starts. `yarn lint:cfn` needs the agent to create `.venv`
-first, as `AGENTS.md` describes.
+the DynamoDB Local container `yarn test` starts. `yarn lint:cfn` runs cfn-lint through `uvx`, and CI installs `uv` with `astral-sh/setup-uv`.
 
 ### The `next-task` prompt
 
