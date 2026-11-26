@@ -17,13 +17,18 @@ describe("parseCommand", () => {
     ["/resume@sprout_bot  keep going", "resume", "keep going"],
     ["/transcript", "transcript", ""],
     ["  /resume\nmore detail", "resume", "more detail"],
+    ["@centaur-test-2 /resume", "resume", ""],
+    ["<@U0BOT> /new fix the beds", "new", "fix the beds"],
   ])("parses %j", (text, command, rest) => {
     expect(parseCommand(text)).toEqual({ command, text: rest });
   });
 
-  it.each(["hello /new", "/newer", "/resumed", "/other cmd", ""])("ignores %j", (text) => {
-    expect(parseCommand(text).command).toBeUndefined();
-  });
+  it.each(["hello /new", "@bot hello /new", "/newer", "/resumed", "/other cmd", ""])(
+    "ignores %j",
+    (text) => {
+      expect(parseCommand(text).command).toBeUndefined();
+    },
+  );
 });
 
 describe("pendingMessages", () => {

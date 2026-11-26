@@ -5,7 +5,7 @@ description: How the chat commands /new, /resume and /transcript and the thread'
 
 # Thread commands and context policy
 
-A message that starts with `/new`, `/resume` or `/transcript` (also `/cmd@bot`, any case) is a
+A message that starts with `/new`, `/resume` or `/transcript` (also `/cmd@bot`, any case, and after a leading mention of the bot) is a
 command for the harness. The command word is removed from the new messages you see; any text after
 it is an ordinary message.
 

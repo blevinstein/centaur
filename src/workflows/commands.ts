@@ -1,7 +1,13 @@
 export const COMMANDS = ["new", "resume", "transcript"] as const;
 export type Command = (typeof COMMANDS)[number];
 
-const COMMAND_PATTERN = new RegExp(`^/(${COMMANDS.join("|")})(?:@\\w+)?(?:\\s+([\\s\\S]*))?$`, "i");
+/** A mention of the bot that opens the message: Slack renders it as `<@U…>` or `@name`. */
+const LEADING_MENTION = String.raw`(?:(?:<@[^>\s]+>|@[\w.-]+)\s+)?`;
+
+const COMMAND_PATTERN = new RegExp(
+  `^${LEADING_MENTION}/(${COMMANDS.join("|")})(?:@\\w+)?(?:\\s+([\\s\\S]*))?$`,
+  "i",
+);
 
 export interface ParsedMessage {
   command: Command | undefined;
