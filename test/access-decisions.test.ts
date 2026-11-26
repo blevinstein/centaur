@@ -9,6 +9,7 @@ import {
 } from "./helpers/access-fixtures.js";
 import { destinationAt } from "./helpers/destination-fixtures.js";
 import { GROUP_CHAT_ID, GROUP_CHAT_TITLE, STRANGER_USER_ID } from "./helpers/receiver-fixtures.js";
+import { SLACK_CHANNEL_ID } from "./helpers/slack-fixtures.js";
 
 const subjects = {
   chat: { id: GROUP_CHAT_ID, name: GROUP_CHAT_TITLE },
@@ -208,7 +209,7 @@ describe("access decisions by command", () => {
       kind: "user",
       subjectId: "USLACKUSER",
       subjectName: "Pat Example",
-      threadId: "slack:C0CLNRASDJ4:1699999999.000100",
+      threadId: `slack:${SLACK_CHANNEL_ID}:1699999999.000100`,
     });
 
     expect(await h.decisions.fromCommand(commandFrom("/approve", request.id))).toBe(

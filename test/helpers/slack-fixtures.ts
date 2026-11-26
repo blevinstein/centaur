@@ -20,7 +20,7 @@ import {
 export const SLACK_ADMIN_ID = "UADMIN";
 export const SLACK_REQUESTER_ID = "UREQUESTER";
 export const SLACK_BOT_USER_ID = "UBOT";
-export const SLACK_CHANNEL_ID = "C0CLNRASDJ4";
+export const SLACK_CHANNEL_ID = "C0TESTCHAN1";
 export const SLACK_DM_CHANNEL_ID = "DADMIN1";
 export const SLACK_CHANNEL_NAME = "centaur-test";
 

@@ -38,7 +38,7 @@ from that.
 | Testing | minor issues | 4 medium, 6 low, 1 info | 2026-11-26 |
 | Build & CI | minor issues | 1 medium, 6 low, 1 info | 2026-11-26 |
 | Dependencies | healthy | 3 info | 2026-11-26 |
-| Docs & DX | minor issues | 4 medium, 8 low | 2026-11-26 |
+| Docs & DX | minor issues | 4 medium, 7 low | 2026-11-26 |
 
 ## Triage
 
@@ -95,7 +95,7 @@ Open findings ordered by priority (severity, then confidence, then effort).
 | TEST-004, 005 | low | Smaller mirror tests | S | open | fix |
 | TEST-008 | low | Scripted chats hide real behavior; no real Slack fixture | M | open | fix |
 | TEST-009..011 | low | Docker for every run, local harnesses, order-dependent test | S | open | fix |
-| DOCS-003, 008..014 | low | Possible real fixture ID, doc gaps and stale references, `AGENTS.md` duplication | S | open | fix |
+| DOCS-008..014 | low | Doc gaps and stale references, `AGENTS.md` duplication | S | open | fix |
 | CI-004..010 | low | Local deploy unguarded, rollback zip expiry, no tags, no Dependabot, leftovers, unlinted YAML | S | open | fix |
 
 "Next step" is one of: fix, investigate, decide (needs a human call), monitor.
@@ -861,8 +861,6 @@ private identifiers have been fixed.
 - `docs/workflows.md` after line 460;
 - `docs/deploy.md` against the stack parameters.
 
-The identifier for DOCS-003 is in the private addendum.
-
 #### DOCS-001: A real chat identifier is committed
 
 - **Severity / confidence / effort:** high / confirmed / S
@@ -884,10 +882,14 @@ The identifier for DOCS-003 is in the private addendum.
 
 #### DOCS-003: A Slack fixture may use a real channel ID
 
-- **Severity / confidence / effort:** low / speculative / S
-- **Status:** open (first seen 2026-11-26)
-- **Evidence:** `test/helpers/slack-fixtures.ts:23`. The other fixtures use obvious placeholders.
+- **Severity / confidence / effort:** low / confirmed / S
+- **Status:** fixed 2026-11-26 (first seen 2026-11-26)
+- **Evidence:** `test/helpers/slack-fixtures.ts:23`, and one literal in
+  `test/access-decisions.test.ts`. The other fixtures use obvious placeholders.
 - **Recommendation:** switch to an obvious placeholder.
+- **Notes:** 2026-11-26: confirmed real by matching it against `centaur destination list` and
+  `centaur access list` output, without printing any IDs. Replaced with `C0TESTCHAN1`. It remains
+  in git history.
 
 #### DOCS-004: `TODO.md` and Beads both claim to be the tracker, and have drifted apart
 
