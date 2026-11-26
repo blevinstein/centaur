@@ -200,7 +200,9 @@ export async function registryStateWith(entries: Record<string, unknown>) {
 export const registryEntryFor = (
   ...platforms: Platform[]
 ): { platforms: Partial<Record<Platform, PlatformSettings>> } => ({
-  platforms: Object.fromEntries(platforms.map((platform) => [platform, { respond_to: "mention" }])),
+  platforms: Object.fromEntries(
+    platforms.map((platform) => [platform, { respond_to: "mention", bot_messages: "ignore" }]),
+  ),
 });
 
 export const REGISTERED_ENTRY = registryEntryFor("telegram");

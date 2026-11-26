@@ -89,7 +89,9 @@ describe("a bot with a connection that is not served", () => {
   afterEach(() => harness?.close());
 
   it("serves only the connection the registry entry lists", async () => {
-    harness = await twoConnectionHarness({ registered: { slack: { respond_to: "mention" } } });
+    harness = await twoConnectionHarness({
+      registered: { slack: { respond_to: "mention", bot_messages: "ignore" } },
+    });
 
     await harness.receive(groupMessage());
     await harness.receive(slackMention());

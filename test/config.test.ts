@@ -26,7 +26,7 @@ describe("parseCentaurConfig", () => {
       ok: true,
       config: {
         bot: "garden",
-        platforms: { telegram: { respond_to: "mention" } },
+        platforms: { telegram: { respond_to: "mention", bot_messages: "ignore" } },
         max_turns: 30,
         context: { default: "transcript", scheduled: "fresh", transcript_max_chars: 100000 },
         provider: "anthropic",
@@ -97,8 +97,8 @@ describe("parseCentaurConfig", () => {
       config: {
         bot: "garden",
         platforms: {
-          telegram: { respond_to: "all", handle: "garden_helper_bot" },
-          slack: { respond_to: "mention" },
+          telegram: { respond_to: "all", bot_messages: "mention", handle: "garden_helper_bot" },
+          slack: { respond_to: "mention", bot_messages: "ignore" },
         },
         effort: "low",
         max_turns: 12,
@@ -199,7 +199,7 @@ describe("parseCentaurConfig", () => {
     ).toMatchObject({
       ok: true,
       config: {
-        platforms: { slack: { respond_to: "all" } },
+        platforms: { slack: { respond_to: "all", bot_messages: "ignore" } },
         prompts: { weekly: { targets: [{ platform: "slack", destination: "household" }] } },
       },
     });
@@ -272,6 +272,7 @@ describe("parseCentaurConfig", () => {
     if (!result.ok) throw new Error(formatIssues(result.issues));
     expect(platformSettings(result.config, "telegram")).toEqual({
       respond_to: "all",
+      bot_messages: "mention",
       handle: "garden_helper_bot",
     });
     expect(declaredPlatforms(result.config)).toEqual(["telegram", "slack"]);

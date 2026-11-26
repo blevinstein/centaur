@@ -54,10 +54,10 @@ in the diagram because it's invoked over IAM, not a public URL.
   the others keep serving, and startup fails only when no connection starts. `concurrency` is
   `concurrent`, because the default `drop` strategy loses messages that arrive close together.
   The webhook path selects the connection: `/telegram/<bot>`, `/slack/<bot>`.
-- The registry entry `{ platforms: { <platform>: { respond_to, handle? } } }` for each bot is stored
+- The registry entry `{ platforms: { <platform>: { respond_to, bot_messages, handle? } } }` for each bot is stored
   in state under `registry:<bot>` (written by `register`); the bound repo is in SSM at
   `bots/<bot>/repo`. A connection whose platform the entry does not list (no entry, or the old
-  `{respond_to}` shape) is not served. Access does not come from the entry: it is the admin plus the
+  `{respond_to}` shape) is not served. An entry stored without `bot_messages` reads as `ignore`. Access does not come from the entry: it is the admin plus the
   chats and users approved for the bot in SSM (see [Access requests](#access-requests)). Any other field in a stored entry is ignored.
 - On a message:
   1. Adapter verifies the request (Telegram secret token, Slack signing secret) and deduplicates.
@@ -154,6 +154,7 @@ bot: garden                     # secrets live under /centaur/bots/garden/ in SS
 platforms:
   telegram:                      # telegram and/or slack
     respond_to: mention         # mention | all
+    bot_messages: ignore        # ignore | mention (default ignore)
 context:
   default: transcript           # fresh | transcript | resume
   scheduled: fresh
@@ -183,7 +184,7 @@ The receiver has to map an incoming webhook to a repo without reading every repo
 2. It invokes the Lambda's `register` operation through the GitHub OIDC role, sending the parsed
    config and the calling repo name taken from the OIDC token's claims, not from input the
    workflow could forge.
-3. The Lambda upserts the registry entry (`bot → platforms → respond_to, handle`) in the state store. For Telegram it also calls `setWebhook` with the bot's token and secret from SSM, so
+3. The Lambda upserts the registry entry (`bot → platforms → respond_to, bot_messages, handle`) in the state store. For Telegram it also calls `setWebhook` with the bot's token and secret from SSM, so
    webhook setup is never a manual step.
 4. Registration fails if a declared platform's secrets aren't in SSM. Creating them is the maintainer's
    explicit consent that a bot exists; registration only binds it to a repo. A bot already bound
@@ -242,12 +243,19 @@ receive **all** group messages, so each bot must decide what's addressed to it:
    chat and owning it would answer everything.
 4. Everything else is ignored, including untagged top-level Slack messages.
 
-In either mode a message authored by a bot (the Chat SDK's `author.isBot` or `author.isMe`) belongs
-to no bot, checked before every rule above, so two bots in one chat can't answer each other.
-The trade-off is that one bot cannot address another by mention. Telegram sets `isBot` from
-`from.is_bot`; Slack sets it for any message carrying a `bot_id`, including another app's.
+A message from the bot itself (`author.isMe`) belongs to no bot in any mode, checked before every
+rule above. A message authored by another bot (`author.isBot === true`) is dropped by default
+(`bot_messages: ignore`), so two bots in one chat can't answer each other. With `bot_messages:
+mention` it belongs to the bot only when it explicitly mentions it (`message.isMention`); a bot
+message in a thread the bot owns, or a DM from a bot, without that mention is still dropped. The
+trade-off: any bot that mentions it can trigger it, and there is no hop or loop cap, so the per-turn
+spend caps and the agent not re-mentioning the other bot are the only brakes against a loop.
+Slack sets `isBot` for any message carrying a `bot_id`, including another app's. Telegram sets it
+from `from.is_bot` (`"unknown"` for sender-chat and chat-only authors), but the Bot API normally
+does not deliver other bots' messages to a bot, so the setting is mostly inert there.
 
-A bot configured with `respond_to: all` replaces rules 1-4 with: every message from an approved
+A bot configured with `respond_to: all` replaces rules 1-4 with: every message from a human (or, with
+`bot_messages: mention`, a bot that mentions it) from an approved
 sender in any approved chat of the bot belongs to it, and the agent decides per turn whether to reply or
 stay silent. The checks keep
 their order (ownership, chat approval, sender approval), but an unenrolled sender whose message

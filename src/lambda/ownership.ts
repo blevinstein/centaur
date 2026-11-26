@@ -1,5 +1,5 @@
 import type { Message, Thread } from "chat";
-import type { Platform, RespondTo } from "../config/index.js";
+import type { Platform, PlatformSettings } from "../config/index.js";
 import type { ThreadMetaStore } from "./thread-meta.js";
 
 export interface ThreadMetadata extends Record<string, unknown> {
@@ -11,6 +11,8 @@ export const BOT_CREATED_STATE: ThreadMetadata = { createdByBot: true };
 
 export const ADDRESSED_STATE: ThreadMetadata = { addressedByUser: true };
 
+export type OwnershipSettings = Pick<PlatformSettings, "respond_to" | "bot_messages">;
+
 const THREAD_SCOPED_PLATFORMS: ReadonlySet<Platform> = new Set(["slack"]);
 
 export const isAddressed = (thread: Thread<ThreadMetadata>, message: Message) =>
@@ -19,10 +21,11 @@ export const isAddressed = (thread: Thread<ThreadMetadata>, message: Message) =>
 export async function ownsMessage(
   thread: Thread<ThreadMetadata>,
   message: Message,
-  respondTo: RespondTo,
+  { respond_to: respondTo, bot_messages: botMessages }: OwnershipSettings,
   threadMeta: Pick<ThreadMetaStore, "read">,
 ): Promise<boolean> {
-  if (message.author.isMe || message.author.isBot === true) return false;
+  if (message.author.isMe) return false;
+  if (message.author.isBot === true) return botMessages === "mention" && message.isMention === true;
   if (respondTo === "all") return true;
   if (isAddressed(thread, message)) return true;
   const state = await thread.state;

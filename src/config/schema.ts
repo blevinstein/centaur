@@ -28,6 +28,7 @@ const DEFAULT_CHAT_TOOLS = {
 } as const;
 export const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"] as const;
 export const RESPOND_TO = ["mention", "all"] as const;
+export const BOT_MESSAGES = ["ignore", "mention"] as const;
 
 export const SLUG_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
 
@@ -95,6 +96,7 @@ const platformName = z.enum(PLATFORMS);
 
 const platformSettingsSchema = z.strictObject({
   respond_to: z.enum(RESPOND_TO).default("mention"),
+  bot_messages: z.enum(BOT_MESSAGES).default("ignore"),
   handle: z
     .string()
     .regex(/^[A-Za-z0-9_]{3,64}$/, "must be the bot's username without the @")
@@ -340,6 +342,7 @@ export type ChatToolsConfig = CentaurConfig["chat_tools"];
 export type ChatToolsScope = (typeof CHAT_TOOLS_SCOPES)[number];
 export type Platform = (typeof PLATFORMS)[number];
 export type RespondTo = (typeof RESPOND_TO)[number];
+export type BotMessages = (typeof BOT_MESSAGES)[number];
 export type ContextPolicy = (typeof CONTEXT_POLICIES)[number];
 export type ThreadMode = (typeof THREAD_MODES)[number];
 export const declaredPlatforms = (config: { platforms: Partial<Record<Platform, unknown>> }) =>

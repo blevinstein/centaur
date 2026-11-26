@@ -38,6 +38,7 @@ bot: garden
 platforms:
   telegram:
     respond_to: all
+    bot_messages: mention
     handle: garden_helper_bot
   slack: {}
 context:
@@ -113,6 +114,12 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
     "unknown respond_to value",
     yamlOf({ platforms: "{slack: {respond_to: some}}" }),
     "platforms.slack.respond_to",
+    /./,
+  ],
+  [
+    "unknown bot_messages value",
+    yamlOf({ platforms: "{slack: {bot_messages: all}}" }),
+    "platforms.slack.bot_messages",
     /./,
   ],
   [

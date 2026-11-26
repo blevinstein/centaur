@@ -26,7 +26,7 @@ describe("register", () => {
     expect(oidc.verify).toHaveBeenCalledWith("jwt");
     expect(params.values["/centaur/bots/sprout/repo"]).toBe("octo/sprout");
     expect(await readRegistryEntry(registryState, "sprout")).toEqual({
-      platforms: { telegram: { respond_to: "mention" } },
+      platforms: { telegram: { respond_to: "mention", bot_messages: "ignore" } },
     });
     expect(telegram.setWebhook).toHaveBeenCalledExactlyOnceWith(
       "sprout-token",
@@ -81,14 +81,15 @@ describe("register", () => {
     await register(
       poster,
       registerConfigText({
-        platforms: "{telegram: {respond_to: all, handle: sprout_bot}, slack: {}}",
+        platforms:
+          "{telegram: {respond_to: all, handle: sprout_bot, bot_messages: mention}, slack: {}}",
       }),
     );
 
     expect(await readRegistryEntry(registryState, "sprout")).toEqual({
       platforms: {
-        telegram: { respond_to: "all", handle: "sprout_bot" },
-        slack: { respond_to: "mention" },
+        telegram: { respond_to: "all", handle: "sprout_bot", bot_messages: "mention" },
+        slack: { respond_to: "mention", bot_messages: "ignore" },
       },
     });
   });

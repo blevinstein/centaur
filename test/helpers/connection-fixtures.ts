@@ -54,7 +54,10 @@ export type ConnectionSettings = Partial<Record<Platform, PlatformSettings>>;
 
 /** One bot `garden` with a Telegram and a Slack connection, on a strict shared-prefix state. */
 export async function twoConnectionHarness({
-  registered = { telegram: { respond_to: "all" }, slack: { respond_to: "mention" } },
+  registered = {
+    telegram: { respond_to: "all", bot_messages: "ignore" },
+    slack: { respond_to: "mention", bot_messages: "ignore" },
+  },
   parameters = gardenParameters(),
   failConnects,
 }: {

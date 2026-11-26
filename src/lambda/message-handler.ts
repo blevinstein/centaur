@@ -1,5 +1,4 @@
 import { emoji, type Logger, type Message, type Thread } from "chat";
-import type { RespondTo } from "../config/index.js";
 import { threadKey } from "../thread-key.js";
 import type { AccessResolver } from "./access.js";
 import type { AccessRequester } from "./access-requests.js";
@@ -7,7 +6,13 @@ import { type AdminClaimer, CLAIM_MESSAGE } from "./admin-claims.js";
 import { type ApproverCommand, commandText, readApproverCommand } from "./approver-commands.js";
 import type { AttachmentStore } from "./attachments.js";
 import type { RepositoryDispatcher } from "./github.js";
-import { isAddressed, ownsMessage, rememberAddressed, type ThreadMetadata } from "./ownership.js";
+import {
+  isAddressed,
+  type OwnershipSettings,
+  ownsMessage,
+  rememberAddressed,
+  type ThreadMetadata,
+} from "./ownership.js";
 import type { Bot } from "./registry.js";
 import type { ThreadMetaStore } from "./thread-meta.js";
 
@@ -38,7 +43,7 @@ export interface MessageHandlerDeps {
   /** Slack has no slash commands, so it answers the `approver` words here. */
   approverCommand?: ApproverCommand | undefined;
   /** Undefined when the connection is not registered; the message is then ignored. */
-  resolveRespondTo: () => Promise<RespondTo | undefined>;
+  resolveSettings: () => Promise<OwnershipSettings | undefined>;
   dispatcher: RepositoryDispatcher;
   /** Threads the bot started keep their record beyond the Chat SDK thread-state expiry. */
   threadMeta: Pick<ThreadMetaStore, "read">;
@@ -52,7 +57,7 @@ export function createMessageHandler({
   attachments,
   claimAdmin,
   approverCommand,
-  resolveRespondTo,
+  resolveSettings,
   dispatcher,
   threadMeta,
   logger,
@@ -68,10 +73,10 @@ export function createMessageHandler({
       }
     }
 
-    const respondTo = await resolveRespondTo();
-    if (!respondTo || !(await ownsMessage(thread, message, respondTo, threadMeta))) return;
+    const settings = await resolveSettings();
+    if (!settings || !(await ownsMessage(thread, message, settings, threadMeta))) return;
 
-    const refusable = respondTo === "mention" || isAddressed(thread, message);
+    const refusable = settings.respond_to === "mention" || isAddressed(thread, message);
 
     const command = approverCommand ? readApproverCommand(commandText(message)) : undefined;
     if (approverCommand && command) {

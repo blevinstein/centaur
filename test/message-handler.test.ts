@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { RespondTo } from "../src/config/index.js";
+import type { BotMessages, RespondTo } from "../src/config/index.js";
 import type { AccessRequester } from "../src/lambda/access-requests.js";
 import type { AdminClaimer } from "../src/lambda/admin-claims.js";
 import {
@@ -9,6 +9,7 @@ import {
 } from "../src/lambda/message-handler.js";
 import type { ThreadMetaStore } from "../src/lambda/thread-meta.js";
 import { threadKey } from "../src/thread-key.js";
+import { ownershipSettings } from "./helpers/ownership-fixtures.js";
 import {
   accessFor,
   fakeAttachments,
@@ -27,6 +28,7 @@ function setup(
   access = accessFor(),
   respondTo: RespondTo | null = "mention",
   threadMeta: Pick<ThreadMetaStore, "read"> = noThreadMeta(),
+  botMessages: BotMessages = "ignore",
 ) {
   const claimAdmin = vi.fn<AdminClaimer>(async () => "claimed");
   const dispatcher = fakeDispatcher();
@@ -39,7 +41,8 @@ function setup(
     requestAccess,
     attachments,
     claimAdmin,
-    resolveRespondTo: async () => respondTo ?? undefined,
+    resolveSettings: async () =>
+      respondTo ? ownershipSettings(respondTo, botMessages) : undefined,
     dispatcher,
     threadMeta,
     logger,
@@ -325,6 +328,32 @@ describe("message handler", () => {
       expect(unknownChat.post).not.toHaveBeenCalled();
     });
   });
+
+  describe.each(["mention", "all"] as const)(
+    "bot_messages: mention with respond_to %s",
+    (respondTo) => {
+      const setupBots = () => setup(accessFor(), respondTo, noThreadMeta(), "mention");
+
+      it("dispatches a message from another bot that mentions this one", async () => {
+        const { handle, dispatcher } = setupBots();
+
+        await handle(fakeThread().thread, fakeMessage({ isBot: true, isMention: true }));
+
+        expect(dispatcher.dispatch).toHaveBeenCalledOnce();
+      });
+
+      it.each([
+        ["another bot without a mention", { isBot: true }],
+        ["the bot itself that mentions itself", { isMe: true, isBot: true, isMention: true }],
+      ])("never dispatches a message from %s", async (_name, messageOptions) => {
+        const { handle, dispatcher } = setupBots();
+
+        await handle(fakeThread({ isDM: true }).thread, fakeMessage(messageOptions));
+
+        expect(dispatcher.dispatch).not.toHaveBeenCalled();
+      });
+    },
+  );
 
   describe("respond_to: all", () => {
     const setupAll = () => setup(accessFor(), "all");

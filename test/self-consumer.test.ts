@@ -11,8 +11,8 @@ describe("this repo's Centaur config", () => {
   it("declares Slack and Telegram, and points at files that exist", async () => {
     const config = await loadSelfConfig();
     expect(config.platforms).toEqual({
-      slack: { respond_to: "all" },
-      telegram: { respond_to: "all" },
+      slack: { respond_to: "all", bot_messages: "ignore" },
+      telegram: { respond_to: "all", bot_messages: "ignore" },
     });
     expect(config.prompts.hello?.file).toBe(".centaur/prompts/hello.md");
     for (const file of [config.persona, config.prompts.hello?.file ?? ""]) {
@@ -66,8 +66,8 @@ describe("this repo's Centaur config", () => {
       expect(second.bot).toBe("centaur-test-2");
       expect(second.bot).not.toBe(first.bot);
       expect(second.platforms).toEqual({
-        slack: { respond_to: "mention" },
-        telegram: { respond_to: "mention" },
+        slack: { respond_to: "mention", bot_messages: "ignore" },
+        telegram: { respond_to: "mention", bot_messages: "ignore" },
       });
       expect(second.chat_tools.scope).toBe("chat");
       expect(second.mcp_servers).toEqual({});

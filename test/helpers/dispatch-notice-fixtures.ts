@@ -8,6 +8,7 @@ import {
 } from "../../src/lambda/dispatch-failure-notice.js";
 import { DispatchError } from "../../src/lambda/github.js";
 import { createMessageHandler } from "../../src/lambda/message-handler.js";
+import { ownershipSettings } from "./ownership-fixtures.js";
 import {
   accessFor,
   fakeAttachments,
@@ -73,7 +74,7 @@ export async function noticeHarness({
       resolveAccess: accessFor(),
       requestAccess: vi.fn(async () => false),
       attachments: fakeAttachments(),
-      resolveRespondTo: async () => "mention",
+      resolveSettings: async () => ownershipSettings(),
       dispatcher,
       threadMeta: noThreadMeta(),
       logger,

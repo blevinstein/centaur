@@ -95,7 +95,8 @@ parser only checks the shape; a destination name is resolved when the run starts
 
 | Key | Default | Meaning |
 |---|---|---|
-| `respond_to` | `mention` | Which messages the bot answers: `mention` (mentions, DMs, topics it created, and on Slack the rest of a thread it was mentioned in) or `all` (every message from an approved sender in any approved chat of the bot on that platform). In both modes messages authored by bots, including the bot itself, are never answered, so one bot cannot address another by mentioning it. See [plan.md](plan.md#routing-in-a-shared-telegram-group). |
+| `respond_to` | `mention` | Which messages the bot answers: `mention` (mentions, DMs, topics it created, and on Slack the rest of a thread it was mentioned in) or `all` (every message from an approved sender in any approved chat of the bot on that platform). Messages authored by bots are governed by `bot_messages`, and the bot's own messages are never answered. See [plan.md](plan.md#routing-in-a-shared-telegram-group). |
+| `bot_messages` | `ignore` | Whether messages authored by other bots are answered. `ignore` drops every bot-authored message, so two bots in one chat cannot answer each other. `mention` answers a bot-authored message only when it explicitly mentions this bot (DMs and threads the bot owns do not count without the mention); it applies under both `respond_to` modes. The bot's own messages are never answered. Any bot that mentions this one can trigger it, and there is no hop or loop cap: the per-turn spend caps (see [Cost controls](#tuning-cost)) and the agent not re-mentioning the other bot are the only brakes, so two bots that keep mentioning each other will loop. The sender approval check still applies to the other bot. On Telegram the Bot API does not normally deliver other bots' messages to a bot, so the setting has little effect there. Register parses this key in the Lambda, so merge it to a consumer's default branch only after the Lambda that knows it is deployed (an older Lambda rejects the unknown key). |
 | `handle` | | The bot's username on that platform without `@`. With `respond_to: all` the prompt tells the agent people mention it as `@<handle>`. The workflow cannot learn it cheaply from the bot's identity, so it is configured. |
 
 Everything else (`context`, `provider`, `model`, tools, MCP, `pull_requests`) is bot-wide. `register`
@@ -157,8 +158,8 @@ With `respond_to: all` on a platform, every message from an approved sender in a
 starts a turn, and the agent decides whether to answer: its structured output is either `reply` or
 `ignore: true`, and an ignored turn posts nothing but still advances the last-processed marker and
 saves the session. The prompt tells the agent the messages were not necessarily addressed to it
-and that it should reply to mentions. Messages from bots, including the bot itself, are never
-dispatched. Every non-ignored turn still costs a model run, so use it in small private chats.
+and that it should reply to mentions. Messages from bots are never
+dispatched unless `bot_messages: mention` and they mention this bot; the bot itself never is. Every non-ignored turn still costs a model run, so use it in small private chats.
 Scheduled prompts always post.
 
 ## Context
@@ -192,6 +193,7 @@ Each turn is one `claude` run, so cost scales with model price, reasoning, and n
 | `context.default` | `fresh` sends only pending messages; `transcript` re-sends the thread each turn; `resume` reuses a saved session. |
 | `mcp_servers` | Each server adds its tool list to every turn's prompt; allow only the tools needed (`mcp__<name>__<tool>`). |
 | `platforms.<p>.respond_to` | `all` runs a turn for every message from an approved sender, even ones the agent then ignores. |
+| `platforms.<p>.bot_messages` | `mention` lets other bots trigger turns (and their spend) by mentioning the bot; only the caps above bound a loop. |
 
 Two ideas are not built: a separate cheaper model
 that only decides whether to reply (triage) would need a second agent run per message, which the

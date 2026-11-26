@@ -113,8 +113,7 @@ export function createBotChat({
     attachments,
     claimAdmin: channel.commands ? undefined : claimAdmin,
     approverCommand: channel.commands ? undefined : approverCommand,
-    resolveRespondTo: async () =>
-      (await readPlatformSettings(registryState, bot, logger))?.respond_to,
+    resolveSettings: () => readPlatformSettings(registryState, bot, logger),
     dispatcher,
     threadMeta: createThreadMeta(botState),
     logger,

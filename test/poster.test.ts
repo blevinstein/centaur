@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BOT_CREATED_STATE, ownsMessage } from "../src/lambda/ownership.js";
+import { ownershipSettings } from "./helpers/ownership-fixtures.js";
 import {
   blockedChat,
   GARDEN_REPOSITORY,
@@ -92,9 +93,9 @@ describe("poster start-thread", () => {
       thread.post.mock.invocationCallOrder[0] as number,
     );
     const owned = fakeThread({ state });
-    await expect(ownsMessage(owned.thread, fakeMessage(), "mention", noThreadMeta())).resolves.toBe(
-      true,
-    );
+    await expect(
+      ownsMessage(owned.thread, fakeMessage(), ownershipSettings(), noThreadMeta()),
+    ).resolves.toBe(true);
   });
 
   it("names the topic after the first line of the text by default", async () => {

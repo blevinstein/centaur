@@ -30,6 +30,7 @@ import {
   withFailureNotice,
 } from "../../src/lambda/dispatch-failure-notice.js";
 import { createMessageHandler } from "../../src/lambda/message-handler.js";
+import { ownershipSettings } from "./ownership-fixtures.js";
 import {
   fakeAttachments,
   fakeDispatcher,
@@ -423,7 +424,7 @@ export async function viaDirectMessage(
     requestAccess: h.requestAccess,
     attachments: fakeAttachments(),
     approverCommand: h.approverCommand,
-    resolveRespondTo: async () => "all",
+    resolveSettings: async () => ownershipSettings("all"),
     dispatcher: h.dispatcher,
     threadMeta: noThreadMeta(),
     logger: h.logger,
