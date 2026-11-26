@@ -104,14 +104,28 @@ Design and decisions: [docs/skills-rules.md](docs/skills-rules.md).
       any consumer's default branch sets `skills`; then check the `register` run. Consumers that do
       not set the key need no change.
       Done: deployed repeatedly since the skills commit (622aefe); deployed on every push to `main`
-      since 2026-11-26 (section 23).
+      since 2026-11-26 (section 23, in [DONE.md](DONE.md)).
 - [x] Live check of the built-in skills on an `experiment/*` branch (2026-11-24): discovery,
       invocation, the consumer-skill name (`centaur-consumer-<folder name>`) and the comment-turn
       trust check (branch-committed skills are not visible) are done and recorded in
       [docs/skills-rules.md](docs/skills-rules.md#live-check-results).
-- [ ] **[HUMAN ACTION]** Remaining live-check points (see the same section): the resume check (two
-      chat messages from the maintainer in one `resume` thread: is the invoked skill body
-      retained?); whether `Skill` must be in `--allowedTools` (run without it; harmless to leave);
+- [x] **[HUMAN ACTION]** Live check, `Skill` in `--allowedTools` (2026-11-26): answered by the code
+      and the run. `prepare` adds `Skill` whenever any skill is installed (`skillRule`,
+      `src/workflows/prepare.ts`), and the live run's `claude_args` carried it and the skill
+      invoked; there is no variant without it to test.
+- [ ] **[HUMAN ACTION]** Live check, resume (2026-11-26): the skill invoked and returned its
+      passphrase in a `/resume` thread, but its body was not retained on the next turn (a sentence
+      from the body that no reply had shown was answered UNKNOWN), and the later turns passed no
+      `--resume`, got new session ids and saved no session object. Tracked as bug `centaur-g5j`.
+      Likely cause (inferred from code and the SDK source, pending live re-check): `<@bot> /resume`
+      never parsed as a command because Slack keeps the leading mention in the text, so no ack turn
+      ran and the thread policy stayed at the default; the "Context policy ... is now resume" text
+      was the agent's own, not the code's ("Context policy for this thread: resume."). Fixed in
+      `src/workflows/commands.ts` by accepting a leading mention; re-run the check after deploy,
+      starting the thread with `<@bot> /resume`, with the corrected step 3 in
+      [two-bot-test.md](docs/proposals/two-bot-test.md#live-checks-skills-resume).
+      Separately unexplained: the `last-processed` marker did not advance on later turns (bead
+      filed).
       (The trusted `CLAUDE.md` question under `--setting-sources user` is answered: it does not
       reach a comment turn on its own; see the harness instructions item in Needs triage.)
 
@@ -129,85 +143,15 @@ Design: [docs/proposals/subfolder-support.md](docs/proposals/subfolder-support.m
       one workflow (the other copy's turn is skipped). Note: Claude Code strips HTML comments from
       the guide, so guide labels are headings.
       Still open:
-      1. A nested `AGENTS.md` or `CLAUDE.md` under the root loads lazily when the agent reads files
-         in that folder, in addition to the explicit prompt instruction.
+      1. [x] A nested `AGENTS.md` or `CLAUDE.md` under the root loads lazily when the agent reads files
+         in that folder, in addition to the explicit prompt instruction. Answered 2026-11-26: a
+         nested `AGENTS.md` does not load; see `centaur-bdt` for the decision (the `CLAUDE.md`
+         rename variant is not yet tested).
       2. Two bots in shared Slack and Telegram chats: a message to both (the `client_payload.bot`
-         filter and concurrency groups).
+         filter and concurrency groups). Needs messages from the maintainer: the queen cannot
+         puppet `centaur-test` (`centaur-o7u`).
       Then finish the docs wrap-up in `docs/config.md` (location section).
 - Decided 2026-11-25: auto-detecting sub-folder bots is not wanted; the explicit `root` input stays.
-
-## 21. Poster caller check
-
-Implemented: the poster verifies the caller's GitHub OIDC token on `post`, `unreact`,
-`start-thread` and `get-mcp-policy` ([docs/poster.md](docs/poster.md#security-model)).
-
-- [x] **[HUMAN APPROVAL]** Deploy the Lambda (`yarn deploy-prod`) with the caller check and the
-      inspection role. Deploy before the runner change reaches consumers pinned to `main`: an older
-      Lambda rejects the new `token` field.
-      Done 2026-11-26: the caller check (d1b92af) and the inspection role (dca2d8e) were deployed by
-      hand, then by the `Deploy` workflow.
-- [ ] **[HUMAN APPROVAL]** Set `RequirePosterToken=true` once the Lambda's "poster call without a
-      token" warnings stop. Rollback: set it to `false` and redeploy.
-## 22. Execution modes
-
-Design and decisions (2026-11-25): [docs/proposals/execution-modes.md](docs/proposals/execution-modes.md).
-`direct` is allowed on chat and scheduled turns, opt-in per bot; no `execution.branch`; authorization
-is config only; one retry, then fall back to a pull request; the run URL goes in the footer; try
-the push and fall back.
-
-Rollout rule: the `execution` key must not reach a consumer's default branch before the Lambda that
-parses it is deployed, so it needs the deploy approval first (section 21).
-
-- [x] Execution 1: config block `execution` and docs.
-- [x] Execution 2: extract the transplant from `push-existing.ts` and add `pushDirect`.
-- [x] Execution 3: wire the `turn` action (`plan-pr` generalization, `push-direct`).
-- [ ] **[HUMAN ACTION]** Execution 3 real run: `direct` on a scratch repo, including the fall back
-      to a pull request. After 3. Partly done on the self-consumer repo (`centaur-test-2`, since
-      reverted; see [two-bot-test.md](docs/proposals/two-bot-test.md)). Verified: an unprotected
-      branch accepts the direct push; the commit carries the run-URL footer and is unsigned; the
-      `GITHUB_TOKEN` push triggers no workflow.
-      Still open: rejection by a protected branch (`push_rejected` fallback pull request), a ruleset
-      bypass actor, and the protected-path fallback.
-      The maintainer asked both bots to edit the test bot's persona (a protected path); both refused at
-      the persona level, so the harness never saw a diff and the protected-path fallback is still
-      covered only by unit tests on real git repos. Exercising it live needs a bot whose persona allows
-      editing a protected path (for example on a scratch repository).
-- [x] ~~**[HUMAN ACTION]** Set `handle` for the `respond_to: all` test bot (`centaur-slack`)~~
-      Not needed: the receiver sends the bot's own username and display name in the dispatch payload
-      and the prompt's `# Who you are` section tells the agent both (the `handle` config key was
-      removed). It had answered in the first person as the other test bot in a shared chat. Still to
-      confirm live after deploy: the bot no longer speaks as the other bot.
-- [x] Execution 4: prompt text and `replySchema` fields for the mode. Merged as 14f1b23.
-
-## 23. Continuous deployment
-
-Workflows `ci.yml` and `deploy.yml`, `DeployRole` in `infra/centaur.yml` and the setup are
-described in [docs/deploy.md](docs/deploy.md#continuous-deployment). Decided 2026-11-26: the role
-lives in the main stack, every push to `main` deploys through the `production` environment (no
-required reviewer), and a dispatch redeploys a chosen ref.
-
-- [x] **[HUMAN ACTION]** Before merging or pushing: `scripts/setup-cd.sh environment`. Unrestricted,
-      the `production` environment lets any branch's workflow assume the role.
-      Done 2026-11-26.
-- [x] **[HUMAN APPROVAL]** Merge and push (the first `deploy` job fails harmlessly at credentials),
-      then deploy by hand (`yarn deploy-prod`) from the merged commit, reviewing the change set
-      (existing roles gain a permissions boundary) and smoke-testing both bots.
-      Done 2026-11-26.
-- [x] **[HUMAN ACTION]** `scripts/setup-cd.sh credentials` (sets `DEPLOY_ROLE_ARN` and
-      `DEPLOY_PARAMETERS`; `CENTAUR_AWS_REGION` must already exist).
-      Done 2026-11-26.
-- [x] **[HUMAN APPROVAL]** The first real run failed to assume the role: the repository uses
-      immutable OIDC subjects (`repo:<owner>@<ownerId>/centaur@<repoId>:environment:production`)
-      and the trust lacked the repository id. The template now matches it. The deploy role cannot
-      edit its own trust, so deploy by hand (`yarn deploy-prod`), then re-run the `Deploy`
-      workflow.
-      Done 2026-11-26: trust fixed in aed536c and deployed by hand.
-- [x] **[HUMAN APPROVAL]** Run the `Deploy` workflow to confirm it assumes the role. If it fails to
-      assume it, compare the token's `sub` with the trust (`scripts/setup-cd.sh check` prints the
-      repository's `sub_claim_prefix`).
-      Done 2026-11-26: the `Deploy` workflow succeeded for aed536c and de3ddac.
-- [ ] **[HUMAN APPROVAL]** Decide on branch protection for `main` and required reviewers on
-      `production` (manual; requiring pull requests also stops direct pushes to `main`).
 
 ## Needs triage
 
@@ -254,6 +198,21 @@ for detailed tracking.
 
 Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer saying so.
 
+- [ ] Optional manual check, Execution 3 real run (**[HUMAN ACTION]**; decided 2026-11-26 to
+      backlog): `direct` on a scratch repo, including the fall back to a pull request. Partly done
+      on the self-consumer repo (`centaur-test-2`, since reverted; see
+      [two-bot-test.md](docs/proposals/two-bot-test.md)). Verified: an unprotected branch accepts
+      the direct push; the commit carries the run-URL footer and is unsigned; the `GITHUB_TOKEN`
+      push triggers no workflow.
+      Still open: rejection by a protected branch (`push_rejected` fallback pull request), a ruleset
+      bypass actor, and the protected-path fallback.
+      The maintainer asked both bots to edit the test bot's persona (a protected path); both refused at
+      the persona level, so the harness never saw a diff and the protected-path fallback is still
+      covered only by unit tests on real git repos. Exercising it live needs a bot whose persona allows
+      editing a protected path (for example on a scratch repository).
+- [ ] Branch protection for `main` and required reviewers on `production` (decided 2026-11-26 to
+      backlog; manual). The `production` environment already limits deploys to `main`; requiring
+      pull requests would also stop direct pushes to `main`.
 - [ ] The receiver reads every bot, with its token and secrets, once per Lambda container
       (`createReceiver`), so a new bot or a changed token is ignored until the container restarts.
       Reload bots when a request names an unknown bot or a platform call fails with an auth error,
@@ -308,7 +267,7 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
 - [ ] Run a security audit to explore weaknesses and fix vulnerabillities
 - [ ] Hosted option (BYOKs, central AWS infra instead of self-hosted). Proposal:
       [docs/proposals/hosted.md](docs/proposals/hosted.md). Deferred 2026-11-25; no deeper plans for
-      now. The poster caller check (its slice 1) is implemented (section 21); self-hosted still
+      now. The poster caller check (its slice 1) is implemented (section 21 in [DONE.md](DONE.md)); self-hosted still
       accepts tokenless calls until `RequirePosterToken=true`, and a hosted option needs a
       reserved-concurrency cap on the function.
   - [ ] Answer its open questions (product or friends-and-family beta, central GitHub App with
@@ -327,7 +286,7 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       [docs/proposals/email.md](docs/proposals/email.md). Deferred 2026-11-25; the first open
       question, whether inbox triage needs a platform at all (an MCP mail connector in a scheduled
       prompt may be enough), is unanswered.
-- [ ] Close the `get-mcp-policy` gap (section 21): it is verified by token only and any valid
+- [ ] Close the `get-mcp-policy` gap (section 21 in [DONE.md](DONE.md)): it is verified by token only and any valid
       in-owner token can read the global policy, because `register` reads it before binding the
       repo's first bot. Design options: bind first then check, with rollback on failure, or have
       `register` return the policy. Backlogged 2026-11-25: the global policy is a non-secret

@@ -314,7 +314,8 @@ that has no token:
   relaxing the check.
 
 Roll out in order: deploy the Lambda (default `false`), update every bound repo to a workflow
-version that sends the token, then set `RequirePosterToken` to `true`. Until it is `true`, any
+version that sends the token, then set `RequirePosterToken` to `true`. It is on in the maintainer's
+deployment; the default stays `false` so existing installs keep working. Until it is `true`, any
 repo under the owner can still act as any bot by sending no token, so the isolation holds only after
 the switch. The OIDC role's trust policy is limited to `repo:<owner>/*`, so callers outside the
 owner never reach the Lambda.
@@ -340,7 +341,7 @@ into session tags usable in the identity policy *(AWS's tag mapping is unverifie
 
 | Option | Isolation | Cost |
 |---|---|---|
-| Accept and document (this section) | None between repos under one owner | None; consistent with the model above, where any repo under the owner can act as any bot until `RequirePosterToken` is `true` |
+| Accept and document (this section) | None between repos under one owner | None; consistent with the model above, where any repo under the owner can act as any bot until `RequirePosterToken` is `true` (the default is `false`) |
 | One role per bound repo: trust `sub` of that repo, S3 grant on that repo's bot prefixes | Per repo | A role resource per repo and a stack deploy for each new bot or repo, plus a workflow change to pick the right role ARN |
 | Poster issues presigned URLs scoped to `sessions/<bot>/<thread>` after the OIDC and binding check; the GitHub role loses its S3 grant ([hosted.md](proposals/hosted.md), slice 2) | Per bot | The poster gains S3 permissions, an HTTPS transport and a client in `src/workflows` |
 

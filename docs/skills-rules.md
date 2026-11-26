@@ -86,12 +86,12 @@ Verified against the raw docs at `code.claude.com/docs/en/*.md` and the action's
 
 Still unverified after the live run (see [Live check results](#live-check-results)):
 
-- Whether `Skill` must appear in `--allowedTools` for the agent to invoke a skill in a `-p` /
-  action run. The docs say Claude can invoke any skill by default and that denying `Skill` disables
-  all of them; they do not say what a non-interactive run does with an unlisted `Skill` call.
+- ~~Whether `Skill` must appear in `--allowedTools`~~: closed by the code (`skillRule` in
+  `src/workflows/prepare.ts` adds it whenever any skill is installed) and the observed `claude_args`.
 - Whether a skill's body is retained in a `--resume`d session (the docs say it persists in the
   conversation, and `resume` restores the conversation) and whether the listing is rebuilt from the
-  current skills directory on resume.
+  current skills directory on resume. The live check found it was not retained, but the later turns
+  did not resume a session at all (`centaur-g5j`; likely cause below), so this stays open.
 - ~~Whether `--setting-sources user` also drops the project `CLAUDE.md`~~: verified 2026-11-26, the
   trusted `CLAUDE.md` did not reach a comment turn.
 - The runner image's Claude Code version, which several skills features depend on (for example the
@@ -305,10 +305,23 @@ Verified:
 
 Not verified (open):
 
-- [ ] Whether `Skill` must be in `--allowedTools`: not tested without it. The entry is harmless.
-- [ ] Whether a skill body is retained across `--resume`: no resume check was run. It needs two
-  chat messages in one `resume` thread; the second asks the sentinel again and the execution file
-  shows whether the body was retained or re-invoked.
+- [x] Whether `Skill` must be in `--allowedTools` (2026-11-26): closed. `prepare` adds `Skill`
+  automatically whenever any skill is installed (`skillRule`, `src/workflows/prepare.ts`); the live
+  run's `claude_args` included it and the skill invoked fine. There is no run without it.
+- [ ] Whether a skill body is retained across `--resume`. Resume check (2026-11-26): in a `/resume`
+  thread the skill invoked and returned its passphrase, but on the next turn the body was not
+  retained: asked for a sentence from the skill body that no reply had shown, the bot answered
+  UNKNOWN (the passphrase alone was answerable only from the thread transcript). The later turns
+  passed no `--resume`, got new session ids and saved no session object. Tracked as bug
+  `centaur-g5j`. Likely cause (inferred from code and the SDK source, pending live re-check):
+  `<@bot> /resume` never parsed as a command because Slack keeps the leading bot mention in the
+  message text, so no ack turn ran and the thread policy stayed at the default (no `--resume`, no
+  saved session); the "Context policy ... is now resume" text was the agent's own, not the code's
+  ("Context policy for this thread: resume."). `src/workflows/commands.ts` now accepts a leading
+  `<@U...>` or `@name` mention. Repeat the check after deploy. Separately unexplained: the
+  `last-processed` marker did not advance on later turns (tracked in its own bead). The check's step 3 is confounded when the
+  earlier reply contains the passphrase; see the corrected step 3 in
+  [two-bot-test.md](proposals/two-bot-test.md#live-checks-skills-resume).
 - [x] The trusted `CLAUDE.md` did not reach a comment turn under `--setting-sources user` (2026-11-26);
   `prepare` now copies it into `$HOME/.claude/CLAUDE.md` ([workflows.md](workflows.md#repository-instructions)).
   Verified live (2026-11-26): a comment turn received both guides, so Claude Code reads

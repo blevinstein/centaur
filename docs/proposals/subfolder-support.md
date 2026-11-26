@@ -73,8 +73,9 @@ cross-package changes, git operations, `create-pull-request` and the existing se
 assume it, and the turn state and attachments stay in `.centaur-turn/` at the top. Instead, `prepare`
 tells the agent where its area is: the prompt gains one line naming `<root>` as the project folder
 and, when `<root>/AGENTS.md` or `<root>/CLAUDE.md` exists, an explicit instruction to read it first.
-Claude Code loads `CLAUDE.md` upward from the cwd, so a sub-folder file is not loaded eagerly; the live
-check in slice 5 shows whether it also loads lazily when the agent reads files in that folder. This
+Claude Code loads `CLAUDE.md` upward from the cwd, so a sub-folder file is not loaded eagerly. The live
+check in slice 5 (2026-11-26) showed a nested `AGENTS.md` does not load lazily when the agent reads files in
+that folder; a nested `CLAUDE.md` is untested. This
 reuses the persona mechanism, which already passes a path.
 
 ### Several bots in one repository
@@ -221,7 +222,9 @@ at `@main`, and an older runner ignores an unknown input (a warning), so land th
    `CENTAUR_CONFIG_ROOT` per step. Consequence: explicit in the YAML, no hidden job-level state.
 5. **Nested `AGENTS.md`/`CLAUDE.md`: explicit instruction or live check?** The explicit prompt
    instruction stays, and the slice 5 live check is the way to learn whether lazy loading also works.
-   Consequence: behaviour does not depend on lazy loading.
+   Result (2026-11-26): a nested `AGENTS.md` does not load on its own, so the instruction is the only
+   channel for it; the `CLAUDE.md` variant is untested. Consequence: behaviour does not depend on
+   lazy loading.
 6. **May a root config and sub-folder configs coexist?** No. A directory holding both
    `.centaur/config.yml` and `.centaur.yml` stays an error (`findConfigFile`, unchanged), and a repo
    uses either one root config or sub-folder configs, never a mix. Consequence: multi-bot repos put

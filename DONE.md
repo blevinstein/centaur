@@ -285,7 +285,9 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
 - [x] **[HUMAN APPROVAL]** One Slack app per repo.
 - [x] ~~Slack `/new`, `/resume` and `/transcript`.~~ Abandoned 2026-11-26: Slack stays without
       these commands (a slash command never lands in channel history and can't target an existing
-      thread).
+      thread). The text form works on Slack as `@bot /resume`: Slack intercepts only messages that
+      start with `/`, and the command parser accepts a leading mention (inferred from code, pending
+      a live re-check after deploy).
 - [x] **[HUMAN ACTION]** Onboard one personal-project repo on Slack: create the app from the
       manifest once it exists, install it, store its secrets, invite the bot. Done: a
       personal-project repo runs on its own app and channel. Top-level messages get a reply with
@@ -501,6 +503,73 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       bound thread; a record bound to a topic with a `new` prompt posts a fresh thread; `persistent`
       on a record with no thread creates and binds one; `thread` applies to every fan-out target;
       `persistent` rejected by the schema until slice 16).
+
+## 21. Poster caller check
+
+Implemented: the poster verifies the caller's GitHub OIDC token on `post`, `unreact`,
+`start-thread` and `get-mcp-policy` ([docs/poster.md](docs/poster.md#security-model)).
+
+- [x] **[HUMAN APPROVAL]** Deploy the Lambda (`yarn deploy-prod`) with the caller check and the
+      inspection role. Deploy before the runner change reaches consumers pinned to `main`: an older
+      Lambda rejects the new `token` field.
+      Done 2026-11-26: the caller check (d1b92af) and the inspection role (dca2d8e) were deployed by
+      hand, then by the `Deploy` workflow.
+- [x] **[HUMAN APPROVAL]** Set `RequirePosterToken=true` once the Lambda's "poster call without a
+      token" warnings stop. Rollback: set it to `false` and redeploy.
+      Done 2026-11-26: the flag is set in the deployed stack and a real turn replied; the Lambda
+      logged 0 tokenless warnings in the 3 days before.
+
+## 22. Execution modes
+
+Design and decisions (2026-11-25): [docs/proposals/execution-modes.md](docs/proposals/execution-modes.md).
+`direct` is allowed on chat and scheduled turns, opt-in per bot; no `execution.branch`; authorization
+is config only; one retry, then fall back to a pull request; the run URL goes in the footer; try
+the push and fall back.
+
+Rollout rule: the `execution` key must not reach a consumer's default branch before the Lambda that
+parses it is deployed, so it needs the deploy approval first (section 21).
+
+- [x] Execution 1: config block `execution` and docs.
+- [x] Execution 2: extract the transplant from `push-existing.ts` and add `pushDirect`.
+- [x] Execution 3: wire the `turn` action (`plan-pr` generalization, `push-direct`).
+- [x] **[HUMAN ACTION]** Execution 3 real run (protected branch, ruleset bypass, protected-path
+      fallback): moved to Backlog 2026-11-26 as an optional manual check.
+- [x] ~~**[HUMAN ACTION]** Set `handle` for the `respond_to: all` test bot (`centaur-slack`)~~
+      Not needed: the receiver sends the bot's own username and display name in the dispatch payload
+      and the prompt's `# Who you are` section tells the agent both (the `handle` config key was
+      removed). It had answered in the first person as the other test bot in a shared chat. Still to
+      confirm live after deploy: the bot no longer speaks as the other bot.
+- [x] Execution 4: prompt text and `replySchema` fields for the mode. Merged as 14f1b23.
+
+## 23. Continuous deployment
+
+Workflows `ci.yml` and `deploy.yml`, `DeployRole` in `infra/centaur.yml` and the setup are
+described in [docs/deploy.md](docs/deploy.md#continuous-deployment). Decided 2026-11-26: the role
+lives in the main stack, every push to `main` deploys through the `production` environment (no
+required reviewer), and a dispatch redeploys a chosen ref.
+
+- [x] **[HUMAN ACTION]** Before merging or pushing: `scripts/setup-cd.sh environment`. Unrestricted,
+      the `production` environment lets any branch's workflow assume the role.
+      Done 2026-11-26.
+- [x] **[HUMAN APPROVAL]** Merge and push (the first `deploy` job fails harmlessly at credentials),
+      then deploy by hand (`yarn deploy-prod`) from the merged commit, reviewing the change set
+      (existing roles gain a permissions boundary) and smoke-testing both bots.
+      Done 2026-11-26.
+- [x] **[HUMAN ACTION]** `scripts/setup-cd.sh credentials` (sets `DEPLOY_ROLE_ARN` and
+      `DEPLOY_PARAMETERS`; `CENTAUR_AWS_REGION` must already exist).
+      Done 2026-11-26.
+- [x] **[HUMAN APPROVAL]** The first real run failed to assume the role: the repository uses
+      immutable OIDC subjects (`repo:<owner>@<ownerId>/centaur@<repoId>:environment:production`)
+      and the trust lacked the repository id. The template now matches it. The deploy role cannot
+      edit its own trust, so deploy by hand (`yarn deploy-prod`), then re-run the `Deploy`
+      workflow.
+      Done 2026-11-26: trust fixed in aed536c and deployed by hand.
+- [x] **[HUMAN APPROVAL]** Run the `Deploy` workflow to confirm it assumes the role. If it fails to
+      assume it, compare the token's `sub` with the trust (`scripts/setup-cd.sh check` prints the
+      repository's `sub_claim_prefix`).
+      Done 2026-11-26: the `Deploy` workflow succeeded for aed536c and de3ddac.
+- [x] **[HUMAN APPROVAL]** Decide on branch protection for `main` and required reviewers on
+      `production`: moved to Backlog 2026-11-26.
 
 ## Quality Improvements
 

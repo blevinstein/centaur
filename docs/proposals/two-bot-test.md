@@ -72,7 +72,7 @@ Verified:
 - The commit carried the run-URL footer and was unsigned.
 - The `GITHUB_TOKEN` push triggered no workflow.
 
-Not verified (tracked in `TODO.md` section 22):
+Not verified (tracked in the TODO.md Backlog):
 
 - Rejection by a protected branch, and the fallback pull request that follows.
 - A ruleset bypass actor.
@@ -116,6 +116,13 @@ the current deployed Lambda); a Lambda without it rejects the unknown key.
 Two checks remain from [subfolder-support](subfolder-support.md): lazy loading of a nested guide, and
 a message that reaches both bots. Run them in the order below, with real turns on this repository.
 
+Result of check 1 (2026-11-26, mention-only test bot): a nested `AGENTS.md` under a sub-folder root
+does not load on its own when the agent reads a file in that folder. Told to use only `Read` once,
+the bot answered UNKNOWN; with no tool, UNKNOWN; a loose request found the marker only because the
+agent searched the repository. The `CLAUDE.md` rename variant (step 5) is not yet tested (bead
+`centaur-bdt`). Check 2 needs messages from the maintainer: the queen cannot puppet `centaur-test`
+(bead `centaur-o7u`).
+
 ### Fixture
 
 `apps/centaur-test-2/livecheck/` holds `target.txt` (a one-line file with no marker) and its own
@@ -141,7 +148,8 @@ prompt. The agent can only know the word by loading `livecheck/AGENTS.md` itself
    documents `CLAUDE.md` lazy loading, not `AGENTS.md`, so repeat with the file renamed to
    `CLAUDE.md` (a temporary change) to tell "nested guides do not load" from "`AGENTS.md` is not read".
    Record the outcome in `docs/config.md` either way: if only `CLAUDE.md` loads lazily, the
-   explicit prompt instruction stays the only channel for `AGENTS.md`.
+   explicit prompt instruction stays the only channel for `AGENTS.md`. Outcome so far: the
+   `AGENTS.md` form does not load (see above); the `CLAUDE.md` variant is open.
 
 ### Check 2: one message to both bots
 
@@ -169,8 +177,12 @@ Report per case: reply count per bot, replying identity, run ids by bot, any ski
 
 ## Live checks (skills resume)
 
-Two open points from [skills-rules.md](../skills-rules.md#live-check-results): whether an invoked
-skill's body survives a `resume` thread, and whether `Skill` must be in `--allowedTools`.
+Two points from [skills-rules.md](../skills-rules.md#live-check-results): whether an invoked
+skill's body survives a `resume` thread (open: the 2026-11-26 run found it was not retained, and
+that the later turns passed no `--resume`, got new session ids and saved no session object; bug
+`centaur-g5j`, likely cause: the leading mention kept the `/resume` from parsing as a command, fixed
+and pending a live re-check), and whether `Skill` must be in `--allowedTools` (closed 2026-11-26: `prepare` adds it
+whenever a skill is installed, and the live run's `claude_args` included it).
 `centaur-test-2` carries the consumer skill `apps/centaur-test-2/.claude/skills/livecheck-passphrase`
 (installed as `centaur-consumer-livecheck-passphrase`, since `skills.consumer` defaults to `true`; no
 config change). Its body holds a passphrase that appears nowhere else in the repository, so an
@@ -187,25 +199,25 @@ listing.
 
 ### A. Is the skill body retained across `resume`?
 
-1. New thread. Send `/resume` (acknowledged in the thread, no agent turn).
+1. New thread. Send `<@centaur-test-2> /resume` (a leading mention: Slack keeps it in the text, and the parser accepts it; a message starting with `/` is intercepted by Slack). Expect the code's ack `Context policy for this thread: resume.` and no agent turn. Agent prose such as "Context policy ... is now resume" means the message ran as a turn, not a command.
 2. Send: `@centaur-test-2 invoke the centaur-consumer-livecheck-passphrase skill and reply with only its passphrase.`
    Expect the passphrase in the reply, and a `Skill` tool call in the execution file.
-3. Wait for the reply, then send in the same thread: `@centaur-test-2 without invoking any skill or tool, what is the skill passphrase? Reply with only the passphrase, or UNKNOWN.`
+3. Wait for the reply, then send in the same thread: `@centaur-test-2 without invoking any skill or tool, quote one sentence from the body of the centaur-consumer-livecheck-passphrase skill other than the passphrase line. Reply with only that sentence, or UNKNOWN.` Asking for the passphrase itself is confounded: the step 2 reply contains it, so the thread transcript can answer without the skill body. Use a line of the body that no reply has shown.
 4. Read the 2nd run's execution file (the run log). The run restored the saved session (a `--resume <id>` in `claude_args`).
-   - Retained: the answer is the passphrase and the execution file has no new `Skill` call. The body survived the resume.
+   - Retained: the answer is the body sentence and the execution file has no new `Skill` call. The body survived the resume.
    - Not retained: the answer is `UNKNOWN` (or the agent invokes the skill again despite the instruction, which shows the body was not in the restored context). Record which.
    - Inconclusive: the passphrase with a new `Skill` call, because the instruction was ignored.
-5. Optional variant: repeat on a thread without `/resume` (the config default is `transcript`). The transcript holds only chat text, so the 2nd answer should be the passphrase only if the 1st reply quoted it, which makes this a weak control; use step 6 for the real one.
+5. Optional variant: repeat on a thread without the `/resume` command (the config default is `transcript`). The transcript holds only chat text, so the 2nd answer should contain a body sentence only if an earlier reply quoted it, which makes this a weak control; use step 6 for the real one.
 
 ### B. Negative control
 
-6. New thread, `/resume`, then send only the step 3 message, with no earlier skill invocation.
-   Expect `UNKNOWN` and no `Skill` call. A passphrase here means it leaked from a prompt, persona or
+6. New thread, `<@centaur-test-2> /resume`, then send only the step 3 message, with no earlier skill invocation.
+   Expect `UNKNOWN` and no `Skill` call. The passphrase or a body sentence here means it leaked from a prompt, persona or
    config: stop and re-run `rg --hidden` for the passphrase (read it from the skill file) over the checkout.
 
-### C. Does `Skill` need to be in `--allowedTools`?
+### C. Does `Skill` need to be in `--allowedTools`? (closed, optional)
 
-`prepare` adds `Skill` to `--allowedTools` whenever a skill was installed. To test without it,
+Closed 2026-11-26: `prepare` adds `Skill` to `--allowedTools` whenever a skill is installed (`skillRule`), so no run lacks it. Only if a variant without it is still wanted: to test without it,
 push an experiment branch (AGENTS.md "Workflow experiments") whose `prepare` omits `skillRule` in
 `buildClaudeArgs` (`src/workflows/prepare.ts`), dispatch the workflow from it, and repeat steps 1 and 2
 in a new thread.

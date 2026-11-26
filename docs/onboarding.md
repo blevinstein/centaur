@@ -245,8 +245,9 @@ it with `centaur bot add`). To see which scopes the installed token has, call `a
 bot token and read the `x-oauth-scopes` response header (every Web API response carries it).
 
 Slack decisions are reactions only; there is no `/approve` text fallback on Slack. Slack intercepts
-a message starting with `/`, so `/new`, `/resume` and `/transcript` (see
-[Day-to-day use](#day-to-day-use)) are unverified on Slack.
+only a message that starts with `/`, so on Slack `/new`, `/resume` and `/transcript` (see
+[Day-to-day use](#day-to-day-use)) are sent with a leading mention, as `@bot /resume`; the command
+parser accepts a leading `<@U...>` or `@name` (inferred from code, not yet confirmed live).
 
 ## Adding a platform to a bot
 
@@ -365,7 +366,7 @@ Telegram topic is recreated on the next run and starts without the old transcrip
       durations stayed under it; the cold start has the closest margin, see `TODO.md`).
 - [ ] Slack search (`slack_search`) and the Slack history rate limits on a real install (`TODO.md`,
       Chat search 4 and 6).
-- [ ] `/new`, `/resume` and `/transcript` on Slack.
+- [ ] `/new`, `/resume` and `/transcript` on Slack, as `@bot /resume` (live re-check after deploy).
 - [ ] Bot-to-bot mentions in the reverse direction.
 
 Validated in the first live run: deploy, a Telegram bot with a Topics group, registration,

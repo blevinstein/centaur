@@ -313,7 +313,7 @@ extends today's rule that the repository comes from the verified claim (`src/lam
 | Threat | Mitigation | Code that changes |
 | --- | --- | --- |
 | Tenant A posts or reads as tenant B's bot | Poster tenant comes from the OIDC `repository_owner_id`; bot looked up only inside that tenant; binding compared by `repository_id` | `src/lambda/poster.ts` (`requireBound` on every operation), `src/lambda/oidc.ts` |
-| Poster caller check is optional until `RequirePosterToken=true` (the check is implemented; tokenless calls are still accepted by default, and `get-mcp-policy` is not tied to a repo; [poster.md](../poster.md#security-model)) | Mandatory JWT and bound-repo check on every operation. In a multi-tenant service this is the core isolation control, not a hardening | `src/lambda/poster.ts` schema (add `token`), `src/workflows` callers |
+| Poster caller check is optional until `RequirePosterToken=true` (the check is implemented and the flag is on in the maintainer's deployment; the default stays `false`, so tokenless calls are accepted unless set, and `get-mcp-policy` is not tied to a repo; [poster.md](../poster.md#security-model)) | Mandatory JWT and bound-repo check on every operation. In a multi-tenant service this is the core isolation control, not a hardening | `src/lambda/poster.ts` schema (add `token`), `src/workflows` callers |
 | Bot name squatting (`bots/<bot>/repo` is first-come, create-only) | Names are tenant-local; webhook IDs are random; binding is by repo ID | `src/lambda/registry.ts`, `src/lambda/register.ts` |
 | Webhook forgery or replay of tenant A's request to tenant B's URL | Per-connection secret verified before processing; `botId` selects the connection so A's secret fails on B's path | receiver and `src/lambda/chat.ts` |
 | Confused deputy on dispatch tokens: a tenant causes the service to use a token for a repo it does not control | Dispatch repo is read only from the bot's stored binding, which `register` sets from the OIDC `repository_id`. The installation token is minted for that installation, restricted to that repo, and only if the installation covers it | `src/lambda/github.ts`, a new token minter |
@@ -464,8 +464,8 @@ In dependency order; each slice is useful on its own.
    `get-mcp-policy` is verified by token only and not tied to a repo, because `register` reads the
    global policy before it binds a repo's first bot, so any valid in-owner token can read it
    (bind first then check, with rollback, or have `register` return the policy); and
-   `RequirePosterToken` must be set to `true` once the tokenless warnings stop, since a hosted
-   service cannot accept tokenless calls.
+   `RequirePosterToken` is `true` in the maintainer's deployment (2026-11-26, after 3 days with no
+   tokenless warnings); a hosted service must also set it, since it cannot accept tokenless calls.
 2. **HTTPS poster transport and presigned session access.** `POST /poster` on the function URL with
    the JWT in `Authorization`, the `src/workflows` transport interface with an AWS-invoke
    implementation (default) and an HTTPS one, presigned GET and POST for session files and

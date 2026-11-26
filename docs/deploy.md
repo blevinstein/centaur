@@ -25,7 +25,7 @@ format `aws cloudformation` accepts.
 | `AttachmentExpirationDays` | Days before objects under `attachments/` expire. |
 | `CodeExpirationDays` | Days before uploaded Lambda zips expire. |
 | `OidcAudience` | Audience workflows request for the OIDC token they pass to register (default `centaur`). |
-| `RequirePosterToken` | `true` or `false` (default `false`). When `true`, `post`, `unreact`, `start-thread` and `get-mcp-policy` reject a request without a valid OIDC token, and `post`, `unreact` and `start-thread` also reject a token from a repository the bot is not bound to (see [poster.md](poster.md#security-model)). Turn it on once every bound repo runs a workflow version that sends the token. Optional. |
+| `RequirePosterToken` | `true` or `false` (default `false`). When `true`, `post`, `unreact`, `start-thread` and `get-mcp-policy` reject a request without a valid OIDC token, and `post`, `unreact` and `start-thread` also reject a token from a repository the bot is not bound to (see [poster.md](poster.md#security-model)). Turn it on once every bound repo runs a workflow version that sends the token. It is on in the maintainer's deployment; the template default stays `false` so existing installs keep working. Optional. |
 | `LogRetentionDays` | Days to keep Lambda logs. |
 | `HistoryMaxMessages` | Newest messages kept per chat and per thread in stored history (Telegram), 1 to 5000, default 100. The state adapter reads the whole list on every append, so cost per message grows with it (see [chat-context.md](chat-context.md#what-the-platforms-can-provide)). Optional. |
 | `HistoryTtlDays` | Days a stored history list lives after its latest message, 1 to 365, default 7. Optional. |
