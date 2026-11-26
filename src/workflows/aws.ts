@@ -33,15 +33,25 @@ export const execCommand: Exec = async (file, args) =>
   (await execFileAsync(file, args, { maxBuffer: MAX_BUFFER })).stdout;
 
 const ERROR_MESSAGE_LIMIT = 300;
+const S3_URI = /s3:\/\/\S+/g;
 
 export class PosterError extends SafeError {}
 
-/** The aws CLI's first stderr line, or the spawn error code; never the command line, which names the payload file. */
+/** The aws CLI's first stderr line with S3 URIs masked, or the spawn error code; never the command line, which names the payload file and the thread. */
 const execFailureDetail = (error: unknown) => {
   const { stderr, code } = error as { stderr?: unknown; code?: unknown };
-  const line = typeof stderr === "string" ? firstLine(stderr, ERROR_MESSAGE_LIMIT) : "";
+  const line =
+    typeof stderr === "string"
+      ? firstLine(stderr, ERROR_MESSAGE_LIMIT).replaceAll(S3_URI, "s3://-")
+      : "";
   return line || (typeof code === "string" ? code : "error");
 };
+
+/** Runs `aws`, failing with only the service, the subcommand and the failure detail. */
+const runAws = (exec: Exec, args: string[]) =>
+  exec("aws", args).catch((error: unknown) => {
+    throw new PosterError(`aws ${args[0]} ${args[1]} failed: ${execFailureDetail(error)}`);
+  });
 
 export interface PosterClient {
   call<T = unknown>(request: PosterRequest): Promise<T>;
@@ -77,7 +87,7 @@ export function createPosterClient(
         const payloadFile = join(dir, "payload.json");
         const responseFile = join(dir, "response.json");
         await writeFile(payloadFile, JSON.stringify(request));
-        const invoked = await exec("aws", [
+        const invoked = await runAws(exec, [
           "lambda",
           "invoke",
           "--function-name",
@@ -87,9 +97,7 @@ export function createPosterClient(
           "--payload",
           `file://${payloadFile}`,
           responseFile,
-        ]).catch((error: unknown) => {
-          throw new PosterError(`aws lambda invoke failed: ${execFailureDetail(error)}`);
-        });
+        ]);
         const meta = JSON.parse(invoked) as { FunctionError?: string };
         const response = JSON.parse(await readFile(responseFile, "utf8")) as T & {
           errorType?: string;
@@ -157,7 +165,7 @@ export function createAttachmentDownloader(
   return {
     async download(key, destination) {
       await mkdir(dirname(destination), { recursive: true });
-      await exec("aws", ["s3", "cp", `s3://${bucket}/${key}`, destination]);
+      await runAws(exec, ["s3", "cp", `s3://${bucket}/${key}`, destination]);
     },
   };
 }
@@ -184,7 +192,7 @@ export function createThreadStore(
   const uri = (name: string) => `s3://${bucket}/${prefix}${name}`;
   const listNames = async () => {
     const keys = JSON.parse(
-      await exec("aws", [
+      await runAws(exec, [
         "s3api",
         "list-objects-v2",
         "--bucket",
@@ -202,14 +210,14 @@ export function createThreadStore(
   return {
     async readMarker() {
       if (!(await listNames()).includes(MARKER_FILE)) return undefined;
-      return (await exec("aws", ["s3", "cp", uri(MARKER_FILE), "-"])).trim();
+      return (await runAws(exec, ["s3", "cp", uri(MARKER_FILE), "-"])).trim();
     },
     async writeMarker(messageId) {
       const dir = await mkdtemp(join(tmpdir(), "centaur-marker-"));
       try {
         const file = join(dir, MARKER_FILE);
         await writeFile(file, messageId);
-        await exec("aws", ["s3", "cp", file, uri(MARKER_FILE)]);
+        await runAws(exec, ["s3", "cp", file, uri(MARKER_FILE)]);
       } finally {
         await rm(dir, { recursive: true, force: true });
       }
@@ -217,12 +225,12 @@ export function createThreadStore(
     async restoreSession(directory) {
       const name = (await listNames()).find((n) => n.endsWith(SESSION_SUFFIX));
       if (!name) return undefined;
-      await exec("aws", ["s3", "cp", uri(name), join(directory, name)]);
+      await runAws(exec, ["s3", "cp", uri(name), join(directory, name)]);
       return name.slice(0, -SESSION_SUFFIX.length);
     },
     async saveSession(directory, sessionId) {
       const name = `${sessionId}${SESSION_SUFFIX}`;
-      await exec("aws", ["s3", "cp", join(directory, name), uri(name)]);
+      await runAws(exec, ["s3", "cp", join(directory, name), uri(name)]);
     },
   };
 }

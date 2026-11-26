@@ -1,5 +1,6 @@
 import { UNREACT_MAX_MESSAGES } from "../lambda/poster.js";
 import type { PosterClient } from "./aws.js";
+import { safeDetail } from "./safe-error.js";
 
 export interface ReactionSource {
   bot: string;
@@ -21,6 +22,6 @@ export async function clearReactions(poster: PosterClient, source: ReactionSourc
       });
     }
   } catch (error) {
-    console.warn(`::warning::could not clear reactions: ${(error as Error).message}`);
+    console.warn(`::warning::could not clear reactions: ${safeDetail(error)}`);
   }
 }

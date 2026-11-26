@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MAX_APPROVERS } from "../src/lambda/approvers.js";
 import {
+  ADMIN_ID,
   accessHarness,
   approverHarness,
   commandFrom,
@@ -11,6 +12,12 @@ import {
   REQUESTER_ID,
   strandedMcpSlot,
 } from "./helpers/access-fixtures.js";
+import {
+  fakeMessage,
+  fakeThread,
+  GROUP_CHAT_ID,
+  STRANGER_USER_ID,
+} from "./helpers/receiver-fixtures.js";
 
 describe("an MCP request raised again after approve then revoke", () => {
   it("opens a new request with a DM", async () => {
@@ -120,5 +127,92 @@ describe("updatePending", () => {
 
     expect(await h.store.updatePending(MCP_SUBJECT, { suspended: true })).toBe(false);
     expect((await h.store.read(request.id))?.suspended).toBeUndefined();
+  });
+});
+
+describe("a request aborted before the admin could decide", () => {
+  const retriesAfter = async (h: Awaited<ReturnType<typeof accessHarness>>) => {
+    expect(await h.store.claimSubject("mcp", MCP_SUBJECT)).toBe(true);
+    await h.store.releaseSubject("mcp", MCP_SUBJECT);
+    expect(await h.requestMcp(mcpInput())).toBe("raised");
+    expect(h.adminPost).toHaveBeenCalledOnce();
+  };
+
+  it("frees the subject when every DM fails, and a retry raises it", async () => {
+    const failing = [ADMIN_ID];
+    const h = await accessHarness({ failingUsers: failing });
+    expect(await h.requestMcp(mcpInput())).toBe("unreachable");
+    failing.length = 0;
+
+    await retriesAfter(h);
+  });
+
+  it.each(["overLimit", "create", "recordRequest", "linkSubject"] as const)(
+    "frees the subject when the store's %s throws",
+    async (step) => {
+      const h = await accessHarness();
+      vi.spyOn(h.store, step).mockRejectedValueOnce(new Error("state unavailable"));
+
+      await expect(h.requestMcp(mcpInput())).rejects.toThrow("state unavailable");
+
+      await retriesAfter(h);
+    },
+  );
+
+  it("removes the stored request when a step after creating it throws", async () => {
+    const h = await accessHarness();
+    const create = vi.spyOn(h.store, "create");
+    vi.spyOn(h.store, "linkSubject").mockRejectedValueOnce(new Error("state unavailable"));
+
+    await expect(h.requestMcp(mcpInput())).rejects.toThrow("state unavailable");
+
+    const request = await create.mock.results[0]?.value;
+    expect(await h.store.read(request.id)).toBeNull();
+  });
+
+  it("frees the subject when the description throws", async () => {
+    const h = await accessHarness();
+    vi.spyOn(h.params, "getByPath").mockRejectedValueOnce(new Error("ssm unavailable"));
+
+    await expect(
+      h.requestAccess("chat", fakeThread().thread, fakeMessage({ userId: STRANGER_USER_ID })),
+    ).rejects.toThrow("ssm unavailable");
+
+    expect(await h.store.claimSubject("chat", GROUP_CHAT_ID)).toBe(true);
+  });
+
+  it("frees the subject when the limit is reached", async () => {
+    const h = await accessHarness({ limits: { perHour: 0 } });
+
+    expect(await h.requestMcp(mcpInput())).toBe("limited");
+
+    expect(await h.store.claimSubject("mcp", MCP_SUBJECT)).toBe(true);
+  });
+
+  it("frees a reservation whose request was cut off, after a short wait", async () => {
+    vi.useFakeTimers();
+    try {
+      const h = await accessHarness();
+      await h.store.claimSubject("mcp", MCP_SUBJECT);
+      expect(await h.requestMcp(mcpInput())).toBe("pending");
+
+      vi.advanceTimersByTime(10 * 60_000);
+
+      expect(await h.requestMcp(mcpInput())).toBe("raised");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("still blocks after a denied decision on a request that was retried", async () => {
+    const failing = [ADMIN_ID];
+    const h = await accessHarness({ failingUsers: failing });
+    await h.requestMcp(mcpInput());
+    failing.length = 0;
+    await h.requestMcp(mcpInput());
+
+    await h.decisions.fromReaction(h.reaction("👎"));
+
+    expect(await h.store.isDenied("mcp", MCP_SUBJECT)).toBe(true);
   });
 });

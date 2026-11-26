@@ -432,7 +432,7 @@ parameters or admin claims; the poster and `register` read live. So a change mad
 
 **Limits.** One pending request per (bot, kind, subject); repeats get "My admin hasn't answered
 yet." once per pending request, are then ignored silently, and never trigger a new notification. At most 10 new requests per bot per hour; beyond that requests are
-dropped silently with an `info` log. Requests expire after 7 days. Deciding a request releases its pending slot, and a slot left pointing at a decided or missing request is replaced by the next request for that subject. A blocked subject triggers no
+dropped silently with an `info` log. Requests expire after 7 days. Deciding a request releases its pending slot. A request that fails before the admin is notified (no DM delivered, or an error while opening it) releases the slot and removes its stored request, so the subject can ask again; a slot reserved but never linked to a request expires after 5 minutes. A slot left pointing at a decided or missing request is replaced by the next request for that subject. A blocked subject triggers no
 reply, no notification and no request. Request IDs are six random characters (`node:crypto`),
 case-insensitive, and checked for uniqueness when created.
 

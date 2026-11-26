@@ -5,6 +5,7 @@ import { ACCESS_KINDS, type AccessKind } from "./access-entries.js";
 export const REQUEST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const REQUESTS_PER_HOUR = 10;
 const HOUR_MS = 60 * 60 * 1000;
+const PLACEHOLDER_TTL_MS = 5 * 60 * 1000;
 const ID_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 const ID_LENGTH = 6;
 const ID_ATTEMPTS = 5;
@@ -82,9 +83,13 @@ export function createAccessRequestStore(
       await state.appendToList(RATE_KEY, Date.now(), { maxLength: perHour, ttlMs: HOUR_MS });
     },
 
-    /** Reserves the subject's single pending slot; false when a request is already pending. */
+    /**
+     * Reserves the subject's single pending slot; false when a request is already pending. The
+     * reservation is short-lived until `linkSubject` extends it, so a request cut off mid-creation
+     * frees the subject soon.
+     */
     claimSubject: (kind: RequestKind, subjectId: string) =>
-      state.setIfNotExists(subjectKey(kind, subjectId), true, ttlMs),
+      state.setIfNotExists(subjectKey(kind, subjectId), true, Math.min(ttlMs, PLACEHOLDER_TTL_MS)),
 
     /** Points the subject's pending slot at its request so the request can be found by subject. */
     linkSubject: (request: AccessRequest) =>

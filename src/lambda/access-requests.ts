@@ -87,49 +87,61 @@ function createRequestRaiser({
   return async (adminId: string, { kind, subjectId, describe }: RequestSpec) => {
     const recipients = await recipientsFor(params, bot, kind, adminId);
     if (!(await claimSlot(kind, subjectId))) return "pending";
-    if (await store.overLimit()) {
-      await store.releaseSubject(kind, subjectId);
-      logger.info("access request limit reached; dropping request", { ...where, kind, subjectId });
-      return "limited";
-    }
-    const { fields, lines } = await describe();
-    const request = await store.create({ kind, subjectId, ...fields });
-    await store.recordRequest();
-    await store.linkSubject(request);
+    let request: AccessRequest | undefined;
+    let outcome: RaiseOutcome = "unreachable";
+    try {
+      if (await store.overLimit()) {
+        logger.info("access request limit reached; dropping request", {
+          ...where,
+          kind,
+          subjectId,
+        });
+        outcome = "limited";
+        return outcome;
+      }
+      const { fields, lines } = await describe();
+      request = await store.create({ kind, subjectId, ...fields });
+      await store.recordRequest();
+      await store.linkSubject(request);
 
-    const denyVerb = blocksOnDeny(kind) ? "deny and block" : "deny";
-    const text = [
-      `Access request ${request.id}`,
-      `Bot: ${bot.name}`,
-      ...lines,
-      `React ${APPROVE_EMOJI} to approve, or ${DENY_EMOJI} to ${denyVerb}.`,
-      ...(channel.commands ? [`Or reply /approve ${request.id} or /deny ${request.id}.`] : []),
-      `Expires in ${store.ttlMs / DAY_MS} days.`,
-    ].join("\n");
-    let delivered = 0;
-    let lastError: unknown;
-    for (const userId of recipients) {
-      try {
-        await store.linkMessage(await channel.notify(messenger, userId, text), request);
-        delivered++;
-      } catch (error) {
-        lastError = error;
-        logger.warn("failed to notify a recipient of access request", { ...where, kind });
+      const denyVerb = blocksOnDeny(kind) ? "deny and block" : "deny";
+      const text = [
+        `Access request ${request.id}`,
+        `Bot: ${bot.name}`,
+        ...lines,
+        `React ${APPROVE_EMOJI} to approve, or ${DENY_EMOJI} to ${denyVerb}.`,
+        ...(channel.commands ? [`Or reply /approve ${request.id} or /deny ${request.id}.`] : []),
+        `Expires in ${store.ttlMs / DAY_MS} days.`,
+      ].join("\n");
+      let delivered = 0;
+      let lastError: unknown;
+      for (const userId of recipients) {
+        try {
+          await store.linkMessage(await channel.notify(messenger, userId, text), request);
+          delivered++;
+        } catch (error) {
+          lastError = error;
+          logger.warn("failed to notify a recipient of access request", { ...where, kind });
+        }
+      }
+      if (delivered > 0) {
+        outcome = "raised";
+      } else {
+        logger.error("failed to notify admin of access request", {
+          ...where,
+          kind,
+          subjectId,
+          requestId: request.id,
+          error: lastError,
+        });
+      }
+      return outcome;
+    } finally {
+      if (outcome !== "raised") {
+        if (request) await store.remove(request);
+        await store.releaseSubject(kind, subjectId);
       }
     }
-    if (delivered === 0) {
-      await store.remove(request);
-      await store.releaseSubject(kind, subjectId);
-      logger.error("failed to notify admin of access request", {
-        ...where,
-        kind,
-        subjectId,
-        requestId: request.id,
-        error: lastError,
-      });
-      return "unreachable";
-    }
-    return "raised";
   };
 }
 

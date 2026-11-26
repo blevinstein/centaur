@@ -56,6 +56,7 @@ import {
 } from "./pull-request-comments.js";
 import { clearReactions, type ReactionSource } from "./reactions.js";
 import { installRepositoryInstructions } from "./repository-instructions.js";
+import { safeDetail } from "./safe-error.js";
 import { doubleQuote, shellArg, singleQuote } from "./shell-arg.js";
 import { installSkills } from "./skills.js";
 import {
@@ -547,7 +548,7 @@ async function existingTargets(
     const candidates = await listCandidates(candidateDeps);
     return { allowExisting: candidates.length > 0, candidates };
   } catch (error) {
-    console.warn(`::warning::Could not list pull requests to update: ${(error as Error).message}`);
+    console.warn(`::warning::Could not list pull requests to update: ${safeDetail(error)}`);
     return NO_EXISTING_TARGETS;
   }
 }
