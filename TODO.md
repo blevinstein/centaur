@@ -241,16 +241,24 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
         `list-threads` results.
   - [x] Chat search 2: `chat_tools` config key for the Slack search opt-in.
   - [x] Chat search 3: MCP server renders the scanned range and the bounded-window note.
-  - [ ] Chat search 4: Slack-native search (receiver captures the `action_token` into the state
-        table with a TTL, poster `search-chat`, MCP `search_chat`, manifest scopes). Settle the
-        design questions in the doc first.
+  - [ ] Chat search 4: Slack-native search. Design proposed in
+        [docs/chat-search.md](docs/chat-search.md#slice-4-decisions-proposed); **[HUMAN APPROVAL]**
+        of that design first. Agent slices, in order (stop after 4.4 if its stop conditions hold):
+    - [ ] 4.1 Receiver captures the `action_token` into the state table (TTL, never logged).
+    - [ ] 4.2 Poster `search-chat` operation (caller check, public-channel and sender filters, clip,
+          `unavailable` results, client method).
+    - [ ] **[HUMAN ACTION]** 4.3 Deploy 4.1 and 4.2; reinstall the Slack app so the token has
+          `search:read.public` (the manifests already list it; see
+          [onboarding](docs/onboarding.md#slack-personal-projects)).
+    - [ ] **[HUMAN ACTION]** 4.4 Live check: token present in real events, its lifetime, rate
+          limits, works without `features.agent_view`, `in:` filter syntax, AI-feature
+          availability; also confirm run logs do not count as storing results.
+    - [ ] 4.5 MCP `search_chat` tool, registered only with `chat_tools.slack_search`.
+    - [ ] **[HUMAN ACTION]** 4.6 Enable `slack_search: true` on one bot and run the end-to-end
+          check.
   - [x] Chat search 5: the stored-history window, tracked in the next item.
-  - [ ] **[HUMAN ACTION]** Chat search 4a: when slice 4 is about to be built (not before; least
-        privilege), add `search:read.public` to the installed Slack app and reinstall it, as in
-        `docs/slack-app-manifest.yml` and [onboarding](docs/onboarding.md#slack-personal-projects).
-  - [ ] **[HUMAN ACTION]** Chat search 6: verify on a real install (Slack rate limits,
-        `action_token` lifetime and presence in events, AI features in the workspace, Telegram
-        window cost).
+  - [ ] **[HUMAN ACTION]** Chat search 6: verify the Telegram window cost on a real install (the
+        Slack items moved to 4.4).
 - [x] Decide and set the stored-history window (`history.thread` `maxMessages` and `ttlMs`)
       explicitly in `src/lambda/chat.ts`. The window is the `HistoryMaxMessages` (default 100,
       max 5000) and `HistoryTtlDays` (default 7, max 365) stack parameters, read by
