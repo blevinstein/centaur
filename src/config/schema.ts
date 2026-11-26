@@ -156,6 +156,7 @@ const instructionsSchema = z.strictObject({
   chat: repoPath.optional(),
   chat_tools: repoPath.optional(),
   comment: repoPath.optional(),
+  scheduled: repoPath.optional(),
   silence: repoPath.optional(),
 });
 

@@ -118,7 +118,13 @@ describe("parseCentaurConfig", () => {
         model: "sonnet",
         allowed_tools: ["Read", "Edit", "Write", "Glob", "Grep"],
         persona: ".centaur/persona.md",
-        instructions: {},
+        instructions: {
+          chat: ".centaur/chat.md",
+          chat_tools: ".centaur/chat-tools.md",
+          comment: ".centaur/comment.md",
+          scheduled: ".centaur/scheduled.md",
+          silence: ".centaur/silence.md",
+        },
         pull_requests: {
           comment_new: true,
           existing: "bot",
@@ -291,9 +297,13 @@ describe("parseCentaurConfig", () => {
   });
 
   it("accepts instruction overrides as repo-relative paths only", () => {
-    expect(parseCentaurConfig(withExtra("instructions: {chat: .centaur/chat.md}"))).toMatchObject({
+    expect(
+      parseCentaurConfig(
+        withExtra("instructions: {chat: .centaur/chat.md, scheduled: .centaur/scheduled.md}"),
+      ),
+    ).toMatchObject({
       ok: true,
-      config: { instructions: { chat: ".centaur/chat.md" } },
+      config: { instructions: { chat: ".centaur/chat.md", scheduled: ".centaur/scheduled.md" } },
     });
     for (const extra of ["instructions: {chat: ../x.md}", "instructions: {other: a.md}"]) {
       expect(parseCentaurConfig(withExtra(extra)).ok).toBe(false);

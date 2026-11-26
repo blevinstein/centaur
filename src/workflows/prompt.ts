@@ -171,7 +171,7 @@ export function buildPrompt({
             ...(allowNewPr ? [NEW_PR_CONTRACT] : []),
           )
         : joinParagraphs(
-            instructions.chat,
+            scheduledTask === undefined ? instructions.chat : instructions.scheduled,
             ...chatToolsGuidance,
             CHAT_CONTRACT,
             ...(allowExisting ? [EXISTING_PR_CONTRACT] : []),

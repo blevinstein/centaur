@@ -50,6 +50,12 @@ max_turns: 12
 max_budget_usd: 0.5
 allowed_tools: "Read, Edit,Write,Glob,Grep"
 persona: .centaur/persona.md
+instructions:
+  chat: .centaur/chat.md
+  chat_tools: .centaur/chat-tools.md
+  comment: .centaur/comment.md
+  scheduled: .centaur/scheduled.md
+  silence: .centaur/silence.md
 prompts:
   weekly-tasks:
     context: transcript

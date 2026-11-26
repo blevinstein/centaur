@@ -406,7 +406,8 @@ for detailed tracking.
         It did not show the `<!-- from -->` labels: Claude Code strips HTML comments.
   - [ ] **[HUMAN ACTION]** Recheck after the push: labels are now `# Instructions from <path>`
         headings; ask the agent on a comment turn to name both headings.
-  - [ ] `harness.md`, `scheduled.md` and turn facts (proposal steps 2 and 4).
+  - [x] `scheduled.md`: the scheduled turn's own role text (proposal step 2, part).
+  - [ ] `harness.md` and turn facts (proposal steps 2 and 4).
 - [ ] Set up a `.centaur` config for a small-business accounting repo: try Playwright to integrate
       with a vendor admin portal.
 - [x] Better guides - basic response-only bot, adding scheduled actions

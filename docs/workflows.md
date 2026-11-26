@@ -488,7 +488,7 @@ the repository top, which yields one guide.
    branch, fetched through the GitHub API (never the checkout), and fails the turn before any other
    poster call when a server is not permitted, no policy exists, a policy is invalid, or one cannot
    be fetched ([Operator policy](mcp.md#operator-policy)).
-   The prompt's instructions are the guidance from `instructions/{chat,chat_tools,comment,silence}.md` (`chat_tools` only with the chat context tools on) (or
+   The prompt's instructions are the guidance from `instructions/{chat,chat_tools,comment,scheduled,silence}.md` (`scheduled` replaces `chat` for a scheduled prompt's turn, including a persistent one; chat replies and `/new` seed turns use `chat`) (`chat_tools` only with the chat context tools on) (or
    the repo's `instructions` overrides in the config, read from the checkout like the persona)
    followed by fixed text in `prompt.ts`: the untrusted-input warning and the structured-output
    fields the workflow parses (`reply`, `ignore`, `pr_title`, ...), which a repo cannot override.
