@@ -1,0 +1,20 @@
+name: Centaur test 2 PR comment
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  comment:
+    uses: ./.github/workflows/centaur-comment-turn.yml
+    with:
+      bot: centaur-test-2
+      root: apps/centaur-test-2
+    secrets: inherit

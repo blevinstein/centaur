@@ -1,7 +1,7 @@
 # Two test bots in this repo
 
 Status: step 1 is built (the live bot `centaur-slack` lives in `apps/centaur-test`); step 2 (a second
-bot, `centaur-test-2`, sharing conversations with it) is open. It uses the sub-folder support in
+bot, `centaur-test-2`) is built on the repo side; the maintainer actions below are open. It uses the sub-folder support in
 [subfolder-support](subfolder-support.md) and the templates in
 [workflows](../workflows.md#bots-in-sub-folders).
 
@@ -18,27 +18,39 @@ reverting the commit; register runs again from the revert.
 
 ## Step 2: the second bot
 
+`centaur-test-2` is Slack only and answers mentions (`respond_to: mention`; the first bot is `all`, and
+two `all` bots in one chat would both run on every message). It has no Telegram connection, no MCP
+server (so no extra secrets), no prompts and no destinations: destinations are one shared namespace
+per platform (`chats/<platform>/<name>`), so a name reused from the first bot would share its chat
+record, and a new name needs a chat approved first. Add prompts once the maintainer picks a name.
+
+Repo side (built):
+
+- `apps/centaur-test-2/.centaur/config.yml` and `persona.md`.
+- `centaur-register.yml`: the root is in the matrix and in `paths`.
+- `centaur-test-2-message.yml`: the thin caller of `centaur-turn.yml`, filtered on the bot.
+- `centaur-hello.yml`: the root is a `root` option (it has no prompt to run yet).
+- `centaur-comment-turn.yml`: the PR-comment `resolve` and `turn` jobs as a reusable workflow with `bot`
+  and `root` inputs; `centaur-pr-comment.yml` and `centaur-test-2-pr-comment.yml` call it. `resolve`
+  takes the bot from the pull request's thread record in the poster, not from the config at `root`
+  (which only supplies the allowed commenter associations), so it succeeds in both copies for any
+  `centaur/` branch. Only the copy whose `bot` input equals `needs.resolve.outputs.bot` runs `turn`;
+  the other copy's `turn` job is skipped, which is neutral rather than failed.
+- `test/self-consumer.test.ts` validates the second config.
+
 Maintainer actions, in order:
 
-1. Create the bot accounts: a Telegram bot with BotFather, and a second Slack app with the same scopes
-   and event subscriptions as the first; store their tokens as the stack expects.
-2. `centaur bot add centaur-test-2 --platform <slack|telegram>` for each platform, then
-   `centaur admin claim` for the new bot.
-3. `centaur access approve` the shared chats (`centaur-test-slack`, `centaur-test`) for the new bot.
-4. Set `respond_to: mention` for the new bot on both platforms. The existing bot is `respond_to: all`,
-   and two `all` bots in one chat would both run on every message.
-
-Repo changes:
-
-- `apps/centaur-test-2/.centaur/config.yml` (`bot: centaur-test-2`, `respond_to: mention`), plus its
-  persona and prompts. Destinations may repeat the existing names to share the chats.
-- `centaur-register.yml`: add `apps/centaur-test-2` to the matrix and its `.centaur.yml` and
-  `.centaur/**` to `paths`.
-- `centaur-test-2-message.yml`: a copy of `centaur-test-message.yml` with the bot filter, `bot` and
-  `root` changed; it calls the same `centaur-turn.yml`.
-- `centaur-hello.yml`: add the root to the `root` options.
-- `centaur-pr-comment.yml`: the `resolve` job reads the config at one `root` before it knows the bot,
-  so add a per-bot copy of the workflow (for example `centaur-test-2-pr-comment.yml`) with its own
-  `root`, and skip the `turn` job unless `needs.resolve.outputs.bot` is that bot. Make the existing
-  workflow skip other bots' threads in the same way, or two workflows would answer one comment.
-- Update `test/helpers/self-config.ts` consumers for the second config, and the self-consumer docs.
+1. Create the Slack app (done) and store its token and signing secret. Set its event URL to
+   `<function URL>/slack/centaur-test-2`.
+2. `centaur bot add centaur-test-2 --platform slack` (if the token is not already stored by that
+   command), then merge this change so `Centaur register` runs and binds the bot to the repo.
+3. `centaur admin claim centaur-test-2 --platform slack`. The claim code is generated from the
+   registered bot, so run it after register.
+4. The receiver builds its bot list once per warm execution environment (`src/lambda/handler.ts`
+   caches the build; `createReceiver` calls `loadBots` once), so a bot bound after the environment
+   started is not routed until a fresh environment starts. A normal deploy (`update-function-code`)
+   or any function configuration change retires warm environments, and an idle Lambda also
+   cold-starts on the next request. The cheapest nudge is a small function configuration update (for
+   example changing the description); it is a live change, so the maintainer runs or approves it.
+   Reloading without a restart is the open backlog item in `TODO.md`.
+5. `centaur access approve` the shared Slack chat for the new bot, and invite the app to it.

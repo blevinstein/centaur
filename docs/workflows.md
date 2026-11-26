@@ -278,7 +278,7 @@ jobs:
 Scheduled prompts pass `root` to both `resolve-schedule` and `turn`. For pull request comments, keep
 one copy of the comment workflow per bot that passes `root` to `resolve-pr-comment` and `turn`
 (`root` is read inside `config_root`, the trusted checkout),
-and skip the `turn` job unless `needs.resolve.outputs.bot` is that bot.
+and skip the `turn` job unless `needs.resolve.outputs.bot` is that bot. `resolve` takes the bot from the pull request's thread, not from the config at `root` (which only supplies the allowed commenter associations), so it succeeds for every copy and only the matching copy runs a turn. A reusable workflow with `bot` and `root` inputs keeps each copy a thin caller (this repo: `centaur-comment-turn.yml`).
 
 ## MCP server secrets
 
@@ -348,8 +348,8 @@ This repo is its own consumer, for end-to-end testing, with its bot in the sub-f
 (see [Bots in sub-folders](#bots-in-sub-folders)): `apps/centaur-test/.centaur/config.yml` binds the `centaur-slack` bot to Slack and Telegram
 and the `centaur-*.yml` workflows use the actions locally (`uses: ./.github/actions/...`) with `root: apps/centaur-test`.
 `centaur-register.yml` runs `register` over a matrix of roots, `centaur-test-message.yml` calls the reusable `centaur-turn.yml`
-for the bot's dispatches, `centaur-hello.yml` takes the root as a dispatch input, and `centaur-pr-comment.yml` sets `root` directly.
-A second bot adds a root to the register matrix and filter, a message caller, a hello option and a comment workflow copy
+for the bot's dispatches, `centaur-hello.yml` takes the root as a dispatch input, and the reusable `centaur-comment-turn.yml` (`bot` and `root` inputs; its `turn` job runs only when `resolve` finds that bot) is called by `centaur-pr-comment.yml` and `centaur-test-2-pr-comment.yml`.
+The second bot, `centaur-test-2` (`apps/centaur-test-2`, Slack only, `respond_to: mention`, no MCP server, no prompts), adds a root to the register matrix and filter, a message caller, a hello option and a comment caller
 ([two-bot-test](proposals/two-bot-test.md)). Its agent is
 read-write on the repo (`Read,Glob,Grep,Write,Edit` plus the read-only GitHub MCP tools), and it uses `respond_to: all` on both platforms. Its `hello` and `mcp-smoke` prompts post to Slack and Telegram, `hello-telegram` (the `hello` text) to Telegram only, keeping one persistent thread (`thread: persistent`; the other prompts open a new thread each run), and the pull-request prompts (`pr-smoke`, `pr-update`) post to Slack only, since a PR attaches to one thread.
 
@@ -647,7 +647,7 @@ off` removes the path.
 
 A pull request comment turn answers the comments on a pull request the agent opened. It is
 designed in [pr-comments.md](pr-comments.md). Consumers copy
-[`centaur-pr-comment.yml`](../.github/workflows/centaur-pr-comment.yml) (triggers `issue_comment` and
+[`centaur-pr-comment.yml`](../.github/workflows/centaur-pr-comment.yml) (a thin caller of [`centaur-comment-turn.yml`](../.github/workflows/centaur-comment-turn.yml), which holds the two jobs; triggers `issue_comment` and
 `pull_request_review`). Two jobs make it up:
 
 - `resolve` runs `resolve-pr-comment` (the `resolve` command) with `GITHUB_TOKEN`, the OIDC token

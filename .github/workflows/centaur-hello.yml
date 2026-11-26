@@ -6,7 +6,7 @@ on:
       root:
         description: Folder of the bot to run.
         type: choice
-        options: [apps/centaur-test]
+        options: [apps/centaur-test, apps/centaur-test-2]
         default: apps/centaur-test
       prompt_name:
         description: Prompt in the Centaur config to run.

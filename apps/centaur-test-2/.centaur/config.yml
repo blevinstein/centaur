@@ -1,0 +1,12 @@
+bot: centaur-test-2
+platforms:
+  slack:
+    respond_to: mention
+context:
+  default: transcript
+chat_tools:
+  scope: chat
+provider: anthropic
+model: sonnet
+allowed_tools: "Read,Glob,Grep,Write,Edit"
+persona: .centaur/persona.md
