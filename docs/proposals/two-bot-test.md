@@ -59,3 +59,24 @@ Maintainer actions, in order:
    --platform telegram` is only needed if the maintainer is not already the Telegram admin through the first
    bot. `centaur access approve` the shared Telegram group for the new bot, and add the bot to the group.
    Privacy mode and admin rights only matter for `respond_to: all`, so `mention` needs neither.
+
+## Direct-mode trial
+
+Temporary: `centaur-test-2` runs with `execution: { mode: direct }` and `pull_requests: { existing: off }`
+in `apps/centaur-test-2/.centaur/config.yml`, so its chat turns commit straight to this repository's
+default branch (see [Execution modes](../workflows.md#execution-modes)). Main is unprotected here, and the
+persona restricts the bot to `scratch/` (a prompt-level restriction only). The trial exists to exercise
+direct mode, including its pull request fallback, against a real repository.
+
+Test plan:
+
+1. Ask the bot to create `scratch/direct-smoke.txt`. Expect a commit on main by `github-actions[bot]`
+   with a run-URL footer, and the reply `Pushed to main: <commit url>`.
+2. Ask the bot to edit its own persona file. Expect a fallback pull request that names the protected
+   path as the reason.
+3. Confirm the `GITHUB_TOKEN` push triggered no workflow runs.
+4. Optional: add a branch protection rule requiring a pull request, repeat step 1 and expect a
+   `push_rejected` fallback pull request.
+
+Revert: remove the `execution` and `pull_requests` keys from the config, restore the persona wording
+about changes being opened as a pull request, and delete `scratch/` if wanted.

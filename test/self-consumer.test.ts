@@ -71,6 +71,8 @@ describe("this repo's Centaur config", () => {
       });
       expect(second.chat_tools.scope).toBe("chat");
       expect(second.mcp_servers).toEqual({});
+      expect(second.execution.mode).toBe("direct");
+      expect(second.pull_requests.existing).toBe("off");
       expect(readFileSync(selfPath(second.persona, SELF_ROOT_2), "utf8")).not.toBe("");
     });
   });
