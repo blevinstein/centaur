@@ -87,13 +87,20 @@ Both bots set `platforms.slack.bot_messages: mention`, so each accepts a Slack m
 other when it explicitly @mentions it (in both `respond_to` modes). Telegram stays at `ignore`: the
 Bot API does not normally deliver other bots' messages to a bot, so the setting would be inert there.
 
-The sender approval check still applies, so the maintainer approves each bot's Slack user ID on the
-other bot's Slack connection (the ID is in the bot's own messages, or in `centaur access list`):
+The sender approval check still applies, so each bot's Slack user ID must be approved on the other
+bot's Slack connection (the ID is in the bot's own messages, or in `centaur access list`):
 
 ```sh
 centaur access approve centaur-slack user <centaur-test-2 Slack user ID> --platform slack
 centaur access approve centaur-test-2 user <centaur-slack Slack user ID> --platform slack
 ```
+
+Result (2026-11-26): with both approvals in place, a message posted as `centaur-slack` in the shared
+Slack test channel that mentioned `centaur-test-2` was answered by `centaur-test-2` in the thread
+within about 40 seconds. Its workflow ran and succeeded; `centaur-slack`'s workflow for the same
+dispatch was skipped by its bot filter. The reply mentioned no one, so `centaur-slack` ignored it and
+the thread stayed at one reply with no further runs. Not covered: the reverse direction (same path,
+settings and approval) and a deliberate loop (the test told the bot not to mention anyone back).
 
 Loop risk: there is no allowlist and no hop cap, so two bots that keep mentioning each other will
 loop; the per-turn spend cap and the agents not re-mentioning each other are the only brakes. To stop
