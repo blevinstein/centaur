@@ -60,6 +60,7 @@ import { installRepositoryInstructions } from "./repository-instructions.js";
 import { safeDetail } from "./safe-error.js";
 import { doubleQuote, shellArg, singleQuote } from "./shell-arg.js";
 import { installSkills } from "./skills.js";
+import { toolGateSettings } from "./tool-gate.js";
 import {
   type AttachmentPath,
   markerBefore,
@@ -68,7 +69,13 @@ import {
   threadPolicy,
 } from "./transcript.js";
 import { boundTranscript } from "./transcript-budget.js";
-import { writeOidcCredentials, writeTurnState } from "./turn-state.js";
+import {
+  hookSettingsPath,
+  writeHookSettings,
+  writeOidcCredentials,
+  writeToolPolicy,
+  writeTurnState,
+} from "./turn-state.js";
 
 export const TURN_DIR = ".centaur-turn";
 export const PROMPT_FILE = `${TURN_DIR}/prompt.md`;
@@ -77,11 +84,12 @@ export const ATTACHMENT_DIR = `${TURN_DIR}/attachments`;
 export const MAX_PROMPT_IMAGES = 10;
 
 /**
- * A comment turn's workspace is the untrusted pull request branch, so only the user source
- * (`$HOME/.claude`) loads; the project and local sources, which read the workspace's
- * `.claude/settings*.json`, skills and rules, do not.
+ * Only the user source (`$HOME/.claude`) loads; the project and local sources, which read the
+ * workspace's `.claude/settings*.json`, skills and rules, do not. A comment turn's workspace is the
+ * untrusted pull request branch, and a turn with the tool gate must not let the agent switch the
+ * gate off by writing `.claude/settings.local.json` (`disableAllHooks`).
  */
-const COMMENT_SETTING_SOURCES = "--setting-sources user";
+const USER_SETTING_SOURCES = "--setting-sources user";
 const CONSUMER_SKILLS_DIR = ".claude/skills";
 const NEW_THREAD_ACK = "Started a new thread.";
 const NEW_THREAD_OPENING = "Fresh thread. What would you like to do?";
@@ -581,8 +589,11 @@ export function buildClaudeArgs(input: {
   /** Some skill is installed, so the `Skill` tool is allowed. */
   skills?: boolean | undefined;
   mcpConfig?: string | undefined;
+  /** A Claude Code settings file passed with `--settings`. */
+  settings?: string | undefined;
 }) {
   const { config, persona, resumeSessionId, canStaySilent, mode, allowExisting, mcpConfig } = input;
+  const { settings } = input;
   const { executionMode } = input;
   const suspendable = input.suspendable ?? [];
   const allowNewPr = config.pull_requests.comment_new;
@@ -594,13 +605,14 @@ export function buildClaudeArgs(input: {
     `--model ${shellArg(config.model)}`,
     ...(config.effort ? [`--effort ${shellArg(config.effort)}`] : []),
     `--allowedTools ${doubleQuote(tools)}`,
-    ...(mode === "comment" ? [COMMENT_SETTING_SOURCES] : []),
+    ...(mode === "comment" || settings ? [USER_SETTING_SOURCES] : []),
     `--max-turns ${shellArg(String(config.max_turns))}`,
     ...(config.max_budget_usd
       ? [`--max-budget-usd ${shellArg(String(config.max_budget_usd))}`]
       : []),
     `--json-schema ${singleQuote(JSON.stringify(replySchema({ canStaySilent, mode, allowNewPr, allowExisting, executionMode, suspendable })))}`,
     ...(mcpConfig ? [`--mcp-config ${shellArg(mcpConfig)}`] : []),
+    ...(settings ? [`--settings ${shellArg(settings)}`] : []),
     ...(persona ? [`--append-system-prompt-file ${shellArg(persona)}`] : []),
     ...(resumeSessionId ? [`--resume ${shellArg(resumeSessionId)}`] : []),
   ].join(" ");
@@ -624,7 +636,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   await assertSingleConfigStyle(configRoot, deps.root);
   const rootDir = await resolveRoot(configRoot, deps.root);
   const config = parseConfigOrThrow(await readConfigText(configRoot, deps.root));
-  const approvals = await enforceMcpPolicy(config, deps.mcpPolicy);
+  const { approvals, layers: policyLayers } = await enforceMcpPolicy(config, deps.mcpPolicy);
   const mcp = buildMcpConfig(config.mcp_servers, deps.env);
   if (mcp.missingSecrets.length > 0) {
     throw new Error(
@@ -713,6 +725,10 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
       .join("\n\n"),
   );
   await writeTurnState(deps.stateDir, state);
+  if (policyLayers) {
+    await writeToolPolicy(deps.stateDir, { bot: config.bot, layers: policyLayers });
+    await writeHookSettings(deps.stateDir, toolGateSettings(deps.stateDir));
+  }
   const chatTools = Boolean(turn.threadId) && chatToolsEnabled(config);
   if (chatTools) await writeOidcCredentials(deps.stateDir, deps.env);
   const mcpServers = {
@@ -760,6 +776,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
       chatTools,
       skills: skills.builtin.length + skills.consumer.length > 0,
       mcpConfig: hasMcpServers ? MCP_CONFIG_FILE : undefined,
+      settings: policyLayers ? hookSettingsPath(deps.stateDir) : undefined,
     }),
   };
 }

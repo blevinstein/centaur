@@ -26,10 +26,14 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Locate the Centaur CLI
+      shell: bash
+      run: echo "CENTAUR_CLI=$(cd "${{ github.action_path }}/../../.." && pwd)/dist/workflows/cli.js" >> "$GITHUB_ENV"
+
     - name: Resolve the pull request comment
       id: resolve
       shell: bash
       env:
         CENTAUR_ROOT: ${{ inputs.root }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
-      run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" resolve
+      run: node "$CENTAUR_CLI" resolve

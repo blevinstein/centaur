@@ -206,6 +206,7 @@ describe("the workflow CLI", () => {
       "push-existing",
       "push-direct",
       "pr-details",
+      "audit-tool-calls",
       "finish",
       "notify-failure",
     ];

@@ -342,7 +342,9 @@ Deletes `/centaur/github/token`. Refuses if no token is stored.
 
 Validates a config file (default: `.centaur.yml` or `.centaur/config.yml` in the current directory) with the same parser
 the receiver and workflows use, and prints `<path> is valid.` or every issue with its dotted path.
-With `mcp_servers` it also checks them against the local `.centaur/mcp-policy.cedar`, and
+With `mcp_servers` it also checks them against the local `.centaur/mcp-policy.cedar` (including its
+`CallTool` policies: schema errors and warnings, and server and tool names that match no configured
+server or `allowed_tools` entry fail; a tool covered only by a wildcard is a warning), and
 `--global-policy` adds the deployer's `infra/mcp-policy.cedar` ([mcp.md](mcp.md#operator-policy)).
 It runs offline: no SSM access or AWS credentials are needed. It does not check that destination names resolve to anything in SSM. Exits 1 if the file is missing, is not valid YAML, or fails
 the schema; see [Parsing](config.md#parsing).
@@ -351,6 +353,18 @@ the schema; see [Parsing](config.md#parsing).
 centaur config check
 centaur config check path/to/.centaur.yml
 centaur config check path/to/.centaur/config.yml
+```
+
+### `centaur policy check-call [path] --server <name> --tool <name> [--args <json>] [--global-policy <path>] [--root <dir>]`
+
+Dry-runs one MCP tool call against the local `.centaur/mcp-policy.cedar` next to the config (the
+bot name comes from the config) and prints `allowed`, or `refused:` with the reason and the policy id
+(`forbidden by policy repo.1`). `--tool` is the tool name without the `mcp__<server>__` prefix and
+`--args` a JSON object (default `{}`). Offline, like `config check`; see
+[Tool-call policy](mcp.md#tool-call-policy).
+
+```sh
+centaur policy check-call --server linear --tool delete_issue --args '{"id":"ENG-9"}'
 ```
 
 ### `centaur repo vars [--stack <name>] [--repo <owner/repo>] [--org <org>] [--dry-run]`

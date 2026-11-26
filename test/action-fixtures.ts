@@ -23,10 +23,10 @@ export const stepsWithEnv = (steps: ActionStep[], name: string) =>
 
 export const actionNames = () => readdirSync(".github/actions");
 
-/** The env of every composite-action step that runs `cli.js <command>`. */
+/** The env of every composite-action step that runs `node "$CENTAUR_CLI" <command>`. */
 export const stepEnvsRunning = (command: string) =>
   actionNames().flatMap((name) =>
     loadAction(name)
-      .runs.steps.filter((step) => step.run?.endsWith(`/dist/workflows/cli.js" ${command}`))
+      .runs.steps.filter((step) => step.run === `node "$CENTAUR_CLI" ${command}`)
       .map((step) => step.env ?? {}),
   );

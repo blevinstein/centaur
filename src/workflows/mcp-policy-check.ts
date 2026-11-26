@@ -8,6 +8,8 @@ import {
   type PolicyLayer,
   type PolicyLayers,
 } from "../config/mcp-policy.js";
+import { type PolicyLintContext, policyProblems } from "../config/mcp-policy-lint.js";
+import { CHAT_SERVER_NAME } from "../mcp/server-config.js";
 import type { PosterClient } from "./aws.js";
 import { fetchDefaultBranch, GitHubRequestError, type GitHubRequester } from "./resolve.js";
 
@@ -55,6 +57,15 @@ const unreadable = (layer: PolicyLayer) => (error: unknown) => {
   throw new Error(`cannot read the ${layer} operator policy: ${(error as Error).message}`);
 };
 
+/** The server and tool names a policy's literals are checked against, the chat server included. */
+export function policyLintContext(config: CentaurConfig): PolicyLintContext {
+  const chat = config.chat_tools.scope === "chat";
+  return {
+    servers: [...Object.keys(config.mcp_servers), ...(chat ? [CHAT_SERVER_NAME] : [])],
+    allowedTools: [...config.allowed_tools, ...(chat ? [`mcp__${CHAT_SERVER_NAME}__*`] : [])],
+  };
+}
+
 const denyAll = (servers: CentaurConfig["mcp_servers"], message: string): McpPolicyResult => ({
   issues: Object.keys(servers).map((name) => ({ path: `mcp_servers.${name}`, message })),
   approvals: [],
@@ -63,7 +74,7 @@ const denyAll = (servers: CentaurConfig["mcp_servers"], message: string): McpPol
 export async function checkRepositoryMcpPolicy(
   config: CentaurConfig,
   deps: McpPolicyDeps | undefined,
-): Promise<McpPolicyResult> {
+): Promise<McpPolicyResult & { layers?: PolicyLayers; warnings?: string[] }> {
   const servers = config.mcp_servers;
   if (Object.keys(servers).length === 0) return { issues: [], approvals: [] };
   if (!deps) return denyAll(servers, "cannot read the operator policy without a GitHub token");
@@ -76,16 +87,36 @@ export async function checkRepositoryMcpPolicy(
   } catch (error) {
     return denyAll(servers, (error as Error).message);
   }
-  return layers.global === undefined && layers.repo === undefined
-    ? denyAll(servers, `no global operator policy and no ${MCP_POLICY_FILE} on the default branch`)
-    : evaluateMcpPolicy(config.bot, servers, layers, config.allowed_tools);
+  if (layers.global === undefined && layers.repo === undefined) {
+    return denyAll(
+      servers,
+      `no global operator policy and no ${MCP_POLICY_FILE} on the default branch`,
+    );
+  }
+  const { errors, warnings } = policyProblems(layers, policyLintContext(config));
+  if (errors.length > 0) {
+    return denyAll(
+      servers,
+      `operator policy is invalid: ${errors.map(({ layer, message }) => `${layer}: ${message}`).join("; ")}`,
+    );
+  }
+  return {
+    ...evaluateMcpPolicy(config.bot, servers, layers, config.allowed_tools),
+    layers,
+    warnings: warnings.map(({ layer, message }) => `${layer}: ${message}`),
+  };
 }
 
+/**
+ * Throws unless every server is permitted and both layers validate without warnings. Returns the
+ * approvals and the layers read, which are undefined for a config without servers.
+ */
 export async function enforceMcpPolicy(config: CentaurConfig, deps: McpPolicyDeps | undefined) {
-  const { issues, approvals } = await checkRepositoryMcpPolicy(config, deps);
+  const { issues, approvals, layers, warnings = [] } = await checkRepositoryMcpPolicy(config, deps);
   if (issues.length > 0) {
     throw new Error(`mcp_servers violate the operator policy:\n${formatIssues(issues)}`);
   }
+  for (const warning of warnings) console.log(`::warning::operator policy: ${warning}`);
   if (approvals.length > 0) console.log(`::notice::${formatApprovals(approvals)}`);
-  return approvals;
+  return { approvals, layers };
 }

@@ -7,10 +7,14 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Locate the Centaur CLI
+      shell: bash
+      run: echo "CENTAUR_CLI=$(cd "${{ github.action_path }}/../../.." && pwd)/dist/workflows/cli.js" >> "$GITHUB_ENV"
+
     - name: Report failure in the thread
       shell: bash
       env:
         COMMENT_PULL_REQUEST: ${{ inputs.comment }}
         GITHUB_TOKEN: ${{ github.token }}
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" notify-failure
+      run: node "$CENTAUR_CLI" notify-failure

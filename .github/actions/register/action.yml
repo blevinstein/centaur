@@ -7,9 +7,13 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Locate the Centaur CLI
+      shell: bash
+      run: echo "CENTAUR_CLI=$(cd "${{ github.action_path }}/../../.." && pwd)/dist/workflows/cli.js" >> "$GITHUB_ENV"
+
     - name: Register the bot
       shell: bash
       env:
         CENTAUR_ROOT: ${{ inputs.root }}
         GITHUB_TOKEN: ${{ github.token }}
-      run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" register
+      run: node "$CENTAUR_CLI" register

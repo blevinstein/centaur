@@ -40,6 +40,24 @@ describe("the turn action", () => {
     expect(idsWithEnv("PULL_REQUEST_FAILED")).toHaveLength(1);
   });
 
+  describe("the tool call audit", () => {
+    const audit = steps.find((step) => step.run?.endsWith(" audit-tool-calls"));
+    const names = steps.map((step) => step.name);
+
+    it("audits the agent's execution file before anything is pushed or posted", () => {
+      expect(audit?.env?.EXECUTION_FILE).toMatch(/steps\.agent\.outputs\.execution_file/);
+      expect(audit?.["continue-on-error"]).toBeUndefined();
+      expect(names.indexOf(audit?.name)).toBeGreaterThan(names.indexOf("Run agent"));
+      for (const later of ["Plan pull request target", "Open pull request", "Post reply"]) {
+        expect(names.indexOf(audit?.name)).toBeLessThan(names.indexOf(later));
+      }
+    });
+
+    it("runs whenever the agent did", () => {
+      expect(audit?.if).toBe("steps.prepare.outputs.skip != 'true'");
+    });
+  });
+
   describe("the direct push", () => {
     const step = (id: string) => steps.find((candidate) => candidate.id === id);
     const ids = steps.map((candidate) => candidate.id);

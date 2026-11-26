@@ -286,7 +286,7 @@ is denied. Other examples:
 permit(principal == Bot::"garden", action == Action::"UseServer", resource)
   when { resource.transport == "stdio" && resource.command == "npx" && resource.pinned };
 
-forbid(principal, action, resource) when { resource.host like "*.untrusted.example" };
+forbid(principal, action == Action::"UseServer", resource) when { resource.host like "*.untrusted.example" };
 ```
 
 **Allow any pinned local server.** The global file permits nothing by itself, so a repo needs a
@@ -351,6 +351,122 @@ What happens at a turn:
   `allowed_tools` entries naming it) asks again, because the approval belongs to the definition.
   Removing the `when { context.approved }` permit makes the policy deny the server, and the turn
   fails like for any denied server.
+
+### Tool-call policy
+
+`UseServer` is decided once, in `prepare`. To restrict individual tool calls by their arguments, write
+`CallTool` policies in the same files. A call is a request with principal `Bot::"<bot>"`, action
+`Action::"CallTool"`, resource `McpTool::"<server>/<tool>"` (attributes `server` and `name`) and
+`context.args`, the call's arguments. Every call is permitted unless a `forbid` matches, so `CallTool`
+policies only restrict and never need a `permit`. Policies for other actions never apply to a call.
+
+**Write an allowlist.** Name the tool, then list what may pass:
+
+```cedar
+// delete_issue only for these issues
+forbid(principal, action == Action::"CallTool", resource)
+  when { resource.server == "linear" && resource.name == "delete_issue" }
+  unless { context.args has id && ["ENG-1", "ENG-2"].contains(context.args.id) };
+```
+
+A call that lacks the argument, or sends another value or type, is refused. Do not write the denylist
+form (`when { context.args.team == "secret" }`): another parameter name, spelling or encoding the tool
+also honors gets past it. Always guard an argument with `has`; a policy that errors on a missing
+argument refuses the call, and the validator rejects an unguarded read.
+
+Pitfalls the allowlist form does not cover:
+
+- **Sibling parameters.** If the tool also takes `ids` and honors both, `id` alone proves nothing.
+  Cedar cannot iterate argument names, so name each sibling and refuse it inside the `unless`. The
+  validator treats `has` on an argument as always false, so a bare `when { ... && context.args has ids }`
+  is rejected as an impossible policy; negate it in the allowlist instead:
+
+  ```cedar
+  forbid(principal, action == Action::"CallTool", resource)
+    when { resource.server == "linear" && resource.name == "delete_issue" }
+    unless {
+      !(context.args has ids) && context.args has id && ["ENG-1", "ENG-2"].contains(context.args.id)
+    };
+  ```
+
+- **Wildcards.** With `mcp__linear__*` in `allowed_tools`, a tool the server adds later is allowed.
+  Prefer one `allowed_tools` entry per tool. For a server that must stay on a wildcard, allowlist by
+  tool name so a new tool is refused until the policy names it:
+
+  ```cedar
+  forbid(principal, action == Action::"CallTool", resource)
+    when { resource.server == "linear" }
+    unless { ["get_issue", "list_issues"].contains(resource.name) };
+  ```
+
+- **Literals.** Server and tool names are compared as exact strings (`"Linear"` is not `"linear"`,
+  `"delete_issues"` is not `"delete_issue"`), and a `forbid` on a name that never occurs restricts
+  nothing. Policy conditions are linted for that (below).
+- **Argument values.** `null` arguments are dropped and non-integer numbers become strings, because
+  Cedar contexts hold neither. A tool that reads a value from somewhere other than its arguments
+  (an environment variable, a default) is not constrained by them.
+
+**Checks at authoring time.** Both layers are validated against a schema that declares `McpServer`,
+`McpTool`, `UseServer` and `CallTool`. A mistyped action (`Action::"CallTools"`) or attribute
+(`resource.nmae`), an unguarded `context.args` read, or an impossible policy fails `register`,
+`prepare` and `centaur config check`: errors and warnings alike, because a policy that matches nothing
+restricts nothing. A forbid must name its action, since `forbid(principal, action, resource)` that
+reads `resource.host` no longer type-checks for `McpTool`: write `action == Action::"UseServer"`.
+The repo layer's `resource.server`, `resource.name` and `McpTool::"server/tool"` string literals are
+also compared with `mcp_servers`, `allowed_tools` and, when `chat_tools.scope` is `chat`, the chat
+server: a server that is not configured or a tool that is not in `allowed_tools` fails; a tool
+covered only by a wildcard entry is a warning. The global layer is not linted, since it names servers
+other repos use.
+
+**Try a call.** `centaur policy check-call --server linear --tool delete_issue --args '{"id":"ENG-9"}'`
+evaluates the local `.centaur/mcp-policy.cedar` next to the config (`--global-policy` adds the global
+layer, `--root` a sub-folder) and prints `allowed` or `refused: forbidden by policy repo.1`
+([cli.md](cli.md)).
+
+**Enforcement.** Whenever `mcp_servers` is non-empty, `prepare` saves the merged layers and the bot
+name in the turn state directory, outside the workspace, writes a Claude Code settings file there with
+a `PreToolUse` hook on `mcp__.*`, and passes it with `--settings` and `--setting-sources user`. The
+hook runs `centaur-workflow tool-gate` with the call on stdin and a 15 second timeout
+(`toolGateSettings`, `src/workflows/tool-gate.ts`). These behaviors were confirmed on 2026-11-26 against
+`claude-code-action@v1` with Claude Code 2.1.332:
+
+- Claude Code blocks a call only when a hook exits with code 2 (or prints a clean JSON deny). Exit 1, a
+  crash, a missing script, a timeout, or stray stdout before a JSON deny all let the call proceed.
+  The hook entry therefore sets `onFailure: "block"` (Claude Code 2.1.295 or later), which blocks on a
+  missing script, a crash and a timeout, and the command is a shell wrapper that maps every non-zero
+  exit, and any output on stdout, to exit 2.
+- A refusal is exit 2 with the reason on stderr, which appears in the transcript. An allow is exit 0
+  with nothing on stdout, which leaves the decision to `allowed_tools`; a hook never grants a tool that
+  `allowed_tools` does not list.
+- A crash, unreadable policy, malformed input, unparseable tool name or evaluation error is a refusal.
+  The posture is closed once a deployment uses the feature.
+- `--setting-sources user` keeps the agent from switching the gate off: with the default sources, an
+  agent that wrote `.claude/settings.local.json` with `disableAllHooks` mid-run disabled the hook. A
+  committed settings file with `disableAllHooks` does not disable a `--settings` hook either way. The
+  flag means a chat or scheduled turn with `mcp_servers` no longer reads the workspace's
+  `.claude/settings*.json`, project skills or project rules; what `prepare` copies into
+  `$HOME/.claude` (repository instructions, consumer skills) still loads, as on a comment turn.
+- Server names reach the hook exactly (`mcp__probe-srv__echo_id`), and a server whose name holds a dot
+  is never connected. Config validation already limits server names to `[a-z0-9_-]` without `__`.
+
+**Audit.** The turn action's "Audit MCP tool calls" step runs right after the agent, before anything is
+pushed or posted. It re-evaluates every `mcp__*` `tool_use` in the execution file against the saved
+policy and fails the turn, which sends the usual failure notice, if any call would have been refused.
+It is the backstop for a gate that did not run, was disabled or failed open; it cannot prevent a call.
+
+**What remains trusted.** The gate is not isolated from everything the agent can run:
+
+- The saved policy and settings sit in the turn state directory, which the agent's file tools cannot
+  reach. A `Bash` tool, when `allowed_tools` includes it, can write there, and can write the user-scope
+  files under `$HOME/.claude` (`settings.json`), which `--setting-sources user` still loads. Whether a
+  user-scope `disableAllHooks` disables a `--settings` hook was not probed, so do not assume it does
+  not. The audit reads the same saved policy, so it catches a disabled hook but not a rewritten policy.
+- Other routes to the same capability, such as `Bash` with `curl` or `gh` and secrets in the
+  environment, are outside MCP policy. Keep `Bash` out of `allowed_tools` for a bot whose policy
+  matters.
+- With no `mcp_servers` there is no gate, even for the chat server.
+
+Design notes: [proposals/mcp-tool-policy.md](proposals/mcp-tool-policy.md).
 
 ## Permit cookbook
 

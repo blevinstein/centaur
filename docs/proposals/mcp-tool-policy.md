@@ -1,12 +1,15 @@
 # Per-call MCP policy
 
-Status: **proposal**, not built on `main`. This document is the plan behind the backlog item in
-[TODO.md](../../TODO.md#backlog). It builds on [mcp.md](../mcp.md#operator-policy).
-
-A first cut of the design below (the `CallTool` evaluator, the `tool-gate` hook, tests and its
-`mcp.md` section) lives on the branch [`proposal/mcp-tool-policy-first-cut`](https://github.com/blevinstein/centaur/tree/proposal/mcp-tool-policy-first-cut). It fails open when the hook itself
-crashes, and has none of the validation, lint, audit or settings isolation in the plan. Start from it
-or from scratch.
+Status: **built** (steps 1 to 8). The schema and validation, validation on `register` and `prepare`
+(fail closed on any error or warning), the literal lint, the `tool-gate` hook with its shell wrapper,
+exit-2 contract and `onFailure: "block"`, `--setting-sources user` on every turn with the gate, the
+post-run audit, `centaur policy check-call` and the docs ([mcp.md](../mcp.md#tool-call-policy)). The
+facts below were confirmed on 2026-11-26 by a live probe of `claude-code-action@v1` with Claude Code
+2.1.332 (run 45839864607). The gate is installed only when `mcp_servers` is non-empty, so a config with
+just `chat_tools.scope: chat` has no gate. The audit step runs straight after the agent rather than
+just before "Post reply", so a refused call also stops the push of the turn's changes. It builds on
+[mcp.md](../mcp.md#operator-policy) and is the plan behind the backlog item in
+[TODO.md](../../TODO.md#backlog).
 
 ## Problem
 
@@ -42,9 +45,8 @@ Failure posture once a deployment uses the feature: closed.
 
 ## Failure modes and sharp edges
 
-Found by running Cedar edge cases against the evaluator and reading Claude Code's hook documentation.
-Facts marked (*) come from a summarizing fetch of that documentation and must be confirmed by the live
-experiment below before the design relies on them.
+Found by running Cedar edge cases against the evaluator, then confirmed against a live
+`claude-code-action@v1` run on Claude Code 2.1.332 (2026-11-26).
 
 ### Authoring mistakes that silently grant too much
 
@@ -60,18 +62,25 @@ experiment below before the design relies on them.
 
 ### Hook and runtime failures
 
-| Failure | Claude Code behavior (*) | Mitigation |
+| Failure | Claude Code behavior (confirmed) | Mitigation |
 |---|---|---|
-| Hook exits 1 or crashes before our code (node missing, wrong path, import error) | Non-blocking: the call proceeds | The hook command is a shell wrapper mapping any non-zero exit to 2 |
-| Stray stdout before the JSON | JSON not honored: the call proceeds | Deny with exit 2 and the reason on stderr; allow is exit 0 with empty stdout |
-| Hook timeout | Non-blocking (default 600 s) | Short explicit `timeout`; `onFailure: "block"` if it applies to `PreToolUse` |
-| `claude-code-action` ignores or overrides `--settings` | Hook never runs: everything is allowed | Live check; the post-run audit makes it loud |
-| Agent or a PR branch writes `.claude/settings*.json` (settings reload live; `disableAllHooks` exists) | The hook can be removed or disabled | `--setting-sources` excluding project and local settings if supported; otherwise managed settings with `allowManagedHooksOnly` |
-| Agent overwrites the policy or settings file in `$RUNNER_TEMP` with Bash | Policy replaced | Same boundary as the turn state; root-owned directory if managed settings are used |
+| Hook exits 1, crashes or its script is missing | Fails open: the call proceeds | `onFailure: "block"` on the hook entry (Claude Code 2.1.295 or later) blocks; the shell wrapper also maps any non-zero exit to 2 |
+| Junk on stdout, then a JSON deny with exit 0 | Fails open | Deny with exit 2 and the reason on stderr; allow is exit 0 with empty stdout; the wrapper turns any stdout into exit 2. (A clean JSON deny blocks, and junk with exit 2 blocks.) |
+| Hook timeout | Fails open | A 15 second explicit `timeout` plus `onFailure: "block"`, which blocks a timeout |
+| `--settings` with a `PreToolUse` hook, matcher `mcp__.*` | Runs under the action; exit 2 blocks and the stderr reason is in the transcript | Used as is |
+| A committed `.claude/settings.json` or `settings.local.json` with `disableAllHooks` | Does not disable a hook passed with `--settings`, with or without `--setting-sources` | None needed |
+| The agent writes `.claude/settings.local.json` `{"disableAllHooks": true}` mid-run | Disables the gate (the hook ran 0 times) unless `--setting-sources user` is passed; with it the gate held | `--setting-sources user` on every turn that installs the gate (step 6) |
+| Server names | Hyphens and underscores reach the hook exactly (`mcp__probe-srv__echo_id`); a server named `probe.srv` was never connected | The config schema already limits names to `[a-z0-9_-]` without `__`; a dotted name fails `config check`, `register` and `prepare` |
+| Agent overwrites the saved policy or settings in `$RUNNER_TEMP` with Bash | Policy replaced | Same boundary as the turn state; the audit reads the same files, so it does not catch this |
 | Policy fetch fails or a layer is invalid | Turn fails in `prepare` (closed, as today) | None needed |
 
 Out of scope: other routes to the same capability (Bash with `curl` or `gh` and secrets in the
-environment) are not covered by MCP policy.
+environment) are not covered by MCP policy. Also not covered: the user-scope files under `$HOME/.claude`
+(`settings.json` and others), which `--setting-sources user` still loads. The probe wrote only
+project-local settings, so whether a user-scope `disableAllHooks` disables a hook passed with
+`--settings` is untested. The agent's file tools are confined to the workspace, but its `Bash` tool,
+when `allowed_tools` includes it, can write under `$HOME`. Treat the gate as unisolated from a `Bash`
+tool; the audit is the backstop.
 
 ## Plan
 
@@ -84,14 +93,16 @@ environment) are not covered by MCP policy.
 3. **Literal lint.** Using cedar-wasm `policyToJson`, collect string literals compared to
    `resource.server` and `resource.name`. Flag servers not in `mcp_servers`, and tool names missing from
    `allowed_tools` for non-wildcarded servers (warn when wildcarded).
-4. **Hook.** `src/workflows/tool-gate.ts` and the `tool-gate` command in `src/workflows/cli.ts`: exit-code
+4. **Hook.** `src/workflows/tool-gate.ts` and the `tool-gate` command in `src/workflows/program.ts`: exit-code
    contract above, shell wrapper, explicit timeout. Install whenever `mcp_servers` is non-empty.
 5. **Post-run audit.** An `audit-tool-calls` command and an action step before "Post reply" re-evaluate
    every `mcp__*` `tool_use` in `execution_file` (parsing in `src/workflows/finish.ts`) against the stored
    layers, and fail the turn with a failure notice if any would have been denied. It detects a hook that
    did not run, was disabled or failed open; it does not prevent.
-6. **Settings isolation.** Restrict setting sources in `buildClaudeArgs` if the flag works; otherwise
-   managed settings. Shape depends on the live experiment.
+6. **Settings isolation.** `buildClaudeArgs` passes `--setting-sources user` whenever the gate's
+   `--settings` file is passed (and, as before, on comment turns). Chat and scheduled turns with
+   `mcp_servers` therefore stop reading the workspace's `.claude/settings*.json`, project skills and
+   rules; the repository instructions and consumer skills `prepare` copies into `$HOME/.claude` still load.
 7. **Dry run.** `centaur policy check-call --server S --tool T --args JSON` evaluates local policy files
    with `checkToolCall` and prints the decision and policy id.
 8. **Docs.** Fold this into the "Tool-call policy" section of [mcp.md](../mcp.md): allowlist form first,
@@ -105,9 +116,6 @@ environment) are not covered by MCP policy.
   passes a clean transcript.
 - `yarn lint`, `yarn typecheck`, `yarn test`, `yarn lint:cfn`, `yarn bundle:lambda` (cedar-wasm stays out
   of the Lambda bundle).
-- Live, on an `experiment/*` branch, with the maintainer's approval, against one MCP server with a
-  `forbid` on one argument value. Confirm: the hook runs under `claude-code-action@v1` via `claude_args`;
-  a refused call is blocked and logged; a deliberately broken hook command blocks rather than allows; a
-  `.claude/settings.local.json` with `disableAllHooks`, written by the agent or committed on the branch,
-  does not disable the gate; the audit fails the run when the hook is omitted; `--setting-sources`,
-  `onFailure` and MCP server-name normalization behave as the documentation summary says.
+- Live, 2026-11-26, Claude Code 2.1.332, run 45839864607, against one MCP server with a `forbid` on one
+  argument value: the confirmed behavior is in the table above. Not probed: a user-scope
+  `disableAllHooks`, and the audit failing a real run whose hook was omitted.

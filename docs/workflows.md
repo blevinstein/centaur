@@ -440,13 +440,13 @@ The API base URL comes from the bot's `provider` in the config, not from a varia
 Actions run from the checkout GitHub makes of this repo at the ref the consumer pins
 (`github.action_path`). `setup-runtime` enables Corepack and runs `yarn install --immutable &&
 yarn build` there; the other actions run
-`node <action checkout>/dist/workflows/cli.js <command>`. This keeps the scripts versioned with theactions that call them, and all non-trivial logic in `src/workflows/` where it is unit-tested. The
+`node "$CENTAUR_CLI" <command>`, where each action's first step exports `CENTAUR_CLI` as the absolute path of `dist/workflows/cli.js` in its checkout. This keeps the scripts versioned with theactions that call them, and all non-trivial logic in `src/workflows/` where it is unit-tested. The
 centaur repo must be readable by the consumer's `GITHUB_TOKEN` (public, or granted access).
 `.centaur-turn/` is added to `.git/info/exclude` so it never lands in a pull request. The actions
 read the variables above through the `vars` context; API keys are inputs of `turn` because
 composite actions cannot read secrets.
 
-Commands: `register`, `resolve`, `resolve-schedule`, `prepare`, `pr-details`, `finish`, `notify-failure`.
+Commands: `register`, `resolve`, `resolve-schedule`, `prepare`, `audit-tool-calls`, `pr-details`, `finish`, `notify-failure`; `tool-gate` is the agent's hook, not a step.
 
 ## Skills
 
@@ -466,7 +466,9 @@ off ([config.md](config.md)):
   the config's `allowed_tools` fails the turn with a message naming the skill.
 - `Skill` is added to `--allowedTools` when any skill was installed.
 - A comment turn also passes `--setting-sources user`, so the pull request branch's
-  `.claude/skills`, `.claude/settings.json`, rules and `CLAUDE.md` are not loaded; a chat turn keeps
+  `.claude/skills`, `.claude/settings.json`, rules and `CLAUDE.md` are not loaded; so does a turn with
+  `mcp_servers`, whose tool gate the agent could otherwise disable by writing
+  `.claude/settings.local.json` ([Tool-call policy](mcp.md#tool-call-policy)). Any other chat turn keeps
   the action's default sources. The trusted guide reaches a comment turn through a copy in `$HOME/.claude/CLAUDE.md` (see
   [Repository instructions](#repository-instructions)); `project` and `local` stay off.
 
@@ -538,6 +540,10 @@ the repository top, which yields one guide.
    the remaining steps are skipped.
 2. `claude-code-action` runs with a constant prompt telling it to read the prompt file. If
    `allowed_tools` lacks `Read`, `Read(./.centaur-turn/**)` is added so it can.
+   With `mcp_servers`, `prepare` also passes `--settings` with the `PreToolUse` hook that runs
+   `tool-gate` on every MCP call ([Tool-call policy](mcp.md#tool-call-policy)).
+   The `audit-tool-calls` step then re-evaluates the agent's MCP calls against the same policy and
+   fails the turn, skipping everything below, if one would have been refused.
 3. `pr-details` builds the pull request title and body from the agent's optional `pr_title` and
    `pr_body` structured output (see below). `plan-pr` then decides where the changes land (see
    below). Unless the plan chose an existing pull request and `push-existing` updated it, or chose a

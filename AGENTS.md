@@ -93,8 +93,15 @@
   `infra/mcp-policy.cedar` (zipped by `scripts/deploy.sh`, served by the poster's `get-mcp-policy`).
   `prepare` and `registerRepo` run the check before any other poster call and fail closed. Keep `src/config/mcp-policy.ts` (cedar-wasm,
   runner-only) out of the Lambda bundle: do not re-export it from `src/config/index.ts`.
+- `CallTool` policies (`checkToolCall`, `src/config/mcp-policy.ts`) run per MCP call in the `tool-gate`
+  `PreToolUse` hook (`src/workflows/tool-gate.ts`), installed by `prepare` through `--settings` (with `onFailure: "block"` and `--setting-sources user`) whenever
+  `mcp_servers` is non-empty. The hook command is a shell wrapper because Claude Code blocks only on exit
+  code 2: every failure and any stdout must become exit 2. `audit-tool-calls` re-checks the execution file
+  after the agent. Both layers are validated (errors and warnings fail) in `register` and `prepare`, and
+  the repo layer's server and tool literals are linted against `mcp_servers` and `allowed_tools`
+  (`src/config/mcp-policy-lint.ts`). A forbid must name its action (`== Action::"UseServer"`).
 - The MCP approval key `<name>:<fingerprint>` is derived only by `mcpApprovalKey`
-  (`src/config/mcp-fingerprint.ts`); `checkRepositoryMcpPolicy` returns `{ issues, approvals }` and only
+  (`src/config/mcp-fingerprint.ts`); `checkRepositoryMcpPolicy` returns `{ issues, approvals }` (plus the layers and lint warnings) and only
   `issues` fail a turn or registration.
 - `PrepareDeps.env` carries the secrets named in `mcp_servers`; `prepare` fails before any poster
   call if one is unset. Tests that need git use `test/helpers/git-fixtures.ts`.

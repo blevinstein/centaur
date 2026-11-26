@@ -1,4 +1,5 @@
 import {
+  type CedarValueJson,
   type DetailedError,
   isAuthorized,
   policySetTextToParts,
@@ -182,26 +183,20 @@ function parsePolicies(text: string, layer: PolicyLayer = "repo"): ParsedPolicie
 
 type Evaluation = { allowed: boolean; message?: string; final?: boolean };
 
-function evaluate(
+type AuthorizationRequest = Pick<
+  Parameters<typeof isAuthorized>[0],
+  "action" | "resource" | "context" | "entities"
+>;
+
+function authorizeRequest(
   bot: string,
-  name: string,
-  server: McpServer,
+  request: AuthorizationRequest,
   policies: Record<string, string>,
-  approved: boolean,
 ): Evaluation {
   const answer = isAuthorized({
+    ...request,
     principal: { type: "Bot", id: bot },
-    action: { type: "Action", id: "UseServer" },
-    resource: { type: "McpServer", id: name },
-    context: { approved },
     policies: { staticPolicies: policies },
-    entities: [
-      {
-        uid: { type: "McpServer", id: name },
-        attrs: describeServer(server),
-        parents: [],
-      },
-    ],
   });
   if (answer.type === "failure") {
     return {
@@ -226,6 +221,26 @@ function evaluate(
         message: `forbidden by policy ${diagnostics.reason.join(", ")}`,
       }
     : { allowed: false, message: "not permitted by any policy" };
+}
+
+function evaluate(
+  bot: string,
+  name: string,
+  server: McpServer,
+  policies: Record<string, string>,
+  approved: boolean,
+): Evaluation {
+  const uid = { type: "McpServer", id: name };
+  return authorizeRequest(
+    bot,
+    {
+      action: { type: "Action", id: "UseServer" },
+      resource: uid,
+      context: { approved },
+      entities: [{ uid, attrs: describeServer(server), parents: [] }],
+    },
+    policies,
+  );
 }
 
 type Outcome =
@@ -308,6 +323,7 @@ export const checkMcpPolicy = (...args: Parameters<typeof evaluateMcpPolicy>) =>
 export const formatApprovals = (approvals: McpApproval[]) =>
   `MCP servers that need admin approval before they run: ${approvals.map(({ key }) => key).join(", ")}`;
 
+/** Errors and warnings alike: an impossible policy (a typo'd action, say) restricts nothing. */
 export function validateMcpPolicy(text: string, layer: PolicyLayer = "repo"): string[] {
   const parsed = parsePolicies(text, layer);
   if ("errors" in parsed) return parsed.errors;
@@ -317,5 +333,58 @@ export function validateMcpPolicy(text: string, layer: PolicyLayer = "repo"): st
   });
   return answer.type === "failure"
     ? messagesOf(answer.errors)
-    : answer.validationErrors.map(({ policyId, error }) => `${policyId}: ${error.message}`);
+    : [...answer.validationErrors, ...answer.validationWarnings].map(
+        ({ policyId, error }) => `${policyId}: ${error.message}`,
+      );
+}
+
+/** Every tool call is permitted unless a `forbid` on `CallTool` matches. */
+const CALL_TOOL_BASELINE = 'permit(principal, action == Action::"CallTool", resource);';
+
+export interface ToolCall {
+  server: string;
+  tool: string;
+  args: Record<string, unknown>;
+}
+
+/** Cedar contexts hold no `null` and no non-integer numbers, so those are dropped or stringified. */
+function toCedarValue(value: unknown): CedarValueJson {
+  if (Array.isArray(value)) return value.filter((item) => item !== null).map(toCedarValue);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, item]) => item !== null && item !== undefined)
+        .map(([key, item]) => [key, toCedarValue(item)]),
+    );
+  }
+  return (
+    typeof value === "number" && !Number.isInteger(value) ? String(value) : value
+  ) as CedarValueJson;
+}
+
+/**
+ * Checks one tool call against the merged layers: the resource is `McpTool::"<server>/<tool>"`
+ * with `server` and `name` attributes, and `context.args` holds the call's arguments. Returns the
+ * reason the call is refused, or undefined when it may proceed. A `forbid` that errors, say on an
+ * argument the call lacks and the policy did not guard with `has`, refuses the call.
+ */
+export function checkToolCall(
+  bot: string,
+  call: ToolCall,
+  policy: string | PolicyLayers,
+): string | undefined {
+  const parsed = mergePolicies(typeof policy === "string" ? { repo: policy } : policy);
+  if ("errors" in parsed) return `operator policy is invalid: ${parsed.errors.join("; ")}`;
+  const uid = { type: "McpTool", id: `${call.server}/${call.tool}` };
+  const decision = authorizeRequest(
+    bot,
+    {
+      action: { type: "Action", id: "CallTool" },
+      resource: uid,
+      context: { args: toCedarValue(call.args) },
+      entities: [{ uid, attrs: { server: call.server, name: call.tool }, parents: [] }],
+    },
+    { ...parsed.policies, baseline: CALL_TOOL_BASELINE },
+  );
+  return decision.allowed ? undefined : decision.message;
 }

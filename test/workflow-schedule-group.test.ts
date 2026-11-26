@@ -61,7 +61,9 @@ describe("the scheduled caller workflow", () => {
       s.uses?.endsWith("/actions/turn"),
     );
     expect(step.with.prompt_name).toBe(turn.with.prompt_name);
-    expect(action.runs.steps[0].env.PROMPT_NAME).toMatch(/^\$\{\{ inputs\.prompt_name \}\}$/);
+    expect(
+      action.runs.steps.find((s: { id?: string }) => s.id === "resolve").env.PROMPT_NAME,
+    ).toMatch(/^\$\{\{ inputs\.prompt_name \}\}$/);
     expect(action.outputs.group.value).toMatch(/^\$\{\{ steps\.resolve\.outputs\.group \}\}$/);
   });
 });

@@ -14,10 +14,14 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Locate the Centaur CLI
+      shell: bash
+      run: echo "CENTAUR_CLI=$(cd "${{ github.action_path }}/../../.." && pwd)/dist/workflows/cli.js" >> "$GITHUB_ENV"
+
     - name: Resolve the concurrency group
       id: resolve
       shell: bash
       env:
         CENTAUR_ROOT: ${{ inputs.root }}
         PROMPT_NAME: ${{ inputs.prompt_name }}
-      run: node "${{ github.action_path }}/../../../dist/workflows/cli.js" resolve-schedule
+      run: node "$CENTAUR_CLI" resolve-schedule

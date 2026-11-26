@@ -320,6 +320,12 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
       /must not contain '__'/,
     ],
     [
+      "a server name with a dot, which Claude Code never connects",
+      "  probe.srv: {command: npx}",
+      "mcp_servers.probe.srv",
+      /lowercase name/,
+    ],
+    [
       "a github-prefixed server name",
       "  github-extra: {command: npx}",
       "mcp_servers.github-extra",

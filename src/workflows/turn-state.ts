@@ -1,10 +1,13 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { PolicyLayers } from "../config/mcp-policy.js";
 import type { TurnState } from "./prepare.js";
 import { SafeError } from "./safe-error.js";
 
 const STATE_FILE_NAME = "state.json";
+const TOOL_POLICY_FILE_NAME = "tool-policy.json";
+const HOOK_SETTINGS_FILE_NAME = "hook-settings.json";
 export const OIDC_CREDENTIALS_FILE_NAME = "oidc-credentials.json";
 const OIDC_VARIABLES = ["ACTIONS_ID_TOKEN_REQUEST_URL", "ACTIONS_ID_TOKEN_REQUEST_TOKEN"] as const;
 
@@ -55,3 +58,21 @@ export async function readOidcCredentials(stateDir: string) {
 
 export const readTurnState = async (stateDir: string) =>
   JSON.parse(await readFile(join(stateDir, STATE_FILE_NAME), "utf8")) as TurnState;
+
+export interface ToolPolicyState {
+  bot: string;
+  layers: PolicyLayers;
+}
+
+/** The merged policy layers `tool-gate` and the audit evaluate, saved by `prepare`. */
+export const writeToolPolicy = (stateDir: string, state: ToolPolicyState) =>
+  writePrivateFile(stateDir, TOOL_POLICY_FILE_NAME, state);
+
+export const readToolPolicy = async (stateDir: string) =>
+  JSON.parse(await readFile(join(stateDir, TOOL_POLICY_FILE_NAME), "utf8")) as ToolPolicyState;
+
+/** Claude Code settings written by `prepare` and passed to the agent with `--settings`. */
+export const writeHookSettings = (stateDir: string, settings: unknown) =>
+  writePrivateFile(stateDir, HOOK_SETTINGS_FILE_NAME, settings);
+
+export const hookSettingsPath = (stateDir: string) => join(stateDir, HOOK_SETTINGS_FILE_NAME);

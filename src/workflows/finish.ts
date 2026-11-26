@@ -59,6 +59,37 @@ export function extractResult(executionFileText: string) {
   };
 }
 
+const assistantMessage = z.object({
+  type: z.literal("assistant"),
+  message: z.object({
+    content: z.array(
+      z.union([
+        z.object({
+          type: z.literal("tool_use"),
+          name: z.string(),
+          input: z.record(z.string(), z.unknown()).default({}),
+        }),
+        z.object({ type: z.string() }),
+      ]),
+    ),
+  }),
+});
+
+/** Every `tool_use` the agent made, in order, from the execution file. */
+export function extractToolCalls(executionFileText: string) {
+  const entries = JSON.parse(executionFileText) as unknown[];
+  return entries.flatMap((entry) => {
+    const parsed = assistantMessage.safeParse(entry);
+    return parsed.success
+      ? parsed.data.message.content.flatMap((block) =>
+          block.type === "tool_use" && "name" in block
+            ? [{ name: block.name, input: "input" in block ? block.input : {} }]
+            : [],
+        )
+      : [];
+  });
+}
+
 export interface PullRequestLink {
   number?: number | undefined;
   fetchToken: () => Promise<string>;

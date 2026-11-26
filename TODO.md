@@ -27,10 +27,10 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
   - [x] Config key, poster operations, platform support and the MCP server (steps 1 to 4).
   - [x] Poster-backed client, stdio entry (`dist/mcp/chat-server-main.js`), `prepare` wiring and
         prompt block (step 5); `scope: thread` is unchanged.
-  - [ ] Tool gate (step 6): the per-call MCP policy
-        ([docs/proposals/mcp-tool-policy.md](docs/proposals/mcp-tool-policy.md)) is in progress,
-        see the proposal. Until it lands only the allowlist bounds the server; then add a test
-        that a `forbid` on `centaur-chat` is honored.
+  - [x] Tool gate (step 6): the per-call MCP policy
+        ([docs/proposals/mcp-tool-policy.md](docs/proposals/mcp-tool-policy.md)) is built, with a
+        test that a `forbid` on `centaur-chat` is honored. It installs only when `mcp_servers` is
+        non-empty, so a config with only the chat server has no gate.
   - [x] Chat context 7 real run: moved to Backlog 2026-11-26 as an optional manual check.
 - [x] Telegram chat tools miss the bot's own posts and bot-only threads. Done: option A. The poster
       records each sent message in the chat's list (`postInThread`, `src/lambda/channel-history.ts`),
@@ -260,14 +260,12 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       or cache them with a short TTL like the parameter store wrapper. It bit the second-bot setup
       on 2026-11-26: the receiver 404s a bot with no `bots/<bot>/repo` binding until the warm
       environment is replaced; a deploy was the workaround.
-- [ ] Per-call MCP policy (proposal): filter MCP tool calls by argument (for example a mutating
+- [x] Per-call MCP policy: filter MCP tool calls by argument (for example a mutating
       tool only for selected IDs) with a `CallTool` Cedar action, evaluated per call by a Claude
       Code `PreToolUse` hook, failing closed. Design, the catalogue of ways a misconfiguration could
       grant too much, and the hardening steps (schema validation, literal lint, exit-2 hook
       contract, post-run audit, settings isolation, dry-run command):
-      [docs/proposals/mcp-tool-policy.md](docs/proposals/mcp-tool-policy.md). A first cut with tests, not yet hardened,
-      is on the branch [`proposal/mcp-tool-policy-first-cut`](https://github.com/blevinstein/centaur/tree/proposal/mcp-tool-policy-first-cut). Needs a live experiment first (**[HUMAN ACTION]** to approve
-      the `experiment/*` run).
+      [docs/proposals/mcp-tool-policy.md](docs/proposals/mcp-tool-policy.md). Built 2026-11-26 after a live probe of the hook (see the proposal). Open follow-ups: probe whether an agent with `Bash` can disable the gate through user-scope settings, and install the gate for configs with only the chat server.
 - [ ] Plan for long-running agent turns (>15 mins). Turns run on the runner, so the real limits are
       the job's `timeout-minutes` and cost, not a Lambda limit. This may happen if we are using MCP
       tools etc which take a while to respond. Approval waits are handled by suspend and resume

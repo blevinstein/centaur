@@ -18,10 +18,10 @@ export const PERMIT_ANY_REMOTE = `permit(principal, action == Action::"UseServer
 export const permitForBot = (bot: string) =>
   `permit(principal == Bot::"${bot}", action == Action::"UseServer", resource);`;
 
-export const FORBID_UNTRUSTED = `forbid(principal, action, resource)
+export const FORBID_UNTRUSTED = `forbid(principal, action == Action::"UseServer", resource)
   when { resource.host like "*.untrusted.example" };`;
 
-export const FORBID_UNLESS_GITHUB = `forbid(principal, action, resource)
+export const FORBID_UNLESS_GITHUB = `forbid(principal, action == Action::"UseServer", resource)
   unless { resource.host == "${GITHUB_HOST}" };`;
 
 const serverOf = (servers: ReturnType<typeof mcpServersFrom>, name: string) => {
@@ -224,7 +224,7 @@ export const PERMIT_WHEN_NOT_APPROVED = `permit(principal, action == Action::"Us
 
 export const FORBID_ALL = `forbid(principal, action, resource);`;
 
-export const FORBID_WHEN_NOT_APPROVED = `forbid(principal, action, resource)
+export const FORBID_WHEN_NOT_APPROVED = `forbid(principal, action == Action::"UseServer", resource)
   when { !context.approved };`;
 
 export const ALLOWED = "allow";

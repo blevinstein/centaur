@@ -8,6 +8,7 @@ import { registerConfigCommands } from "./commands/config.js";
 import { registerDestinationCommands } from "./commands/destinations.js";
 import { registerGithubTokenCommands } from "./commands/github-token.js";
 import { registerMcpCommands } from "./commands/mcp.js";
+import { registerPolicyCommands } from "./commands/policy.js";
 import { registerRepoCommands } from "./commands/repo.js";
 import type { CliContext } from "./context.js";
 
@@ -25,6 +26,7 @@ export function buildProgram(context: CliContext): Command {
   registerConfigCommands(program, context);
   registerChatCommands(program, context);
   registerMcpCommands(program, context);
+  registerPolicyCommands(program, context);
   registerRepoCommands(program, context);
   return program;
 }

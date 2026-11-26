@@ -3,8 +3,8 @@
 > **Status: implemented behind `chat_tools.scope: chat`, not yet run against a real chat.** The
 > config key, the poster operations (`list-threads`, `read-channel`, the repo-binding check on
 > `read`), the platform support, the MCP server and its stdio entry, the `prepare` wiring and the
-> prompt block exist; see [poster.md](poster.md#list-threads-and-read-channel). Open: the per-call
-> tool gate (it is not on `main`, see [Tool gate](#tool-gate)), and the live test on each platform.
+> prompt block exist; see [poster.md](poster.md#list-threads-and-read-channel). Open: the live
+> confirmation of the tool gate (see [Tool gate](#tool-gate)), and the live test on each platform.
 >
 > This repo's own `.centaur/config.yml` enables `scope: chat` for the live run.
 
@@ -201,18 +201,20 @@ The tools are also how the agent reaches messages the
 ## Tool gate
 
 The per-call `CallTool` gate (a Claude Code `PreToolUse` hook that evaluates operator Cedar policy
-per call, [mcp-tool-policy.md](proposals/mcp-tool-policy.md)) is a proposal on a separate branch and is not
-on `main`. For this server that means:
+per call, [Tool-call policy](mcp.md#tool-call-policy)) covers this server when the config also has
+`mcp_servers`, because the hook is installed only then. For this server that means:
 
-- **Enforced today:** the server runs only when `chat_tools.scope` is `chat` and the turn has a
+- **Enforced:** the server runs only when `chat_tools.scope` is `chat` and the turn has a
   dispatched thread; its tools are in `--allowedTools` for that turn only (`mcp__centaur-chat__*`);
   the poster enforces the OIDC repo binding, the approved chat, the dispatched-thread chat, the
-  sender filter and the caps whatever the server asks for.
-- **Not enforced:** an operator `forbid` on `CallTool` for `centaur-chat` or one of its tools, or
-  per-argument rules. The `UseServer` check does not apply to it. To disable the tools, set
+  sender filter and the caps whatever the server asks for. With `mcp_servers` set, an operator
+  `forbid` on `CallTool` for `centaur-chat` or one of its tools refuses the call (unit-tested against
+  the server's registered tool names).
+- **Not enforced:** a `CallTool` `forbid` on a config with no `mcp_servers`, which installs no hook;
+  the `UseServer` check does not apply to the chat server either. To disable the tools, set
   `scope: thread`.
-- **To confirm once the gate exists:** that a `forbid` on `Action::"CallTool"` for the
-  `centaur-chat` tools denies the call and that the denial reaches the agent as a tool error.
+- **To confirm live:** that the denial reaches the agent as a tool error under
+  `claude-code-action`.
 
 ## Privacy and trust
 
@@ -259,7 +261,7 @@ Each step lands with tests and docs.
    `fetchChannelMessages`. Verify Slack limits on a real app (**[HUMAN ACTION]**).
 4. **Done.** `src/mcp/chat-server.ts` (`createChatServer`, `serveChatServer`) with the handle and cursor mapping, fenced output and caps, using the MCP SDK and a `ChatPosterClient` interface; unit-tested against a fake client over an in-memory transport.
 5. **Done.** The poster-backed client, the stdio entry `src/mcp/chat-server-main.js` (spawned-process test against a fake `aws` and token endpoint), `prepare` writing the server into `mcp.json`, extending the allowlist and adding the prompt block; `dist/` builds it and the Lambda bundle does not contain it.
-6. **Partly done.** The per-call gate is not on `main` (see [Tool gate](#tool-gate)), so what is enforced is the allowlist. Open: confirm that a `CallTool` `forbid` on `centaur-chat` is honored once the gate lands (tracked in `TODO.md`).
+6. **Partly done.** The per-call gate honors a `CallTool` `forbid` on `centaur-chat` (unit-tested; see [Tool gate](#tool-gate)), but only for a config with `mcp_servers`. Open: the live confirmation under `claude-code-action`.
 7. Real run on `centaur-hello` in each platform: the agent in one thread summarizes another
    (**[HUMAN ACTION]**).
 

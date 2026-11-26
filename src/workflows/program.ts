@@ -29,6 +29,8 @@ import {
   resolve,
 } from "./resolve.js";
 import { scheduleGroup } from "./schedule-group.js";
+import { auditToolCalls } from "./tool-audit.js";
+import { gateToolCall } from "./tool-gate.js";
 import { turnStateDir } from "./turn-state.js";
 
 const poster = () => createPosterClient(env("CENTAUR_FUNCTION_NAME"), execCommand, maskedToken);
@@ -332,6 +334,33 @@ program.command("finish").action(async () => {
     storeFor,
   });
 });
+
+const GATE_REFUSED_EXIT_CODE = 2;
+
+const readStdin = async () => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+  return Buffer.concat(chunks).toString("utf8");
+};
+
+/**
+ * The `PreToolUse` hook. Exit code 2 refuses the call and puts the reason on stderr; exit 0 with
+ * nothing on stdout leaves the decision to `allowed_tools`. Claude Code lets a call through on any
+ * other failure, so everything that goes wrong here is a refusal too.
+ */
+program
+  .command("tool-gate")
+  .requiredOption("--state-dir <dir>")
+  .action(async ({ stateDir }: { stateDir: string }) => {
+    const reason = await gateToolCall(stateDir, await readStdin().catch(() => ""));
+    if (reason === undefined) return;
+    process.stderr.write(`Refused by the operator policy: ${reason}\n`);
+    process.exitCode = GATE_REFUSED_EXIT_CODE;
+  });
+
+program
+  .command("audit-tool-calls")
+  .action(() => auditToolCalls(turnStateDir(), env("EXECUTION_FILE")));
 
 program.command("notify-failure").action(async () =>
   notifyFailure({
