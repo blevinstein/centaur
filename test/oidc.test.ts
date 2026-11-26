@@ -59,4 +59,33 @@ describe("GitHub OIDC verifier", () => {
 
     await expect(verifier.verify(unsigned)).rejects.toThrow();
   });
+
+  describe("with a numeric owner id", () => {
+    const withOwnerId = async (ownerId: string) => {
+      const signer = await createOidcSigner();
+      const verifier = createGitHubOidcVerifier({
+        owner: ownerId,
+        audience: OIDC_AUDIENCE,
+        keys: signer.keys,
+      });
+      return { ...signer, verifier };
+    };
+
+    it("accepts a token whose repository_owner_id matches", async () => {
+      const { verifier, sign } = await withOwnerId("4242");
+
+      await expect(verifier.verify(await sign({ repository_owner_id: "4242" }))).resolves.toEqual({
+        repository: "octo/sprout",
+      });
+    });
+
+    it.each([
+      ["another id", { repository_owner_id: "99" }],
+      ["no id", {}],
+    ])("rejects a token with %s even when the login looks right", async (_name, claims) => {
+      const { verifier, sign } = await withOwnerId("4242");
+
+      await expect(verifier.verify(await sign(claims))).rejects.toThrow();
+    });
+  });
 });

@@ -162,6 +162,9 @@ export async function posterSetup(
     registryState?: StateAdapter;
     createState?: (prefix: string) => StateAdapter;
     repository?: string;
+    /** Replaces the scripted verifier, such as a real one over `createOidcSigner`. */
+    oidc?: OidcVerifier;
+    requirePosterToken?: boolean;
     globalMcpPolicy?: string;
     /** A chat to use in place of the scripted one, such as the real `Chat`. */
     chat?: PosterChat;
@@ -179,7 +182,8 @@ export async function posterSetup(
   await registryState.set("registry:garden", REGISTERED_ENTRY);
   await registryState.set("registry:notes", registryEntryFor("slack"));
   const telegram = fakeTelegram();
-  const oidc = fakeOidc(options.repository);
+  const fake = fakeOidc(options.repository);
+  const oidc = options.oidc ?? fake;
   const posting = fakePosterChat(options.transcript);
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const createState = vi.fn(
@@ -196,6 +200,7 @@ export async function posterSetup(
     attachments,
     telegram,
     oidc,
+    requirePosterToken: options.requirePosterToken ?? false,
     dispatcher,
     globalMcpPolicy: async () => options.globalMcpPolicy,
     functionUrl: FUNCTION_URL,
@@ -207,7 +212,7 @@ export async function posterSetup(
     params,
     registryState,
     telegram,
-    oidc,
+    oidc: fake,
     dispatcher,
     chatFor,
     createState,

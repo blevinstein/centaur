@@ -10,6 +10,7 @@ import {
 } from "../config/index.js";
 import { createAccessResolver } from "./access.js";
 import type { AttachmentStore } from "./attachments.js";
+import { createCallerCheck } from "./caller-check.js";
 import { postInThread } from "./channel-history.js";
 import {
   createChatContext,
@@ -35,12 +36,15 @@ export const UNREACT_MAX_MESSAGES = 50;
 const text = z.string().min(1);
 const threadId = z.string().min(1);
 const pullRequest = z.number().int().positive();
+/** Required by the poster only when `REQUIRE_POSTER_TOKEN` is on; verified whenever present. */
+const optionalToken = z.string().min(1).optional();
 
 export const posterRequestSchema = z.discriminatedUnion("operation", [
-  z.strictObject({ operation: z.literal("post"), bot: slug, threadId, text }),
+  z.strictObject({ operation: z.literal("post"), token: optionalToken, bot: slug, threadId, text }),
   z
     .strictObject({
       operation: z.literal("start-thread"),
+      token: optionalToken,
       bot: slug,
       text,
       title: z.string().min(1).max(TOPIC_NAME_MAX).optional(),
@@ -83,11 +87,12 @@ export const posterRequestSchema = z.discriminatedUnion("operation", [
   }),
   z.strictObject({
     operation: z.literal("unreact"),
+    token: optionalToken,
     bot: slug,
     threadId,
     messageIds: z.array(z.string().min(1)).min(1).max(UNREACT_MAX_MESSAGES),
   }),
-  z.strictObject({ operation: z.literal("get-mcp-policy") }),
+  z.strictObject({ operation: z.literal("get-mcp-policy"), token: optionalToken }),
   z.strictObject({ operation: z.literal("register"), token: z.string().min(1), config: text }),
   z.strictObject({
     operation: z.literal("link-pull-request"),
@@ -121,6 +126,7 @@ export interface PosterDeps {
   attachments: AttachmentStore;
   telegram: TelegramApi;
   oidc: OidcVerifier;
+  requirePosterToken: boolean;
   dispatcher: RepositoryDispatcher;
   globalMcpPolicy: McpPolicyReader;
   functionUrl: string;
@@ -154,6 +160,12 @@ export async function createPoster(deps: PosterDeps) {
     params,
     state: registryState,
     oidc: deps.oidc,
+  });
+
+  const requireCaller = createCallerCheck({
+    params,
+    oidc: deps.oidc,
+    required: deps.requirePosterToken,
   });
 
   const loadBot = (botName: string, platform?: Platform) =>
@@ -218,6 +230,7 @@ export async function createPoster(deps: PosterDeps) {
       case "register":
         return register(request);
       case "get-mcp-policy":
+        await requireCaller(request);
         return { policy: (await deps.globalMcpPolicy()) ?? null };
       case "link-pull-request":
         return pullRequests.link(request);
@@ -230,6 +243,7 @@ export async function createPoster(deps: PosterDeps) {
       case "read-channel":
         return chatContext.readChannel(request);
       case "post": {
+        await requireCaller(request);
         const { bot, chat } = await openThreadChat(request.bot, request.threadId);
         const sent = await postInThread(
           { chat, botName: bot.name, logger },
@@ -239,6 +253,7 @@ export async function createPoster(deps: PosterDeps) {
         return { messageId: sent.id };
       }
       case "start-thread":
+        await requireCaller(request);
         return threadStarter.start(request);
       case "resolve-destination": {
         await requireBound(params, deps.oidc, request.token, request.bot);
@@ -289,6 +304,7 @@ export async function createPoster(deps: PosterDeps) {
         return { messages, ...(policy ? { policy } : {}) };
       }
       case "unreact": {
+        await requireCaller(request);
         const { bot, chat } = await openThreadChat(request.bot, request.threadId);
         const thread = chat.thread(request.threadId);
         const results = [];

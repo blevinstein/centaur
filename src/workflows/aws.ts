@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
 import { CONTEXT_POLICIES } from "../config/index.js";
+import { OPTIONAL_TOKEN_OPERATIONS } from "../lambda/caller-check.js";
 import {
   type ListThreadsRequest,
   type ListThreadsResult,
@@ -49,14 +50,28 @@ export interface PosterClient {
   mcpApprovals(request: Omit<McpApprovalsRequest, "operation">): Promise<McpApprovalsResult>;
 }
 
+/** Adds the OIDC token to an operation that takes it optionally; a failed mint sends none, and a poster that requires one rejects the call. */
+async function withCallerToken(request: PosterRequest, fetchToken?: () => Promise<string>) {
+  if (!fetchToken || !OPTIONAL_TOKEN_OPERATIONS.has(request.operation)) return request;
+  if ("token" in request && request.token) return request;
+  const token = await fetchToken().catch(() => undefined);
+  return token ? ({ ...request, token } as PosterRequest) : request;
+}
+
 /**
- * Invokes the poster Lambda with the ambient AWS credentials. A FunctionError reports only the
+ * Invokes the poster Lambda with the ambient AWS credentials. With `fetchToken`, the operations
+ * that take the OIDC token optionally carry one, so the poster can check the caller's repository. A FunctionError reports only the
  * error type, because error messages for thread operations could echo chat content; `register`
  * carries config problems the author needs, so its message is included.
  */
-export function createPosterClient(functionName: string, exec: Exec = execCommand): PosterClient {
+export function createPosterClient(
+  functionName: string,
+  exec: Exec = execCommand,
+  fetchToken?: () => Promise<string>,
+): PosterClient {
   const client: PosterClient = {
-    async call<T>(request: PosterRequest) {
+    async call<T>(unsigned: PosterRequest) {
+      const request = await withCallerToken(unsigned, fetchToken);
       const dir = await mkdtemp(join(tmpdir(), "centaur-invoke-"));
       try {
         const payloadFile = join(dir, "payload.json");

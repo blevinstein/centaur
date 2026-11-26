@@ -41,6 +41,11 @@ Parameters:
     Type: String
     Default: centaur
     Description: Audience that workflows request for the OIDC token they pass to the register operation.
+  RequirePosterToken:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: When 'true', every poster operation must carry a GitHub OIDC token, and post, unreact, start-thread and get-mcp-policy are checked like the others. Set it after every repo runs a workflow version that sends the token.
   LogRetentionDays:
     Type: Number
     Default: 30
@@ -272,6 +277,7 @@ Resources:
           SESSION_BUCKET_NAME: !Ref SessionBucket
           GITHUB_OWNER: !Ref GitHubOwner
           OIDC_AUDIENCE: !Ref OidcAudience
+          REQUIRE_POSTER_TOKEN: !Ref RequirePosterToken
           HISTORY_MAX_MESSAGES: !Ref HistoryMaxMessages
           HISTORY_TTL_DAYS: !Ref HistoryTtlDays
           DISPATCH_FAILURE_NOTICE_MINUTES: !Ref DispatchFailureNoticeMinutes

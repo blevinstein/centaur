@@ -4,6 +4,7 @@ import type { APIGatewayProxyEventV2, Context } from "aws-lambda";
 import { ConsoleLogger } from "chat";
 import { createAttachmentStore, createS3ObjectStore } from "./attachments.js";
 import { createCachedParameterStore } from "./cached-parameters.js";
+import { readRequirePosterToken } from "./caller-check.js";
 import { createChat } from "./chat.js";
 import { readFailureNoticeIntervalMs } from "./dispatch-failure-notice.js";
 import { createGitHubDispatcher, type RepositoryDispatcher } from "./github.js";
@@ -87,6 +88,7 @@ async function buildPoster() {
     attachments: buildAttachments(),
     telegram: createTelegramApi(),
     dispatcher: lazyDispatcher(params),
+    requirePosterToken: readRequirePosterToken(),
     oidc: createGitHubOidcVerifier({
       owner: requiredEnv("GITHUB_OWNER"),
       audience: requiredEnv("OIDC_AUDIENCE"),

@@ -11,14 +11,14 @@ to a repo (a connection's secrets under `bots/<bot>/platforms/<platform>/` plus 
 
 | `operation` | Fields | Result |
 |---|---|---|
-| `post` | `bot`, `threadId`, `text` | `{ messageId }` |
-| `start-thread` | `bot`, `text`, optional `title`, optional `context` (`fresh`, `transcript` or `resume`: the policy stored on the new thread), exactly one of `destination` (a destination name, with `platform`: required when the bot has several connections, and optional `thread`: `new` (default) or `persistent`) or `fromThreadId` (implies the platform; `platform` and `thread` are rejected with it) | `{ threadId }` |
+| `post` | optional `token` (GitHub OIDC JWT), `bot`, `threadId`, `text` | `{ messageId }` |
+| `start-thread` | optional `token` (GitHub OIDC JWT), `bot`, `text`, optional `title`, optional `context` (`fresh`, `transcript` or `resume`: the policy stored on the new thread), exactly one of `destination` (a destination name, with `platform`: required when the bot has several connections, and optional `thread`: `new` (default) or `persistent`) or `fromThreadId` (implies the platform; `platform` and `thread` are rejected with it) | `{ threadId }` |
 | `resolve-destination` | `token` (GitHub OIDC JWT), `bot`, `name`, optional `platform` (as for `start-thread`), optional `thread` | `{ chatId }`, plus `threadId` when `thread` is `persistent` and the destination has a bound thread, or `{ found: false }` when the name holds nothing; creates nothing |
 | `read` | `token` (GitHub OIDC JWT), `bot`, `threadId`, optional `visibleOnly` | `{ messages: [{ id, userId, userName, fromBot, text, attachments, sentAt }], policy? }`, oldest first; `policy` is the context policy stored on the thread by `start-thread`, absent when none is stored (reading refreshes its expiry); `attachments` are the S3 keys of the message's stored images (see [Attachments](#attachments)); with `visibleOnly: true` the poster drops messages from senders who are not enrolled and from other bots, the same filter as `list-threads` and `read-channel`, and the thread's chat must be approved and not blocked. Without it every stored message is returned, as `prepare` needs for the dispatched thread |
-| `unreact` | `bot`, `threadId`, `messageIds` (1 to 50) | `{ results: [{ messageId, removed }] }` |
+| `unreact` | optional `token` (GitHub OIDC JWT), `bot`, `threadId`, `messageIds` (1 to 50) | `{ results: [{ messageId, removed }] }` |
 | `list-threads` | `token` (GitHub OIDC JWT), `bot`, `chatId`, `threadId` (the dispatched thread), optional `limit` (default 20, max 50), optional `includeBots` | `{ threads: [{ threadId, title, lastActivity, messageCount, participants, snippet }], scanned }`, most recent first |
 | `read-channel` | `token` (GitHub OIDC JWT), `bot`, `chatId`, `threadId` (the dispatched thread), optional `limit` (default 50, max 200), optional `before` (ISO 8601 instant), optional `includeBots` | `{ messages: [{ id, threadId, userId, userName, fromBot, text, attachments, sentAt }], scanned }`, newest first; `attachments` is always empty |
-| `get-mcp-policy` | none | `{ policy }`: the text of the global MCP policy bundled with the Lambda (`mcp-policy.cedar` next to the handler), or `null` when none is deployed |
+| `get-mcp-policy` | optional `token` (GitHub OIDC JWT) | `{ policy }`: the text of the global MCP policy bundled with the Lambda (`mcp-policy.cedar` next to the handler), or `null` when none is deployed |
 | `register` | `token` (GitHub OIDC JWT), `config` (the config file's text) | `{ bot, repo }` |
 | `link-pull-request` | `token` (GitHub OIDC JWT), `bot`, `threadId`, `pullRequest` (number) | `{ linked: true }` |
 | `resolve-pull-request` | `token` (GitHub OIDC JWT), `pullRequest` (number), optional `withThreadId` (boolean) | `{ found: false }` or `{ found: true, bot, threadKey }`, plus `threadId` only when `withThreadId` is true |
@@ -254,20 +254,40 @@ Reads are idempotent: a repeated read neither creates a second request nor sends
 
 ## Security model
 
-`read` also takes a `token` and requires the bot to be bound to the caller's repository, so a repo
-cannot read another repo's bot's threads. `post`, `unreact` and `start-thread` do not check it yet.
+Every operation that acts for a bot checks the caller. `read`, `resolve-destination`,
+`list-threads`, `read-channel`, `link-pull-request`, `resolve-pull-request`, `mcp-approvals` and
+`register` always take a `token` (see [`register`](#register) for how it is verified) and take the
+repository from the verified claim. `read`, `resolve-destination`, `list-threads`, `read-channel`,
+`link-pull-request` and `mcp-approvals` also require the bot to be bound to that repository, so a
+repo cannot act on another repo's bot.
 
-Poster operations other than the ones that take a `token` trust any caller the GitHub OIDC role
-allows to invoke the function. In a self-hosted deployment the operator owns the AWS account, the
-role's trust policy is limited to `repo:<owner>/*`, and the operator controls every repo under that
-owner, so any repo under the owner can act as any bot by design. The operations that act for a
-repository (`register`, `link-pull-request`, `resolve-pull-request`, `read`, `list-threads`,
-`read-channel`, `mcp-approvals`) take it from the verified OIDC
-claim instead.
+`post`, `unreact` and `start-thread` take the same check through an optional `token`
+(`src/lambda/caller-check.ts`): the token is verified and `bots/<bot>/repo` must equal its
+repository, so the bot is rejected when unbound or bound elsewhere. `get-mcp-policy` names no bot, so
+its token is only verified (signature, issuer, audience, expiry, owner). The workflow client
+(`createPosterClient`) mints the job's token and attaches it to these four operations; when the job
+has no OIDC grant it sends none.
 
-This is accepted for self-hosted use. A hosted multi-tenant deployment would need a per-repo token
-checked against the bot's bound repo on every operation, and a reserved-concurrency cap on the
-function so one tenant cannot exhaust it. The hosted option is tracked in [TODO.md](../TODO.md).
+`REQUIRE_POSTER_TOKEN` (stack parameter `RequirePosterToken`, default `false`) controls a request
+that has no token:
+
+- `false`: the request is accepted, as it was before the check existed, so a repo still on an older
+  workflow version keeps working. A token that is present is always verified, so a wrong one is
+  rejected even here.
+- `true`: the request is rejected. Any other value fails the Lambda's cold start rather than
+  relaxing the check.
+
+Roll out in order: deploy the Lambda (default `false`), update every bound repo to a workflow
+version that sends the token, then set `RequirePosterToken` to `true`. Until it is `true`, any
+repo under the owner can still act as any bot by sending no token, so the isolation holds only after
+the switch. The OIDC role's trust policy is limited to `repo:<owner>/*`, so callers outside the
+owner never reach the Lambda.
+
+`GITHUB_OWNER` may be the owner's login or its numeric id; an id is compared with the token's
+`repository_owner_id`, which a rename does not change.
+
+A hosted multi-tenant deployment additionally needs a reserved-concurrency cap on the function so
+one tenant cannot exhaust it ([hosted.md](proposals/hosted.md)).
 
 ## Lambda configuration
 
@@ -276,8 +296,9 @@ Environment variables (set by `infra/centaur.yml`; see [deploy.md](deploy.md)):
 | Variable | Used by | Meaning |
 |---|---|---|
 | `STATE_TABLE_NAME` | both | DynamoDB state table. |
-| `GITHUB_OWNER` | poster | Allowed repository owner; same value as the template's `GitHubOwner`. |
+| `GITHUB_OWNER` | poster | Allowed repository owner (login or numeric id); same value as the template's `GitHubOwner`. |
 | `OIDC_AUDIENCE` | poster | Audience the workflow requests for its OIDC token (`audience=` on the token request); a fixed string agreed with the workflows. |
+| `REQUIRE_POSTER_TOKEN` | poster | `true` rejects `post`, `unreact`, `start-thread` and `get-mcp-policy` requests that carry no token; `false` or unset accepts them (see [Security model](#security-model)). Any other value fails startup. |
 
 The public function URL, used to build webhook URLs, is read from the SSM parameter
 `/centaur/function-url` that the template writes (an environment variable can't reference the

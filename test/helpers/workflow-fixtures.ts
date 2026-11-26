@@ -44,7 +44,10 @@ export const mcpConfigText = () =>
 
 type PosterHandler = (request: PosterRequest) => unknown;
 
-export function createFakeAws(handler: PosterHandler = () => ({})) {
+export function createFakeAws(
+  handler: PosterHandler = () => ({}),
+  fetchToken?: () => Promise<string>,
+) {
   const objects = new Map<string, string>();
   const requests: PosterRequest[] = [];
 
@@ -88,7 +91,7 @@ export function createFakeAws(handler: PosterHandler = () => ({})) {
   return {
     objects,
     requests,
-    poster: createPosterClient("poster-fn", exec),
+    poster: createPosterClient("poster-fn", exec, fetchToken),
     attachments: createAttachmentDownloader(BUCKET, exec),
     storeFor: (bot: string, threadId: string) => createThreadStore(BUCKET, bot, threadId, exec),
   };

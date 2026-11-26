@@ -253,6 +253,11 @@ prints them instead):
 | `CENTAUR_OIDC_AUDIENCE` | The poster's `OIDC_AUDIENCE`. |
 | `CENTAUR_SESSION_BUCKET` | `BucketName` output (agent turns only). |
 
+The poster client in the workflow scripts attaches the job's OIDC token to every poster call,
+including `post`, `unreact`, `start-thread` and `get-mcp-policy`, which the poster checks against the
+bot's bound repo once `RequirePosterToken` is on ([poster.md](poster.md#security-model)). Every job
+that runs the scripts therefore needs `id-token: write`, as the examples above already grant.
+
 The API base URL comes from the bot's `provider` in the config, not from a variable.
 
 **Secret** the API key named by the bot's `provider` (`ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY`), plus anything the agent's tools need.

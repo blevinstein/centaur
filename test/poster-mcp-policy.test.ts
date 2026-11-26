@@ -23,7 +23,7 @@ describe("poster get-mcp-policy", () => {
   it("rejects extra fields", async () => {
     const { poster } = await posterSetup();
 
-    await expect(poster({ operation: "get-mcp-policy", token: "x" })).rejects.toThrow();
+    await expect(poster({ operation: "get-mcp-policy", extra: "x" })).rejects.toThrow();
   });
 });
 

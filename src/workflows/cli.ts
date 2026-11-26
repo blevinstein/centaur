@@ -2,7 +2,12 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
-import { createAttachmentDownloader, createPosterClient, createThreadStore } from "./aws.js";
+import {
+  createAttachmentDownloader,
+  createPosterClient,
+  createThreadStore,
+  execCommand,
+} from "./aws.js";
 import { cleanTitle } from "./clean-text.js";
 import { parseConfigOrThrow, readConfigText } from "./config-file.js";
 import { requireEnv as env } from "./env.js";
@@ -20,7 +25,7 @@ import { createGitHubClient, createGitHubRequester, resolve } from "./resolve.js
 import { scheduleGroup } from "./schedule-group.js";
 import { turnStateDir } from "./turn-state.js";
 
-const poster = () => createPosterClient(env("CENTAUR_FUNCTION_NAME"));
+const poster = () => createPosterClient(env("CENTAUR_FUNCTION_NAME"), execCommand, maskedToken);
 const storeFor = (bot: string, threadId: string) =>
   createThreadStore(env("CENTAUR_SESSION_BUCKET"), bot, threadId);
 const attachments = () => createAttachmentDownloader(env("CENTAUR_SESSION_BUCKET"));

@@ -104,6 +104,32 @@ describe("lambda handler routing", () => {
     expect(await handler(functionUrlEvent())).toMatchObject({ statusCode: 200 });
   });
 
+  describe("the poster's token requirement", () => {
+    const requirement = async () => {
+      const handler = await importFreshHandler();
+      await handler({ operation: "post" });
+      return (mocks.createPoster.mock.calls[0] as [{ requirePosterToken: boolean }])[0]
+        .requirePosterToken;
+    };
+
+    it("is off by default", async () => {
+      expect(await requirement()).toBe(false);
+    });
+
+    it("is on when REQUIRE_POSTER_TOKEN is true", async () => {
+      vi.stubEnv("REQUIRE_POSTER_TOKEN", "true");
+
+      expect(await requirement()).toBe(true);
+    });
+
+    it("fails the build on an unrecognized value", async () => {
+      vi.stubEnv("REQUIRE_POSTER_TOKEN", "yes");
+      const handler = await importFreshHandler();
+
+      await expect(handler({ operation: "post" })).rejects.toThrow("REQUIRE_POSTER_TOKEN");
+    });
+  });
+
   describe("the poster's dispatcher", () => {
     type PosterDispatcher = { dispatch: (...args: string[]) => Promise<void> };
     const dispatch = async (handler: Awaited<ReturnType<typeof importFreshHandler>>) => {
