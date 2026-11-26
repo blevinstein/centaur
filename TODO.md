@@ -309,6 +309,7 @@ Design: [docs/proposals/subfolder-support.md](docs/proposals/subfolder-support.m
       3. Two bots in one repo do not run each other's messages (the `client_payload.bot` filter) and
          their concurrency groups do not collide.
       Then finish the docs wrap-up in `docs/config.md` (location section).
+- Decided 2026-11-25: auto-detecting sub-folder bots is not wanted; the explicit `root` input stays.
 
 ## 21. Poster caller check
 
@@ -320,10 +321,22 @@ Implemented: the poster verifies the caller's GitHub OIDC token on `post`, `unre
       Lambda rejects the new `token` field.
 - [ ] **[HUMAN APPROVAL]** Set `RequirePosterToken=true` once the Lambda's "poster call without a
       token" warnings stop. Rollback: set it to `false` and redeploy.
-- [ ] Close the `get-mcp-policy` gap: it is verified by token only and any valid in-owner token can
-      read the global policy, because `register` reads it before binding the repo's first bot.
-      Design decision: bind first then check, with rollback on failure, or have `register` return
-      the policy.
+## 22. Execution modes
+
+Design and decisions (2026-11-25): [docs/proposals/execution-modes.md](docs/proposals/execution-modes.md).
+`direct` is allowed on chat and scheduled turns, opt-in per bot; no `execution.branch`; authorization
+is config only; one retry, then fall back to a pull request; the run URL goes in the footer; try
+the push and fall back.
+
+Rollout rule: the `execution` key must not reach a consumer's default branch before the Lambda that
+parses it is deployed, so it needs the deploy approval first (section 21).
+
+- [x] Execution 1: config block `execution` and docs.
+- [ ] Execution 2: extract the transplant from `push-existing.ts` and add `pushDirect`.
+- [ ] Execution 3: wire the `turn` action (`plan-pr` generalization, `push-direct`).
+- [ ] **[HUMAN ACTION]** Execution 3 real run: `direct` on a scratch repo, including the fall back
+      to a pull request. After 3.
+- [ ] Execution 4: prompt text and `replySchema` fields for the mode.
 
 ## Needs triage
 
@@ -346,35 +359,9 @@ for detailed tracking.
         turn under `--setting-sources user`? It decides whether delivering it is a fix or a duplicate.
   - [ ] **[HUMAN APPROVAL]** Decide the delivery channel: a prompt section (explicit, testable) or
         copying the trusted file to `$HOME/.claude/CLAUDE.md` (one code path, native `@import`).
-- [ ] Consider adding email support, think about SMTP complexity. Proposal:
-      [docs/proposals/email.md](docs/proposals/email.md).
-  - [ ] **[HUMAN APPROVAL]** Answer its open questions, first: is a platform needed at all for
-        inbox triage (an MCP mail connector in a scheduled prompt may be enough)?
-- [ ] Execution modes (current mode with PR approval, alternative mode with agent pushing directly,
-      prompts should explain mode clearly to the agent). Proposal:
-      [docs/proposals/execution-modes.md](docs/proposals/execution-modes.md).
-  - [ ] **[HUMAN APPROVAL]** Answer its open questions (`direct` on chat turns or scheduled only,
-        `execution.branch`, poster authorization, retries, commit trailer, branch-protection
-        detection).
+        Blocked on the live check above (the maintainer runs it first).
 - [ ] Setup .centaur config for ~/dev/turo-accounting repo - try to use playwright to integrate
       with Turo admin portal?
-- [ ] Explore a hosted option, BYOKs, using central AWS infra instead of self-hosted, understand
-      cost (lambda + dynamo), security model, what would the Function URLs look like. Proposal:
-      [docs/proposals/hosted.md](docs/proposals/hosted.md). The poster caller check (its slice 1) is
-      implemented (section 21); self-hosted still accepts tokenless calls until
-      `RequirePosterToken=true`, and a hosted option needs a reserved-concurrency cap on the function.
-  - [ ] **[HUMAN APPROVAL]** Answer its open questions (product or friends-and-family beta, central
-        GitHub App with Contents write versus `workflow_dispatch`, adapter `tenant` attribute versus
-        a new key layout, HTTPS poster transport for self-hosted, region, retention, operator MCP
-        policy, pricing, model key as a GitHub secret, publishing the actions).
-  - [ ] Hosted slice 2: HTTPS poster transport and presigned session access.
-  - [ ] Hosted slice 3: tenant-scoped storage (`keyPrefix`, S3 key builder, adapter `tenant`
-        attribute and GSI).
-  - [ ] Hosted slice 4: DynamoDB parameter store with envelope-encrypted secrets, lookup by `botId`.
-  - [ ] Hosted slice 5: control plane (GitHub App, sign-in, tenant records, secret intake form,
-        setup pull request, token minter).
-  - [ ] Hosted slice 6: limits and edge (quotas, concurrency caps, WAF, alarms, runbooks).
-  - [ ] Hosted slice 7: billing, legal documents, public sign-up.
 - [x] Better guides - basic response-only bot, adding scheduled actions
 - [x] Support for centaur in a sub-folder? Explored and planned in
       [docs/proposals/subfolder-support.md](docs/proposals/subfolder-support.md); slices 1 to 4 are
@@ -434,6 +421,33 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
 - [x] Bump `@blevinstein/chat-state-dynamodb` to 0.4.0 (adapter rejects calls before `connect()`);
       `connectState` already connects every adapter the Lambda creates.
 - [ ] Run a security audit to explore weaknesses and fix vulnerabillities
+- [ ] Hosted option (BYOKs, central AWS infra instead of self-hosted). Proposal:
+      [docs/proposals/hosted.md](docs/proposals/hosted.md). Deferred 2026-11-25; no deeper plans for
+      now. The poster caller check (its slice 1) is implemented (section 21); self-hosted still
+      accepts tokenless calls until `RequirePosterToken=true`, and a hosted option needs a
+      reserved-concurrency cap on the function.
+  - [ ] Answer its open questions (product or friends-and-family beta, central GitHub App with
+        Contents write versus `workflow_dispatch`, adapter `tenant` attribute versus a new key
+        layout, HTTPS poster transport for self-hosted, region, retention, operator MCP policy,
+        pricing, model key as a GitHub secret, publishing the actions).
+  - [ ] Hosted slice 2: HTTPS poster transport and presigned session access.
+  - [ ] Hosted slice 3: tenant-scoped storage (`keyPrefix`, S3 key builder, adapter `tenant`
+        attribute and GSI).
+  - [ ] Hosted slice 4: DynamoDB parameter store with envelope-encrypted secrets, lookup by `botId`.
+  - [ ] Hosted slice 5: control plane (GitHub App, sign-in, tenant records, secret intake form,
+        setup pull request, token minter).
+  - [ ] Hosted slice 6: limits and edge (quotas, concurrency caps, WAF, alarms, runbooks).
+  - [ ] Hosted slice 7: billing, legal documents, public sign-up.
+- [ ] Email support as a platform (think about SMTP complexity). Proposal:
+      [docs/proposals/email.md](docs/proposals/email.md). Deferred 2026-11-25; the first open
+      question, whether inbox triage needs a platform at all (an MCP mail connector in a scheduled
+      prompt may be enough), is unanswered.
+- [ ] Close the `get-mcp-policy` gap (section 21): it is verified by token only and any valid
+      in-owner token can read the global policy, because `register` reads it before binding the
+      repo's first bot. Design options: bind first then check, with rollback on failure, or have
+      `register` return the policy. Backlogged 2026-11-25: the global policy is a non-secret
+      ceiling in a public file and only in-owner repos can read it; revisit before the global policy
+      holds anything private or with hosted.
 
 - [ ] **[HUMAN ACTION]** Approvers live check: a second account sends the bot `approver request`
       in a direct message, the admin approves it, and `centaur approvers list` shows them; the
