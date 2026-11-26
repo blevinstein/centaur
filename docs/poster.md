@@ -18,6 +18,7 @@ to a repo (a connection's secrets under `bots/<bot>/platforms/<platform>/` plus 
 | `unreact` | optional `token` (GitHub OIDC JWT), `bot`, `threadId`, `messageIds` (1 to 50) | `{ results: [{ messageId, removed }] }` |
 | `list-threads` | `token` (GitHub OIDC JWT), `bot`, `chatId`, `threadId` (the dispatched thread), optional `limit` (default 20, max 50), optional `includeBots` | `{ threads: [{ threadId, title, lastActivity, messageCount, participants, snippet }], scanned }`, most recent first |
 | `read-channel` | `token` (GitHub OIDC JWT), `bot`, `chatId`, `threadId` (the dispatched thread), optional `limit` (default 50, max 200), optional `before` (ISO 8601 instant), optional `includeBots` | `{ messages: [{ id, threadId, userId, userName, fromBot, text, attachments, sentAt }], scanned }`, newest first; `attachments` is always empty |
+| `search-chat` | `token` (GitHub OIDC JWT), `bot`, `chatId`, `threadId` (the dispatched thread), `query` (1 to 200 characters), optional `after` and `before` (ISO 8601 instants), optional `limit` (default 10, max 20), optional `includeBots` | `{ status: "ok", results: [{ channelId, ts, userId, userName?, fromBot, text, permalink?, context?: { before, after } }] }` or `{ status: "unavailable", reason, retryAfterSeconds?, tokenAgeSeconds? }`; see [`search-chat`](#search-chat) |
 | `get-mcp-policy` | optional `token` (GitHub OIDC JWT) | `{ policy }`: the text of the global MCP policy bundled with the Lambda (`mcp-policy.cedar` next to the handler), or `null` when none is deployed |
 | `register` | `token` (GitHub OIDC JWT), `config` (the config file's text) | `{ bot, repo }` |
 | `link-pull-request` | `token` (GitHub OIDC JWT), `bot`, `threadId`, `pullRequest` (number) | `{ linked: true }` |
@@ -192,6 +193,38 @@ examined range qualified; older messages can be read with `before`.
   becomes the `conversations.history` `latest` cursor. Filtering happens after the fetch, so a page
   can hold fewer than `limit` messages.
 
+## `search-chat`
+
+Slack-native search of the dispatched chat's public-channel history through
+`assistant.search.context` (design: [chat-search.md](chat-search.md#slice-4-decisions-proposed)).
+Slack only; it runs the same caller and chat checks as `read-channel` (bound bot, approved chat,
+`chatId` is the chat of `threadId`).
+
+**The `action_token`.** Slack requires one on every call made with a bot token. The receiver stores
+the token of the latest dispatched message that carried one (`raw.action_token` of a mention, or any
+direct message) in the bot's state under `search-token:<threadKey>`, with `{ token, userId,
+messageId, capturedAt }` and a 10 minute TTL (`src/lambda/search-token.ts`). A message without one
+never overwrites it. The token is not in the dispatch payload, the thread record or any log (the
+receiver logs only that one was captured), and the poster reads it by the verified bot and the
+dispatched thread, never returns it, and does not delete it. Nothing retrieved from Slack is stored.
+
+**The call.** A plain `fetch` POST (`src/lambda/slack-search.ts`) with the bot token, the stored
+`action_token`, `channel_types: ["public_channel"]`, `context_channel_id` set to the chat,
+`include_context_messages`, `limit`, and `after` and `before` in Unix seconds. One Slack call per
+request: no pagination and no retry.
+
+**Filters before anything leaves the Lambda:** results whose `channel_id` is not the chat are
+dropped, then those from senders who are not enrolled (the bot's own messages stay, other bots only
+with `includeBots`, by `is_author_bot`); context messages from senders who are not enrolled are
+dropped and each side keeps the two nearest; text is clipped to 4000 characters.
+
+**`unavailable` reasons:** `unsupported` (Telegram, or a chat ID that is not a `C...` channel),
+`no_token` (none stored), `expired` (older than the TTL, or Slack's `invalid_action_token`;
+`tokenAgeSeconds` is the stored token's age), `not_enabled` (`feature_not_enabled`,
+`missing_scope`), `rate_limited` (`rate_limited`, `ratelimited` or HTTP 429, with
+`retryAfterSeconds` when Slack sent one). Any other Slack error fails the call with only its code.
+Logs carry the bot, chat ID, error code and result counts, never the query, text or token.
+
 ## `register`
 
 The workflow sends the JWT from the GitHub Actions OIDC endpoint, requested with the audience
@@ -255,9 +288,9 @@ Reads are idempotent: a repeated read neither creates a second request nor sends
 ## Security model
 
 Every operation that acts for a bot checks the caller. `read`, `resolve-destination`,
-`list-threads`, `read-channel`, `link-pull-request`, `resolve-pull-request`, `mcp-approvals` and
+`list-threads`, `read-channel`, `search-chat`, `link-pull-request`, `resolve-pull-request`, `mcp-approvals` and
 `register` always take a `token` (see [`register`](#register) for how it is verified) and take the
-repository from the verified claim. `read`, `resolve-destination`, `list-threads`, `read-channel`,
+repository from the verified claim. `read`, `resolve-destination`, `list-threads`, `read-channel`, `search-chat`,
 `link-pull-request` and `mcp-approvals` also require the bot to be bound to that repository, so a
 repo cannot act on another repo's bot.
 

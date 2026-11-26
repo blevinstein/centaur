@@ -18,6 +18,7 @@ import {
   fakeParameterStore,
   fakeThread,
   GARDEN_BOT,
+  noSearchTokens,
   PARAMETERS,
 } from "./receiver-fixtures.js";
 import { noThreadMeta } from "./thread-meta-fixtures.js";
@@ -77,6 +78,7 @@ export async function noticeHarness({
       resolveSettings: async () => ownershipSettings(),
       dispatcher,
       threadMeta: noThreadMeta(),
+      searchTokens: noSearchTokens(),
       logger,
     })(
       fakeThread().thread,

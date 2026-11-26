@@ -5,6 +5,9 @@ export const UNREACT_MAX_MESSAGES = 50;
 export const LIST_THREADS_MAX = 50;
 export const READ_CHANNEL_MAX = 200;
 export const MESSAGE_TEXT_MAX = 4000;
+export const SEARCH_QUERY_MAX = 200;
+export const SEARCH_CHAT_MAX = 20;
+export const SEARCH_CONTEXT_MAX = 2;
 export const MCP_APPROVAL_SERVERS_MAX = 20;
 export const MCP_SUMMARY_MAX = 2000;
 
@@ -40,6 +43,17 @@ export const readChannelRequestSchema = z.strictObject({
   limit: count(READ_CHANNEL_MAX).optional(),
   /** Only messages sent before this instant (ISO 8601), for paging backwards. */
   before: z.iso.datetime().optional(),
+});
+
+export const searchChatRequestSchema = z.strictObject({
+  operation: z.literal("search-chat"),
+  ...target,
+  query: z.string().min(1).max(SEARCH_QUERY_MAX),
+  /** Only messages sent after this instant (ISO 8601). */
+  after: z.iso.datetime().optional(),
+  /** Only messages sent before this instant (ISO 8601). */
+  before: z.iso.datetime().optional(),
+  limit: count(SEARCH_CHAT_MAX).optional(),
 });
 
 export const threadSummarySchema = z.object({
@@ -78,6 +92,46 @@ export const readChannelResultSchema = z.object({
   scanned: scannedSchema,
 });
 
+const searchContextSchema = z.object({
+  userId: z.string(),
+  ts: z.string(),
+  text: z.string(),
+});
+
+export const searchResultSchema = z.object({
+  channelId: z.string(),
+  ts: z.string(),
+  userId: z.string(),
+  userName: z.string().optional(),
+  fromBot: z.boolean(),
+  text: z.string(),
+  permalink: z.string().optional(),
+  context: z
+    .object({ before: z.array(searchContextSchema), after: z.array(searchContextSchema) })
+    .optional(),
+});
+
+export const SEARCH_UNAVAILABLE_REASONS = [
+  "no_token",
+  "expired",
+  "rate_limited",
+  "not_enabled",
+  "unsupported",
+] as const;
+
+export const searchChatResultSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("ok"), results: z.array(searchResultSchema) }),
+  z.object({
+    status: z.literal("unavailable"),
+    reason: z.enum(SEARCH_UNAVAILABLE_REASONS),
+    retryAfterSeconds: z.number().int().nonnegative().optional(),
+    tokenAgeSeconds: z.number().int().nonnegative().optional(),
+  }),
+]);
+
+export type SearchChatRequest = z.input<typeof searchChatRequestSchema>;
+export type SearchResult = z.infer<typeof searchResultSchema>;
+export type SearchChatResult = z.infer<typeof searchChatResultSchema>;
 export type ListThreadsRequest = z.input<typeof listThreadsRequestSchema>;
 export type ReadChannelRequest = z.input<typeof readChannelRequestSchema>;
 export type Scanned = z.infer<typeof scannedSchema>;

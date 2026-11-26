@@ -1,5 +1,6 @@
+import type { StateAdapter } from "chat";
 import { vi } from "vitest";
-import type { PosterChat } from "../../src/lambda/poster.js";
+import type { PosterChat, PosterDeps } from "../../src/lambda/poster.js";
 import {
   GARDEN_REPOSITORY,
   HOUSEHOLD_CHAT_ID,
@@ -99,6 +100,8 @@ export async function contextSetup(
     repository?: string;
     parameters?: Record<string, string>;
     chat?: PosterChat;
+    botState?: StateAdapter;
+    searchSlack?: PosterDeps["searchSlack"];
   } = {},
 ) {
   const platform = options.platform ?? "telegram";
@@ -111,6 +114,8 @@ export async function contextSetup(
     },
     ...(options.transcript ? { transcript: options.transcript } : {}),
     ...(options.chat ? { chat: options.chat } : {}),
+    ...(options.botState ? { botState: options.botState } : {}),
+    ...(options.searchSlack ? { searchSlack: options.searchSlack } : {}),
   });
   const listThreads = vi.fn(async () => ({
     threads: options.threads ?? [],

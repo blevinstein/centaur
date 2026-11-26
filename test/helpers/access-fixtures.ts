@@ -39,6 +39,7 @@ import {
   fakeParameterStore,
   fakeThread,
   GARDEN_BOT,
+  noSearchTokens,
   PARAMETERS,
   SLACK_BOT,
   STRANGER_USER_ID,
@@ -427,6 +428,7 @@ export async function viaDirectMessage(
     resolveSettings: async () => ownershipSettings("all"),
     dispatcher: h.dispatcher,
     threadMeta: noThreadMeta(),
+    searchTokens: noSearchTokens(),
     logger: h.logger,
   });
   const { thread, post } = fakeThread({ isDM, chatId: userId });

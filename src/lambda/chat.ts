@@ -20,6 +20,7 @@ import type { ThreadMetadata } from "./ownership.js";
 import type { ParameterStore } from "./parameters.js";
 import { withRedelivery } from "./redelivery.js";
 import { type Bot, readPlatformSettings } from "./registry.js";
+import { createSearchTokenStore } from "./search-token.js";
 import { createSelfIdentityLookup, withSelfIdentity } from "./self-identity.js";
 import type { TelegramApi } from "./telegram.js";
 import { createThreadMeta } from "./thread-meta.js";
@@ -127,6 +128,7 @@ export function createBotChat({
       resolveSettings: () => readPlatformSettings(registryState, bot, logger),
       dispatcher,
       threadMeta: createThreadMeta(botState),
+      searchTokens: createSearchTokenStore(botState, bot.name),
       logger,
     }),
     { state: botState, logger },

@@ -168,6 +168,9 @@ export async function posterSetup(
     globalMcpPolicy?: string;
     /** A chat to use in place of the scripted one, such as the real `Chat`. */
     chat?: PosterChat;
+    searchSlack?: PosterDeps["searchSlack"];
+    /** The state every bot prefix uses, so a test can seed what the receiver would have stored. */
+    botState?: StateAdapter;
   } = {},
 ) {
   const params = fakeParameterStore({
@@ -188,7 +191,8 @@ export async function posterSetup(
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const createState = vi.fn(
     options.createState ??
-      ((prefix: string) => (prefix === "" ? registryState : createMemoryState())),
+      ((prefix: string) =>
+        prefix === "" ? registryState : (options.botState ?? createMemoryState())),
   );
   const chatFor = vi.fn<PosterDeps["chatFor"]>(() => options.chat ?? posting.chat);
   const attachments = fakeAttachments(options.attachments);
@@ -199,6 +203,7 @@ export async function posterSetup(
     chatFor,
     attachments,
     telegram,
+    ...(options.searchSlack ? { searchSlack: options.searchSlack } : {}),
     oidc,
     requirePosterToken: options.requirePosterToken ?? false,
     dispatcher,

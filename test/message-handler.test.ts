@@ -20,6 +20,7 @@ import {
   GARDEN_BOT,
   GROUP_CHAT_ID,
   MESSAGE_TEXT,
+  noSearchTokens,
   STRANGER_USER_ID,
 } from "./helpers/receiver-fixtures.js";
 import { memoryThreadMeta, noThreadMeta } from "./helpers/thread-meta-fixtures.js";
@@ -34,6 +35,7 @@ function setup(
   const dispatcher = fakeDispatcher();
   const logger = fakeLogger();
   const attachments = fakeAttachments();
+  const searchTokens = noSearchTokens();
   const requestAccess = vi.fn<AccessRequester>(async () => false);
   const handle = createMessageHandler({
     bot: GARDEN_BOT,
@@ -45,9 +47,19 @@ function setup(
       respondTo ? ownershipSettings(respondTo, botMessages) : undefined,
     dispatcher,
     threadMeta,
+    searchTokens,
     logger,
   });
-  return { handle, dispatcher, logger, access, requestAccess, claimAdmin, attachments };
+  return {
+    handle,
+    dispatcher,
+    logger,
+    access,
+    requestAccess,
+    claimAdmin,
+    attachments,
+    searchTokens,
+  };
 }
 
 describe("message handler", () => {

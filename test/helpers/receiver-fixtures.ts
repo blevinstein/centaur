@@ -13,6 +13,7 @@ import type { RepositoryDispatcher } from "../../src/lambda/github.js";
 import type { ThreadMetadata } from "../../src/lambda/ownership.js";
 import type { ParameterStore } from "../../src/lambda/parameters.js";
 import { type Bot, type BotSecrets, registryKey } from "../../src/lambda/registry.js";
+import type { SearchTokenStore } from "../../src/lambda/search-token.js";
 
 export const GARDEN_BOT: Bot = {
   name: "garden",
@@ -98,6 +99,10 @@ export const fakeParameterStore = (
 
 export const twoConnections = () =>
   fakeParameterStore({ ...PARAMETERS, ...GARDEN_SLACK_PARAMETERS });
+
+export const noSearchTokens = () => ({
+  capture: vi.fn<SearchTokenStore["capture"]>(async () => false),
+});
 
 export const fakeDispatcher = () => ({ dispatch: vi.fn<RepositoryDispatcher["dispatch"]>() });
 

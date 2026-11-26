@@ -1,7 +1,8 @@
 # Searching chat history
 
 > **Status: decisions accepted (2026-11-22); slices 1 to 3 are implemented. Slice 4 (Slack-native
-> search) has a proposed design awaiting approval; nothing of it is built.** See the [Implementation plan](#implementation-plan). It
+> search) design approved 2026-11-26; slices 4.1 and 4.2 (receiver capture, poster `search-chat`) are
+> built, the rest is not.** See the [Implementation plan](#implementation-plan). It
 > extends [chat-context.md](chat-context.md), which keeps search out of scope, and feeds the bounded transcript ([workflows.md](workflows.md#transcript-budget)). Terms (poster,
 > receiver, turn, state table) are defined in [plan.md](plan.md), [poster.md](poster.md) and
 > [workflows.md](workflows.md).
@@ -186,7 +187,7 @@ Ordered slices; each lands with tests and docs.
 | 1 | Poster: `scanned: { oldest, exhausted }` in `read-channel` and `list-threads` results | none | `src/lambda/chat-context.ts`, `docs/poster.md`, `test/chat-context.test.ts`, `test/helpers/chat-context-fixtures.ts` | done |
 | 2 | Config key under `chat_tools`: the Slack-native search opt-in | none | `src/config/`, `docs/config.md`, `test/config.test.ts` | done |
 | 3 | MCP server: render `scanned` in `read_channel` and `list_threads` output, and tell the agent in the prompt block that results come from a bounded window | 1 | `src/mcp/chat-server.ts`, `src/mcp/chat-poster-client.ts`, `src/workflows/` prompt block, `docs/chat-context.md` | done |
-| 4 | Slack-native search: receiver captures the `action_token`, poster operation `search-chat`, MCP `search_chat` tool | 2, 3 | [Slice 4: build plan](#slice-4-build-plan) (4.1 to 4.6) | design proposed, awaiting approval |
+| 4 | Slack-native search: receiver captures the `action_token`, poster operation `search-chat`, MCP `search_chat` tool | 2, 3 | [Slice 4: build plan](#slice-4-build-plan) (4.1 to 4.6) | design approved 2026-11-26; 4.1 and 4.2 built |
 | 5 | Telegram stored-history window (`history.thread`) | none | `src/lambda/chat.ts`, `infra/`, docs | separate worker |
 | 6 | Verify on a real install: Slack rate limits for a single-workspace app, `action_token` lifetime, AI-feature availability, Telegram window cost (the Slack items are slice 4.4) | 4.2, 5 | none | open, **[HUMAN ACTION]** |
 
@@ -196,7 +197,7 @@ older page.
 
 ### Slice 4: decisions (proposed)
 
-Awaiting maintainer approval; nothing here is built. Evidence is from the Slack pages listed under
+Approved by the maintainer on 2026-11-26. Evidence is from the Slack pages listed under
 [Slack search requirements](#slack-search-requirements), re-read on 2026-11-26. "Unverified" means
 neither the docs nor a real event confirm it.
 
@@ -334,8 +335,8 @@ small enough to fail the idea cheaply. Each slice lands with tests and docs.
 
 | # | Slice | Who | Files |
 |---|---|---|---|
-| 4.1 | Receiver captures the token into the state table (key, TTL, value never logged), logs presence only | agent | `src/lambda/message-handler.ts`, a small store beside `thread-meta.ts`, `docs/poster.md`, tests |
-| 4.2 | Poster `search-chat`: schema, caller check, Slack call, filters, `unavailable` results, client method | agent | `src/lambda/search-chat.ts`, `src/lambda/poster.ts`, `src/workflows/aws.ts`, `docs/poster.md`, tests |
+| 4.1 | Receiver captures the token into the state table (key, TTL, value never logged), logs presence only (done) | agent | `src/lambda/message-handler.ts`, a small store beside `thread-meta.ts`, `docs/poster.md`, tests |
+| 4.2 | Poster `search-chat`: schema, caller check, Slack call, filters, `unavailable` results, client method (done; see [poster.md](poster.md#search-chat)) | agent | `src/lambda/search-chat.ts`, `src/lambda/poster.ts`, `src/workflows/aws.ts`, `docs/poster.md`, tests |
 | 4.3 | Deploy 4.1 and 4.2; reinstall the Slack app so the token has `search:read.public` | human | manifest already has the scope |
 | 4.4 | Live check: mention the bot and call `search-chat` at increasing delays; record token presence, lifetime (`tokenAgeSeconds`), rate-limit behavior, whether it works without `features.agent_view`, the `in:` syntax, `feature_not_enabled`; apply the stop conditions | human | none |
 | 4.5 | MCP `search_chat`, client method, prompt guidance, registered only with `chat_tools.slack_search` | agent | `src/mcp/chat-server.ts`, `src/mcp/chat-poster-client.ts`, `src/mcp/poster-chat-client.ts`, `src/workflows/prepare.ts`, bundled `chat_tools` instructions, `docs/chat-context.md`, `docs/config.md`, tests |

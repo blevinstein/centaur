@@ -205,6 +205,7 @@ export function fakePolicyGitHub(
     }),
     listThreads: vi.fn(),
     readChannel: vi.fn(),
+    searchChat: vi.fn(),
     mcpApprovals: vi.fn(),
   };
   return {

@@ -1,4 +1,4 @@
-import type { Logger, Message } from "chat";
+import type { Logger, Message, StateAdapter } from "chat";
 import type { z } from "zod";
 import type { Platform } from "../config/index.js";
 import {
@@ -47,14 +47,25 @@ interface ChannelReader {
   messages(query: ChannelQuery & { before?: Date | undefined }): Promise<Found<Message[]>>;
 }
 
-/** Messages from the bot itself and enrolled users; other bots only when the caller opts in. */
-export const visibleTo =
-  (access: Access, includeBots: boolean): Visible =>
-  ({ author }) => {
+export interface Author {
+  userId: string;
+  isBot?: boolean | "unknown";
+  isMe: boolean;
+}
+
+/** Authors that are the bot itself or enrolled users; other bots only when the caller opts in. */
+export const visibleAuthor =
+  (access: Access, includeBots: boolean) =>
+  (author: Author): boolean => {
     if (author.isMe) return true;
     if (author.isBot === true) return includeBots;
     return access.userIds.has(author.userId);
   };
+
+export const visibleTo = (access: Access, includeBots: boolean): Visible => {
+  const visible = visibleAuthor(access, includeBots);
+  return ({ author }) => visible(author);
+};
 
 const newScan = (exhausted = false): Scan => ({ oldest: undefined, exhausted });
 
@@ -205,10 +216,18 @@ const READERS: Record<Platform, ChannelReader> = {
 export const readChannelMessages = (platform: Platform, query: ChannelQuery) =>
   READERS[platform].messages(query);
 
+type ChatTarget = Pick<
+  z.output<typeof listThreadsRequestSchema>,
+  "token" | "bot" | "chatId" | "threadId"
+>;
+
 export interface ChatContextDeps {
   params: ParameterStore;
   oidc: OidcVerifier;
-  openThreadChat: (bot: string, threadId: string) => Promise<{ bot: Bot; chat: PosterChat }>;
+  openThreadChat: (
+    bot: string,
+    threadId: string,
+  ) => Promise<{ bot: Bot; chat: PosterChat; state: StateAdapter }>;
   requireApprovedChat: (bot: Bot, chatId: string) => Promise<Access>;
   logger: Pick<Logger, "warn">;
 }
@@ -220,19 +239,25 @@ export function createChatContext({
   requireApprovedChat,
   logger,
 }: ChatContextDeps) {
+  /** The bot, chat and access for a request whose caller is bound to the bot and whose `chatId` is the approved chat of the dispatched thread. */
+  const target = async (request: ChatTarget) => {
+    await requireBound(params, oidc, request.token, request.bot);
+    const { bot, chat, state } = await openThreadChat(request.bot, request.threadId);
+    const access = await requireApprovedChat(bot, request.chatId);
+    const channelId = `${bot.platform}:${request.chatId}`;
+    if (chat.thread(request.threadId).channelId !== channelId) {
+      throw new Error(`chat ${request.chatId} is not the chat of the dispatched thread`);
+    }
+    return { bot, chat, state, access, channelId };
+  };
+
   const read = async <T>(
     operation: string,
     request: z.output<typeof listThreadsRequestSchema> | z.output<typeof readChannelRequestSchema>,
     limit: number,
     run: (reader: ChannelReader, query: ChannelQuery) => Promise<T>,
   ) => {
-    await requireBound(params, oidc, request.token, request.bot);
-    const { bot, chat } = await openThreadChat(request.bot, request.threadId);
-    const access = await requireApprovedChat(bot, request.chatId);
-    const channelId = `${bot.platform}:${request.chatId}`;
-    if (chat.thread(request.threadId).channelId !== channelId) {
-      throw new Error(`chat ${request.chatId} is not the chat of the dispatched thread`);
-    }
+    const { bot, chat, access, channelId } = await target(request);
     const query = {
       chat,
       channelId,
@@ -254,6 +279,7 @@ export function createChatContext({
   };
 
   return {
+    target,
     /** The sender filter of the chat tools, for a thread whose chat the bot is approved for. */
     async visibleInThread(botName: string, threadId: string): Promise<Visible> {
       const { bot, chat } = await openThreadChat(botName, threadId);

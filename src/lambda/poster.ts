@@ -12,6 +12,7 @@ import {
   listThreadsRequestSchema,
   mcpApprovalsRequestSchema,
   readChannelRequestSchema,
+  searchChatRequestSchema,
   UNREACT_MAX_MESSAGES,
 } from "../poster-contract.js";
 import { createAccessResolver } from "./access.js";
@@ -28,7 +29,9 @@ import type { ParameterStore } from "./parameters.js";
 import { createPullRequests } from "./pull-requests.js";
 import { createRegister } from "./register.js";
 import { type Bot, botStatePrefix, requireBot, requireBound } from "./registry.js";
+import { createSearchChat } from "./search-chat.js";
 import { createSelfIdentityLookup } from "./self-identity.js";
+import { createSlackSearchApi, type SlackSearchApi } from "./slack-search.js";
 import { connectState } from "./state.js";
 import type { TelegramApi } from "./telegram.js";
 import { createThreadMeta } from "./thread-meta.js";
@@ -111,6 +114,7 @@ export const posterRequestSchema = z.discriminatedUnion("operation", [
   mcpApprovalsRequestSchema,
   listThreadsRequestSchema,
   readChannelRequestSchema,
+  searchChatRequestSchema,
 ]);
 
 export type PosterRequest = z.input<typeof posterRequestSchema>;
@@ -126,6 +130,8 @@ export interface PosterDeps {
   chatFor: (bot: Bot, botState: StateAdapter) => PosterChat;
   attachments: AttachmentStore;
   telegram: TelegramApi;
+  /** Defaults to the real Slack Web API. */
+  searchSlack?: SlackSearchApi;
   oidc: OidcVerifier;
   requirePosterToken: boolean;
   dispatcher: RepositoryDispatcher;
@@ -205,6 +211,12 @@ export async function createPoster(deps: PosterDeps) {
     logger,
   });
 
+  const searchChat = createSearchChat({
+    target: chatContext.target,
+    searchSlack: deps.searchSlack ?? createSlackSearchApi(),
+    logger,
+  });
+
   const lookupIdentity = createSelfIdentityLookup({ telegram, logger });
   const mcpApprovals = createMcpApprovals({
     params,
@@ -252,6 +264,8 @@ export async function createPoster(deps: PosterDeps) {
         return chatContext.listThreads(request);
       case "read-channel":
         return chatContext.readChannel(request);
+      case "search-chat":
+        return searchChat(request);
       case "post": {
         await requireCaller(request);
         const { bot, chat } = await openThreadChat(request.bot, request.threadId);

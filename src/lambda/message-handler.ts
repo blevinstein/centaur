@@ -14,6 +14,7 @@ import {
   type ThreadMetadata,
 } from "./ownership.js";
 import type { Bot } from "./registry.js";
+import type { SearchTokenStore } from "./search-token.js";
 import type { ThreadMetaStore } from "./thread-meta.js";
 
 export const DISPATCH_EVENT_TYPE = "centaur-message";
@@ -47,6 +48,8 @@ export interface MessageHandlerDeps {
   dispatcher: RepositoryDispatcher;
   /** Threads the bot started keep their record beyond the Chat SDK thread-state expiry. */
   threadMeta: Pick<ThreadMetaStore, "read">;
+  /** Keeps the Slack `action_token` a later `search-chat` call needs. */
+  searchTokens: Pick<SearchTokenStore, "capture">;
   logger: Pick<Logger, "info" | "warn" | "error">;
 }
 
@@ -60,6 +63,7 @@ export function createMessageHandler({
   resolveSettings,
   dispatcher,
   threadMeta,
+  searchTokens,
   logger,
 }: MessageHandlerDeps) {
   const where = { bot: bot.name, platform: bot.platform };
@@ -135,6 +139,13 @@ export function createMessageHandler({
       await thread.adapter.addReaction(thread.id, message.id, emoji.eyes);
     } catch (error) {
       logger.error("failed to add reaction", { ...where, threadId: thread.id, error });
+    }
+    try {
+      if (await searchTokens.capture(thread.id, message)) {
+        logger.info("captured search token", { ...where, threadId: thread.id });
+      }
+    } catch (error) {
+      logger.error("failed to store search token", { ...where, threadId: thread.id, error });
     }
     await dispatchMessage(dispatcher, bot, thread.id, message.id);
   };

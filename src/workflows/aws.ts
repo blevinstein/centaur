@@ -18,6 +18,9 @@ import {
   type ReadChannelRequest,
   type ReadChannelResult,
   readChannelResultSchema,
+  type SearchChatRequest,
+  type SearchChatResult,
+  searchChatResultSchema,
 } from "../poster-contract.js";
 import { firstLine } from "../text.js";
 import { SafeError } from "./safe-error.js";
@@ -55,6 +58,7 @@ export interface PosterClient {
   call<T = unknown>(request: PosterRequest): Promise<T>;
   listThreads(request: Omit<ListThreadsRequest, "operation">): Promise<ListThreadsResult>;
   readChannel(request: Omit<ReadChannelRequest, "operation">): Promise<ReadChannelResult>;
+  searchChat(request: Omit<SearchChatRequest, "operation">): Promise<SearchChatResult>;
   mcpApprovals(request: Omit<McpApprovalsRequest, "operation">): Promise<McpApprovalsResult>;
 }
 
@@ -123,6 +127,11 @@ export function createPosterClient(
     async readChannel(request) {
       return readChannelResultSchema.parse(
         await client.call({ operation: "read-channel", ...request }),
+      );
+    },
+    async searchChat(request) {
+      return searchChatResultSchema.parse(
+        await client.call({ operation: "search-chat", ...request }),
       );
     },
     async mcpApprovals(request) {
