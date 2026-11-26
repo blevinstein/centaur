@@ -18,14 +18,14 @@ export const DEFAULT_INSTRUCTIONS: Instructions = {
 };
 
 export async function loadInstructions(
-  workspace: string,
+  dir: string,
   overrides: CentaurConfig["instructions"],
 ): Promise<Instructions> {
   const entries = await Promise.all(
     INSTRUCTION_KINDS.map(async (kind) => {
       const path = overrides[kind];
       if (!path) return [kind, DEFAULT_INSTRUCTIONS[kind]] as const;
-      const text = (await readFile(join(workspace, path), "utf8")).trim();
+      const text = (await readFile(join(dir, path), "utf8")).trim();
       if (!text) throw new Error(`instructions.${kind} (${path}) is empty`);
       return [kind, text] as const;
     }),

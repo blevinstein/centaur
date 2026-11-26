@@ -205,3 +205,27 @@ export const EARLIER_RUN = [
 
 export const scheduleGroupOf = (configYaml: string, runId = "42") =>
   scheduleGroup(parseConfigOrThrow(configYaml), "weekly", runId);
+
+export const GARDEN = "apps/garden";
+
+/** `files` placed under `folder`, the way a sub-folder Centaur root holds them. */
+export const underFolder = (files: Record<string, string>, folder = GARDEN) =>
+  Object.fromEntries(Object.entries(files).map(([path, text]) => [`${folder}/${path}`, text]));
+
+/** A workspace whose Centaur files sit under `GARDEN`; `deps` already carries that root. */
+export async function gardenSetup(
+  messages: ReturnType<typeof message>[],
+  config = configText(),
+  files: Record<string, string> = {},
+) {
+  const run = await setup(
+    messages,
+    config,
+    underFolder({ ".centaur/persona.md": "Be green.", ...files }),
+    `${GARDEN}/.centaur.yml`,
+  );
+  return {
+    ...run,
+    deps: (overrides: Partial<PrepareDeps> = {}) => run.deps({ root: GARDEN, ...overrides }),
+  };
+}

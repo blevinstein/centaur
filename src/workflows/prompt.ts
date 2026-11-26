@@ -38,6 +38,15 @@ output contract above.`;
 export const skillsSection = (builtin: boolean) =>
   builtin ? `# Skills\n\n${SKILLS_NOTE}` : undefined;
 
+/** Tells the agent where its area of the repository is; absent for a Centaur root at the repository top. */
+export const projectFolderSection = (folder: string, guides: string[]) => {
+  if (!folder) return undefined;
+  const read = guides.length
+    ? ` Read ${guides.map((guide) => `\`${folder}/${guide}\``).join(" and ")} first.`
+    : "";
+  return `# Project folder\n\nYour project folder is \`${folder}\`; the Centaur config and the files it references live there.${read}`;
+};
+
 const omissionNote = (omitted: number, chatTools: boolean | undefined) => {
   const lead = `${omitted} earlier ${omitted === 1 ? "message" : "messages"} in this thread ${omitted === 1 ? "is" : "are"} omitted and not part of this turn.`;
   return chatTools

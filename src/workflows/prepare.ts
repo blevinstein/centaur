@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, join, relative } from "node:path";
 import { z } from "zod";
 import {
   type CentaurConfig,
@@ -18,7 +18,12 @@ import {
   readThread,
   type ThreadStore,
 } from "./aws.js";
-import { parseConfigOrThrow, readConfigText } from "./config-file.js";
+import {
+  assertSingleConfigStyle,
+  parseConfigOrThrow,
+  readConfigText,
+  resolveRoot,
+} from "./config-file.js";
 import { type Instructions, loadInstructions } from "./instructions.js";
 import {
   type ApprovalThread,
@@ -35,6 +40,7 @@ import {
   buildPrompt,
   mcpApprovalSection,
   type PullRequestCandidate,
+  projectFolderSection,
   replySchema,
   skillsSection,
 } from "./prompt.js";
@@ -126,6 +132,8 @@ export interface PrepareDeps {
   stateDir: string;
   /** Directory holding the Centaur config, the instructions and the persona. Defaults to `workspace`. */
   configRoot?: string | undefined;
+  /** The Centaur root under `configRoot`, relative to it; defaults to `.`. */
+  root?: string | undefined;
   home: string;
   /** The repository's `skills/` folder; without it no built-in skill is installed. */
   skillsDir?: string | undefined;
@@ -274,10 +282,11 @@ async function scheduledTurn(
   instructions: Instructions,
   directory: string,
   name: string,
+  rootDir: string,
 ): Promise<Turn> {
   const prompt = config.prompts[name];
   if (!prompt) throw new Error(`The Centaur config defines no prompt named "${name}"`);
-  const scheduledTask = await readFile(join(deps.workspace, prompt.file), "utf8");
+  const scheduledTask = await readFile(join(rootDir, prompt.file), "utf8");
   const persistent = await persistentContext(deps, config, directory, prompt);
   const targets = prTargetFlags(config, await existingTargets(deps, config));
   return {
@@ -564,9 +573,18 @@ const exists = (path: string) =>
     () => false,
   );
 
+const PROJECT_GUIDES = ["AGENTS.md", "CLAUDE.md"];
+
+const existing = async (dir: string, names: string[]) =>
+  (
+    await Promise.all(names.map(async (name) => ((await exists(join(dir, name))) ? name : "")))
+  ).filter(Boolean);
+
 export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   const configRoot = deps.configRoot ?? deps.workspace;
-  const config = parseConfigOrThrow(await readConfigText(configRoot));
+  await assertSingleConfigStyle(configRoot, deps.root);
+  const rootDir = await resolveRoot(configRoot, deps.root);
+  const config = parseConfigOrThrow(await readConfigText(configRoot, deps.root));
   const approvals = await enforceMcpPolicy(config, deps.mcpPolicy);
   const mcp = buildMcpConfig(config.mcp_servers, deps.env);
   if (mcp.missingSecrets.length > 0) {
@@ -584,9 +602,9 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   if (deps.promptName && deps.comment) {
     throw new Error("a turn is either a scheduled prompt or a pull request comment, not both");
   }
-  const instructions = await loadInstructions(configRoot, config.instructions);
+  const instructions = await loadInstructions(rootDir, config.instructions);
   const turn = deps.promptName
-    ? await scheduledTurn(deps, config, instructions, directory, deps.promptName)
+    ? await scheduledTurn(deps, config, instructions, directory, deps.promptName, rootDir)
     : deps.comment
       ? await commentTurn(deps, deps.comment, config, instructions, directory)
       : await chatTurn(deps, config, instructions, directory);
@@ -594,7 +612,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   const skills = await installSkills({
     home: deps.home,
     sourceDir: config.skills.builtin ? deps.skillsDir : undefined,
-    consumerDir: config.skills.consumer ? join(configRoot, CONSUMER_SKILLS_DIR) : undefined,
+    consumerDir: config.skills.consumer ? join(rootDir, CONSUMER_SKILLS_DIR) : undefined,
     allowedTools: config.allowed_tools,
   });
   const { dropped, notice, pendingServers } =
@@ -623,12 +641,15 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     ...(turn.source ? { source: turn.source } : {}),
     ...(suspend ? { suspend } : {}),
   };
+  const projectFolder = relative(configRoot, rootDir);
+  const guides = await existing(rootDir, PROJECT_GUIDES);
   await mkdir(join(deps.workspace, TURN_DIR), { recursive: true });
   await writeFile(
     join(deps.workspace, PROMPT_FILE),
     [
       turn.prompt,
       skillsSection(skills.builtin.length > 0),
+      projectFolderSection(projectFolder, guides),
       mcpApprovalSection(notice, suspend !== undefined),
     ]
       .filter(Boolean)
@@ -656,11 +677,11 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     });
   }
 
-  const personaPath = join(configRoot, config.persona);
+  const personaPath = join(rootDir, config.persona);
   const persona = (await exists(personaPath))
     ? deps.configRoot
       ? personaPath
-      : config.persona
+      : relative(configRoot, personaPath)
     : undefined;
   return {
     skip: false,
