@@ -390,8 +390,9 @@ for detailed tracking.
 
 - [x] Move not-yet-implemented docs into a proposals/ subdir to separate from already-implemented.
 - [x] Create a DONE.md file, and move sections of fully-completed TODO items into DONE.
-- [ ] Set up a `.centaur` config for a personal-finance repo: a budgeting-app integration and
-      periodic reviews.
+- [x] Set up a `.centaur` config for a personal-finance repo: a budgeting-app integration and
+      periodic reviews. Set up with a read-only budgeting-app connection, a weekly liquidity review
+      and a quarterly review (2026-11-26).
 - [ ] Set up a `.centaur` config for a career repo: drafting replies and tracking opportunities.
 - [ ] Centaur-provided prompt instructions explaining harness quirks etc, and merging harness
       instructions with AGENTS.md and the situational prompt. Proposal:
