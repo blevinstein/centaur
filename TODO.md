@@ -288,9 +288,11 @@ Design and decisions: [docs/skills-rules.md](docs/skills-rules.md).
       `--setting-sources user`.
 - [x] `description` strings on the `replySchema` fields, a "Skills" prompt section, the chat tools
       detail moved out of `chat_tools.md`.
-- [ ] **[HUMAN APPROVAL]** Deploy the Lambda that knows the `skills` key (`yarn deploy-prod`) before
+- [x] **[HUMAN APPROVAL]** Deploy the Lambda that knows the `skills` key (`yarn deploy-prod`) before
       any consumer's default branch sets `skills`; then check the `register` run. Consumers that do
       not set the key need no change.
+      Done: deployed repeatedly since the skills commit (622aefe); deployed on every push to `main`
+      since 2026-11-26 (section 23).
 - [x] Live check of the built-in skills on an `experiment/*` branch (2026-11-24): discovery,
       invocation, the consumer-skill name (`centaur-consumer-<folder name>`) and the comment-turn
       trust check (branch-committed skills are not visible) are done and recorded in
@@ -327,9 +329,11 @@ Design: [docs/proposals/subfolder-support.md](docs/proposals/subfolder-support.m
 Implemented: the poster verifies the caller's GitHub OIDC token on `post`, `unreact`,
 `start-thread` and `get-mcp-policy` ([docs/poster.md](docs/poster.md#security-model)).
 
-- [ ] **[HUMAN APPROVAL]** Deploy the Lambda (`yarn deploy-prod`) with the caller check and the
+- [x] **[HUMAN APPROVAL]** Deploy the Lambda (`yarn deploy-prod`) with the caller check and the
       inspection role. Deploy before the runner change reaches consumers pinned to `main`: an older
       Lambda rejects the new `token` field.
+      Done 2026-11-26: the caller check (d1b92af) and the inspection role (dca2d8e) were deployed by
+      hand, then by the `Deploy` workflow.
 - [ ] **[HUMAN APPROVAL]** Set `RequirePosterToken=true` once the Lambda's "poster call without a
       token" warnings stop. Rollback: set it to `false` and redeploy.
 ## 22. Execution modes
@@ -361,7 +365,7 @@ parses it is deployed, so it needs the deploy approval first (section 21).
       and the prompt's `# Who you are` section tells the agent both (the `handle` config key was
       removed). It had answered in the first person as the other test bot in a shared chat. Still to
       confirm live after deploy: the bot no longer speaks as the other bot.
-- [ ] Execution 4: prompt text and `replySchema` fields for the mode.
+- [x] Execution 4: prompt text and `replySchema` fields for the mode. Merged as 14f1b23.
 
 ## 23. Continuous deployment
 
@@ -370,21 +374,26 @@ described in [docs/deploy.md](docs/deploy.md#continuous-deployment). Decided 202
 lives in the main stack, every push to `main` deploys through the `production` environment (no
 required reviewer), and a dispatch redeploys a chosen ref.
 
-- [ ] **[HUMAN ACTION]** Before merging or pushing: `scripts/setup-cd.sh environment`. Unrestricted,
+- [x] **[HUMAN ACTION]** Before merging or pushing: `scripts/setup-cd.sh environment`. Unrestricted,
       the `production` environment lets any branch's workflow assume the role.
-- [ ] **[HUMAN APPROVAL]** Merge and push (the first `deploy` job fails harmlessly at credentials),
+      Done 2026-11-26.
+- [x] **[HUMAN APPROVAL]** Merge and push (the first `deploy` job fails harmlessly at credentials),
       then deploy by hand (`yarn deploy-prod`) from the merged commit, reviewing the change set
       (existing roles gain a permissions boundary) and smoke-testing both bots.
-- [ ] **[HUMAN ACTION]** `scripts/setup-cd.sh credentials` (sets `DEPLOY_ROLE_ARN` and
+      Done 2026-11-26.
+- [x] **[HUMAN ACTION]** `scripts/setup-cd.sh credentials` (sets `DEPLOY_ROLE_ARN` and
       `DEPLOY_PARAMETERS`; `CENTAUR_AWS_REGION` must already exist).
-- [ ] **[HUMAN APPROVAL]** The first real run failed to assume the role: the repository uses
+      Done 2026-11-26.
+- [x] **[HUMAN APPROVAL]** The first real run failed to assume the role: the repository uses
       immutable OIDC subjects (`repo:<owner>@<ownerId>/centaur@<repoId>:environment:production`)
       and the trust lacked the repository id. The template now matches it. The deploy role cannot
       edit its own trust, so deploy by hand (`yarn deploy-prod`), then re-run the `Deploy`
       workflow.
-- [ ] **[HUMAN APPROVAL]** Run the `Deploy` workflow to confirm it assumes the role. If it fails to
+      Done 2026-11-26: trust fixed in aed536c and deployed by hand.
+- [x] **[HUMAN APPROVAL]** Run the `Deploy` workflow to confirm it assumes the role. If it fails to
       assume it, compare the token's `sub` with the trust (`scripts/setup-cd.sh check` prints the
       repository's `sub_claim_prefix`).
+      Done 2026-11-26: the `Deploy` workflow succeeded for aed536c and de3ddac.
 - [ ] **[HUMAN APPROVAL]** Decide on branch protection for `main` and required reviewers on
       `production` (manual; requiring pull requests also stops direct pushes to `main`).
 
@@ -424,11 +433,11 @@ for detailed tracking.
 - [x] `centaur chat tail <bot> [--platform <platform>] [--minutes <n>]`: a read-only CLI command
       that lists a bot's recent messages from the state table through the poster's reader and
       sender filter, so verifying a live run needs no ad hoc scans or Slack API calls. Done.
-- [ ] **[HUMAN APPROVAL]** A read-only IAM role for inspection, limited to `GetItem`/`Query`/`Scan`
+- [x] **[HUMAN APPROVAL]** A read-only IAM role for inspection, limited to `GetItem`/`Query`/`Scan`
       on the state table and `ssm:Get*` on `/centaur/bots/*`, so agents stop using the
       maintainer's broad IAM user (a CloudFormation change, validated with `yarn lint:cfn`).
-      Merged as `InspectionRole` in `infra/centaur.yml` (see `docs/deploy.md`); not deployed yet,
-      the deploy is in section 21. Callers also need `sts:AssumeRole` on it.
+      Merged as `InspectionRole` in `infra/centaur.yml` (dca2d8e, see `docs/deploy.md`) and deployed
+      (2026-11-26). Callers also need `sts:AssumeRole` on it.
 
 ## Backlog
 
