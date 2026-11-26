@@ -2,6 +2,8 @@ bot: centaur-test-2
 platforms:
   slack:
     respond_to: mention
+  telegram:
+    respond_to: mention
 context:
   default: transcript
 chat_tools:

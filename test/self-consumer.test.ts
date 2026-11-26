@@ -61,11 +61,14 @@ describe("this repo's Centaur config", () => {
       await expect(assertSingleConfigStyle(".", SELF_ROOT_2)).resolves.toBeUndefined();
     });
 
-    it("answers only mentions on Slack, so the two bots never both run on one message", async () => {
+    it("answers only mentions on Slack and Telegram, so the two bots never both run on one message", async () => {
       const [first, second] = [await loadSelfConfig(), await loadSelfConfig(SELF_ROOT_2)];
       expect(second.bot).toBe("centaur-test-2");
       expect(second.bot).not.toBe(first.bot);
-      expect(second.platforms).toEqual({ slack: { respond_to: "mention" } });
+      expect(second.platforms).toEqual({
+        slack: { respond_to: "mention" },
+        telegram: { respond_to: "mention" },
+      });
       expect(second.chat_tools.scope).toBe("chat");
       expect(second.mcp_servers).toEqual({});
       expect(readFileSync(selfPath(second.persona, SELF_ROOT_2), "utf8")).not.toBe("");

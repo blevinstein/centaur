@@ -18,8 +18,8 @@ reverting the commit; register runs again from the revert.
 
 ## Step 2: the second bot
 
-`centaur-test-2` is Slack only and answers mentions (`respond_to: mention`; the first bot is `all`, and
-two `all` bots in one chat would both run on every message). It has no Telegram connection, no MCP
+`centaur-test-2` is on Slack and Telegram and answers mentions on both (`respond_to: mention`; the first bot is `all`, and
+two `all` bots in one chat would both run on every message). It has no MCP
 server (so no extra secrets), no prompts and no destinations: destinations are one shared namespace
 per platform (`chats/<platform>/<name>`), so a name reused from the first bot would share its chat
 record, and a new name needs a chat approved first. Add prompts once the maintainer picks a name.
@@ -54,3 +54,8 @@ Maintainer actions, in order:
    example changing the description); it is a live change, so the maintainer runs or approves it.
    Reloading without a restart is the open backlog item in `TODO.md`.
 5. `centaur access approve` the shared Slack chat for the new bot, and invite the app to it.
+6. Telegram: create the bot with BotFather and store its token and webhook secret. The register run sets the
+   webhook. The admin is one per platform, shared by every bot on it, so `centaur admin claim centaur-test-2
+   --platform telegram` is only needed if the maintainer is not already the Telegram admin through the first
+   bot. `centaur access approve` the shared Telegram group for the new bot, and add the bot to the group.
+   Privacy mode and admin rights only matter for `respond_to: all`, so `mention` needs neither.

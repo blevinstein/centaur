@@ -349,7 +349,7 @@ This repo is its own consumer, for end-to-end testing, with its bot in the sub-f
 and the `centaur-*.yml` workflows use the actions locally (`uses: ./.github/actions/...`) with `root: apps/centaur-test`.
 `centaur-register.yml` runs `register` over a matrix of roots, `centaur-test-message.yml` calls the reusable `centaur-turn.yml`
 for the bot's dispatches, `centaur-hello.yml` takes the root as a dispatch input, and the reusable `centaur-comment-turn.yml` (`bot` and `root` inputs; its `turn` job runs only when `resolve` finds that bot) is called by `centaur-pr-comment.yml` and `centaur-test-2-pr-comment.yml`.
-The second bot, `centaur-test-2` (`apps/centaur-test-2`, Slack only, `respond_to: mention`, no MCP server, no prompts), adds a root to the register matrix and filter, a message caller, a hello option and a comment caller
+The second bot, `centaur-test-2` (`apps/centaur-test-2`, Slack and Telegram, both `respond_to: mention`, no MCP server, no prompts), adds a root to the register matrix and filter, a message caller, a hello option and a comment caller
 ([two-bot-test](proposals/two-bot-test.md)). Its agent is
 read-write on the repo (`Read,Glob,Grep,Write,Edit` plus the read-only GitHub MCP tools), and it uses `respond_to: all` on both platforms. Its `hello` and `mcp-smoke` prompts post to Slack and Telegram, `hello-telegram` (the `hello` text) to Telegram only, keeping one persistent thread (`thread: persistent`; the other prompts open a new thread each run), and the pull-request prompts (`pr-smoke`, `pr-update`) post to Slack only, since a PR attaches to one thread.
 
