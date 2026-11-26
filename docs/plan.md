@@ -242,10 +242,14 @@ receive **all** group messages, so each bot must decide what's addressed to it:
    chat and owning it would answer everything.
 4. Everything else is ignored, including untagged top-level Slack messages.
 
+In either mode a message authored by a bot (the Chat SDK's `author.isBot` or `author.isMe`) belongs
+to no bot, checked before every rule above, so two bots in one chat can't answer each other.
+The trade-off is that one bot cannot address another by mention. Telegram sets `isBot` from
+`from.is_bot`; Slack sets it for any message carrying a `bot_id`, including another app's.
+
 A bot configured with `respond_to: all` replaces rules 1-4 with: every message from an approved
 sender in any approved chat of the bot belongs to it, and the agent decides per turn whether to reply or
-stay silent. Messages authored by bots (the Chat SDK's `author.isBot` and `author.isMe`) never
-belong to any bot in this mode, so two bots in one chat can't answer each other. The checks keep
+stay silent. The checks keep
 their order (ownership, chat approval, sender approval), but an unenrolled sender whose message
 is not a mention or DM is dropped without a refusal (only logged with their ID, so enrollment
 still works), and messages from other chats are dropped without a log. Two bots set to `all` in

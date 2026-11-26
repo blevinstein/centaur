@@ -22,7 +22,8 @@ export async function ownsMessage(
   respondTo: RespondTo,
   threadMeta: Pick<ThreadMetaStore, "read">,
 ): Promise<boolean> {
-  if (respondTo === "all") return !message.author.isMe && message.author.isBot !== true;
+  if (message.author.isMe || message.author.isBot === true) return false;
+  if (respondTo === "all") return true;
   if (isAddressed(thread, message)) return true;
   const state = await thread.state;
   if (state?.createdByBot === true || state?.addressedByUser === true) return true;

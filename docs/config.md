@@ -95,7 +95,7 @@ parser only checks the shape; a destination name is resolved when the run starts
 
 | Key | Default | Meaning |
 |---|---|---|
-| `respond_to` | `mention` | Which messages the bot answers: `mention` (mentions, DMs, topics it created, and on Slack the rest of a thread it was mentioned in) or `all` (every message from an approved sender in any approved chat of the bot on that platform). See [plan.md](plan.md#routing-in-a-shared-telegram-group). |
+| `respond_to` | `mention` | Which messages the bot answers: `mention` (mentions, DMs, topics it created, and on Slack the rest of a thread it was mentioned in) or `all` (every message from an approved sender in any approved chat of the bot on that platform). In both modes messages authored by bots, including the bot itself, are never answered, so one bot cannot address another by mentioning it. See [plan.md](plan.md#routing-in-a-shared-telegram-group). |
 | `handle` | | The bot's username on that platform without `@`. With `respond_to: all` the prompt tells the agent people mention it as `@<handle>`. The workflow cannot learn it cheaply from the bot's identity, so it is configured. |
 
 Everything else (`context`, `provider`, `model`, tools, MCP, `pull_requests`) is bot-wide. `register`
