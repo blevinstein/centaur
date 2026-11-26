@@ -60,23 +60,20 @@ Maintainer actions, in order:
    bot. `centaur access approve` the shared Telegram group for the new bot, and add the bot to the group.
    Privacy mode and admin rights only matter for `respond_to: all`, so `mention` needs neither.
 
-## Direct-mode trial
+## Direct-mode trial (finished)
 
-Temporary: `centaur-test-2` runs with `execution: { mode: direct }` and `pull_requests: { existing: off }`
-in `apps/centaur-test-2/.centaur/config.yml`, so its chat turns commit straight to this repository's
-default branch (see [Execution modes](../workflows.md#execution-modes)). Main is unprotected here, and the
-persona restricts the bot to `scratch/` (a prompt-level restriction only). The trial exists to exercise
-direct mode, including its pull request fallback, against a real repository.
+`centaur-test-2` ran with `execution: { mode: direct }` and `pull_requests: { existing: off }` on this
+repository's unprotected default branch, with a persona limiting edits to a scratch directory (a prompt-level
+restriction only). The configuration has since been reverted.
 
-Test plan:
+Verified:
 
-1. Ask the bot to create `scratch/direct-smoke.txt`. Expect a commit on main by `github-actions[bot]`
-   with a run-URL footer, and the reply `Pushed to main: <commit url>`.
-2. Ask the bot to edit its own persona file. Expect a fallback pull request that names the protected
-   path as the reason.
-3. Confirm the `GITHUB_TOKEN` push triggered no workflow runs.
-4. Optional: add a branch protection rule requiring a pull request, repeat step 1 and expect a
-   `push_rejected` fallback pull request.
+- An unprotected branch accepted the direct push.
+- The commit carried the run-URL footer and was unsigned.
+- The `GITHUB_TOKEN` push triggered no workflow.
 
-Revert: remove the `execution` and `pull_requests` keys from the config, restore the persona wording
-about changes being opened as a pull request, and delete `scratch/` if wanted.
+Not verified (tracked in `TODO.md` section 22):
+
+- Rejection by a protected branch, and the fallback pull request that follows.
+- A ruleset bypass actor.
+- The protected-path fallback (an edit to a protected path such as `.github/` or `.centaur*`).

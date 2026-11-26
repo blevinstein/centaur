@@ -338,7 +338,12 @@ parses it is deployed, so it needs the deploy approval first (section 21).
 - [x] Execution 2: extract the transplant from `push-existing.ts` and add `pushDirect`.
 - [x] Execution 3: wire the `turn` action (`plan-pr` generalization, `push-direct`).
 - [ ] **[HUMAN ACTION]** Execution 3 real run: `direct` on a scratch repo, including the fall back
-      to a pull request. After 3.
+      to a pull request. After 3. Partly done on the self-consumer repo (`centaur-test-2`, since
+      reverted; see [two-bot-test.md](docs/proposals/two-bot-test.md)). Verified: an unprotected
+      branch accepts the direct push; the commit carries the run-URL footer and is unsigned; the
+      `GITHUB_TOKEN` push triggers no workflow.
+      Still open: rejection by a protected branch (`push_rejected` fallback pull request), a ruleset
+      bypass actor, and the protected-path fallback.
 - [ ] Execution 4: prompt text and `replySchema` fields for the mode.
 
 ## 23. Continuous deployment

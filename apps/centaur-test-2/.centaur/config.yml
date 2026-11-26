@@ -12,7 +12,3 @@ provider: anthropic
 model: sonnet
 allowed_tools: "Read,Glob,Grep,Write,Edit"
 persona: .centaur/persona.md
-execution:
-  mode: direct
-pull_requests:
-  existing: off
