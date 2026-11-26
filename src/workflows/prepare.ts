@@ -20,6 +20,7 @@ import {
 } from "./aws.js";
 import {
   assertSingleConfigStyle,
+  committedExecutionMode,
   parseConfigOrThrow,
   readConfigText,
   resolveRoot,
@@ -38,6 +39,7 @@ import { enforceMcpPolicy, type McpPolicyDeps } from "./mcp-policy-check.js";
 import { type CandidateDeps, listCandidates, type TargetDeps } from "./pr-target.js";
 import {
   buildPrompt,
+  type ExecutionMode,
   mcpApprovalSection,
   type PullRequestCandidate,
   projectFolderSection,
@@ -285,12 +287,17 @@ async function scheduledTurn(
   directory: string,
   name: string,
   rootDir: string,
+  executionMode: ExecutionMode,
 ): Promise<Turn> {
   const prompt = config.prompts[name];
   if (!prompt) throw new Error(`The Centaur config defines no prompt named "${name}"`);
   const scheduledTask = await readFile(join(rootDir, prompt.file), "utf8");
   const persistent = await persistentContext(deps, config, directory, prompt);
-  const targets = prTargetFlags(config, await existingTargets(deps, config));
+  const targets = prTargetFlags(
+    config,
+    await existingTargets(deps, config, executionMode),
+    executionMode,
+  );
   return {
     mode: "start-thread",
     policy: persistent?.policy ?? prompt.context,
@@ -321,6 +328,7 @@ async function chatTurn(
   config: CentaurConfig,
   instructions: Instructions,
   directory: string,
+  executionMode: ExecutionMode,
 ): Promise<Turn | undefined> {
   const payload = dispatchPayload.parse(deps.clientPayload);
   if (payload.bot !== config.bot) {
@@ -375,7 +383,11 @@ async function chatTurn(
         await clearReactions(deps.poster, source);
         return undefined;
       }
-      const targets = prTargetFlags(config, await existingTargets(deps, config));
+      const targets = prTargetFlags(
+        config,
+        await existingTargets(deps, config, executionMode),
+        executionMode,
+      );
       return {
         mode: "start-thread",
         policy: config.context.default,
@@ -400,7 +412,11 @@ async function chatTurn(
       );
       const settings = platformSettings(config, threadPlatform(threadId));
       const canStaySilent = settings.respond_to === "all";
-      const targets = prTargetFlags(config, await existingTargets(deps, config));
+      const targets = prTargetFlags(
+        config,
+        await existingTargets(deps, config, executionMode),
+        executionMode,
+      );
       return {
         mode: "reply",
         allowExisting: targets.allowExisting,
@@ -493,7 +509,7 @@ async function commentTurn(
       attachmentPath,
       instructions,
       chatTools: chatToolsEnabled(config),
-      ...prTargetFlags(config, NO_EXISTING_TARGETS),
+      ...prTargetFlags(config, NO_EXISTING_TARGETS, "pull_request"),
       pullRequest: {
         title: details.title,
         body: details.body,
@@ -512,11 +528,17 @@ interface ExistingTargets {
 const NO_EXISTING_TARGETS: ExistingTargets = { allowExisting: false, candidates: [] };
 
 /**
- * Lists the pull requests the agent may update. With none, or when GitHub or the poster fails
+ * Lists the pull requests the agent may update; a `direct` turn has none. With none, or when GitHub or the poster fails
  * (a warning, never a failed turn), the prompt omits the section and the schema omits the field.
  */
-async function existingTargets(deps: PrepareDeps, config: CentaurConfig): Promise<ExistingTargets> {
-  if (config.pull_requests.existing === "off" || !deps.targets) return NO_EXISTING_TARGETS;
+async function existingTargets(
+  deps: PrepareDeps,
+  config: CentaurConfig,
+  executionMode: ExecutionMode,
+): Promise<ExistingTargets> {
+  if (executionMode === "direct" || config.pull_requests.existing === "off" || !deps.targets) {
+    return NO_EXISTING_TARGETS;
+  }
   const candidateDeps: CandidateDeps = { ...deps.targets, bot: config.bot, poster: deps.poster };
   try {
     const candidates = await listCandidates(candidateDeps);
@@ -527,7 +549,12 @@ async function existingTargets(deps: PrepareDeps, config: CentaurConfig): Promis
   }
 }
 
-const prTargetFlags = (config: CentaurConfig, existing: ExistingTargets) => ({
+const prTargetFlags = (
+  config: CentaurConfig,
+  existing: ExistingTargets,
+  executionMode: ExecutionMode,
+) => ({
+  executionMode,
   allowNewPr: config.pull_requests.comment_new,
   allowExisting: existing.allowExisting,
   candidates: existing.candidates,
@@ -542,6 +569,7 @@ export function buildClaudeArgs(input: {
   canStaySilent: boolean;
   mode: TurnState["mode"];
   allowExisting: boolean;
+  executionMode?: ExecutionMode | undefined;
   suspendable?: string[] | undefined;
   chatTools?: boolean | undefined;
   /** Some skill is installed, so the `Skill` tool is allowed. */
@@ -549,6 +577,7 @@ export function buildClaudeArgs(input: {
   mcpConfig?: string | undefined;
 }) {
   const { config, persona, resumeSessionId, canStaySilent, mode, allowExisting, mcpConfig } = input;
+  const { executionMode } = input;
   const suspendable = input.suspendable ?? [];
   const allowNewPr = config.pull_requests.comment_new;
   const readRule = config.allowed_tools.includes("Read") ? [] : [`Read(./${TURN_DIR}/**)`];
@@ -562,7 +591,7 @@ export function buildClaudeArgs(input: {
     ...(mode === "comment" ? [COMMENT_SETTING_SOURCES] : []),
     `--max-turns ${config.max_turns}`,
     ...(config.max_budget_usd ? [`--max-budget-usd ${config.max_budget_usd}`] : []),
-    `--json-schema ${singleQuote(JSON.stringify(replySchema({ canStaySilent, mode, allowNewPr, allowExisting, suspendable })))}`,
+    `--json-schema ${singleQuote(JSON.stringify(replySchema({ canStaySilent, mode, allowNewPr, allowExisting, executionMode, suspendable })))}`,
     ...(mcpConfig ? [`--mcp-config ${shellArg(mcpConfig)}`] : []),
     ...(persona ? [`--append-system-prompt-file ${shellArg(persona)}`] : []),
     ...(resumeSessionId ? [`--resume ${shellArg(resumeSessionId)}`] : []),
@@ -605,11 +634,22 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     throw new Error("a turn is either a scheduled prompt or a pull request comment, not both");
   }
   const instructions = await loadInstructions(rootDir, config.instructions);
+  const executionMode: ExecutionMode = deps.comment
+    ? "pull_request"
+    : await committedExecutionMode(configRoot, deps.root);
   const turn = deps.promptName
-    ? await scheduledTurn(deps, config, instructions, directory, deps.promptName, rootDir)
+    ? await scheduledTurn(
+        deps,
+        config,
+        instructions,
+        directory,
+        deps.promptName,
+        rootDir,
+        executionMode,
+      )
     : deps.comment
       ? await commentTurn(deps, deps.comment, config, instructions, directory)
-      : await chatTurn(deps, config, instructions, directory);
+      : await chatTurn(deps, config, instructions, directory, executionMode);
   if (!turn) return skipped;
   const skills = await installSkills({
     home: deps.home,
@@ -706,6 +746,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
       canStaySilent: turn.canStaySilent === true,
       mode: turn.mode,
       allowExisting: turn.allowExisting,
+      executionMode,
       suspendable: suspend?.servers.map(({ name }) => name),
       chatTools,
       skills: skills.builtin.length + skills.consumer.length > 0,

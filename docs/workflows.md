@@ -472,6 +472,8 @@ the repository); a root at the repository top yields one guide.
    the repo's `instructions` overrides in the config, read from the checkout like the persona)
    followed by fixed text in `prompt.ts`: the untrusted-input warning and the structured-output
    fields the workflow parses (`reply`, `ignore`, `pr_title`, ...), which a repo cannot override.
+   Chat and scheduled turns also get a generated `# Execution mode` section after the instructions
+   ([Execution modes](#execution-modes)).
    It outputs the `claude_args` (model and tuning flags, `--allowedTools`, `--json-schema` requiring `reply` (or, for `respond_to: all` threads, `reply` or `ignore: true`; optionally `pr_title`, `pr_body`, and the `pr_action` or `existing_pr_number` target field when enabled, `suspend_for` when approval-required servers are pending), persona
    via `--append-system-prompt-file`, `--resume <id>`). When there is nothing to do (everything
    processed, or only a `/resume` or `/transcript` command, which is acknowledged in the thread),
@@ -651,6 +653,22 @@ off` removes the path.
 `pull_request`, the default and every config without the key, is the flow above, unchanged. In
 `direct` the plan is `direct` and `push-direct` commits the agent's changes onto the tip of the
 repository's default branch. The design is in [proposals/execution-modes.md](proposals/execution-modes.md).
+
+`prepare` tells the agent the mode in a generated `# Execution mode` section of the prompt of every
+chat and scheduled turn (`buildPrompt`, `src/workflows/prompt.ts`), and words the reply schema to
+match. It reads the mode from the same trusted source as `plan-pr` (`committedExecutionMode` on
+`CENTAUR_CONFIG_ROOT`, else the workspace), so the prompt and the plan cannot disagree, and an agent
+cannot change either by editing the workspace config. In `pull_request` mode the section says a pull
+request is opened for the changes, which a person reviews and merges, and that the agent should write
+the title and body for that reviewer. In `direct` mode it says the harness commits to the default
+branch with no review and no CI run, that `pr_title` is the commit message and `pr_body` its body,
+that the agent should change only what is asked and not guess, and that a rejected push opens a pull
+request instead. In `direct` mode the schema has no `existing_pr_number`, the prompt lists no
+candidate pull requests, and `pr_title` and `pr_body` are described as the commit message and body.
+Comment turns get no section and keep the pull request schema even when the bot is configured
+`direct`. The section is harness text: a repository's `AGENTS.md` or `instructions` files cannot
+override it, and where they disagree the section wins. The built-in `centaur-pull-requests` skill
+defers to it.
 
 `plan-pr` reads the mode each turn from the config as committed at HEAD of the checkout at `CENTAUR_CONFIG_ROOT` (or the workspace), never from the workspace file, which the agent can edit; a missing or invalid committed config means `pull_request`. Only a checkout without git reads the file. A
 `direct` plan is written without reading the agent's output, the turn state or GitHub, ignores

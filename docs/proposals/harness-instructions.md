@@ -160,7 +160,7 @@ not done.
   `@file` import following (imports resolve against the home, so a guide must be self-contained).
 - Should the agent be allowed to disagree with a harness fact in its reply, or only follow it
   (precedence level 2)? A consumer who wants a direct-push workflow needs the execution-modes item,
-  not a prompt override.
+  not a prompt override (built: the prompt's `# Execution mode` section).
 - Does the brief belong in `--append-system-prompt-file` rather than the user prompt? It would sit
   with the persona and survive `--resume` as system text, but the persona file is consumer-owned
   and the brief is not, so it would need a second file; not investigated.

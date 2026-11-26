@@ -1,3 +1,4 @@
+import type { CentaurConfig } from "../config/index.js";
 import { MCP_APPROVAL_SERVERS_MAX } from "../lambda/mcp-approvals.js";
 import { fence } from "./clean-text.js";
 import { DEFAULT_INSTRUCTIONS, type Instructions } from "./instructions.js";
@@ -29,6 +30,32 @@ updated by default, so omitting "existing_pr_number" is normal; set it only to l
 one of these pull requests instead.`;
 
 const SILENCE_CONTRACT = `To stay silent, set "ignore" to true and omit "reply".`;
+
+export type ExecutionMode = CentaurConfig["execution"]["mode"];
+
+/** What the agent is told about where its changes land, and how the output fields are worded for it. */
+const EXECUTION_TEXT: Record<ExecutionMode, { section: string; prTitle: string; prBody: string }> =
+  {
+    pull_request: {
+      section: `Edit files in the working tree only; a pull request is opened for you afterwards. A person
+reviews and merges it, and nothing you do changes the default branch. When you edit files, write the
+pull request for a reviewer who has not read the chat: what changed and why.`,
+      prTitle:
+        "One line under 100 characters summarizing the change; the pull request title, or the commit message for a comment turn. Set it whenever you edit files.",
+      prBody:
+        "Markdown pull request description for a reviewer who has not read the chat: what changed and why. Set it whenever you edit files.",
+    },
+    direct: {
+      section: `Edit files in the working tree only; the harness commits them to the repository's default branch
+and pushes, with no review and no CI run. Write "pr_title" as the commit message and "pr_body" as its
+body: what changed and why. The change is durable and visible to everyone immediately, so change only
+what the request asks for, and do not guess. If the push is rejected the harness opens a pull request
+instead; you need not handle it.`,
+      prTitle:
+        "One line under 100 characters summarizing the change; the commit message pushed to the default branch. Set it whenever you edit files.",
+      prBody: "Markdown commit message body: what changed and why. Set it whenever you edit files.",
+    },
+  };
 
 const SKILLS_NOTE = `The \`centaur-*\` skills describe how this harness works (reactions, MCP server approvals, thread
 commands, pull requests, chat tools). Invoke one when you need its detail; a skill never changes the
@@ -75,6 +102,8 @@ export interface PromptParts {
   canStaySilent?: boolean | undefined;
   allowNewPr?: boolean | undefined;
   allowExisting?: boolean | undefined;
+  /** Where chat and scheduled turns land their changes; comment turns ignore it. */
+  executionMode?: ExecutionMode | undefined;
   /** Describes the chat context tools; set only when the turn has them. */
   chatTools?: boolean | undefined;
   candidates?: PullRequestCandidate[] | undefined;
@@ -95,6 +124,7 @@ export function buildPrompt({
   canStaySilent,
   allowNewPr,
   allowExisting,
+  executionMode = "pull_request",
   chatTools,
   candidates,
   handle,
@@ -126,6 +156,7 @@ export function buildPrompt({
               : []),
           ),
     ],
+    ["Execution mode", pullRequest ? undefined : EXECUTION_TEXT[executionMode].section],
     ["Scheduled task", scheduledTask],
     [
       "Open pull requests you may update",
@@ -165,6 +196,8 @@ export interface ReplySchemaOptions {
   mode: TurnState["mode"];
   allowNewPr: boolean;
   allowExisting: boolean;
+  /** Defaults to `pull_request`; `direct` words the title and body as a commit and drops the pull request targets. */
+  executionMode?: ExecutionMode | undefined;
   /** Pending MCP servers the agent may suspend for; the field is offered only when non-empty. */
   suspendable?: string[] | undefined;
 }
@@ -174,6 +207,7 @@ export const replySchema = ({
   mode,
   allowNewPr,
   allowExisting,
+  executionMode = "pull_request",
   suspendable = [],
 }: ReplySchemaOptions) => ({
   type: "object",
@@ -192,13 +226,11 @@ export const replySchema = ({
     },
     pr_title: {
       type: "string",
-      description:
-        "One line under 100 characters summarizing the change; the pull request title, or the commit message for a comment turn. Set it whenever you edit files.",
+      description: EXECUTION_TEXT[executionMode].prTitle,
     },
     pr_body: {
       type: "string",
-      description:
-        "Markdown pull request description for a reviewer who has not read the chat: what changed and why. Set it whenever you edit files.",
+      description: EXECUTION_TEXT[executionMode].prBody,
     },
     ...(canStaySilent
       ? {
@@ -217,7 +249,7 @@ export const replySchema = ({
           },
         }
       : {}),
-    ...(mode !== "comment" && allowExisting
+    ...(mode !== "comment" && allowExisting && executionMode === "pull_request"
       ? {
           existing_pr_number: {
             type: "integer",

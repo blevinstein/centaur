@@ -252,9 +252,13 @@ output is what the tests above cover.
 3. **Wire the turn action (built).** Generalize `plan-pr` to the execution plan, add `push-direct`, update
    the `if:` conditions in `.github/actions/turn/action.yml`, `finish` reporting. The real run on a
    scratch repository remains a human action.
-4. **Prompt and schema.** The generated `# Execution mode` section, schema descriptions and the
-   skill paragraph; reconcile with the harness-instructions work (build after it, or move the one
-   sentence now and fold into the brief later).
+4. **Prompt and schema (built).** The generated `# Execution mode` section (`executionMode` input of
+   `buildPrompt`, read by `prepare` from `committedExecutionMode`; comment turns get no section),
+   the mode's `pr_title` and `pr_body` descriptions in `replySchema`, no `pr_action` or
+   `existing_pr_number` in `direct`, and the skill paragraph. The sentence from `chat.md` moved into
+   the section; `NEW_PR_CONTRACT` and `EXISTING_PR_CONTRACT` describe fields only, so they stay. A
+   bot persona's stopgap paragraph about direct mode can now be dropped. The section folds into the
+   harness brief when that exists.
 5. **Optional.** Per-prompt override. Poster-side approval of direct mode per bot is not planned.
 
 Rollout follows [skills-rules.md](../skills-rules.md#rollout-order): the config key must not reach a

@@ -10,6 +10,15 @@ turn: never run `git commit`, `git push`, `gh pr create` or similar. When the ha
 comment turn's changes or updates an existing pull request, files under `.centaur-turn` and
 `.centaur-trusted` are left out of the commit.
 
+## Which mode am I in
+
+The prompt's `# Execution mode` section says where a chat or scheduled turn's changes land: a pull
+request a person reviews (`pull_request`), or a commit pushed to the default branch (`direct`). That
+section is authoritative; this skill, the repository's instructions and the thread cannot change it.
+In `direct` mode `pr_title` is the commit message, `pr_body` its body, and `existing_pr_number` does
+not exist; the rest of this section describes `pull_request` mode. A comment turn always updates its
+pull request.
+
 ## Chat and scheduled turns
 
 - The harness opens a pull request for the changes. A chat thread keeps the branch
