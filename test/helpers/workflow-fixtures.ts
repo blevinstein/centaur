@@ -124,3 +124,22 @@ export const schemaOptions = (overrides: Partial<ReplySchemaOptions> = {}): Repl
 
 export const executionText = (structuredOutput: object) =>
   JSON.stringify([{ type: "result", structured_output: structuredOutput }]);
+
+const bools = [false, true];
+
+export const replySchemaCombinations = (): ReplySchemaOptions[] =>
+  (["reply", "comment"] as const).flatMap((mode) =>
+    bools.flatMap((canStaySilent) =>
+      bools.flatMap((allowNewPr) =>
+        bools.flatMap((allowExisting) =>
+          [undefined, ["linear", "notion"]].map((suspendable) => ({
+            canStaySilent,
+            mode,
+            allowNewPr,
+            allowExisting,
+            suspendable,
+          })),
+        ),
+      ),
+    ),
+  );

@@ -223,7 +223,7 @@ export const replySchema = ({
             type: "integer",
             minimum: 1,
             description:
-              "Number of an open pull request listed in the prompt to land your changes on instead of this thread's own. Omit it to keep the default.",
+              "Number of an open pull request listed in the prompt to land your changes on instead of the one this thread is on. Omit it to keep the default.",
           },
         }
       : {}),

@@ -1161,6 +1161,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/shell-quote@npm:1.7.5":
+  version: 1.7.5
+  resolution: "@types/shell-quote@npm:1.7.5"
+  checksum: 10c0/ddcf225e85e5520e3f44411d7d79eee0e56477fab705d0d93e293b61b9f8de2a57db6e859d492a24bc9e0d071c0490271efeae832756e2ac0d4d255922ac281d
+  languageName: node
+  linkType: hard
+
 "@types/unist@npm:*, @types/unist@npm:^3.0.0":
   version: 3.0.3
   resolution: "@types/unist@npm:3.0.3"
@@ -1525,10 +1532,12 @@ __metadata:
     "@modelcontextprotocol/sdk": "npm:1.32.2"
     "@types/aws-lambda": "npm:8.10.164"
     "@types/node": "npm:24.19.2"
+    "@types/shell-quote": "npm:1.7.5"
     chat: "npm:4.45.0"
     commander: "npm:15.1.0"
     esbuild: "npm:0.28.2"
     jose: "npm:6.2.13"
+    shell-quote: "npm:1.8.3"
     typescript: "npm:7.0.2"
     vite: "npm:8.3.8"
     vitest: "npm:5.1.0"
@@ -3472,6 +3481,13 @@ __metadata:
   version: 3.0.0
   resolution: "shebang-regex@npm:3.0.0"
   checksum: 10c0/1dbed0726dd0e1152a92696c76c7f06084eb32a90f0528d11acd764043aacf76994b2fb30aa1291a21bd019d6699164d048286309a278855ee7bec06cf6fb690
+  languageName: node
+  linkType: hard
+
+"shell-quote@npm:1.8.3":
+  version: 1.8.3
+  resolution: "shell-quote@npm:1.8.3"
+  checksum: 10c0/bee87c34e1e986cfb4c30846b8e6327d18874f10b535699866f368ade11ea4ee45433d97bf5eada22c4320c27df79c3a6a7eb1bf3ecfc47f2c997d9e5e2672fd
   languageName: node
   linkType: hard
 

@@ -53,6 +53,7 @@ import {
 } from "./pull-request-comments.js";
 import { clearReactions, type ReactionSource } from "./reactions.js";
 import { installRepositoryInstructions } from "./repository-instructions.js";
+import { doubleQuote, shellArg, singleQuote } from "./shell-arg.js";
 import { installSkills } from "./skills.js";
 import {
   type AttachmentPath,
@@ -557,14 +558,14 @@ export function buildClaudeArgs(input: {
   return [
     `--model ${config.model}`,
     ...(config.effort ? [`--effort ${config.effort}`] : []),
-    `--allowedTools "${tools}"`,
+    `--allowedTools ${doubleQuote(tools)}`,
     ...(mode === "comment" ? [COMMENT_SETTING_SOURCES] : []),
     `--max-turns ${config.max_turns}`,
     ...(config.max_budget_usd ? [`--max-budget-usd ${config.max_budget_usd}`] : []),
-    `--json-schema '${JSON.stringify(replySchema({ canStaySilent, mode, allowNewPr, allowExisting, suspendable }))}'`,
-    ...(mcpConfig ? [`--mcp-config ${mcpConfig}`] : []),
-    ...(persona ? [`--append-system-prompt-file ${persona}`] : []),
-    ...(resumeSessionId ? [`--resume ${resumeSessionId}`] : []),
+    `--json-schema ${singleQuote(JSON.stringify(replySchema({ canStaySilent, mode, allowNewPr, allowExisting, suspendable })))}`,
+    ...(mcpConfig ? [`--mcp-config ${shellArg(mcpConfig)}`] : []),
+    ...(persona ? [`--append-system-prompt-file ${shellArg(persona)}`] : []),
+    ...(resumeSessionId ? [`--resume ${shellArg(resumeSessionId)}`] : []),
   ].join(" ");
 }
 
