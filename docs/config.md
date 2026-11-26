@@ -17,9 +17,11 @@ Every reader (`prepare`, `register`, the turn's `config_root` copy and `centaur 
 looks for both. If exactly one exists it is used. If both exist, they fail naming both files;
 remove one. If neither exists, they fail naming both paths.
 
-Paths inside the config (`persona`, `instructions`, prompt files) are relative to the repo root,
-not to the config file, and the MCP policy is `.centaur/mcp-policy.cedar` at the repo root, wherever
-the config lives. The register workflow's `paths` filter lists both locations.
+Paths inside the config (`persona`, `instructions`, prompt files) are relative to the Centaur root,
+not to the config file, and the MCP policy is `.centaur/mcp-policy.cedar` at the Centaur root,
+wherever the config lives. The Centaur root is the repo root unless the workflow sets `CENTAUR_ROOT`
+to a sub-folder (a relative path inside the repo; see
+[subfolder-support](proposals/subfolder-support.md)). The register workflow's `paths` filter lists both locations.
 
 ```yaml
 bot: garden

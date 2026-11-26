@@ -15,6 +15,7 @@ export {
   type ContextPolicy,
   centaurConfigSchema,
   declaredPlatforms,
+  isRepoRelativePath,
   type McpServer,
   PLATFORMS,
   type Platform,

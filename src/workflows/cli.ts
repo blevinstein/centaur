@@ -26,6 +26,12 @@ const storeFor = (bot: string, threadId: string) =>
 const attachments = () => createAttachmentDownloader(env("CENTAUR_SESSION_BUCKET"));
 const workspace = () => process.env.GITHUB_WORKSPACE ?? process.cwd();
 
+const configText = () =>
+  readConfigText(
+    process.env.CENTAUR_CONFIG_ROOT || workspace(),
+    process.env.CENTAUR_ROOT || undefined,
+  );
+
 const readEvent = async () => JSON.parse(await readFile(env("GITHUB_EVENT_PATH"), "utf8"));
 
 async function clientPayload() {
@@ -63,8 +69,7 @@ program.command("resolve").action(async () => {
     repository: env("GITHUB_REPOSITORY"),
     github: createGitHubClient(env("GITHUB_TOKEN"), process.env.GITHUB_API_URL),
     commentAuthors: async () =>
-      parseConfigOrThrow(await readConfigText(process.env.CENTAUR_CONFIG_ROOT || workspace()))
-        .pull_requests.comment_authors,
+      parseConfigOrThrow(await configText()).pull_requests.comment_authors,
     poster: poster(),
     fetchToken: oidcTokenFetcher(process.env, env("CENTAUR_OIDC_AUDIENCE")),
     mask: maskValue,
@@ -84,9 +89,7 @@ program.command("resolve").action(async () => {
 });
 
 program.command("resolve-schedule").action(async () => {
-  const config = parseConfigOrThrow(
-    await readConfigText(process.env.CENTAUR_CONFIG_ROOT || workspace()),
-  );
+  const config = parseConfigOrThrow(await configText());
   await writeOutputs(env("GITHUB_OUTPUT"), {
     group: scheduleGroup(config, env("PROMPT_NAME"), env("GITHUB_RUN_ID")),
   });
@@ -146,9 +149,7 @@ const commentFinishDeps = () => {
 };
 
 const newPullRequestDeps = async () => {
-  const config = parseConfigOrThrow(
-    await readConfigText(process.env.CENTAUR_CONFIG_ROOT || workspace()),
-  );
+  const config = parseConfigOrThrow(await configText());
   if (!config.pull_requests.comment_new) return undefined;
   const runId = env("GITHUB_RUN_ID");
   return {
@@ -189,9 +190,7 @@ program.command("prepare").action(async () => {
 });
 
 program.command("plan-pr").action(async () => {
-  const config = parseConfigOrThrow(
-    await readConfigText(process.env.CENTAUR_CONFIG_ROOT || workspace()),
-  );
+  const config = parseConfigOrThrow(await configText());
   const targets = targetDeps();
   const plan = await planForTurn(
     targets && { ...targets, bot: config.bot, poster: poster() },

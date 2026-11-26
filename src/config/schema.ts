@@ -34,12 +34,15 @@ export const slug = z
   .string()
   .regex(SLUG_PATTERN, "must be a lowercase name (letters, digits, '-' or '_')");
 
-const repoPath = z
-  .string()
-  .min(1)
-  .refine((p) => !p.startsWith("/") && !p.split("/").includes(".."), {
-    message: "must be a relative path inside the repo",
-  });
+export const isRepoRelativePath = (p: string) =>
+  p.length > 0 &&
+  !p.startsWith("/") &&
+  !p.includes("\\") &&
+  !p.split("/").some((s) => s === ".." || s === "");
+
+const repoPath = z.string().refine(isRepoRelativePath, {
+  message: "must be a relative path inside the repo",
+});
 
 const contextPolicy = z.enum(CONTEXT_POLICIES);
 
