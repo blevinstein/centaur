@@ -377,8 +377,14 @@ required reviewer), and a dispatch redeploys a chosen ref.
       (existing roles gain a permissions boundary) and smoke-testing both bots.
 - [ ] **[HUMAN ACTION]** `scripts/setup-cd.sh credentials` (sets `DEPLOY_ROLE_ARN` and
       `DEPLOY_PARAMETERS`; `CENTAUR_AWS_REGION` must already exist).
+- [ ] **[HUMAN APPROVAL]** The first real run failed to assume the role: the repository uses
+      immutable OIDC subjects (`repo:<owner>@<ownerId>/centaur@<repoId>:environment:production`)
+      and the trust lacked the repository id. The template now matches it. The deploy role cannot
+      edit its own trust, so deploy by hand (`yarn deploy-prod`), then re-run the `Deploy`
+      workflow.
 - [ ] **[HUMAN APPROVAL]** Run the `Deploy` workflow to confirm it assumes the role. If it fails to
-      assume it, check the `sub` formats in the doc.
+      assume it, compare the token's `sub` with the trust (`scripts/setup-cd.sh check` prints the
+      repository's `sub_claim_prefix`).
 - [ ] **[HUMAN APPROVAL]** Decide on branch protection for `main` and required reviewers on
       `production` (manual; requiring pull requests also stops direct pushes to `main`).
 

@@ -207,9 +207,14 @@ Anyone who can get a commit onto `main` can change what the deploy runs: the wor
 scripts and the template all come from the pushed commit. The controls are:
 
 - The role's trust accepts only the `production` environment of this repository under the
-  configured owner (`repo:<owner>/centaur:environment:production`, in both the name and the
-  owner-id form that `GitHubRole` uses), and the environment accepts only `main`. A pull request,
-  a fork or another branch cannot obtain the credentials. The workflow also refuses unmerged refs.
+  configured owner, and the environment accepts only `main`. A pull request, a fork or another
+  branch cannot obtain the credentials. The workflow also refuses unmerged refs. This repository
+  uses immutable OIDC subjects, which carry the owner and repository ids
+  (`repo:<owner>@<ownerId>/centaur@<repoId>:environment:production`). The template does not know
+  the repository id, so the trust pins the owner id, the repository name and the environment and
+  matches the repository id with a wildcard. The legacy name form without ids is also accepted.
+  All subjects sit in one `StringLike` list, since IAM combines different condition operators with
+  AND; the audience stays an exact `StringEquals`.
 - `DeployPolicy` limits the role to this stack's resources (names built from the stack name). IAM
   actions are limited to roles and policies with the stack's name prefix, and role changes are only
   allowed on roles carrying `DeployPolicy` as their permissions boundary. `DeployPolicy` is that
@@ -231,9 +236,13 @@ reviewers on the `production` environment.
 
 Claim names that GitHub documents beyond `aud` and `sub` (for example `job_workflow_ref`) are not
 used as IAM conditions; the environment plus the environment's branch restriction cover the same
-ground. The `sub` formats (name form and `<owner>@<id>` owner-id form) are copied from `GitHubRole`
-and are unverified against a real token: if the first run fails with `Not authorized to perform
+ground. The `sub` format was checked against the repository's OIDC customization endpoint
+(`gh api repos/<owner>/<repo>/actions/oidc/customization/sub`, which `scripts/setup-cd.sh check`
+prints); the first real token is the final proof. If a run fails with `Not authorized to perform
 sts:AssumeRoleWithWebIdentity`, compare the token's `sub` with the role's trust policy.
+
+`DeployRole` cannot change its own trust, so a change to the trust (such as the subject format)
+takes effect only through a manual `yarn deploy-prod` with admin credentials.
 
 ### Lockout
 

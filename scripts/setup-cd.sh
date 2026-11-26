@@ -7,6 +7,7 @@
 #                                     DEPLOY_ROLE_ARN variable and the DEPLOY_PARAMETERS secret.
 #                                     Refuses unless the environment is restricted to main.
 #   scripts/setup-cd.sh check         Read-only status and what is still missing, in step order.
+#                                     Also prints the repository's OIDC sub claim prefix.
 #
 # Flags: --repo OWNER/REPO (default: the current repository), --stack NAME (default centaur),
 #        --params-file FILE (default parameters-prod.json), --dry-run (print the commands, run nothing).
@@ -164,6 +165,7 @@ cmd_check() {
       missing+=("4. $item: scripts/setup-cd.sh credentials")
     fi
   done
+  echo "OIDC sub claim prefix: $(gh api "repos/$repo/actions/oidc/customization/sub" --jq .sub_claim_prefix 2>/dev/null || echo unreadable)"
   if gh api "repos/$repo/branches/$deploy_branch/protection" >/dev/null 2>&1; then
     echo "branch protection on $deploy_branch: enabled"
   else
