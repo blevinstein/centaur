@@ -122,8 +122,9 @@ After the first deploy, store secrets with the [CLI](cli.md) and register repos 
 ## Continuous deployment
 
 `.github/workflows/deploy.yml` deploys the stack on every push to `main` and on manual dispatch.
-`.github/workflows/ci.yml` (`yarn verify` and `yarn lint:cfn`) runs on pull requests and pushes
-to `main`, and `deploy.yml` calls it as its first job; the `deploy` job runs only if it passes.
+`.github/workflows/ci.yml` (`yarn verify` and `yarn lint:cfn`) runs on pull requests and, for
+pushes to `main`, as the first job of the Deploy workflow (`verify`, which has no path filter, so a
+docs-only push is checked once too); the `deploy` job runs only if it passes.
 
 The `deploy` job:
 
@@ -175,7 +176,8 @@ Restrict the environment before the role exists.
 
 `scripts/setup-cd.sh check` shows what is done and what is still missing, in step order.
 
-Branch protection on `main` (pull requests and the `verify` check) is recommended but a separate,
+Branch protection on `main` (pull requests and the pull request `verify` check, which GitHub lists under CI; the deploy path
+reports `verify / verify` instead and must not be the required one) is recommended but a separate,
 manual decision: requiring pull requests also stops direct pushes to `main`, including the
 direct-execution-mode bots' pushes. To require approval before each deploy, add required reviewers
 to the `production` environment; nothing else changes.
