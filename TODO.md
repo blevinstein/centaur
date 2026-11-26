@@ -295,9 +295,10 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       [docs/mcp-allowlist.md](docs/mcp-allowlist.md)). Writes the existing approval record; deploys
       nothing. Add it to `docs/cli.md`. It would let an operator approve a server without waiting
       for the first turn's request.
-- [ ] Poster MCP tool for mid-turn questions and progress messages (builds on the MCP server
-      config in [docs/mcp.md](docs/mcp.md)). It would let a long turn ask the thread a question or
-      report progress before it finishes.
+- [ ] Poster MCP tool for mid-turn questions and progress messages (status: proposal,
+      [docs/proposals/mid-turn-tool.md](docs/proposals/mid-turn-tool.md); builds on the
+      `centaur-chat` MCP server in [docs/chat-context.md](docs/chat-context.md)). It would let a
+      long turn post a progress message before it finishes; questions end the turn with a reply.
 - [ ] Redact slash-command text in the Chat SDK error logs. When a slash command handler throws
       (for example the admin claim command, whose argument is a one-time claim code) or the SDK
       logs an error, the command text can appear in the Lambda's error logs; found live when an
