@@ -421,19 +421,21 @@ See [skills-rules.md](skills-rules.md) for the design and the live check.
 
 `prepare` also installs the repository's guide (`installRepositoryInstructions`,
 `src/workflows/repository-instructions.ts`), unless `repository_instructions.enabled` is `false`
-([config.md](config.md)). It writes the Centaur root's `AGENTS.md`, else `CLAUDE.md`, to
-`$HOME/.claude/CLAUDE.md`, the user memory that Claude Code reads under `--setting-sources user`, so
-a comment turn gets the repository's rules although it loads no project source.
+([config.md](config.md)). It writes the repository's top-directory `AGENTS.md` (else `CLAUDE.md`),
+then the Centaur root's, when the root is a sub-folder, to `$HOME/.claude/CLAUDE.md`, the user memory
+that Claude Code reads under `--setting-sources user`, so a comment turn gets the repository's rules
+although it loads no project source. Each guide follows a `<!-- from path -->` line (path relative to
+the repository); a root at the repository top yields one guide.
 
-- **Trusted source only.** The root is resolved in `config_root`: the default-branch checkout for a
+- **Trusted source only.** Both directories are resolved in `config_root`: the default-branch checkout for a
   comment turn (never the pull request branch), the workspace for a chat or scheduled turn.
 - **Every turn rewrites it.** The file starts with a marker comment. The turn removes a marker file
   it wrote earlier before writing, so a guide that was deleted or switched off does not linger.
 - **A user memory Centaur did not write is never touched.** Without the marker, the turn fails
   naming the file (or leaves it alone when the key is off); a self-hosted runner's own
   `$HOME/.claude/CLAUDE.md` is not overwritten.
-- **Size cap.** Past `max_bytes` the turn fails with the file name and size; truncating rules
-  silently could drop the one that matters.
+- **Size cap.** Past `max_bytes` for the guides' combined size the turn fails, naming each file and
+  its size; truncating rules silently could drop the one that matters.
 - **Chat turns.** Claude Code also loads the workspace `CLAUDE.md` through the `project` source, so a
   repository whose guide is `CLAUDE.md` shows it twice there. The copy is the only channel on
   comment turns, and `@file` imports inside the guide resolve against `$HOME/.claude`, not the repo,

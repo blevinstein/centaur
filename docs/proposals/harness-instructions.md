@@ -131,7 +131,7 @@ Alternatives considered:
 
 Step 3 is built, as the maintainer's 2026-11-26 decision (a live check showed the trusted `CLAUDE.md` does
 not reach a comment turn under `--setting-sources user`): not a prompt section but a copy of the
-trusted `AGENTS.md`, else `CLAUDE.md`, into `$HOME/.claude/CLAUDE.md` (`repository_instructions: {
+trusted `AGENTS.md`, else `CLAUDE.md`, of the repository top and of a sub-folder Centaur root (both, under one cap), into `$HOME/.claude/CLAUDE.md` (`repository_instructions: {
 enabled, max_bytes }`, default on; over the cap fails the turn; a user memory without the Centaur marker
 is never overwritten; see [workflows.md](../workflows.md#repository-instructions)). Steps 2 and 4 are
 not done.

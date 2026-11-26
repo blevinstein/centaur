@@ -1,5 +1,5 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 /** The repository guides, in order of preference. */
 export const REPOSITORY_GUIDES = ["AGENTS.md", "CLAUDE.md"];
@@ -10,8 +10,11 @@ export const REPOSITORY_INSTRUCTIONS_MARKER =
 
 export interface RepositoryInstructionsInstall {
   home: string;
+  /** The trusted checkout's top directory; the paths in the labels are relative to it. */
+  repoDir: string;
   /** The trusted checkout's Centaur root; undefined removes the installed file. */
   rootDir: string | undefined;
+  /** Cap on the guides' combined size. */
   maxBytes: number;
 }
 
@@ -21,39 +24,53 @@ const readIfPresent = (path: string) =>
     throw error;
   });
 
+async function firstGuide(repoDir: string, dir: string) {
+  for (const name of REPOSITORY_GUIDES) {
+    const text = await readIfPresent(join(dir, name));
+    if (text !== undefined) return { path: relative(repoDir, join(dir, name)), text };
+  }
+  return undefined;
+}
+
 /**
  * Makes `$HOME/.claude/CLAUDE.md`, the user memory Claude Code reads under `--setting-sources user`,
- * hold the trusted checkout's first existing guide (`AGENTS.md`, then `CLAUDE.md`), and returns the
- * guide's name. Removes the file it wrote earlier when there is nothing to install. Throws, rather
- * than truncate someone's rules, for a guide over `maxBytes`, and for a user memory it did not write.
+ * hold the trusted checkout's guides, each under a `<!-- from path -->` line: the first existing of
+ * `AGENTS.md`, `CLAUDE.md` in the repository's top directory, then the same in the Centaur root when
+ * that is a sub-folder. Returns the guides' paths. Removes the file it wrote earlier when there is
+ * nothing to install. Throws, rather than truncate someone's rules, when the guides together exceed
+ * `maxBytes`, and for a user memory it did not write.
  */
 export async function installRepositoryInstructions({
   home,
+  repoDir,
   rootDir,
   maxBytes,
 }: RepositoryInstructionsInstall) {
   const target = join(home, ".claude", "CLAUDE.md");
   const current = await readIfPresent(target);
   if (current !== undefined && !current.startsWith(REPOSITORY_INSTRUCTIONS_MARKER)) {
-    if (rootDir === undefined) return undefined;
+    if (rootDir === undefined) return [];
     throw new Error(
       `$HOME/.claude/CLAUDE.md already exists and was not written by Centaur; remove it or set repository_instructions: {enabled: false}`,
     );
   }
   await rm(target, { force: true });
-  if (rootDir === undefined) return undefined;
-  for (const name of REPOSITORY_GUIDES) {
-    const text = await readIfPresent(join(rootDir, name));
-    if (text === undefined) continue;
-    const bytes = Buffer.byteLength(text);
-    if (bytes > maxBytes) {
-      throw new Error(
-        `${name} is ${bytes} bytes, over repository_instructions.max_bytes (${maxBytes}); shorten it or raise the limit`,
-      );
-    }
-    await mkdir(join(home, ".claude"), { recursive: true });
-    await writeFile(target, `${REPOSITORY_INSTRUCTIONS_MARKER}\n${text}`);
-    return name;
+  if (rootDir === undefined) return [];
+  const dirs = rootDir === repoDir ? [repoDir] : [repoDir, rootDir];
+  const guides = (await Promise.all(dirs.map((dir) => firstGuide(repoDir, dir)))).filter(
+    (guide) => guide !== undefined,
+  );
+  if (guides.length === 0) return [];
+  const sizes = guides.map(({ text }) => Buffer.byteLength(text));
+  const total = sizes.reduce((sum, size) => sum + size, 0);
+  if (total > maxBytes) {
+    const parts = guides.map(({ path }, i) => `${path} is ${sizes[i]} bytes`).join(", ");
+    throw new Error(
+      `${parts}: ${total} bytes together, over repository_instructions.max_bytes (${maxBytes}); shorten them or raise the limit`,
+    );
   }
-  return undefined;
+  const body = guides.map(({ path, text }) => `<!-- from ${path} -->\n${text}`).join("\n\n");
+  await mkdir(join(home, ".claude"), { recursive: true });
+  await writeFile(target, `${REPOSITORY_INSTRUCTIONS_MARKER}\n${body}`);
+  return guides.map(({ path }) => path);
 }

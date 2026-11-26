@@ -6,7 +6,7 @@ import {
   memoryOf,
   writeUserMemory,
 } from "./helpers/repository-instructions-fixtures.js";
-import { gardenSetup, setup } from "./helpers/turn-fixtures.js";
+import { GARDEN, gardenSetup, setup, underFolder } from "./helpers/turn-fixtures.js";
 import { configText, createWorkspace, message } from "./helpers/workflow-fixtures.js";
 
 const OFF = "repository_instructions: {enabled: false}";
@@ -17,7 +17,7 @@ describe("prepare with repository instructions", () => {
 
     await prepare(run.deps());
 
-    expect(await installedMemory(run.home)).toBe(memoryOf("Use tabs."));
+    expect(await installedMemory(run.home)).toBe(memoryOf(["AGENTS.md", "Use tabs."]));
   });
 
   it("prefers AGENTS.md over CLAUDE.md and falls back to CLAUDE.md", async () => {
@@ -30,16 +30,56 @@ describe("prepare with repository instructions", () => {
     await prepare(both.deps());
     await prepare(only.deps());
 
-    expect(await installedMemory(both.home)).toBe(memoryOf("From agents."));
-    expect(await installedMemory(only.home)).toBe(memoryOf("From claude."));
+    expect(await installedMemory(both.home)).toBe(memoryOf(["AGENTS.md", "From agents."]));
+    expect(await installedMemory(only.home)).toBe(memoryOf(["CLAUDE.md", "From claude."]));
   });
 
-  it("reads the guide from the Centaur root in a sub-folder, not the repository root", async () => {
+  it("installs the repository-root guide first, then the sub-folder root's", async () => {
+    const run = await gardenSetup(
+      [message("1", "hi")],
+      configText(),
+      { "AGENTS.md": "Garden." },
+      {
+        "AGENTS.md": "Repo.",
+      },
+    );
+
+    await prepare(run.deps());
+
+    expect(await installedMemory(run.home)).toBe(
+      memoryOf(["AGENTS.md", "Repo."], [`${GARDEN}/AGENTS.md`, "Garden."]),
+    );
+  });
+
+  it("installs only the repository-root guide when the sub-folder has none", async () => {
+    const run = await gardenSetup([message("1", "hi")], configText(), {}, { "CLAUDE.md": "Repo." });
+
+    await prepare(run.deps());
+
+    expect(await installedMemory(run.home)).toBe(memoryOf(["CLAUDE.md", "Repo."]));
+  });
+
+  it("installs only the sub-folder guide when the repository root has none", async () => {
     const run = await gardenSetup([message("1", "hi")], configText(), { "AGENTS.md": "Garden." });
 
     await prepare(run.deps());
 
-    expect(await installedMemory(run.home)).toBe(memoryOf("Garden."));
+    expect(await installedMemory(run.home)).toBe(memoryOf([`${GARDEN}/AGENTS.md`, "Garden."]));
+  });
+
+  it("prefers AGENTS.md over CLAUDE.md at each level", async () => {
+    const run = await gardenSetup(
+      [message("1", "hi")],
+      configText(),
+      { "AGENTS.md": "Garden agents.", "CLAUDE.md": "Garden claude." },
+      { "AGENTS.md": "Repo agents.", "CLAUDE.md": "Repo claude." },
+    );
+
+    await prepare(run.deps());
+
+    expect(await installedMemory(run.home)).toBe(
+      memoryOf(["AGENTS.md", "Repo agents."], [`${GARDEN}/AGENTS.md`, "Garden agents."]),
+    );
   });
 
   it("installs nothing without a guide file", async () => {
@@ -52,7 +92,7 @@ describe("prepare with repository instructions", () => {
 
   it("installs nothing when the key is off, and removes the file an earlier turn wrote", async () => {
     const run = await setup([message("1", "hi")], configText(OFF), { "AGENTS.md": "Use tabs." });
-    await writeUserMemory(run.home, memoryOf("Stale."));
+    await writeUserMemory(run.home, memoryOf(["AGENTS.md", "Stale."]));
 
     await prepare(run.deps());
 
@@ -61,12 +101,12 @@ describe("prepare with repository instructions", () => {
 
   it("replaces a stale file, and removes it once the guide is gone", async () => {
     const run = await setup([message("1", "hi")], configText(), { "AGENTS.md": "Fresh." });
-    await writeUserMemory(run.home, memoryOf("Stale."));
+    await writeUserMemory(run.home, memoryOf(["AGENTS.md", "Stale."]));
     await prepare(run.deps());
-    expect(await installedMemory(run.home)).toBe(memoryOf("Fresh."));
+    expect(await installedMemory(run.home)).toBe(memoryOf(["AGENTS.md", "Fresh."]));
 
     const gone = await setup([message("1", "hi")]);
-    await writeUserMemory(gone.home, memoryOf("Stale."));
+    await writeUserMemory(gone.home, memoryOf(["AGENTS.md", "Stale."]));
     await prepare(gone.deps());
 
     expect(await installedMemory(gone.home)).toBeUndefined();
@@ -92,7 +132,36 @@ describe("prepare with repository instructions", () => {
 
     await prepare(run.deps());
 
-    expect(await installedMemory(run.home)).toBe(memoryOf("x".repeat(10)));
+    expect(await installedMemory(run.home)).toBe(memoryOf(["AGENTS.md", "x".repeat(10)]));
+  });
+
+  it("applies max_bytes to both guides together, naming each file and size", async () => {
+    const run = await gardenSetup(
+      [message("1", "hi")],
+      configText("repository_instructions: {max_bytes: 10}"),
+      { "AGENTS.md": "y".repeat(5) },
+      { "AGENTS.md": "x".repeat(6) },
+    );
+
+    await expect(prepare(run.deps())).rejects.toThrow(
+      /AGENTS\.md is 6 bytes, apps\/garden\/AGENTS\.md is 5 bytes.*11 bytes together.*max_bytes \(10\)/,
+    );
+    expect(await installedMemory(run.home)).toBeUndefined();
+  });
+
+  it("accepts guides that together are exactly max_bytes", async () => {
+    const run = await gardenSetup(
+      [message("1", "hi")],
+      configText("repository_instructions: {max_bytes: 10}"),
+      { "AGENTS.md": "y".repeat(5) },
+      { "AGENTS.md": "x".repeat(5) },
+    );
+
+    await prepare(run.deps());
+
+    expect(await installedMemory(run.home)).toBe(
+      memoryOf(["AGENTS.md", "x".repeat(5)], [`${GARDEN}/AGENTS.md`, "y".repeat(5)]),
+    );
   });
 
   it("never overwrites a user memory Centaur did not write", async () => {
@@ -127,7 +196,7 @@ describe("prepare with repository instructions on a comment turn", () => {
 
     await prepare({ ...run.deps(), configRoot: trusted.root });
 
-    expect(await installedMemory(run.home)).toBe(memoryOf("Trusted rules."));
+    expect(await installedMemory(run.home)).toBe(memoryOf(["AGENTS.md", "Trusted rules."]));
   });
 
   it("installs nothing when only the pull request branch has a guide", async () => {
@@ -143,5 +212,23 @@ describe("prepare with repository instructions on a comment turn", () => {
     await prepare({ ...run.deps(), configRoot: trusted.root });
 
     expect(await installedMemory(run.home)).toBeUndefined();
+  });
+
+  it("copies both trusted guides for a sub-folder root, never the pull request branch's", async () => {
+    const run = await commentSetup({
+      comments: [prComment(1, "rename it")],
+      files: { "AGENTS.md": "Branch repo.", [`${GARDEN}/AGENTS.md`]: "Branch garden." },
+    });
+    const trusted = await createWorkspace({
+      ...underFolder({ ".centaur.yml": configText(), ".centaur/persona.md": "Be kind." }),
+      "AGENTS.md": "Trusted repo.",
+      [`${GARDEN}/AGENTS.md`]: "Trusted garden.",
+    });
+
+    await prepare({ ...run.deps(), configRoot: trusted.root, root: GARDEN });
+
+    expect(await installedMemory(run.home)).toBe(
+      memoryOf(["AGENTS.md", "Trusted repo."], [`${GARDEN}/AGENTS.md`, "Trusted garden."]),
+    );
   });
 });

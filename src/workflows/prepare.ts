@@ -618,6 +618,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
   });
   await installRepositoryInstructions({
     home: deps.home,
+    repoDir: configRoot,
     rootDir: config.repository_instructions.enabled ? rootDir : undefined,
     maxBytes: config.repository_instructions.max_bytes,
   });

@@ -212,16 +212,17 @@ export const GARDEN = "apps/garden";
 export const underFolder = (files: Record<string, string>, folder = GARDEN) =>
   Object.fromEntries(Object.entries(files).map(([path, text]) => [`${folder}/${path}`, text]));
 
-/** A workspace whose Centaur files sit under `GARDEN`; `deps` already carries that root. */
+/** A workspace whose Centaur files sit under `GARDEN` (`topFiles` sit at the repository top); `deps` already carries that root. */
 export async function gardenSetup(
   messages: ReturnType<typeof message>[],
   config = configText(),
   files: Record<string, string> = {},
+  topFiles: Record<string, string> = {},
 ) {
   const run = await setup(
     messages,
     config,
-    underFolder({ ".centaur/persona.md": "Be green.", ...files }),
+    { ...topFiles, ...underFolder({ ".centaur/persona.md": "Be green.", ...files }) },
     `${GARDEN}/.centaur.yml`,
   );
   return {
