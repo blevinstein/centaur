@@ -77,3 +77,6 @@ Not verified (tracked in `TODO.md` section 22):
 - Rejection by a protected branch, and the fallback pull request that follows.
 - A ruleset bypass actor.
 - The protected-path fallback (an edit to a protected path such as `.github/` or `.centaur*`).
+  The maintainer asked both bots in a shared chat to edit the trial bot's persona (a protected path); both
+  refused at the persona level, so the harness path was not reached and only the unit tests on real git
+  repos cover it. A live check needs a bot whose persona allows editing a protected path.

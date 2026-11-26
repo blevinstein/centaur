@@ -344,6 +344,17 @@ parses it is deployed, so it needs the deploy approval first (section 21).
       `GITHUB_TOKEN` push triggers no workflow.
       Still open: rejection by a protected branch (`push_rejected` fallback pull request), a ruleset
       bypass actor, and the protected-path fallback.
+      The maintainer asked both bots to edit the test bot's persona (a protected path); both refused at
+      the persona level, so the harness never saw a diff and the protected-path fallback is still
+      covered only by unit tests on real git repos. Exercising it live needs a bot whose persona allows
+      editing a protected path (for example on a scratch repository).
+- [ ] **[HUMAN ACTION]** Set `handle` for the `respond_to: all` test bot (`centaur-slack`) in
+      `apps/centaur-test/.centaur/config.yml`: its Slack display name and its Telegram username (the
+      maintainer supplies them). In the same shared chat it answered in the first person as the other
+      test bot ("my persona… in direct mode my changes are pushed straight to the default branch"):
+      without a `handle` the agent cannot recognise its own mention, so the default silence guidance
+      (stay silent when another participant is mentioned) cannot work. It also needs to know it is not
+      the other bot; a one-line persona note identifying itself is an option.
 - [ ] Execution 4: prompt text and `replySchema` fields for the mode.
 
 ## 23. Continuous deployment
