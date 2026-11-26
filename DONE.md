@@ -154,8 +154,8 @@ Deploying, the test bot, the scratch consumer repo and the first round trips are
       group, (3) merge or close open `centaur/<bot>-<raw thread id>` PRs, and (4) confirm on a real
       run that the raw `thread_id` doesn't show in the Actions UI or logs. The old `garden` branches
       that carried the raw thread ID were deleted (next item).
-- [x] **[HUMAN APPROVAL]** Delete the old `garden` branches `centaur/garden-telegram--1003801969329`
-      and `centaur/garden-telegram--1003801969329-13`; their names carried the raw thread ID, which
+- [x] **[HUMAN APPROVAL]** Delete the old `garden` branches `centaur/garden-<raw thread ID>` and
+      `centaur/garden-<raw thread ID>-13`; their names carried the raw thread ID, which
       the `thread_key` rollout otherwise removed. Deleted (tips 2818c5c and 798343b; related merged
       PRs #9 and #8).
 - [x] Stop exposing thread IDs (Telegram chat and topic IDs) in the per-thread concurrency group

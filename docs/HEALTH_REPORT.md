@@ -19,8 +19,8 @@ The main risks fall into three groups:
   This affects argument building, the MCP "pinned" check, the direct-mode protected paths, and git
   hooks during finish.
 - **Reliability.** A message that fails after the webhook is acknowledged is silently lost.
-- **Privacy.** A few private identifiers are committed in a public repository (DOCS-001 and
-  DOCS-002).
+- **Privacy.** Private identifiers committed in this public repository (DOCS-001 and DOCS-002)
+  were replaced with placeholders on 2026-11-26. They remain in git history.
 
 Between `05cbef6` and `5b61006`, CI and gated continuous deployment were added, a `main` ruleset was
 created, and the direct-mode trial bot was switched back to pull requests.
@@ -38,7 +38,7 @@ from that.
 | Testing | minor issues | 4 medium, 6 low, 1 info | 2026-11-26 |
 | Build & CI | minor issues | 1 medium, 6 low, 1 info | 2026-11-26 |
 | Dependencies | healthy | 3 info | 2026-11-26 |
-| Docs & DX | needs attention | 1 high, 5 medium, 8 low | 2026-11-26 |
+| Docs & DX | minor issues | 4 medium, 8 low | 2026-11-26 |
 
 ## Triage
 
@@ -49,8 +49,6 @@ Open findings ordered by priority (severity, then confidence, then effort).
 | SEC-001 | high | Poster accepts tokenless calls | S | open | decide |
 | SEC-002 | high | Shared session storage not isolated per repository | M | open | fix |
 | REL-001 | high | A message that fails after dedup is lost silently | S | open | fix |
-| DOCS-001 | high | A real chat identifier and a consumer repository name are committed | S | open | decide |
-| DOCS-002 | medium | `TODO.md` names personal consumer repositories | S | open | fix |
 | DOCS-005 | medium | `CLAUDE.md` is unfilled template | S | open | fix |
 | DOCS-006 | medium | Reactions skill shows the wrong Slack denial emoji | S | open | fix |
 | DOCS-007 | medium | README and onboarding still say Slack is unverified | S | open | fix |
@@ -841,9 +839,9 @@ The CD deploy role and `scripts/setup-cd.sh`, both added in `942d0d7`, were not 
 
 ### Docs & DX
 
-**Status:** needs attention. The reference docs mostly match the code, and every relative link and
-anchor resolves (about 420 were checked). But some private identifiers are committed in this public
-repository, and two task trackers contradict each other.
+**Status:** minor issues. The reference docs mostly match the code, and every relative link and
+anchor resolves (about 420 were checked). Two task trackers contradict each other. The committed
+private identifiers have been fixed.
 
 **Coverage:**
 
@@ -863,24 +861,26 @@ repository, and two task trackers contradict each other.
 - `docs/workflows.md` after line 460;
 - `docs/deploy.md` against the stack parameters.
 
-The specific identifiers for DOCS-001 to DOCS-003 are in the private addendum.
+The identifier for DOCS-003 is in the private addendum.
 
-#### DOCS-001: A real chat identifier and a consumer repository name are committed
+#### DOCS-001: A real chat identifier is committed
 
 - **Severity / confidence / effort:** high / confirmed / S
-- **Status:** open (first seen 2026-11-26, last verified 2026-11-26)
-- **Evidence:** two entries in `DONE.md`
-- **Impact:** breaks the `AGENTS.md` rule that keeps chat IDs and consumer repository names out of
-  the repo. The identifier is also in git history.
-- **Recommendation:** replace both with placeholders. Whether to scrub the history is the
-  maintainer's call.
+- **Status:** fixed 2026-11-26 (first seen 2026-11-26)
+- **Evidence:** two branch names in `DONE.md`
+- **Impact:** breaks the `AGENTS.md` rule that keeps chat IDs out of the repo.
+- **Recommendation:** replace the ID with a placeholder.
+- **Notes:** 2026-11-26:
+  - The chat ID was replaced with a placeholder. The maintainer chose not to scrub git history.
+  - The `garden` repository is public, so references to it stay (false positive).
 
 #### DOCS-002: `TODO.md` names personal consumer repositories and their purpose
 
 - **Severity / confidence / effort:** medium / confirmed / S
-- **Status:** open (first seen 2026-11-26, last verified 2026-11-26)
+- **Status:** fixed 2026-11-26 (first seen 2026-11-26)
 - **Evidence:** three "Setup .centaur config" items in `TODO.md`
 - **Recommendation:** reword them generically, or move them to a private tracker.
+- **Notes:** 2026-11-26: reworded generically. `~/dev` paths are generic and fine to keep.
 
 #### DOCS-003: A Slack fixture may use a real channel ID
 

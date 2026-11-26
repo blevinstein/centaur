@@ -384,12 +384,9 @@ for detailed tracking.
 
 - [x] Move not-yet-implemented docs into a proposals/ subdir to separate from already-implemented.
 - [x] Create a DONE.md file, and move sections of fully-completed TODO items into DONE.
-- [ ] Setup .centaur config for ~/dev/finances repo - monarch integration, consider using ledger for
-      selected transactions (or link to gsheets), weekly transaction review and liquidity check
-      (knows which credit card balances are paid from which bank accounts), quarterly investment/
-      insurance/plan review
-- [ ] Setup .centaur config for ~/dev/resume repo - e.g. exploring new business opportunities,
-      responding to recruiter emails, looking for consulting opportunities, etc
+- [ ] Set up a `.centaur` config for a personal-finance repo: a budgeting-app integration and
+      periodic reviews.
+- [ ] Set up a `.centaur` config for a career repo: drafting replies and tracking opportunities.
 - [ ] Centaur-provided prompt instructions explaining harness quirks etc, and merging harness
       instructions with AGENTS.md and the situational prompt. Proposal:
       [docs/proposals/harness-instructions.md](docs/proposals/harness-instructions.md).
@@ -404,8 +401,8 @@ for detailed tracking.
   - [ ] **[HUMAN ACTION]** Recheck after the push: labels are now `# Instructions from <path>`
         headings; ask the agent on a comment turn to name both headings.
   - [ ] `harness.md`, `scheduled.md` and turn facts (proposal steps 2 and 4).
-- [ ] Setup .centaur config for ~/dev/turo-accounting repo - try to use playwright to integrate
-      with Turo admin portal?
+- [ ] Set up a `.centaur` config for a small-business accounting repo: try Playwright to integrate
+      with a vendor admin portal.
 - [x] Better guides - basic response-only bot, adding scheduled actions
 - [x] Support for centaur in a sub-folder? Explored and planned in
       [docs/proposals/subfolder-support.md](docs/proposals/subfolder-support.md); slices 1 to 4 are
