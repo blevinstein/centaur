@@ -1,6 +1,6 @@
 # Centaur rooted in a sub-folder
 
-Status: **proposal**, not built on `main`. This document is the plan behind the TODO item "Support for
+Status: **slices 1 to 4 are built on `main`; slice 5 (the live check) is open**. This document is the plan behind the TODO item "Support for
 centaur in a sub-folder". It builds on [config.md](../config.md#location) and
 [workflows.md](../workflows.md).
 
@@ -120,7 +120,7 @@ on:
       bot: { type: string, required: true }
       root: { type: string, required: true }
 concurrency:
-  group: centaur-${{ inputs.bot }}-${{ github.event.client_payload.thread }}
+  group: centaur-${{ inputs.bot }}-${{ github.event.client_payload.thread_key }}
 jobs:
   turn:
     steps:
@@ -192,16 +192,16 @@ at `@main`, and an older runner ignores an unknown input (a warning), so land th
 
 ## Slices
 
-1. `resolveRoot`/root-aware `findConfigFile`, the one-style rule check, schema docs for root-relative
+1. **Done.** `resolveRoot`/root-aware `findConfigFile`, the one-style rule check, schema docs for root-relative
    paths, `CENTAUR_ROOT` read in `cli.ts`; tests above for config reading. No consumer-visible change.
-2. `prepare`: prompt files, persona, instructions, skills, the project-folder prompt line and the
+2. **Done.** `prepare`: prompt files, persona, instructions, skills, the project-folder prompt line and the
    AGENTS.md/CLAUDE.md instruction; `finish` and `plan-pr` config reads.
-3. MCP policy path with `root`; `register` and `config check`.
-4. Action inputs (`register`, `turn`, `resolve-pr-comment`, `resolve-schedule`); multi-bot workflow
+3. **Done.** MCP policy path with `root`; `register` and `config check`.
+4. **Done.** Action inputs (`register`, `turn`, `resolve-pr-comment`, `resolve-schedule`); multi-bot workflow
    templates in `docs/workflows.md` (per-bot `if` filter, reusable `workflow_call` workflow, distinct
    concurrency groups, one `register` per root and a `paths` filter covering every sub-folder); a guide
    section in `docs/onboarding.md`.
-5. Live check on a scratch monorepo with two bots; docs wrap-up in `docs/config.md` (location section).
+5. **Open.** Live check on a scratch monorepo with two bots; docs wrap-up in `docs/config.md` (location section).
 
 ## Decisions
 

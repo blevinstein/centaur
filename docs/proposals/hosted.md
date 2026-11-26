@@ -313,7 +313,7 @@ extends today's rule that the repository comes from the verified claim (`src/lam
 | Threat | Mitigation | Code that changes |
 | --- | --- | --- |
 | Tenant A posts or reads as tenant B's bot | Poster tenant comes from the OIDC `repository_owner_id`; bot looked up only inside that tenant; binding compared by `repository_id` | `src/lambda/poster.ts` (`requireBound` on every operation), `src/lambda/oidc.ts` |
-| Poster caller check is optional today (`post`, `unreact`, `start-thread`, `get-mcp-policy` take no token; [poster.md](../poster.md#security-model)) | Mandatory JWT and bound-repo check on every operation. In a multi-tenant service this is the core isolation control, not a hardening | `src/lambda/poster.ts` schema (add `token`), `src/workflows` callers |
+| Poster caller check is optional until `RequirePosterToken=true` (the check is implemented; tokenless calls are still accepted by default, and `get-mcp-policy` is not tied to a repo; [poster.md](../poster.md#security-model)) | Mandatory JWT and bound-repo check on every operation. In a multi-tenant service this is the core isolation control, not a hardening | `src/lambda/poster.ts` schema (add `token`), `src/workflows` callers |
 | Bot name squatting (`bots/<bot>/repo` is first-come, create-only) | Names are tenant-local; webhook IDs are random; binding is by repo ID | `src/lambda/registry.ts`, `src/lambda/register.ts` |
 | Webhook forgery or replay of tenant A's request to tenant B's URL | Per-connection secret verified before processing; `botId` selects the connection so A's secret fails on B's path | receiver and `src/lambda/chat.ts` |
 | Confused deputy on dispatch tokens: a tenant causes the service to use a token for a repo it does not control | Dispatch repo is read only from the bot's stored binding, which `register` sets from the OIDC `repository_id`. The installation token is minted for that installation, restricted to that repo, and only if the installation covers it | `src/lambda/github.ts`, a new token minter |
@@ -452,12 +452,20 @@ data migration; hosted tenants start fresh on the new layout.
 
 In dependency order; each slice is useful on its own.
 
-1. **Poster caller check, with no hosted dependency.** Add `token` and the bound-repo check to
+1. **Poster caller check, with no hosted dependency. Implemented on `main`; two follow-ups remain below.** Add `token` and the bound-repo check to
    `post`, `unreact`, `start-thread` and `get-mcp-policy`; pass the token from the workflow actions;
    add an opt-in `REQUIRE_POSTER_TOKEN` window so mixed action and Lambda versions work; update the
    security model in [poster.md](../poster.md#security-model); accept the owner ID (numeric) in the
    verifier alongside the name. Removes "any repo under the owner can act as any bot" for every
    self-hosted user, and is the base of the multi-tenant isolation.
+
+   What landed: the check on all four operations, the `RequirePosterToken` window (default `false`),
+   the numeric owner ID, and a warning log for tokenless calls. What remains for the hosted case:
+   `get-mcp-policy` is verified by token only and not tied to a repo, because `register` reads the
+   global policy before it binds a repo's first bot, so any valid in-owner token can read it
+   (bind first then check, with rollback, or have `register` return the policy); and
+   `RequirePosterToken` must be set to `true` once the tokenless warnings stop, since a hosted
+   service cannot accept tokenless calls.
 2. **HTTPS poster transport and presigned session access.** `POST /poster` on the function URL with
    the JWT in `Authorization`, the `src/workflows` transport interface with an AWS-invoke
    implementation (default) and an HTTPS one, presigned GET and POST for session files and

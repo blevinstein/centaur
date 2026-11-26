@@ -293,6 +293,38 @@ Design and decisions: [docs/skills-rules.md](docs/skills-rules.md).
       whether the trusted `CLAUDE.md` still reaches the agent under `--setting-sources user` (needs
       a consumer that has a `CLAUDE.md`).
 
+## 20. Sub-folder support
+
+Design: [docs/proposals/subfolder-support.md](docs/proposals/subfolder-support.md).
+
+- [x] Sub-folder 1 to 4: `resolveRoot` and root-aware config discovery, the root read in `prepare`
+      (project-folder line in the prompt), the MCP policy path, `register` and `config check`, the
+      `root` input on the actions, and the multi-bot workflow guidance.
+- [ ] **[HUMAN ACTION]** Sub-folder 5, live check on a scratch monorepo with two sub-folder bots.
+      It must confirm:
+      1. A nested `AGENTS.md` or `CLAUDE.md` under the root loads lazily when the agent reads files
+         in that folder, in addition to the explicit prompt instruction.
+      2. Whether the PR-comment workflows need one copy per bot (their trigger is the PR comment, not
+         the per-bot dispatch filter).
+      3. Two bots in one repo do not run each other's messages (the `client_payload.bot` filter) and
+         their concurrency groups do not collide.
+      Then finish the docs wrap-up in `docs/config.md` (location section).
+
+## 21. Poster caller check
+
+Implemented: the poster verifies the caller's GitHub OIDC token on `post`, `unreact`,
+`start-thread` and `get-mcp-policy` ([docs/poster.md](docs/poster.md#security-model)).
+
+- [ ] **[HUMAN APPROVAL]** Deploy the Lambda (`yarn deploy-prod`) with the caller check and the
+      inspection role. Deploy before the runner change reaches consumers pinned to `main`: an older
+      Lambda rejects the new `token` field.
+- [ ] **[HUMAN APPROVAL]** Set `RequirePosterToken=true` once the Lambda's "poster call without a
+      token" warnings stop. Rollback: set it to `false` and redeploy.
+- [ ] Close the `get-mcp-policy` gap: it is verified by token only and any valid in-owner token can
+      read the global policy, because `register` reads it before binding the repo's first bot.
+      Design decision: bind first then check, with rollback on failure, or have `register` return
+      the policy.
+
 ## Needs triage
 
 Some of these are items that can be implemented in a single task; others require planning and
@@ -307,26 +339,54 @@ for detailed tracking.
       insurance/plan review
 - [ ] Setup .centaur config for ~/dev/resume repo - e.g. exploring new business opportunities,
       responding to recruiter emails, looking for consulting opportunities, etc
-- [ ] Centaur-provided prompt instructions explaining harness quirks etc
-- [ ] Merge harness instructions with agents.md and situational prompt
-- [ ] Consider adding email support, think about SMTP complexity
+- [ ] Centaur-provided prompt instructions explaining harness quirks etc, and merging harness
+      instructions with AGENTS.md and the situational prompt. Proposal:
+      [docs/proposals/harness-instructions.md](docs/proposals/harness-instructions.md).
+  - [ ] **[HUMAN ACTION]** Live check: does the trusted `CLAUDE.md` or `AGENTS.md` reach a comment
+        turn under `--setting-sources user`? It decides whether delivering it is a fix or a duplicate.
+  - [ ] **[HUMAN APPROVAL]** Decide the delivery channel: a prompt section (explicit, testable) or
+        copying the trusted file to `$HOME/.claude/CLAUDE.md` (one code path, native `@import`).
+- [ ] Consider adding email support, think about SMTP complexity. Proposal:
+      [docs/proposals/email.md](docs/proposals/email.md).
+  - [ ] **[HUMAN APPROVAL]** Answer its open questions, first: is a platform needed at all for
+        inbox triage (an MCP mail connector in a scheduled prompt may be enough)?
 - [ ] Execution modes (current mode with PR approval, alternative mode with agent pushing directly,
-      prompts should explain mode clearly to the agent)
+      prompts should explain mode clearly to the agent). Proposal:
+      [docs/proposals/execution-modes.md](docs/proposals/execution-modes.md).
+  - [ ] **[HUMAN APPROVAL]** Answer its open questions (`direct` on chat turns or scheduled only,
+        `execution.branch`, poster authorization, retries, commit trailer, branch-protection
+        detection).
 - [ ] Setup .centaur config for ~/dev/turo-accounting repo - try to use playwright to integrate
       with Turo admin portal?
 - [ ] Explore a hosted option, BYOKs, using central AWS infra instead of self-hosted, understand
-      cost (lambda + dynamo), security model, what would the Function URLs look like. Revisit the
-      poster caller check when exploring this: self-hosted accepts that any repo under the owner can
-      act as any bot ([docs/poster.md](docs/poster.md#security-model)); a hosted option needs a
-      per-repo token and a reserved-concurrency cap on the function.
+      cost (lambda + dynamo), security model, what would the Function URLs look like. Proposal:
+      [docs/proposals/hosted.md](docs/proposals/hosted.md). The poster caller check (its slice 1) is
+      implemented (section 21); self-hosted still accepts tokenless calls until
+      `RequirePosterToken=true`, and a hosted option needs a reserved-concurrency cap on the function.
+  - [ ] **[HUMAN APPROVAL]** Answer its open questions (product or friends-and-family beta, central
+        GitHub App with Contents write versus `workflow_dispatch`, adapter `tenant` attribute versus
+        a new key layout, HTTPS poster transport for self-hosted, region, retention, operator MCP
+        policy, pricing, model key as a GitHub secret, publishing the actions).
+  - [ ] Hosted slice 2: HTTPS poster transport and presigned session access.
+  - [ ] Hosted slice 3: tenant-scoped storage (`keyPrefix`, S3 key builder, adapter `tenant`
+        attribute and GSI).
+  - [ ] Hosted slice 4: DynamoDB parameter store with envelope-encrypted secrets, lookup by `botId`.
+  - [ ] Hosted slice 5: control plane (GitHub App, sign-in, tenant records, secret intake form,
+        setup pull request, token minter).
+  - [ ] Hosted slice 6: limits and edge (quotas, concurrency caps, WAF, alarms, runbooks).
+  - [ ] Hosted slice 7: billing, legal documents, public sign-up.
 - [x] Better guides - basic response-only bot, adding scheduled actions
-- [ ] Support for centaur in a sub-folder? What would need to change? Explore and plan
+- [x] Support for centaur in a sub-folder? Explored and planned in
+      [docs/proposals/subfolder-support.md](docs/proposals/subfolder-support.md); slices 1 to 4 are
+      built, the live check is tracked in section 20.
 - [x] `centaur chat tail <bot> [--platform <platform>] [--minutes <n>]`: a read-only CLI command
       that lists a bot's recent messages from the state table through the poster's reader and
       sender filter, so verifying a live run needs no ad hoc scans or Slack API calls. Done.
 - [ ] **[HUMAN APPROVAL]** A read-only IAM role for inspection, limited to `GetItem`/`Query`/`Scan`
       on the state table and `ssm:Get*` on `/centaur/bots/*`, so agents stop using the
-      maintainer's broad IAM user (a CloudFormation change, validated with `yarn lint:cfn`)
+      maintainer's broad IAM user (a CloudFormation change, validated with `yarn lint:cfn`).
+      Merged as `InspectionRole` in `infra/centaur.yml` (see `docs/deploy.md`); not deployed yet,
+      the deploy is in section 21. Callers also need `sts:AssumeRole` on it.
 
 ## Backlog
 
