@@ -1,6 +1,5 @@
-import { posix } from "node:path";
 import { z } from "zod";
-import { type CentaurConfig, formatIssues, isRepoRelativePath } from "../config/index.js";
+import { type CentaurConfig, formatIssues } from "../config/index.js";
 import {
   evaluateMcpPolicy,
   formatApprovals,
@@ -11,7 +10,8 @@ import {
 import { type PolicyLintContext, policyProblems } from "../config/mcp-policy-lint.js";
 import { CHAT_SERVER_NAME } from "../mcp/server-config.js";
 import type { PosterClient } from "./aws.js";
-import { fetchDefaultBranch, GitHubRequestError, type GitHubRequester } from "./resolve.js";
+import { fetchDefaultBranchFile, repoFilePath } from "./default-branch-file.js";
+import type { GitHubRequester } from "./resolve.js";
 
 export const MCP_POLICY_FILE = ".centaur/mcp-policy.cedar";
 
@@ -20,32 +20,17 @@ export interface McpPolicyDeps {
   /** The Centaur root inside the repository (default `.`). */
   root?: string | undefined;
   github: GitHubRequester;
-  poster: PosterClient;
+  poster: Pick<PosterClient, "call">;
 }
 
 const globalPolicyResponse = z.object({ policy: z.string().nullable() });
 
 /** The repo-relative path of the policy file for a Centaur root, as a URL path. */
-export function mcpPolicyPath(root = "."): string {
-  if (!isRepoRelativePath(root)) {
-    throw new Error(`Invalid Centaur root "${root}": must be a relative path inside the repo`);
-  }
-  return posix.join(root, MCP_POLICY_FILE).split("/").map(encodeURIComponent).join("/");
-}
+export const mcpPolicyPath = (root = ".") => repoFilePath(root, MCP_POLICY_FILE);
 
 /** Reads the repo layer from the default branch, never the checkout: a turn can run on any branch. */
-async function fetchRepoPolicy({ repository, root, github }: McpPolicyDeps) {
-  const defaultBranch = await fetchDefaultBranch(github, repository);
-  try {
-    return await github.text(
-      `/repos/${repository}/contents/${mcpPolicyPath(root)}?ref=${encodeURIComponent(defaultBranch)}`,
-      "application/vnd.github.raw+json",
-    );
-  } catch (error) {
-    if (error instanceof GitHubRequestError && error.status === 404) return undefined;
-    throw error;
-  }
-}
+const fetchRepoPolicy = ({ repository, root, github }: McpPolicyDeps) =>
+  fetchDefaultBranchFile(github, repository, root ?? ".", MCP_POLICY_FILE);
 
 /** The global layer is bundled with the poster Lambda; `null` means none is deployed. */
 async function fetchGlobalPolicy({ poster }: McpPolicyDeps, bot: string) {

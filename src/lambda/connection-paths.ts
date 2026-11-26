@@ -73,6 +73,10 @@ export const mcpApprovalsPrefix = (bot: string) => `${botPath(bot)}/mcp-approval
 export const mcpApprovalParameter = (bot: string, name: string, fingerprint: string) =>
   `${mcpApprovalsPrefix(bot)}${name}/${fingerprint}`;
 
+/** The stored value of an approval: when it was decided and by whom. */
+export const mcpApprovalRecord = (approver: string) =>
+  JSON.stringify({ at: new Date().toISOString(), approver });
+
 /** Splits an approval subject `<name>:<fingerprint>` at its last colon. */
 export const parseMcpApprovalKey = (subjectId: string) => {
   const split = subjectId.lastIndexOf(":");

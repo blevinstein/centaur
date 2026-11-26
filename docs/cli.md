@@ -228,9 +228,40 @@ files  3f9a1c0d2b7e  2026-01-02T03:04:05.000Z  <user id>
 search  8c41d2e0a9b3  2026-02-03T04:05:06.000Z  <user id>
 ```
 
-### `centaur mcp revoke <bot> <name> [--fingerprint <hex>]`
+### `centaur mcp approve <bot> <server> --yes`
 
-Prints the approvals it removes, then deletes every approval of the server `<name>`, or only the one with
+Options: `--root <dir>`, `--global-policy <path>`. Pre-approves one server definition before the first turn that uses it, so that turn raises no request. It reads the
+config of the bot's bound repository from the default branch through the GitHub API (as the signed-in `gh` user,
+so `gh` must be authenticated; `--root` is the [Centaur root](config.md), default `.`), takes the `mcp_servers` entry
+`<server>`, and prints the definition: transport, URL or command, arguments, the names of env entries and headers
+(never values; secrets are marked), `allowed_tools` entries naming it and, for a local server, whether it is pinned.
+The approval key is computed by the same code the turns use, so editing the definition on the default branch
+later asks again. Without `--yes` nothing is written and the command exits with an error. It deploys nothing and
+writes the record `mcp approvals` lists, with the approver `cli`.
+
+It refuses, writing nothing, when the bot is unknown or not bound to a repository, the config is missing, ambiguous,
+invalid or names another bot, `<server>` is not in `mcp_servers`, a local server is not pinned, or the operator policy
+([mcp.md](mcp.md#operator-policy)) does not permit the server, checked as `register` does (the default-branch
+`.centaur/mcp-policy.cedar`, failing closed). The global layer is not reachable from the CLI: pass the deployer's
+`infra/mcp-policy.cedar` with `--global-policy`, as for `config check`; without it only the repo layer is checked,
+and the turn still enforces both. When the policy allows the server without an approval it says so and writes
+nothing. Running it again for an approved definition changes nothing.
+
+```text
+$ centaur mcp approve garden docs-search --yes --global-policy infra/mcp-policy.cedar
+Server "docs-search" (8c41d2e0a9b3f1d2) of <owner>/<repo>:
+  transport: stdio
+  command: npx
+  args: -y @example/docs-mcp@1.4.2
+  env: INDEX_URL, API_KEY (secret)
+  pinned: yes
+  allowed_tools: mcp__docs-search__*
+Approved server "docs-search" for bot "garden".
+```
+
+### `centaur mcp revoke <bot> <server> [--fingerprint <hex>]`
+
+Prints the approvals it removes, then deletes every approval of the `mcp_servers` entry `<server>`, or only the one with
 `--fingerprint`. Errors, deleting nothing, if there is none. The server is asked about again the next time a turn
 uses it.
 

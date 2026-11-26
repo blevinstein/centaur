@@ -169,6 +169,7 @@ export const WORKSPACE_PERMIT_FILES = {
 export function fakePolicyGitHub(
   options: {
     policy?: string;
+    config?: string;
     defaultBranch?: string;
     repositoryStatus?: number;
     contentsStatus?: number;
@@ -190,8 +191,13 @@ export function fakePolicyGitHub(
     text: vi.fn(async (path) => {
       paths.push(path);
       if (options.contentsStatus) throw new GitHubRequestError(options.contentsStatus);
-      if (options.policy === undefined) throw new GitHubRequestError(404);
-      return options.policy;
+      const content = path.includes("mcp-policy.cedar")
+        ? options.policy
+        : path.includes("/.centaur/config.yml?")
+          ? options.config
+          : undefined;
+      if (content === undefined) throw new GitHubRequestError(404);
+      return content;
     }),
     post: unused,
     postJson: unused,

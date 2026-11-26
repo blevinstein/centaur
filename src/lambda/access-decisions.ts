@@ -21,6 +21,7 @@ import {
   approverParameter,
   blockedParameter,
   mcpApprovalParameter,
+  mcpApprovalRecord,
   parseMcpApprovalKey,
 } from "./connection-paths.js";
 import { recordDestination, slugName } from "./destinations.js";
@@ -142,7 +143,7 @@ export function createAccessDecisions({
       const { name, fingerprint } = parseMcpApprovalKey(request.subjectId);
       await params.put(
         mcpApprovalParameter(bot.name, name, fingerprint),
-        JSON.stringify({ at: new Date().toISOString(), approver: approverId }),
+        mcpApprovalRecord(approverId),
       );
     } else {
       await store.recordDenial(request.kind, request.subjectId, approverId);

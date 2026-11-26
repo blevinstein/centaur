@@ -344,9 +344,11 @@ What happens at a turn:
   platform supports it. The request expires after 7 days.
 - An approval persists for that bot and server definition until revoked. A denial lasts 7 days and
   the bot does not ask again meanwhile.
-- `centaur mcp approvals <bot>` lists the approvals and `centaur mcp revoke <bot> <name>` removes them
+- `centaur mcp approvals <bot>` lists the approvals and `centaur mcp revoke <bot> <server>` removes them
   ([cli.md](cli.md#centaur-mcp-approvals-bot)); the server is asked about again the next time a turn
   uses it.
+- `centaur mcp approve <bot> <server> --yes` approves the definition on the default branch ahead of
+  the first turn, so no request is raised ([cli.md](cli.md#centaur-mcp-approve-bot-server---yes)).
 - Editing the server's definition (its URL, command, arguments, env or header entries, or the
   `allowed_tools` entries naming it) asks again, because the approval belongs to the definition.
   Removing the `when { context.approved }` permit makes the policy deny the server, and the turn

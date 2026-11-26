@@ -291,7 +291,7 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       decide an MCP request and then `approver leave`. Not run yet: it needs a second account. The
       admin-only and MCP approval flows are verified live; this one has not been run, so until it
       is, the approver feature ([docs/approvers.md](docs/approvers.md)) is covered by tests only.
-- [ ] Optional: `centaur mcp approve <bot> <name>` pre-approves the exact definition in the
+- [x] Optional: `centaur mcp approve <bot> <server>` pre-approves the exact definition in the
       default-branch config before its first turn (decision 9 of
       [docs/mcp-allowlist.md](docs/mcp-allowlist.md)). Writes the existing approval record; deploys
       nothing. Add it to `docs/cli.md`. It would let an operator approve a server without waiting

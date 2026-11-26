@@ -60,9 +60,9 @@ and one small, optional CLI addition:
   like any policy change.
 - Recommend the global `permit ... when { context.approved }` default for deployments that want
   chat-driven allowing, so no one edits Cedar to allow one more server.
-- Optional follow-up, not built: `centaur mcp approve <bot> <name>` (pre-approval of the exact definition in the
-  default-branch config), the only item above that approvals cannot do. It writes the existing
-  record, so no new storage, no new evaluation path.
+- `centaur mcp approve <bot> <server>` (pre-approval of the exact definition in the default-branch
+  config), the only item above that approvals cannot do. It writes the existing record, so no new
+  storage, no new evaluation path.
 - Keep generalized, runtime-editable allows (any version, any server on a host) out: they defeat the
   fingerprint and the pinning rule, and they are what a reviewed `permit` is for.
 
@@ -133,7 +133,7 @@ review.** Do not add a tier where two approvers must agree; the review gate is t
 
 ### 6. Listing, revoking and auditing
 
-`centaur mcp approvals <bot>` and `centaur mcp revoke <bot> <name> [--fingerprint <hex>]` already
+`centaur mcp approvals <bot>` and `centaur mcp revoke <bot> <server> [--fingerprint <hex>]` already
 list and revoke approvals and print what they remove; each decision logs `approverId` and the record
 holds `{time, approver}` ([approvers.md](approvers.md)). Generalized permits are audited by the
 default branch's git history of `.centaur/mcp-policy.cedar` (and `register`'s job summary lists
@@ -161,13 +161,12 @@ server asks again; per-call restrictions are the `CallTool` design in
 
 ### 9. The small addition: `centaur mcp approve`
 
-`centaur mcp approve <bot> <name> [--config <path>]` reads the default-branch config the same way
-`register` does, computes `mcpApprovalKey` for `<name>`, checks the policy outcome is
+`centaur mcp approve <bot> <server> [--root <dir>] [--global-policy <path>] --yes` reads the default-branch
+config of the bot's repository, computes `mcpApprovalKey` for the `mcp_servers` entry `<server>`, checks the policy outcome is
 *approval required* (not denied by a `forbid`, not already allowed), and writes the SSM record with the CLI
 caller as approver. It never accepts a fingerprint or a definition as flags, so the operator
 approves exactly what is merged. Recommendation: **build it as a separate, optional follow-up; it
-is the only gap the approval record cannot fill.** If the maintainer does not need pre-approval,
-skip it and build nothing.
+is the only gap the approval record cannot fill.** Built; see [cli.md](cli.md#centaur-mcp-approve-bot-server---yes).
 
 ## If built anyway
 
@@ -206,14 +205,14 @@ docs, tests), to add runtime generalization the repo policy already provides wit
 
 ## Follow-ups
 
-Only the optional `centaur mcp approve` (decision 9) remains, tracked in `TODO.md`:
+`centaur mcp approve` (decision 9) is built; where its parts live:
 
 | Part | Where |
 |---|---|
 | Key for the named server from the default-branch config | `mcpApprovalKey` in `src/config/mcp-fingerprint.ts`; config and policy reads as in `src/workflows/mcp-policy-check.ts` |
 | Outcome check (*approval required*) | `evaluateMcpPolicy` in `src/config/mcp-policy.ts` |
 | Writing the record | the CLI's `ParameterStore` (`src/cli/parameter-store.ts`) at `bots/<bot>/mcp-approvals/<name>/<fingerprint>`, beside `src/cli/mcp-approvals.ts` |
-| Command | `src/cli/commands/mcp.ts` |
+| Command | `src/cli/commands/mcp.ts`, `src/cli/mcp-approve.ts` |
 
 Its tests: writes the record for an approval-required server using `FakeParameterStore`; refuses a
 server denied by a `forbid`, one already allowed outright, one not in the config, and an unpinned
@@ -244,4 +243,4 @@ giving its `cedar` block a `// cookbook: <id>` first line and a case in that tes
 6. **Listing, revoking, auditing.** Existing `centaur mcp approvals|revoke` and git history; optional stale flag.
 7. **Pinning.** No "any version" entry; `pinned` plus a name or source in a reviewed permit.
 8. **Tools.** Not here; `allowed_tools` and the `CallTool` design.
-9. **`centaur mcp approve`.** Optional follow-up for pre-approval.
+9. **`centaur mcp approve`.** Pre-approval of the exact default-branch definition (built).

@@ -26,6 +26,9 @@ export function createCliHarness(
   store = new FakeParameterStore(),
   chatAccess: CliContext["chatAccess"] = fakeChatAccess().access,
   exec: CliContext["exec"] = async () => "",
+  github: CliContext["github"] = async () => {
+    throw new Error("unexpected GitHub call");
+  },
 ) {
   const output: string[] = [];
   const readSecrets: SecretReader = async (names) =>
@@ -36,6 +39,7 @@ export function createCliHarness(
     chatAccess,
     readSecrets,
     exec,
+    github,
     log: (message) => output.push(message),
   });
   return {
