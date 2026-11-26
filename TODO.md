@@ -393,8 +393,8 @@ for detailed tracking.
   - [x] **[HUMAN ACTION]** Live check: the trusted `CLAUDE.md` did not reach a comment turn under
         `--setting-sources user` (2026-11-26), so delivering it is a fix.
   - [x] Delivery channel decided (2026-11-26): copy the trusted file into `$HOME/.claude/CLAUDE.md`.
-        Built as the `repository_instructions` key (repo-root guide, then the Centaur root's, under
-        one cap).
+        Built as the `repository_instructions` key (the Centaur root's guide; with
+        `include_repo_root`, the repo-root guide first, under one cap).
   - [x] **[HUMAN ACTION]** Live check the copy (2026-11-26): a comment turn showed the agent received
         both guides, so Claude Code reads `$HOME/.claude/CLAUDE.md` under `--setting-sources user`.
         It did not show the `<!-- from -->` labels: Claude Code strips HTML comments.

@@ -10,6 +10,7 @@ import { GARDEN, gardenSetup, setup, underFolder } from "./helpers/turn-fixtures
 import { configText, createWorkspace, message } from "./helpers/workflow-fixtures.js";
 
 const OFF = "repository_instructions: {enabled: false}";
+const WITH_REPO_ROOT = "repository_instructions: {include_repo_root: true}";
 
 describe("prepare with repository instructions", () => {
   it("copies AGENTS.md into the user memory on a chat turn", async () => {
@@ -34,14 +35,33 @@ describe("prepare with repository instructions", () => {
     expect(await installedMemory(only.home)).toBe(memoryOf(["CLAUDE.md", "From claude."]));
   });
 
-  it("installs the repository-root guide first, then the sub-folder root's", async () => {
+  it("installs only the sub-folder root's guide by default", async () => {
     const run = await gardenSetup(
       [message("1", "hi")],
       configText(),
       { "AGENTS.md": "Garden." },
-      {
-        "AGENTS.md": "Repo.",
-      },
+      { "AGENTS.md": "Repo." },
+    );
+
+    await prepare(run.deps());
+
+    expect(await installedMemory(run.home)).toBe(memoryOf([`${GARDEN}/AGENTS.md`, "Garden."]));
+  });
+
+  it("installs nothing for a sub-folder root without a guide, although the repository root has one", async () => {
+    const run = await gardenSetup([message("1", "hi")], configText(), {}, { "AGENTS.md": "Repo." });
+
+    await prepare(run.deps());
+
+    expect(await installedMemory(run.home)).toBeUndefined();
+  });
+
+  it("installs the repository-root guide first, then the sub-folder root's, with include_repo_root", async () => {
+    const run = await gardenSetup(
+      [message("1", "hi")],
+      configText(WITH_REPO_ROOT),
+      { "AGENTS.md": "Garden." },
+      { "AGENTS.md": "Repo." },
     );
 
     await prepare(run.deps());
@@ -51,26 +71,36 @@ describe("prepare with repository instructions", () => {
     );
   });
 
-  it("installs only the repository-root guide when the sub-folder has none", async () => {
-    const run = await gardenSetup([message("1", "hi")], configText(), {}, { "CLAUDE.md": "Repo." });
+  it("installs only the repository-root guide with include_repo_root when the sub-folder has none", async () => {
+    const run = await gardenSetup(
+      [message("1", "hi")],
+      configText(WITH_REPO_ROOT),
+      {},
+      { "CLAUDE.md": "Repo." },
+    );
 
     await prepare(run.deps());
 
     expect(await installedMemory(run.home)).toBe(memoryOf(["CLAUDE.md", "Repo."]));
   });
 
-  it("installs only the sub-folder guide when the repository root has none", async () => {
-    const run = await gardenSetup([message("1", "hi")], configText(), { "AGENTS.md": "Garden." });
+  it("installs the repository guide once for a root at the repository top, whatever include_repo_root says", async () => {
+    const off = await setup([message("1", "hi")], configText(), { "AGENTS.md": "Repo." });
+    const on = await setup([message("1", "hi")], configText(WITH_REPO_ROOT), {
+      "AGENTS.md": "Repo.",
+    });
 
-    await prepare(run.deps());
+    await prepare(off.deps());
+    await prepare(on.deps());
 
-    expect(await installedMemory(run.home)).toBe(memoryOf([`${GARDEN}/AGENTS.md`, "Garden."]));
+    expect(await installedMemory(off.home)).toBe(memoryOf(["AGENTS.md", "Repo."]));
+    expect(await installedMemory(on.home)).toBe(memoryOf(["AGENTS.md", "Repo."]));
   });
 
   it("prefers AGENTS.md over CLAUDE.md at each level", async () => {
     const run = await gardenSetup(
       [message("1", "hi")],
-      configText(),
+      configText(WITH_REPO_ROOT),
       { "AGENTS.md": "Garden agents.", "CLAUDE.md": "Garden claude." },
       { "AGENTS.md": "Repo agents.", "CLAUDE.md": "Repo claude." },
     );
@@ -138,7 +168,7 @@ describe("prepare with repository instructions", () => {
   it("applies max_bytes to both guides together, naming each file and size", async () => {
     const run = await gardenSetup(
       [message("1", "hi")],
-      configText("repository_instructions: {max_bytes: 10}"),
+      configText("repository_instructions: {max_bytes: 10, include_repo_root: true}"),
       { "AGENTS.md": "y".repeat(5) },
       { "AGENTS.md": "x".repeat(6) },
     );
@@ -152,7 +182,7 @@ describe("prepare with repository instructions", () => {
   it("accepts guides that together are exactly max_bytes", async () => {
     const run = await gardenSetup(
       [message("1", "hi")],
-      configText("repository_instructions: {max_bytes: 10}"),
+      configText("repository_instructions: {max_bytes: 10, include_repo_root: true}"),
       { "AGENTS.md": "y".repeat(5) },
       { "AGENTS.md": "x".repeat(5) },
     );
@@ -214,13 +244,34 @@ describe("prepare with repository instructions on a comment turn", () => {
     expect(await installedMemory(run.home)).toBeUndefined();
   });
 
-  it("copies both trusted guides for a sub-folder root, never the pull request branch's", async () => {
+  it("copies the trusted sub-folder guide alone by default, never the pull request branch's", async () => {
     const run = await commentSetup({
       comments: [prComment(1, "rename it")],
       files: { "AGENTS.md": "Branch repo.", [`${GARDEN}/AGENTS.md`]: "Branch garden." },
     });
     const trusted = await createWorkspace({
       ...underFolder({ ".centaur.yml": configText(), ".centaur/persona.md": "Be kind." }),
+      "AGENTS.md": "Trusted repo.",
+      [`${GARDEN}/AGENTS.md`]: "Trusted garden.",
+    });
+
+    await prepare({ ...run.deps(), configRoot: trusted.root, root: GARDEN });
+
+    expect(await installedMemory(run.home)).toBe(
+      memoryOf([`${GARDEN}/AGENTS.md`, "Trusted garden."]),
+    );
+  });
+
+  it("copies both trusted guides for a sub-folder root with include_repo_root, never the pull request branch's", async () => {
+    const run = await commentSetup({
+      comments: [prComment(1, "rename it")],
+      files: { "AGENTS.md": "Branch repo.", [`${GARDEN}/AGENTS.md`]: "Branch garden." },
+    });
+    const trusted = await createWorkspace({
+      ...underFolder({
+        ".centaur.yml": configText(WITH_REPO_ROOT),
+        ".centaur/persona.md": "Be kind.",
+      }),
       "AGENTS.md": "Trusted repo.",
       [`${GARDEN}/AGENTS.md`]: "Trusted garden.",
     });

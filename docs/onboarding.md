@@ -191,11 +191,12 @@ For a monorepo that keeps a bot's files under a sub-folder, or one bot per sub-f
 
 ### Where repository rules go
 
-Put the repository's conventions (build, test, style, workflow) in `AGENTS.md`, or `CLAUDE.md` if
-there is no `AGENTS.md`, at the repository's top directory on the default branch, and the
-folder's own guide at the Centaur root when that is a sub-folder. Every turn copies both (the
-repository's first) into the agent's user memory, comment turns included, so edits on a pull request
-branch have no effect until they merge. Keep them under 32 KB together and self-contained (no `@file` imports). See
+Put the bot's conventions (build, test, style, workflow) in `AGENTS.md`, or `CLAUDE.md` if
+there is no `AGENTS.md`, at the Centaur root on the default branch. Every turn copies it into the
+agent's user memory, comment turns included, so edits on a pull request branch have no effect until
+they merge. When the root is a sub-folder, only that folder's guide is copied; set
+`repository_instructions: {include_repo_root: true}` to also copy the repository's top-directory guide,
+first. Keep them under 32 KB together and self-contained (no `@file` imports). See
 [Repository instructions](workflows.md#repository-instructions).
 
 ## Slack (personal projects)

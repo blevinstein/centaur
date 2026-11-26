@@ -247,6 +247,12 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
     "repository_instructions.max_bytes",
     /./,
   ],
+  [
+    "repository_instructions with a non-boolean include_repo_root",
+    withExtra("repository_instructions: {include_repo_root: sometimes}"),
+    "repository_instructions.include_repo_root",
+    /./,
+  ],
   ["empty document", "", "(root)", /expected object/i],
   ["malformed YAML", "bot: [unclosed", "(root)", /invalid YAML/],
   ["missing model", yamlOf({ model: undefined }), "model", /./],

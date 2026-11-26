@@ -16,6 +16,8 @@ export interface RepositoryInstructionsInstall {
   rootDir: string | undefined;
   /** Cap on the guides' combined size. */
   maxBytes: number;
+  /** For a sub-folder root, also install the repository top's guide, ahead of the folder's. */
+  includeRepoRoot: boolean;
 }
 
 const readIfPresent = (path: string) =>
@@ -35,8 +37,8 @@ async function firstGuide(repoDir: string, dir: string) {
 /**
  * Makes `$HOME/.claude/CLAUDE.md`, the user memory Claude Code reads under `--setting-sources user`,
  * hold the trusted checkout's guides, each under a `# Instructions from <path>` heading: the first existing of
- * `AGENTS.md`, `CLAUDE.md` in the repository's top directory, then the same in the Centaur root when
- * that is a sub-folder. Returns the guides' paths. Removes the file it wrote earlier when there is
+ * `AGENTS.md`, `CLAUDE.md` in the Centaur root, preceded by the repository top directory's when the
+ * root is a sub-folder and `includeRepoRoot` is set. Returns the guides' paths. Removes the file it wrote earlier when there is
  * nothing to install. Throws, rather than truncate someone's rules, when the guides together exceed
  * `maxBytes`, and for a user memory it did not write.
  */
@@ -45,6 +47,7 @@ export async function installRepositoryInstructions({
   repoDir,
   rootDir,
   maxBytes,
+  includeRepoRoot,
 }: RepositoryInstructionsInstall) {
   const target = join(home, ".claude", "CLAUDE.md");
   const current = await readIfPresent(target);
@@ -56,7 +59,7 @@ export async function installRepositoryInstructions({
   }
   await rm(target, { force: true });
   if (rootDir === undefined) return [];
-  const dirs = rootDir === repoDir ? [repoDir] : [repoDir, rootDir];
+  const dirs = includeRepoRoot && rootDir !== repoDir ? [repoDir, rootDir] : [rootDir];
   const guides = (await Promise.all(dirs.map((dir) => firstGuide(repoDir, dir)))).filter(
     (guide) => guide !== undefined,
   );

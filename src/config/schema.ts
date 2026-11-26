@@ -245,8 +245,9 @@ export const centaurConfigSchema = z
       .strictObject({
         enabled: z.boolean().default(true),
         max_bytes: z.number().int().min(1).max(262144).default(32768),
+        include_repo_root: z.boolean().default(false),
       })
-      .default({ enabled: true, max_bytes: 32768 }),
+      .default({ enabled: true, max_bytes: 32768, include_repo_root: false }),
     skills: z
       .strictObject({
         builtin: z.boolean().default(true),

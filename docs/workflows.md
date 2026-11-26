@@ -421,13 +421,16 @@ See [skills-rules.md](skills-rules.md) for the design and the live check.
 
 `prepare` also installs the repository's guide (`installRepositoryInstructions`,
 `src/workflows/repository-instructions.ts`), unless `repository_instructions.enabled` is `false`
-([config.md](config.md)). It writes the repository's top-directory `AGENTS.md` (else `CLAUDE.md`),
-then the Centaur root's, when the root is a sub-folder, to `$HOME/.claude/CLAUDE.md`, the user memory
+([config.md](config.md)). It writes the Centaur root's `AGENTS.md` (else `CLAUDE.md`) to
+`$HOME/.claude/CLAUDE.md`, the user memory
 that Claude Code reads under `--setting-sources user`, so a comment turn gets the repository's rules
 although it loads no project source. Each guide follows a `# Instructions from <path>` heading (path relative to
-the repository); a root at the repository top yields one guide.
+the repository). A root that is a sub-folder gets only its own folder's guide, and nothing when it has
+none; with `repository_instructions.include_repo_root: true` the repository's top-directory guide comes
+first, so a bot that wants the repository's contributor rules opts in. The key has no effect for a root at
+the repository top, which yields one guide.
 
-- **Trusted source only.** Both directories are resolved in `config_root`: the default-branch checkout for a
+- **Trusted source only.** The directories are resolved in `config_root`: the default-branch checkout for a
   comment turn (never the pull request branch), the workspace for a chat or scheduled turn.
 - **Every turn rewrites it.** The file starts with a marker comment. The turn removes a marker file
   it wrote earlier before writing, so a guide that was deleted or switched off does not linger.

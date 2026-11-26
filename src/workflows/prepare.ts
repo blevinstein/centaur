@@ -662,6 +662,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     repoDir: configRoot,
     rootDir: config.repository_instructions.enabled ? rootDir : undefined,
     maxBytes: config.repository_instructions.max_bytes,
+    includeRepoRoot: config.repository_instructions.include_repo_root,
   });
   const { dropped, notice, pendingServers } =
     approvals.length > 0
