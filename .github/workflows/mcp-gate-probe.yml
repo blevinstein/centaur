@@ -4,8 +4,8 @@ name: MCP gate probe
 # claude-code-action runs. Needs only ANTHROPIC_API_KEY; read-only token; nothing is pushed.
 
 on:
-  push:
-    branches: [experiment/mcp-gate-probe]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
     inputs:
       only:
