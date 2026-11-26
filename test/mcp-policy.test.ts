@@ -21,6 +21,7 @@ import {
   GIT_REPO_URL,
   githubServer,
   githubServers,
+  LAUNCHER_BYPASSES,
   npxServers,
   outcomeOf,
   PERMIT_ANY_PINNED,
@@ -32,6 +33,7 @@ import {
   PERMIT_UVX_GIT_SOURCE,
   PERMIT_WHEN_APPROVED,
   PERMIT_WHEN_NOT_APPROVED,
+  PINNED_LAUNCHER_FORMS,
   permitForBot,
   UVX_GIT_BYPASSES,
   untrustedServers,
@@ -56,10 +58,10 @@ describe("isPinned", () => {
     ["a command that is neither npx nor uvx", "docker", ["pkg@1.4.2"], false],
     ["npx boolean flags", "npx", ["-y", "--no-install", "--yes", "pkg@1.2.3"], true],
     [
-      "an npx value flag before the package",
+      "npx --registry before the package",
       "npx",
       ["--registry", "https://r.example", "pkg@1.2.3"],
-      true,
+      false,
     ],
     [
       "an npx value flag with an equals sign",
@@ -88,7 +90,18 @@ describe("isPinned", () => {
       false,
     ],
     ["a uvx --with value after the package", "uvx", ["other-pkg", "--with", "pkg==1.0.0"], false],
-    ["a uvx --with value before a pinned package", "uvx", ["--with", "dep", "pkg==1.0.0"], true],
+    [
+      "an unpinned uvx --with before a pinned package",
+      "uvx",
+      ["--with", "dep", "pkg==1.0.0"],
+      false,
+    ],
+    [
+      "a pinned uvx --with before a pinned package",
+      "uvx",
+      ["--with", "dep==2.0.0", "pkg==1.0.0"],
+      true,
+    ],
     [
       "a uvx --python value before a pinned package",
       "uvx",
@@ -122,6 +135,18 @@ describe("isPinned", () => {
     ["an unknown uvx short flag", "uvx", ["-Z", "pkg==1.0.0"], false],
     ["a flag after the uvx package belongs to the tool", "uvx", ["pkg==1.0.0", "--mystery"], true],
     ["a value flag missing its value", "uvx", ["--python"], false],
+    ...LAUNCHER_BYPASSES.map(([name, command, args]): [string, string, string[], boolean] => [
+      name,
+      command,
+      args,
+      false,
+    ]),
+    ...PINNED_LAUNCHER_FORMS.map(([name, command, args]): [string, string, string[], boolean] => [
+      name,
+      command,
+      args,
+      true,
+    ]),
   ])("%s", (_name, command, args, expected) => {
     expect(isPinned(command, args)).toBe(expected);
   });

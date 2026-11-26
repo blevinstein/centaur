@@ -47,6 +47,51 @@ describe("buildClaudeArgs", () => {
     expect(argValue(args, "--mcp-config")).toBe("a b/mcp.json");
     expect(argValue(args, "--allowedTools")).toBe('Read,Bash(echo "$HOME" *)');
   });
+
+  const HOSTILE_MODELS = [
+    "sonnet --dangerously-skip-permissions",
+    "sonnet; rm -rf /",
+    "sonnet'--max-turns 999",
+    'sonnet" --max-budget-usd 1000',
+    "$(id)",
+    "-sonnet",
+    "",
+  ];
+
+  it.each(HOSTILE_MODELS)("the schema rejects the model %j", (model) => {
+    expect(() =>
+      parseConfigOrThrow(configText().replace("model: sonnet", `model: ${JSON.stringify(model)}`)),
+    ).toThrow();
+  });
+
+  it.each(["sonnet", "opus[1m]", "claude-opus-4-1-20250805", "us.anthropic.claude-sonnet-4:0"])(
+    "the schema accepts the model %j",
+    (model) => {
+      expect(
+        parseConfigOrThrow(configText().replace("model: sonnet", `model: ${model}`)).model,
+      ).toBe(model);
+    },
+  );
+
+  it.each(HOSTILE_MODELS.filter(Boolean))("quotes the model %j as one argument", (model) => {
+    const config = { ...parseConfigOrThrow(configText()), model };
+    const args = buildClaudeArgs({
+      config,
+      persona: undefined,
+      resumeSessionId: undefined,
+      canStaySilent: false,
+      mode: "reply",
+      allowExisting: true,
+    });
+    const tokens = parse(args);
+    expect(argValue(args, "--model")).toBe(model);
+    expect(tokens.filter((token) => typeof token === "string" && token.startsWith("--"))).toEqual([
+      "--model",
+      "--allowedTools",
+      "--max-turns",
+      "--json-schema",
+    ]);
+  });
 });
 
 describe("shell quoting", () => {

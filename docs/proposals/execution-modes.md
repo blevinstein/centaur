@@ -117,8 +117,10 @@ default branch. The authorization therefore has to be as hard to forge as `.cent
    edit its own authorization or what runs or who reviews, even where branch protection is absent.
    The protected paths are anything under `.github/` (workflows, composite actions, CODEOWNERS,
    dependabot), any path with a segment starting with `.centaur` at any depth (so a sub-folder
-   bot's `<root>/.centaur/` and `<root>/.centaur.yml` count), and `CODEOWNERS` at the repo root or
-   under `docs/`.
+   bot's `<root>/.centaur/` and `<root>/.centaur.yml` count), `CODEOWNERS` at the repo root or
+   under `docs/`, and, at any depth, the agent's own configuration and guides that steer later turns
+   (`.claude*`, `.codex`, `.gemini`, `.cursor`, `.mcp.json`, `AGENTS.md`, `CLAUDE.md`) and
+   `.gitmodules`. Matching ignores case.
 
 Net effect: the three layers are the config (default branch only), the trusted push step (never agent
 output), and branch protection (the repository owner's decision). An operator who wants safety keeps
@@ -155,7 +157,7 @@ trusted config for the whole step graph.
 | Patch does not apply cleanly to the tip (`conflict`) | fall back to a pull request; the 3-way merge already tolerates unrelated concurrent commits, so this is a real overlap |
 | The default branch moved between fetch and push (`push_rejected`, non-fast-forward) | retry once from a fresh fetch; a second rejection always falls back to a pull request. Never force-push. The retry is safe because the patch is re-applied, not the old commit re-pushed |
 | Branch protection or a ruleset rejects the push | `push_rejected`: fall back to a pull request. This is the expected result in a protected repository, so it is a `::notice::`, not a warning, and the reply says the change went through review |
-| A protected path (`.github/`, `.centaur*` at any depth, `CODEOWNERS`) in the patch | fall back (see above) |
+| A protected path (`.github/`, `.centaur*` and agent config or guides at any depth, `CODEOWNERS`) in the patch | fall back (see above) |
 | Fallback pull request also fails | existing behavior: `finish` appends "I couldn't open the pull request, so the changes were not saved" |
 
 Reporting: the chat reply gets `Pushed to <branch>: <commit url>` in place of `Pull request: <url>`;

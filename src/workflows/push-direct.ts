@@ -15,13 +15,22 @@ export interface PushDirectOptions {
   exec?: Exec | undefined;
 }
 
-/** Paths that decide what runs or who reviews: all of `.github/`, CODEOWNERS, and `.centaur*` at any depth. */
+const PROTECTED_SEGMENT =
+  /^(?:\.centaur.*|\.claude.*|\.codex|\.gemini|\.cursor|\.mcp\.json|\.gitmodules|agents\.md|claude\.md)$/;
+
+/**
+ * Paths that decide what runs, who reviews, or what later agent turns are told and may use: all of
+ * `.github/`, CODEOWNERS, and at any depth the Centaur config, agent configuration (`.claude*`,
+ * `.codex`, `.gemini`, `.cursor`, `.mcp.json`), agent guides (`AGENTS.md`, `CLAUDE.md`) and
+ * `.gitmodules`. Matching ignores case.
+ */
 export const isProtectedPath = (path: string) => {
-  const segments = path.split("/");
+  const lower = path.toLowerCase();
+  const segments = lower.split("/");
   return (
     segments[0] === ".github" ||
-    segments.some((segment) => segment.startsWith(".centaur")) ||
-    ["CODEOWNERS", "docs/CODEOWNERS"].includes(path)
+    segments.some((segment) => PROTECTED_SEGMENT.test(segment)) ||
+    ["codeowners", "docs/codeowners"].includes(lower)
   );
 };
 

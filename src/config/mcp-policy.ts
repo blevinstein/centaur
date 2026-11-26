@@ -9,12 +9,18 @@ import { mcpApprovalKey } from "./mcp-fingerprint.js";
 import { MCP_POLICY_SCHEMA } from "./mcp-policy-schema.js";
 import type { McpServer } from "./schema.js";
 
-const EXACT_VERSION = /(?:@|==)\d+\.\d+\.\d+(?:[-+][\w.+-]+)?$/;
+const PACKAGE_NAME = "(?:@[\\w.-]+/)?[A-Za-z0-9][\\w.-]*(?:\\[[\\w.,-]+\\])?";
+const EXACT_VERSION = new RegExp(`^${PACKAGE_NAME}(?:@|==)\\d+\\.\\d+\\.\\d+(?:[-+][\\w.+-]+)?$`);
+const PYTHON_VERSION = /^\d+(?:\.\d+){0,2}$/;
+const PLAIN_COMMAND = /^[A-Za-z0-9][\w.-]*$/;
+// Commands that run arbitrary code from their arguments.
+const GENERIC_RUNNERS =
+  /^(?:python[\d.]*|pypy[\d.]*|[a-z]*sh|env|node|nodejs|deno|bun|perl|ruby|php|lua|awk|sed|find|xargs|eval|exec|sudo|busybox|powershell|pwsh|npx|npm|pnpm|yarn|uv|uvx|pip[\d.]*|pipx|curl|wget)$/i;
 
 const COMMIT_SHA = "[0-9a-f]{40}";
 const URL_SEGMENT = "[\\w~-][\\w.~-]*";
 const GIT_HTTPS_URL = `git\\+https://[\\w-]+(?:\\.[\\w-]+)*(?::\\d+)?(?:/${URL_SEGMENT})+`;
-const PIP_FRAGMENT = "(?:#(?:egg|subdirectory)=[\\w./-]+)?";
+const PIP_FRAGMENT = "(?:#(?:egg|subdirectory)=[\\w-][\\w.-]*(?:/[\\w-][\\w.-]*)*)?";
 const COMMIT_PINNED_GIT = new RegExp(
   `^(?:${GIT_HTTPS_URL}@${COMMIT_SHA}${PIP_FRAGMENT}|${GIT_HTTPS_URL}#${COMMIT_SHA}|github:${URL_SEGMENT}/${URL_SEGMENT}#${COMMIT_SHA})$`,
   "i",
@@ -25,31 +31,18 @@ const messagesOf = (errors: DetailedError[]) => errors.map((error) => error.mess
 type FlagKind = "bool" | "value";
 type FlagTable = Record<string, FlagKind>;
 
-// Flags the launchers document; any other flag before the target makes the target unknowable.
+// Flags that leave the launched code fixed. Any other flag before the target (index, registry,
+// config, editable, requirements and constraint flags, which can redirect or alter what is
+// resolved) makes the target unknowable.
 const UVX_FLAGS: FlagTable = {
   "--from": "value",
   "--with": "value",
-  "--with-editable": "value",
-  "--with-requirements": "value",
-  "--constraints": "value",
-  "-c": "value",
-  "--overrides": "value",
   "--python": "value",
   "-p": "value",
-  "--index": "value",
-  "--default-index": "value",
-  "--index-url": "value",
-  "-i": "value",
-  "--extra-index-url": "value",
-  "--find-links": "value",
-  "-f": "value",
   "--index-strategy": "value",
   "--resolution": "value",
   "--prerelease": "value",
   "--exclude-newer": "value",
-  "--directory": "value",
-  "--project": "value",
-  "--config-file": "value",
   "--cache-dir": "value",
   "--isolated": "bool",
   "--no-cache": "bool",
@@ -73,10 +66,6 @@ const NPX_FLAGS: FlagTable = {
   "-p": "value",
   "--call": "value",
   "-c": "value",
-  "--registry": "value",
-  "--cache": "value",
-  "--userconfig": "value",
-  "--prefix": "value",
   "--loglevel": "value",
   "--yes": "bool",
   "-y": "bool",
@@ -92,6 +81,7 @@ const NPX_FLAGS: FlagTable = {
   "--no-audit": "bool",
   "--no-fund": "bool",
 };
+
 type ParsedLauncherArgs = { flagValues: Map<string, string[]>; positional: string | undefined };
 
 // Arguments after the first positional belong to the launched tool. Undefined when a flag is
@@ -120,18 +110,31 @@ const isPinnedSpec = (spec: string | undefined) =>
 const flagValuesOf = (parsed: ParsedLauncherArgs, ...names: string[]) =>
   names.flatMap((name) => parsed.flagValues.get(name) ?? []);
 
+const isLaunchedCommand = (command: string | undefined) =>
+  command !== undefined && PLAIN_COMMAND.test(command) && !GENERIC_RUNNERS.test(command);
+
 const PINNED_TARGETS: Record<string, (args: string[]) => boolean> = {
   uvx(args) {
     const parsed = parseLauncherArgs(args, UVX_FLAGS);
     if (parsed === undefined) return false;
-    const [from] = flagValuesOf(parsed, "--from");
-    return isPinnedSpec(from ?? parsed.positional);
+    const froms = flagValuesOf(parsed, "--from");
+    const extrasPinned = flagValuesOf(parsed, "--with").every(isPinnedSpec);
+    const pythonPinned = flagValuesOf(parsed, "--python", "-p").every((v) =>
+      PYTHON_VERSION.test(v),
+    );
+    const targetPinned =
+      froms.length === 0
+        ? isPinnedSpec(parsed.positional)
+        : froms.length === 1 && isPinnedSpec(froms[0]) && isLaunchedCommand(parsed.positional);
+    return extrasPinned && pythonPinned && targetPinned;
   },
   npx(args) {
     const parsed = parseLauncherArgs(args, NPX_FLAGS);
     if (parsed === undefined || flagValuesOf(parsed, "--call", "-c").length > 0) return false;
     const packages = flagValuesOf(parsed, "--package", "-p");
-    return packages.length > 0 ? packages.every(isPinnedSpec) : isPinnedSpec(parsed.positional);
+    return packages.length > 0
+      ? packages.every(isPinnedSpec) && isLaunchedCommand(parsed.positional)
+      : isPinnedSpec(parsed.positional);
   },
 };
 

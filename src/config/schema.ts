@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { PROVIDERS } from "./providers.js";
 
+const MODEL_ID = /^[A-Za-z0-9][\w.:/@[\]-]*$/;
+
 export const PLATFORMS = ["telegram", "slack"] as const;
 export const CONTEXT_POLICIES = ["fresh", "transcript", "resume"] as const;
 export const THREAD_MODES = ["new", "persistent"] as const;
@@ -187,7 +189,9 @@ export const centaurConfigSchema = z
         transcript_max_chars: DEFAULT_TRANSCRIPT_MAX_CHARS,
       }),
     provider: z.enum(PROVIDERS),
-    model: z.string().min(1),
+    model: z
+      .string()
+      .regex(MODEL_ID, "model must be a model id or alias such as sonnet or claude-opus-4-1"),
     effort: z.enum(EFFORT_LEVELS).optional(),
     max_turns: z.number().int().min(1).max(200).default(30),
     max_budget_usd: z.number().positive().max(1000).optional(),

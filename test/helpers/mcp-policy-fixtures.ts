@@ -79,6 +79,79 @@ export const UVX_GIT_BYPASSES: [string, string[]][] = [
   ["the source listed after another entrypoint", ["--from", PINNED_SOURCE, "other-entrypoint"]],
 ];
 
+type LauncherCase = [name: string, command: string, args: string[]];
+
+export const LAUNCHER_BYPASSES: LauncherCase[] = [
+  ["uvx --with-editable", "uvx", ["--with-editable", "./dir", "--from", "pkg==1.0.0", "cmd"]],
+  ["uvx --with-requirements", "uvx", ["--with-requirements", "r.txt", "pkg==1.0.0"]],
+  ["uvx --overrides", "uvx", ["--overrides", "o.txt", "pkg==1.0.0"]],
+  ["uvx --constraints", "uvx", ["--constraints", "c.txt", "pkg==1.0.0"]],
+  ["uvx -c", "uvx", ["-c", "c.txt", "pkg==1.0.0"]],
+  ["uvx --index-url", "uvx", ["--index-url", "https://evil.example/simple", "pkg==1.0.0"]],
+  ["uvx --index-url=", "uvx", ["--index-url=https://evil.example/simple", "pkg==1.0.0"]],
+  ["uvx --extra-index-url", "uvx", ["--extra-index-url", "https://evil.example", "pkg==1.0.0"]],
+  ["uvx --index", "uvx", ["--index", "https://evil.example", "pkg==1.0.0"]],
+  ["uvx --default-index", "uvx", ["--default-index", "https://evil.example", "pkg==1.0.0"]],
+  ["uvx -i", "uvx", ["-i", "https://evil.example", "pkg==1.0.0"]],
+  ["uvx --find-links", "uvx", ["--find-links", "https://evil.example", "pkg==1.0.0"]],
+  ["uvx -f", "uvx", ["-f", "./wheels", "pkg==1.0.0"]],
+  ["uvx --config-file", "uvx", ["--config-file", "uv.toml", "pkg==1.0.0"]],
+  ["uvx --directory", "uvx", ["--directory", "sub", "pkg==1.0.0"]],
+  ["uvx --project", "uvx", ["--project", "sub", "pkg==1.0.0"]],
+  ["uvx --python at an interpreter path", "uvx", ["--python", "./evil/python", "pkg==1.0.0"]],
+  ["uvx --python= at a system path", "uvx", ["--python=/bin/sh", "pkg==1.0.0"]],
+  ["uvx --from twice", "uvx", ["--from", "pkg==1.0.0", "--from", "evil", "cmd"]],
+  ["uvx a URL ending in a version", "uvx", ["https://evil.example/pkg.tar.gz@1.2.3"]],
+  ["uvx a local path ending in a version", "uvx", ["./pkg==1.2.3"]],
+  ["uvx a parent path ending in a version", "uvx", ["--from", "../pkg==1.2.3", "cmd"]],
+  ["uvx a git tag that looks like a version", "uvx", ["--from", `${GIT_REPO_URL}@1.2.3`, "cmd"]],
+  [
+    "uvx a direct URL requirement",
+    "uvx",
+    ["--from", "pkg @ https://evil.example/p.whl==1.2.3", "cmd"],
+  ],
+  ["uvx --from pinned running python", "uvx", ["--from", "pkg==1.0.0", "python", "-c", "x"]],
+  ["uvx --from pinned running a shell", "uvx", ["--from", "pkg==1.0.0", "sh", "-c", "x"]],
+  ["uvx --from pinned running a path", "uvx", ["--from", "pkg==1.0.0", "./run.sh"]],
+  ["uvx --from pinned running an absolute path", "uvx", ["--from", "pkg==1.0.0", "/bin/sh"]],
+  [
+    "uvx a git subdirectory escaping the checkout",
+    "uvx",
+    ["--from", `${GIT_REPO_URL}@${COMMIT_SHA}#subdirectory=../x`, "cmd"],
+  ],
+  ["npx a tarball URL ending in a version", "npx", ["https://evil.example/x.tgz@1.2.3"]],
+  ["npx a git tag", "npx", [`${GIT_REPO_URL}@1.2.3`]],
+  ["npx a local path", "npx", ["./pkg@1.2.3"]],
+  ["npx an alias to another package", "npx", ["pkg@npm:evil@1.2.3"]],
+  ["npx --registry=", "npx", ["--registry=https://evil.example", "pkg@1.2.3"]],
+  ["npx --userconfig", "npx", ["--userconfig", ".npmrc", "pkg@1.2.3"]],
+  ["npx --prefix", "npx", ["--prefix", "sub", "pkg@1.2.3"]],
+  ["npx --cache", "npx", ["--cache", "sub", "pkg@1.2.3"]],
+  ["npx -p pinned running a shell", "npx", ["-p", "pkg@1.2.3", "sh", "-c", "x"]],
+  ["npx -p pinned running node", "npx", ["--package=pkg@1.2.3", "node", "x.js"]],
+  ["npx -p pinned running a path", "npx", ["-p", "pkg@1.2.3", "./run.sh"]],
+];
+
+export const PINNED_LAUNCHER_FORMS: LauncherCase[] = [
+  ["a scoped npx package", "npx", ["-y", "@example/docs-mcp@1.4.2"]],
+  ["a uvx package with extras", "uvx", ["pkg[extra]==1.0.0"]],
+  [
+    "a uvx git source at a commit",
+    "uvx",
+    [
+      "--from",
+      `git+https://github.com/example-owner/example-repo@${COMMIT_SHA}`,
+      "example-command",
+    ],
+  ],
+  [
+    "uvx with a pinned --with and a version of python",
+    "uvx",
+    ["--python", "3.12", "--with", "dep==2.0.0", "--from", "pkg==1.0.0", "cmd"],
+  ],
+  ["npx -p with a pinned package and a command", "npx", ["-y", "-p", "pkg@1.2.3", "pkg-cli"]],
+];
+
 export const GITHUB_SERVER_CONFIG = {
   mcp_servers: `{ghmcp: {url: "https://${GITHUB_HOST}/mcp/"}}`,
   allowed_tools: '"Read, mcp__ghmcp__*"',

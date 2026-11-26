@@ -702,8 +702,9 @@ message and `RUN_URL` for the run-URL footer, and shares the transplant with `pu
 stage everything except `.centaur-turn` and `.centaur-trusted`, apply the patch with `git apply
 --3way` onto a fresh fetch of the branch, commit as `github-actions[bot]` and push with a plain
 `git push`, never forced. A rejected push is retried once from a fresh fetch. A patch touching a
-protected path (anything under `.github/`, a path segment starting with `.centaur`, or `CODEOWNERS`
-at the root or under `docs/`) is refused.
+protected path is refused: anything under `.github/`, `CODEOWNERS` at the root or under `docs/`, and
+at any depth a path segment starting with `.centaur` or `.claude`, or equal to `.codex`, `.gemini`,
+`.cursor`, `.mcp.json`, `.gitmodules`, `AGENTS.md` or `CLAUDE.md`. Matching ignores case.
 
 Outputs: `fallback` (`true` on any failure), `reason` (`conflict`, `push_rejected`,
 `protected_path`, `invalid_ref`, `fetch_failed`, `patch_failed`; never file contents), `branch`

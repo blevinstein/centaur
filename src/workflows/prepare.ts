@@ -588,12 +588,14 @@ export function buildClaudeArgs(input: {
   const skillRule = input.skills ? ["Skill"] : [];
   const tools = [...config.allowed_tools, ...readRule, ...chatRule, ...skillRule].join(",");
   return [
-    `--model ${config.model}`,
-    ...(config.effort ? [`--effort ${config.effort}`] : []),
+    `--model ${shellArg(config.model)}`,
+    ...(config.effort ? [`--effort ${shellArg(config.effort)}`] : []),
     `--allowedTools ${doubleQuote(tools)}`,
     ...(mode === "comment" ? [COMMENT_SETTING_SOURCES] : []),
-    `--max-turns ${config.max_turns}`,
-    ...(config.max_budget_usd ? [`--max-budget-usd ${config.max_budget_usd}`] : []),
+    `--max-turns ${shellArg(String(config.max_turns))}`,
+    ...(config.max_budget_usd
+      ? [`--max-budget-usd ${shellArg(String(config.max_budget_usd))}`]
+      : []),
     `--json-schema ${singleQuote(JSON.stringify(replySchema({ canStaySilent, mode, allowNewPr, allowExisting, executionMode, suspendable })))}`,
     ...(mcpConfig ? [`--mcp-config ${shellArg(mcpConfig)}`] : []),
     ...(persona ? [`--append-system-prompt-file ${shellArg(persona)}`] : []),
