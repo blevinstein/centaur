@@ -1,6 +1,6 @@
 # Self-development bot
 
-Status: **proposal**, not built. A bot that develops this repository: the maintainer asks it for a
+Status: **slice 1 (the repo side) is built; slices 2 to 5 are open**. A bot that develops this repository: the maintainer asks it for a
 change in Slack or Telegram, or a scheduled prompt picks the next task, and the agent runs shell
 commands, reads the web, verifies its work and opens a pull request. Terms (turn, poster, root) are in
 [workflows.md](../workflows.md); the sub-folder layout it follows is in
@@ -32,6 +32,9 @@ platforms:
     respond_to: mention
 context:
   default: transcript
+repository_instructions:
+  include_repo_root: true
+  max_bytes: 65536
 provider: anthropic
 model: opus
 allowed_tools: "Bash,Read,Glob,Grep,Write,Edit,WebFetch,WebSearch"
@@ -53,10 +56,12 @@ prompts:
 
 ### Instructions
 
-The repository's top-level `AGENTS.md` is already installed as the agent's instructions on every
-turn ([Repository instructions](../workflows.md#repository-instructions)), so the bot follows the
-same conventions as any other agent here. `apps/centaur-dev/AGENTS.md` adds only what is specific to
-the bot:
+Sub-folder bots default to `repository_instructions.include_repo_root: false`, so the config opts in
+(`include_repo_root: true`) to install the repository's top-level `AGENTS.md` ahead of
+`apps/centaur-dev/AGENTS.md` on every turn ([Repository instructions](../workflows.md#repository-instructions)),
+with `max_bytes: 65536` because the top-level `AGENTS.md` is already over 23 KB of the 32 KB default.
+The bot therefore follows the same conventions as any other agent here, and `apps/centaur-dev/AGENTS.md`
+adds only what is specific to the bot:
 
 - Run `yarn verify` before finishing and state the result in `pr_body`. Pull requests opened with the
   job's `GITHUB_TOKEN` trigger no workflows, so nothing else tests the change before review.
@@ -134,10 +139,10 @@ In order of cost, each tracked as its own task:
 
 ## Implementation slices
 
-1. **Repo side.** `apps/centaur-dev/.centaur/config.yml`, `persona.md`, `prompts/next-task.md`,
+1. **Repo side** (built). `apps/centaur-dev/.centaur/config.yml`, `persona.md`, `prompts/next-task.md`,
    `apps/centaur-dev/AGENTS.md`; `centaur-dev-message.yml`; the `timeout_minutes` input; the register
    matrix; `test/self-consumer.test.ts` validates the config. The config must not reach `main` before
-   the deployed Lambda parses it (it uses no new keys, so today's Lambda does).
+   the deployed Lambda parses it (`repository_instructions.include_repo_root` is already deployed).
 2. **Maintainer setup.** The same steps as for `centaur-test-2`
    ([two-bot-test.md](two-bot-test.md#step-2-the-second-bot)): create the Slack app and Telegram bot,
    `centaur bot add`, merge slice 1 so `register` binds the bot, nudge the receiver, and approve only
@@ -170,5 +175,3 @@ In order of cost, each tracked as its own task:
 
 - Does `opus` with 150 turns fit the 90-minute job for a typical `TODO.md` item, or should the
   scheduled prompt cap itself to smaller items?
-- The top-level `AGENTS.md` is about 22 KB of the 32 KB `repository_instructions.max_bytes`; the dev
-  bot's own `AGENTS.md` adds to it. Raise the limit in this bot's config if it grows.

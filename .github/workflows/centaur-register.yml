@@ -8,6 +8,8 @@ on:
       - apps/centaur-test/.centaur/**
       - apps/centaur-test-2/.centaur.yml
       - apps/centaur-test-2/.centaur/**
+      - apps/centaur-dev/.centaur.yml
+      - apps/centaur-dev/.centaur/**
   workflow_dispatch:
 
 permissions:
@@ -19,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        root: [apps/centaur-test, apps/centaur-test-2]
+        root: [apps/centaur-test, apps/centaur-test-2, apps/centaur-dev]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

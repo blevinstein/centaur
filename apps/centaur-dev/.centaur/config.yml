@@ -1,0 +1,20 @@
+bot: centaur-dev
+platforms:
+  slack:
+    respond_to: mention
+  telegram:
+    respond_to: mention
+context:
+  default: transcript
+repository_instructions:
+  include_repo_root: true
+  max_bytes: 65536
+provider: anthropic
+model: opus
+allowed_tools: "Bash,Read,Glob,Grep,Write,Edit,WebFetch,WebSearch"
+max_turns: 150
+max_budget_usd: 10
+persona: .centaur/persona.md
+prompts:
+  next-task:
+    destination: { slack: centaur-dev }

@@ -200,8 +200,8 @@ skills in `.claude/skills` and the MCP policy `.centaur/mcp-policy.cedar` are al
 - **Filter dispatches by bot.** Every `repository_dispatch` reaches every `centaur-message` workflow
   in the repo, so each bot's caller workflow runs its job only when
   `github.event.client_payload.bot` is its bot.
-- **Share the steps in a reusable workflow.** A `workflow_call` workflow takes `bot` and `root`; each
-  bot's thin caller supplies the trigger, the filter and the two values.
+- **Share the steps in a reusable workflow.** A `workflow_call` workflow takes `bot` and `root` (and an optional `timeout_minutes`, default `30`); each
+  bot's thin caller supplies the trigger, the filter and the values.
 - **Distinct concurrency groups.** The group is built from the `bot` input, so two bots' turns never
   queue behind or cancel each other.
 
@@ -264,13 +264,14 @@ on:
     inputs:
       bot: { type: string, required: true }
       root: { type: string, required: true }
+      timeout_minutes: { type: number, default: 30 }
 concurrency:
   group: centaur-${{ inputs.bot }}-${{ github.event.client_payload.thread_key }}
   cancel-in-progress: false
 jobs:
   turn:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ inputs.timeout_minutes }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -405,7 +406,7 @@ and the `centaur-*.yml` workflows use the actions locally (`uses: ./.github/acti
 `centaur-register.yml` runs `register` over a matrix of roots, `centaur-test-message.yml` calls the reusable `centaur-turn.yml`
 for the bot's dispatches, `centaur-hello.yml` takes the root as a dispatch input, and the reusable `centaur-comment-turn.yml` (`bot` and `root` inputs; its `turn` job runs only when `resolve` finds that bot) is called by `centaur-pr-comment.yml` and `centaur-test-2-pr-comment.yml`.
 The second bot, `centaur-test-2` (`apps/centaur-test-2`, Slack and Telegram, both `respond_to: mention`, no MCP server, no prompts), adds a root to the register matrix and filter, a message caller, a hello option and a comment caller
-([two-bot-test](proposals/two-bot-test.md)). Its agent is
+([two-bot-test](proposals/two-bot-test.md)). A third bot, `centaur-dev` (`apps/centaur-dev`, Slack and Telegram `respond_to: mention`, `Bash` and web tools, `centaur-dev-message.yml` passing `timeout_minutes: 90`), develops this repository ([self-development](proposals/self-development.md)). The first bot's agent is
 read-write on the repo (`Read,Glob,Grep,Write,Edit` plus the read-only GitHub MCP tools), and it uses `respond_to: all` on both platforms. Its `hello` and `mcp-smoke` prompts post to Slack and Telegram, `hello-telegram` (the `hello` text) to Telegram only, keeping one persistent thread (`thread: persistent`; the other prompts open a new thread each run), and the pull-request prompts (`pr-smoke`, `pr-update`) post to Slack only, since a PR attaches to one thread.
 
 Run **Actions > Centaur register** to bind the bot, or **Actions > Centaur hello** to start a thread

@@ -1,7 +1,16 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { assertSingleConfigStyle, findConfigFile } from "../src/workflows/config-file.js";
-import { loadSelfConfig, SELF_ROOT, SELF_ROOT_2, selfPath } from "./helpers/self-config.js";
+import { loadWorkflow } from "./action-fixtures.js";
+import {
+  installSelfInstructions,
+  loadSelfConfig,
+  SELF_ROOT,
+  SELF_ROOT_2,
+  SELF_ROOT_DEV,
+  SELF_ROOTS,
+  selfPath,
+} from "./helpers/self-config.js";
 
 describe("this repo's Centaur config", () => {
   it("lives at apps/centaur-test/.centaur/config.yml", async () => {
@@ -72,6 +81,69 @@ describe("this repo's Centaur config", () => {
       expect(second.chat_tools.scope).toBe("chat");
       expect(second.mcp_servers).toEqual({});
       expect(readFileSync(selfPath(second.persona, SELF_ROOT_2), "utf8")).not.toBe("");
+    });
+  });
+
+  describe("the self-development bot", () => {
+    it("lives at apps/centaur-dev/.centaur/config.yml, so the one-style rule holds", async () => {
+      expect(await findConfigFile(".", SELF_ROOT_DEV)).toBe(
+        selfPath(".centaur/config.yml", SELF_ROOT_DEV),
+      );
+      await expect(assertSingleConfigStyle(".", SELF_ROOT_DEV)).resolves.toBeUndefined();
+    });
+
+    it("uses a distinct bot name, answers only mentions in pull_request mode, and points at files that exist", async () => {
+      const [first, second, dev] = await Promise.all([
+        loadSelfConfig(),
+        loadSelfConfig(SELF_ROOT_2),
+        loadSelfConfig(SELF_ROOT_DEV),
+      ]);
+      expect(dev.bot).toBe("centaur-dev");
+      expect(new Set([first.bot, second.bot, dev.bot]).size).toBe(SELF_ROOTS.length);
+      expect(dev.platforms).toEqual({
+        slack: { respond_to: "mention", bot_messages: "ignore" },
+        telegram: { respond_to: "mention", bot_messages: "ignore" },
+      });
+      expect(dev.execution.mode).toBe("pull_request");
+      expect(dev.mcp_servers).toEqual({});
+      expect(dev.prompts["next-task"]?.file).toBe(".centaur/prompts/next-task.md");
+      for (const file of [dev.persona, dev.prompts["next-task"]?.file ?? "", "AGENTS.md"]) {
+        expect(readFileSync(selfPath(file, SELF_ROOT_DEV), "utf8").trim()).not.toBe("");
+      }
+    });
+
+    it("installs the repository-root AGENTS.md ahead of apps/centaur-dev/AGENTS.md within max_bytes", async () => {
+      const dev = await loadSelfConfig(SELF_ROOT_DEV);
+      expect(dev.repository_instructions.include_repo_root).toBe(true);
+      await expect(installSelfInstructions(SELF_ROOT_DEV, dev)).resolves.toEqual([
+        "AGENTS.md",
+        "apps/centaur-dev/AGENTS.md",
+      ]);
+    });
+  });
+
+  describe("workflow wiring", () => {
+    it("registers every self-consumer root and triggers on each root's config paths", () => {
+      const register = loadWorkflow("centaur-register.yml");
+      expect(register.jobs.register?.strategy?.matrix?.root).toEqual([...SELF_ROOTS]);
+      expect(register.on?.push?.paths).toEqual(
+        SELF_ROOTS.flatMap((root) => [`${root}/.centaur.yml`, `${root}/.centaur/**`]),
+      );
+    });
+
+    it.each([
+      [SELF_ROOT, "centaur-test-message.yml"],
+      [SELF_ROOT_2, "centaur-test-2-message.yml"],
+      [SELF_ROOT_DEV, "centaur-dev-message.yml"],
+    ])("routes %s dispatches through %s with matching bot and root", async (root, file) => {
+      const config = await loadSelfConfig(root);
+      const turn = loadWorkflow(file).jobs.turn;
+      expect(turn?.if).toBe(`github.event.client_payload.bot == '${config.bot}'`);
+      expect(turn?.uses).toBe("./.github/workflows/centaur-turn.yml");
+      expect(turn?.with).toMatchObject({ bot: config.bot, root });
+      if (turn?.with?.timeout_minutes !== undefined) {
+        expect(turn.with.timeout_minutes).toBeGreaterThan(0);
+      }
     });
   });
 });

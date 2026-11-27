@@ -9,6 +9,9 @@ on:
       root:
         type: string
         required: true
+      timeout_minutes:
+        type: number
+        default: 30
 
 concurrency:
   group: centaur-${{ inputs.bot }}-${{ github.event.client_payload.thread_key }}
@@ -17,7 +20,7 @@ concurrency:
 jobs:
   turn:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ inputs.timeout_minutes }}
     env:
       CENTAUR_ROLE_ARN: ${{ vars.CENTAUR_ROLE_ARN }}
       CENTAUR_AWS_REGION: ${{ vars.CENTAUR_AWS_REGION }}

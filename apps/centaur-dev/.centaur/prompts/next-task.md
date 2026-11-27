@@ -1,0 +1,3 @@
+Read `TODO.md` and check open `centaur/centaur-dev-*` pull requests (`gh pr list --state open --json number,title,headRefName`). Pick one open item in `TODO.md` that is not labeled **[HUMAN ACTION]** or **[HUMAN APPROVAL]** (including sections such as `## Backlog` where every item carries that rule) and has no open `centaur/centaur-dev-*` pull request.
+
+Implement that item in the working tree, run `yarn verify` until it passes, and set `pr_title` and `pr_body` (stating the `yarn verify` result) so the harness opens a pull request. Reply with the item, what changed, and the verification result; if nothing is suitable (including items that require editing `.github/workflows/`), say so and change nothing. One item per run.
