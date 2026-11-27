@@ -62,7 +62,7 @@
   (`src/lambda/cached-parameters.ts`, 30s). `getByPath` and admin-claim reads are deliberately
   uncached; the poster and register paths use the raw store.
 - The dispatch payload carries `thread_key` (`src/thread-key.ts`, the 12-hex hash of bot and thread
-  ID), which the concurrency group and the PR branch use instead of raw thread IDs. A new public
+  ID), which the PR branch uses instead of raw thread IDs. A new public
   name that would embed a thread ID must use `threadKey`, and a payload change must also update
   `centaur-turn.yml`, the template in `docs/workflows.md`, and `docs/plan.md`.
 - The state adapter is the published `@blevinstein/chat-state-dynamodb` package (a fork of the
@@ -180,9 +180,12 @@
   runner stays compatible with an older Lambda.
 - `markerThreadId` in the turn state records the thread the history was read from; `finish` writes
   the marker only when the primary thread is that thread.
-- A scheduled workflow's concurrency group comes from `resolve-schedule`
-  (`src/workflows/schedule-group.ts`). A change to its key must update the template in
-  `docs/workflows.md` and `.github/workflows/centaur-hello.yml`.
+- Every turn workflow (message, PR comment, scheduled) uses the one per-bot group `centaur-<bot>`
+  with `queue: max`; scheduled workflows read it from `resolve-schedule`
+  (`src/workflows/bot-group.ts`). A change to the group or its options must update every workflow
+  under `.github/workflows/` that sets `concurrency`, and the templates in `docs/workflows.md` and
+  `docs/pr-comments.md`. Recovery of a cancelled pending run relies on the per-thread marker and
+  `pendingComments`.
 - A scheduled caller (`centaur-hello.yml`, `centaur-dev-next-task.yml`) has no `notify-timeout` job
   because a scheduled run has no dispatch `client_payload`: a timeout posts no notice, and only the
   in-job `notify-failure` step reports a failure.

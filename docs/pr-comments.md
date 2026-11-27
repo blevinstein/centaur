@@ -15,8 +15,8 @@ The loop it completes: a chat turn or scheduled prompt opens `centaur/<bot>-<key
   `pull_request_review_comment` is optional (see [Events](#events)).
 - A `resolve` job drops everything cheap to drop (bots, non-pull-request issues, forks, other
   branches), checks the commenter's repository permission, and asks the poster which bot and
-  thread the pull request belongs to. A `turn` job then runs under the same concurrency group as
-  chat turns of that thread.
+  thread the pull request belongs to. A `turn` job then runs under the bot's concurrency group, the
+  same one as every chat and scheduled turn of that bot.
 - The pull request maps to its thread through a record the poster stores when `finish` links the
   pull request to the thread (`link-pull-request`), keyed by repository and pull request number.
 - The agent runs under the thread's current context policy, with the pull request comments as the
@@ -58,8 +58,8 @@ Event semantics that matter:
 ### Caller workflow
 
 Consumers add one file. Job-level `concurrency` may read `needs`, which is how the group can depend
-on the thread the `resolve` job found; a workflow-level group could not, because the `issue_comment`
-payload has no branch name. This repo's test consumer is
+on the bot the `resolve` job found; a workflow-level group could not, because the `issue_comment`
+payload has no bot name. This repo's test consumer is
 [`.github/workflows/centaur-pr-comment.yml`](../.github/workflows/centaur-pr-comment.yml); it
 differs from the example below only in setting least-privilege `permissions` per job.
 Each bot has its own copy (`centaur-test-2-pr-comment.yml`, `centaur-dev-pr-comment.yml`), all thin callers of `centaur-comment-turn.yml`; a caller sets `timeout_minutes` (default `30`) for a bot whose turns run longer.
@@ -115,8 +115,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
-      group: centaur-${{ needs.resolve.outputs.bot }}-${{ needs.resolve.outputs.thread_key }}
+      group: centaur-${{ needs.resolve.outputs.bot }}
       cancel-in-progress: false
+      queue: max
     env:
       CENTAUR_ROLE_ARN: ${{ vars.CENTAUR_ROLE_ARN }}
       CENTAUR_AWS_REGION: ${{ vars.CENTAUR_AWS_REGION }}
@@ -164,8 +165,8 @@ Notes on the shape:
   an input, never a shell script.
 - The comment body is never used in an `if:` or `run:` expression.
 - A job skipped by `if:` is not a failure, so cheap rejections do not notify anyone.
-- GitHub keeps one pending run per concurrency group and cancels older pending ones. A comment
-  whose run is superseded must not be lost; see [Context policy](#context-policy-and-the-prompt).
+- With `queue: max` GitHub holds up to 100 pending runs per group and cancels any beyond that, and
+  does not guarantee FIFO order. A comment whose run is cancelled must not be lost; see [Context policy](#context-policy-and-the-prompt).
 
 ### Trust boundary
 
@@ -274,14 +275,14 @@ policy applies unchanged: the latest `/resume` or `/transcript` in the chat thre
 Chat messages that have not yet been processed stay pending: a comment turn never advances the
 chat last-processed marker and never clears chat reactions, because it consumes no chat messages.
 For `resume`, the restored session is saved back under the thread's key after the turn, so a later
-chat turn continues from it. Because the concurrency group serializes the two kinds of turn, they
+chat turn continues from it. Because the bot's concurrency group serializes the two kinds of turn, they
 never save over each other.
 
 **Not losing comments to concurrency.** The turn does not answer only the triggering event. It lists
 every human comment, review and inline comment on the pull request newer than the agent's most
 recent marked comment (see [Loop prevention](#loop-prevention)) or, if there is none, newer than the
-pull request, and answers them together. If a pending run was cancelled by GitHub, the next one
-picks its comment up. If nothing is newer than the last marked comment, the turn skips.
+pull request, and answers them together. If a pending run was cancelled by GitHub (past the queue cap), the next one
+for the pull request picks its comment up. If nothing is newer than the last marked comment, the turn skips.
 
 Inline comments carry context the prompt must include: file path, line, the diff hunk, the thread
 they reply into, and the review state. The script, not the agent, fetches these with `gh api` and

@@ -129,10 +129,12 @@ One agent turn:
    Agents never push to the default branch.
 6. Save the session file to S3 when the policy is `resume`.
 
-`concurrency: centaur-<bot>-<thread key>` serializes turns per thread (the key is a short hash, so
-the chat and topic IDs stay out of the group name and the PR branch). GitHub keeps only the newest pending
-run per concurrency group, so each turn processes **all** unprocessed messages since the thread's
-last-processed marker, not just the message that triggered it.
+`concurrency: {group: centaur-<bot>, cancel-in-progress: false, queue: max}` serializes all turns of
+a bot (the thread key, a short hash, keeps chat and topic IDs out of the PR branch; the group name
+holds only the bot). `queue: max` (github.com only) queues up to 100 runs instead of keeping one
+pending run, and GitHub does not guarantee FIFO order, so each turn processes **all** unprocessed
+messages since the thread's last-processed marker, not just the message that triggered it; a run
+cancelled past the cap is recovered by the thread's next turn.
 
 ### Consumer repo workflow (in each repo, a few lines)
 

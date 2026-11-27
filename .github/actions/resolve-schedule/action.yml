@@ -1,15 +1,12 @@
 name: Centaur resolve schedule
-description: Compute the concurrency group of a scheduled prompt's turn job, so runs of a thread-persistent prompt never interleave in one thread. Run after checkout and the centaur setup-runtime step.
+description: Compute the bot's concurrency group for a scheduled turn job, so a scheduled run never overlaps any other turn of the bot. Run after checkout and the centaur setup-runtime step.
 inputs:
-  prompt_name:
-    description: Name of the prompt in the Centaur config, the same value the turn step receives.
-    required: true
   root:
     description: Directory, relative to the repository root, that holds the Centaur config and the files it references. Set it for a bot that lives in a sub-folder; the default is the repository root.
     default: "."
 outputs:
   group:
-    description: The concurrency group for the turn job. Built from hashed names, never a chat or thread ID.
+    description: The bot's concurrency group, shared by all of its turn jobs. Never contains a chat or thread ID.
     value: ${{ steps.resolve.outputs.group }}
 runs:
   using: composite
@@ -23,5 +20,4 @@ runs:
       shell: bash
       env:
         CENTAUR_ROOT: ${{ inputs.root }}
-        PROMPT_NAME: ${{ inputs.prompt_name }}
       run: node "$CENTAUR_CLI" resolve-schedule

@@ -10,7 +10,7 @@ operations they invoke, and [config.md](config.md) for the config.
 | `setup-runtime` | Builds the workflow scripts from the action's own checkout and assumes the AWS role through OIDC. Run once per job, after checking out the consumer repo. |
 | `register` | Validates the config (at `root`, default the repo root), requests a GitHub OIDC token for the poster's audience and invokes `register`. |
 | `resolve-pr-comment` | Decides whether a pull request comment event starts a turn and which bot and thread it belongs to; see [Comment turns](#comment-turns). |
-| `resolve-schedule` | Computes the concurrency group of a scheduled prompt's turn job (config at `root`); see [Persistent scheduled threads](#persistent-scheduled-threads). |
+| `resolve-schedule` | Outputs the bot's concurrency group (`centaur-<bot>`, config at `root`) for a scheduled prompt's turn job; see [One turn per bot](#one-turn-per-bot). |
 | `turn` | One agent turn: answers a dispatched chat message, or (with `prompt_name`) starts a new thread from a scheduled prompt, or (with `comment`) answers the comments on a pull request. Outputs `skip` and `pull-request-url`. Reads the config from `root`; see [Bots in sub-folders](#bots-in-sub-folders). |
 | `notify-failure` | Posts a failure notice in the thread (and, with `comment`, on the pull request) and clears the 👀 reactions. Use with `if: failure()` in the turn job, and in a follow-up job that runs when the turn job was cancelled (a timeout); see [Failure notices](#failure-notices). |
 
@@ -51,8 +51,9 @@ permissions:
   pull-requests: write
   id-token: write
 concurrency:
-  group: centaur-${{ github.event.client_payload.bot }}-${{ github.event.client_payload.thread_key }}
+  group: centaur-${{ github.event.client_payload.bot }}
   cancel-in-progress: false
+  queue: max
 jobs:
   turn:
     runs-on: ubuntu-latest
@@ -103,8 +104,6 @@ jobs:
       - uses: <owner>/centaur/.github/actions/setup-runtime@main
       - id: resolve
         uses: <owner>/centaur/.github/actions/resolve-schedule@main
-        with:
-          prompt_name: weekly-tasks
   weekly-tasks:
     needs: resolve
     runs-on: ubuntu-latest
@@ -112,6 +111,7 @@ jobs:
     concurrency:
       group: ${{ needs.resolve.outputs.group }}
       cancel-in-progress: false
+      queue: max
     steps:
       - uses: actions/checkout@v7
         with:
@@ -166,13 +166,9 @@ destination's one thread instead of a new one, and the run sees what the thread 
   the run's own post comes after it and is never pending), the saved session and the pull request
   link. The marker is stored only when the primary thread is the one it was read from.
 - **Concurrency.** The `resolve-schedule` action (the `resolve` job in the template) outputs the
-  turn job's `concurrency` group. For a persistent prompt it is `centaur-<bot>-<key>`, with the key
-  a hash (`src/thread-key.ts`) of the bot and the sorted `<platform>/<destination>` names of the
-  prompt's targets, so runs of the prompt queue instead of interleaving, including the first run
-  that creates the thread, and no chat or thread ID appears in the name. Any other prompt gets
-  `centaur-<bot>-<prompt>-<run id>`, which serializes nothing. Two prompts that share a destination
-  but not the same targets use different groups. Replies from humans are chat turns in the thread's
-  own group; they are not serialized with the scheduled run.
+  bot's group, `centaur-<bot>` (`botConcurrencyGroup` in `src/workflows/bot-group.ts`), the same
+  group as the bot's chat and pull request comment turns. A scheduled run therefore never overlaps
+  a human reply or another prompt; see [One turn per bot](#one-turn-per-bot).
 - **Deploy order.** The runner calls `resolve-destination` and sends `thread` to `start-thread`,
   which the poster Lambda must understand first. Deploy the Lambda (`yarn deploy-prod`) before any
   config sets `thread: persistent`; prompts without it work against either Lambda.
@@ -203,7 +199,7 @@ skills in `.claude/skills` and the MCP policy `.centaur/mcp-policy.cedar` are al
 - **Share the steps in a reusable workflow.** A `workflow_call` workflow takes `bot` and `root` (and an optional `timeout_minutes`, default `30`); each
   bot's thin caller supplies the trigger, the filter and the values.
 - **Distinct concurrency groups.** The group is built from the `bot` input, so two bots' turns never
-  queue behind or cancel each other.
+  queue behind or cancel each other, while all turns of one bot do.
 
 ```yaml
 # .github/workflows/centaur-register.yml
@@ -266,8 +262,9 @@ on:
       root: { type: string, required: true }
       timeout_minutes: { type: number, default: 30 }
 concurrency:
-  group: centaur-${{ inputs.bot }}-${{ github.event.client_payload.thread_key }}
+  group: centaur-${{ inputs.bot }}
   cancel-in-progress: false
+  queue: max
 jobs:
   turn:
     runs-on: ubuntu-latest
@@ -785,7 +782,7 @@ designed in [pr-comments.md](pr-comments.md). Consumers copy
   `CENTAUR_OIDC_AUDIENCE` in its environment, because it asks the poster to resolve the pull
   request. Outputs: `skip`, `bot`, `thread_key`, `head_ref`, `pull_request`.
 - `turn` checks out `head_ref` as the agent's working tree, runs the `turn` action with `comment: <pull_request>` and the same
-  concurrency group as chat turns of that thread, and `notify-failure` with the same `comment`.
+  concurrency group as every other turn of the bot, and `notify-failure` with the same `comment`.
   It needs `contents: write`, `pull-requests: write` and `id-token: write`.
 
 The actions and runtime must not come from the pull request checkout, since the turn holds write
@@ -839,12 +836,36 @@ from a chat turn as follows:
 Comment text and replies are never logged; `GITHUB_TOKEN` and the OIDC token are masked or
 Actions-masked, and the raw thread ID is never printed.
 
-`concurrency: centaur-<bot>-<thread key>` serializes turns per thread, where the thread key is the
-first 12 hex characters of a SHA-256 over the bot and thread ID (`src/thread-key.ts`), computed by
-the receiver and carried in the dispatch payload as `thread_key`. The PR branch is
+### One turn per bot
+
+Turns of one bot share the repository, the thread branches and the session state, so they run one at
+a time. Chat messages, pull request comments and scheduled prompts all use
+
+```yaml
+concurrency:
+  group: centaur-<bot>
+  cancel-in-progress: false
+  queue: max
+```
+
+The group is the bot name from `botConcurrencyGroup` (`src/workflows/bot-group.ts`); scheduled
+workflows read it from `resolve-schedule`. It holds no chat or thread ID. Two bots in one repo have
+different groups and never wait for each other.
+
+Without `queue: max`, GitHub keeps one running and one pending run per group and cancels an older
+pending run when a newer one arrives. That would strand a message of one thread behind another
+thread's run, because the marker and the pending messages are per thread. With `queue: max`, up to
+100 runs wait and none is cancelled below that. `queue: max` exists only on github.com, not on
+GitHub Enterprise Server, and GitHub does not guarantee strict FIFO order. Neither matters for chat
+turns and comments, since each turn handles every unprocessed message of its thread (see
+[Last-processed marker](#last-processed-marker)), so a run cancelled at the cap is recovered by the
+next turn of the same thread or pull request. A cancelled scheduled run is not retried before its
+next schedule.
+
+The thread key (the first 12 hex characters of a SHA-256 over the bot and thread ID,
+`src/thread-key.ts`) is carried in the dispatch payload as `thread_key`. The PR branch is
 `centaur/<bot>-<thread key>` and stays the same across a thread's turns; scheduled runs use
-`<prompt>-<run id>` for the branch. A scheduled workflow's group comes from `resolve-schedule`
-([Persistent scheduled threads](#persistent-scheduled-threads)).
+`<prompt>-<run id>` for the branch.
 
 ### Context policies
 
@@ -901,8 +922,8 @@ command is a normal message.
 
 ### Last-processed marker
 
-GitHub keeps only the newest pending run per concurrency group, so each turn handles every
-unprocessed message. The marker is the ID of the last message the turn read, stored as
+A run can still be cancelled at the concurrency queue's cap (see [One turn per bot](#one-turn-per-bot)),
+so each turn handles every unprocessed message. The marker is the ID of the last message the turn read, stored as
 `sessions/<bot>/<thread>/last-processed` in the session bucket (IDs only, no content, and already
 within the OIDC role's permissions). Pending messages are the human messages after the marker's
 position in the transcript. Because the marker is the last message *read*, a message that arrives
@@ -918,6 +939,6 @@ message is pending.
 - `show_full_output` is off, nothing is uploaded as an artifact, and the OIDC token is masked.
 - Poster errors report only the error type (`register` also its message, which describes config
   problems).
-- Thread IDs (chat IDs) do not appear in the concurrency group name or in pull request branch
-  names; both use the hashed thread key. The dispatch payload still carries the raw `thread_id`,
+- Thread IDs (chat IDs) do not appear in the concurrency group name, which is the bot name, or in
+  pull request branch names, which use the hashed thread key. The dispatch payload still carries the raw `thread_id`,
   which GitHub does not show in the Actions UI or logs.

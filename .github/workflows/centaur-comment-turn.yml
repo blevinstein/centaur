@@ -22,7 +22,6 @@ jobs:
     outputs:
       skip: ${{ steps.resolve.outputs.skip }}
       bot: ${{ steps.resolve.outputs.bot }}
-      thread_key: ${{ steps.resolve.outputs.thread_key }}
       head_ref: ${{ steps.resolve.outputs.head_ref }}
       pull_request: ${{ steps.resolve.outputs.pull_request }}
     permissions:
@@ -56,8 +55,9 @@ jobs:
       pull-requests: write
       id-token: write
     concurrency:
-      group: centaur-${{ needs.resolve.outputs.bot }}-${{ needs.resolve.outputs.thread_key }}
+      group: centaur-${{ inputs.bot }}
       cancel-in-progress: false
+      queue: max
     env:
       CENTAUR_ROLE_ARN: ${{ vars.CENTAUR_ROLE_ARN }}
       CENTAUR_AWS_REGION: ${{ vars.CENTAUR_AWS_REGION }}

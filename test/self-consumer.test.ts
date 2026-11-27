@@ -187,9 +187,8 @@ describe("this repo's Centaur config", () => {
       expect(workflow.on?.schedule).toHaveLength(1);
       expect(workflow.on?.schedule?.[0]?.cron.split(" ").at(-1)).toBe("1-5");
       expect(Object.keys(dev.prompts)).toContain("next-task");
-      for (const step of [resolveStep, turnStep]) {
-        expect(step?.with).toMatchObject({ root: SELF_ROOT_DEV, prompt_name: "next-task" });
-      }
+      expect(resolveStep?.with).toEqual({ root: SELF_ROOT_DEV });
+      expect(turnStep?.with).toMatchObject({ root: SELF_ROOT_DEV, prompt_name: "next-task" });
       expect(job?.needs).toBe("resolve");
       expect(job?.concurrency?.group).toMatch(/^\$\{\{ needs\.resolve\.outputs\.group \}\}$/);
       expect(job?.["timeout-minutes"]).toBe(

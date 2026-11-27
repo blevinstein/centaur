@@ -173,8 +173,8 @@ pull request would hold is on the commit. Commits are not signed. The push is tr
 repository rejects it, falls back; branch protection is not detected up front.
 
 Concurrency: chat turns of different threads can race on the default branch. The retry-once covers
-the narrow window; the workflow's per-thread concurrency group does not serialize across threads, and
-adding a global group would stall unrelated bots, so it is not proposed.
+the narrow window; the bot's concurrency group serializes turns across threads, so the race remains only between
+bots; a group spanning bots would stall unrelated bots, so it is not proposed.
 
 ## Explaining the mode to the agent
 

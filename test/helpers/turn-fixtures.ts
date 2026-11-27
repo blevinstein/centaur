@@ -2,11 +2,9 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { buildThreadId } from "../../src/config/index.js";
 import type { PosterRequest } from "../../src/lambda/poster.js";
-import { parseConfigOrThrow } from "../../src/workflows/config-file.js";
 import { finish } from "../../src/workflows/finish.js";
 import type { PrepareDeps } from "../../src/workflows/prepare.js";
 import { PROMPT_FILE, prepare } from "../../src/workflows/prepare.js";
-import { scheduleGroup } from "../../src/workflows/schedule-group.js";
 import { scannedRange } from "./chat-context-fixtures.js";
 import { yamlOf } from "./config-fixtures.js";
 import {
@@ -213,9 +211,6 @@ export const EARLIER_RUN = [
   botMessage("2", "last week's report"),
   message("3", "please add rain"),
 ];
-
-export const scheduleGroupOf = (configYaml: string, runId = "42") =>
-  scheduleGroup(parseConfigOrThrow(configYaml), "weekly", runId);
 
 export const GARDEN = "apps/garden";
 

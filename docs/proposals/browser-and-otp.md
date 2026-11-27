@@ -62,7 +62,7 @@ live on Slack), but three subtleties are sharper when owned by Centaur:
    the receiver from also treating the human's `"482910"` reply as a normal chat message:
    - In a `start-thread` thread (`BOT_CREATED_STATE`), `ownsMessage` is `true`, so the reply
      dispatches a `centaur-message` workflow turn and adds 👀.
-   - Even inside an active turn (where the per-thread concurrency group queues the new run), once
+   - Even inside an active turn (where the bot's concurrency group queues the new run), once
      the first turn finishes, the queued run wakes up unless the marker moved past the OTP reply,
      and later turns see the raw code in the thread transcript.
 

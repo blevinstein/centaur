@@ -31,7 +31,7 @@ Validate with `centaur config check`.
 ## 3. Add the workflow
 
 Copy the scheduled workflow from [Consumer workflows](workflows.md#consumer-workflows)
-(`centaur-weekly-tasks.yml`), setting `prompt_name` in both places and the `cron` under
+(`centaur-weekly-tasks.yml`), setting `prompt_name` in the `turn` step and the `cron` under
 `schedule:`. The cron lives only in the workflow; GitHub ignores schedules outside the default
 branch. It keeps `workflow_dispatch` so you can run it by hand.
 

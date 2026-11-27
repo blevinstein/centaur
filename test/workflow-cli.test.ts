@@ -81,17 +81,6 @@ describe("the workflow CLI", () => {
     expect(await readOutputs(output)).toEqual({ skip: "true" });
   });
 
-  it("writes a scheduled prompt's concurrency group", async () => {
-    const { env, output } = await createRunnerEnv({
-      files: { ".centaur.yml": configText("prompts: {weekly: {destination: household}}") },
-      env: { PROMPT_NAME: "weekly" },
-    });
-
-    await runWorkflowCommand("resolve-schedule", env);
-
-    expect(await readOutputs(output)).toEqual({ group: "centaur-sprout-weekly-42" });
-  });
-
   describe("plan-pr", () => {
     it.each([
       ["a pull request config", configText(), { target: "thread", fallback_reason: "" }],
@@ -199,7 +188,7 @@ describe("the workflow CLI", () => {
   });
 
   it("exits non-zero with an ::error:: annotation when a command fails", async () => {
-    const { env } = await createRunnerEnv({ env: { PROMPT_NAME: "weekly" } });
+    const { env } = await createRunnerEnv();
 
     const result = await runWorkflowCommand("resolve-schedule", env);
 
@@ -210,7 +199,6 @@ describe("the workflow CLI", () => {
   it("keeps a multi-line failure on one annotation line", async () => {
     const { env } = await createRunnerEnv({
       files: { ".centaur.yml": "bot: [" },
-      env: { PROMPT_NAME: "weekly" },
     });
 
     const result = await runWorkflowCommand("resolve-schedule", env);

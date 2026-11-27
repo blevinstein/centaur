@@ -30,7 +30,7 @@ Checked against [plan.md](plan.md) and [workflows.md](workflows.md):
 |---|---|---|
 | Receiver Lambda | Webhooks, access decisions, `repository_dispatch` | Webhook answered within seconds (Slack requires 3 s; Telegram retries slow ones), and the stack's `Timeout` is 30 s. Never holds a turn. |
 | Poster Lambda | Operations called by the runner through `aws lambda invoke` | Same function, 30 s timeout (15 minutes is only the platform maximum); the invoke is synchronous. |
-| GitHub Actions job | **Runs the turn**: `claude-code-action`, MCP servers, `finish` | `timeout-minutes` (30 in the example workflows; GitHub hosted jobs cap at 6 hours). Holds the thread's `concurrency` group, in which GitHub keeps only the newest pending run. |
+| GitHub Actions job | **Runs the turn**: `claude-code-action`, MCP servers, `finish` | `timeout-minutes` (30 in the example workflows; GitHub hosted jobs cap at 6 hours). Holds the bot's `concurrency` group (`queue: max`), so one turn of the bot runs at a time. |
 
 So the Lambda 15-minute limit does not bound a turn: turns run on the runner. A wait inside the
 turn would be a poll loop on the runner made of short poster calls. It would consume the job's
@@ -125,7 +125,7 @@ Suspending is only for **chat turns that reply in an existing thread**. It does 
 
 **What suspend does.** `finish` posts the reply, removes the 👀 reactions (before the suspend call, so the waiting reaction the call sets is not removed with them), saves the session (as for
 every `resume` thread) and **does not advance the last-processed marker** (on a thread with no marker it records one just before the first pending message, or `NOTHING_PROCESSED` when that message opens the thread, so the bot's waiting reply cannot hide it from the resume turn), then calls the poster
-`mcp-approvals` with `suspend: true` for the named servers. The job ends and the thread's concurrency
+`mcp-approvals` with `suspend: true` for the named servers. The job ends and the bot's concurrency
 group is free, so later messages run normally (and see the same pending messages, still without the
 server). The marker stays only if the `suspend: true` call succeeds; if it fails (or `finish` has no
 OIDC token), `finish` logs the error type and advances the marker as for any turn, because no

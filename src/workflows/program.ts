@@ -8,6 +8,7 @@ import {
   createThreadStore,
   execCommand,
 } from "./aws.js";
+import { botConcurrencyGroup } from "./bot-group.js";
 import { cleanTitle } from "./clean-text.js";
 import { committedExecutionMode, parseConfigOrThrow, readConfigText } from "./config-file.js";
 import { requireEnv as env } from "./env.js";
@@ -28,7 +29,6 @@ import {
   fetchDefaultBranch,
   resolve,
 } from "./resolve.js";
-import { scheduleGroup } from "./schedule-group.js";
 import { auditToolCalls } from "./tool-audit.js";
 import { gateToolCall } from "./tool-gate.js";
 import { turnStateDir } from "./turn-state.js";
@@ -105,7 +105,7 @@ program.command("resolve").action(async () => {
 program.command("resolve-schedule").action(async () => {
   const config = parseConfigOrThrow(await configText());
   await writeOutputs(env("GITHUB_OUTPUT"), {
-    group: scheduleGroup(config, env("PROMPT_NAME"), env("GITHUB_RUN_ID")),
+    group: botConcurrencyGroup(config.bot),
   });
 });
 

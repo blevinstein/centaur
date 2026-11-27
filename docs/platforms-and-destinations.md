@@ -240,7 +240,7 @@ keys.
 **Dispatch payload.** `{bot, thread_id, thread_key, message_id}` (plus the optional `self`, the bot's own identity, see [workflows.md](workflows.md#the-bots-own-identity)) is unchanged: `bot` is still the
 bot name, `thread_key` keeps its value, and the platform is the prefix of `thread_id`, validated
 against `PLATFORMS`. So `centaur-turn.yml`, the template in `workflows.md`, `centaur-pr-comment.yml`
-and the concurrency group `centaur-<bot>-<thread key>` do not change, and the AGENTS.md rule about
+and the concurrency group `centaur-<bot>` do not change, and the AGENTS.md rule about
 payload changes is not triggered. If the maintainer prefers an explicit field (Decision 9), the
 change is `platform` added in `message-handler.ts`, `dispatchPayload` in `prepare.ts`, the payload
 lines in `plan.md` (receiver step 5) and `workflows.md`, and the two workflow files above for
@@ -312,12 +312,10 @@ whose target has a thread. `prepare` calls `resolve-destination`; with a thread 
 thread (transcript, bounded by [section 15](../DONE.md#15-bounded-transcript)), treats human
 messages after the marker as history, advances the marker after the post and, for `resume`, restores
 and saves the session under that thread. A scheduled workflow gets a `resolve` job
-(the `resolve-schedule` action) that outputs the turn job's concurrency group. For a persistent
-prompt it is `centaur-<bot>-<key>`, where the key hashes the bot and the sorted platform and
-destination names of the prompt's targets (never a chat or thread ID), so runs of the prompt never
-interleave in a thread, including the first run that creates it. A human reply is answered by a
-chat turn in the per-thread group and is not serialized with the scheduled run; the marker makes
-each turn handle every unprocessed message. A run with no thread yet uses the usual per-run branch.
+(the `resolve-schedule` action) that outputs the turn job's concurrency group, `centaur-<bot>`, the
+group of all the bot's turns, so a scheduled run never interleaves with a human reply or another
+prompt, including the first run that creates the thread. The marker makes each turn handle every
+unprocessed message. A run with no thread yet uses the usual per-run branch.
 The run reads the thread of its first target only.
 
 **Binding an existing topic.** The Bot API cannot list topics, so binding one needs its ID, and the
@@ -586,7 +584,7 @@ serialized; the others can run in parallel.
 | 13 | Dropped (Decision 20): the in-chat `/destination` and `!destination` handlers | | | |
 | 14 | `centaur destination set\|list\|remove`, the one way to bind an existing topic or thread; removes `centaur chat list` and `access approve --alias` (breaking) | CLI | new `src/cli/commands/destination.ts`, `program.ts`, `docs/cli.md` | 11 |
 | 15 | Multi-target scheduled turns: targets in the turn state, fan-out in `finish`, per-platform settings in `prepare` | Runner | `src/workflows/prepare.ts`, `turn-state.ts`, `finish.ts`, `cli.ts`, `docs/workflows.md`, `docs/plan.md` | 10 |
-| 16 | `thread: persistent` scheduled turns: `prepare` and `finish` pass the prompt's `thread`; history, marker and session under the destination thread, `resolve` job and concurrency template; the schema stops rejecting `persistent`. Built: `prepare` finds the bound thread with `resolve-destination`, `resolve-schedule` computes the group | Runner | `src/config/schema.ts`, `src/workflows/prepare.ts`, `finish.ts`, `schedule-group.ts`, `cli.ts`, `.github/actions/resolve-schedule`, `docs/workflows.md`, `docs/config.md`, the self-consumer workflow | 11, 15, bounded transcript 3 |
+| 16 | `thread: persistent` scheduled turns: `prepare` and `finish` pass the prompt's `thread`; history, marker and session under the destination thread, `resolve` job and concurrency template; the schema stops rejecting `persistent`. Built: `prepare` finds the bound thread with `resolve-destination`, `resolve-schedule` computes the group | Runner | `src/config/schema.ts`, `src/workflows/prepare.ts`, `finish.ts`, `bot-group.ts`, `cli.ts`, `.github/actions/resolve-schedule`, `docs/workflows.md`, `docs/config.md`, the self-consumer workflow | 11, 15, bounded transcript 3 |
 | 17 | Docs sweep: `onboarding.md` (add a platform, bind a topic), `plan.md` SSM layout, receiver and access sections, `config.md`, `cli.md`, `poster.md`, README; remove the word "alias" everywhere (Decision 18); mark this doc as built. Built | Docs | `docs/*.md`, `README.md` | all |
 | 18 | Cutover: the runbook in [Migration](#migration), run once by the maintainer after a rehearsal | Human | | 1 to 8 |
 | 19 | Live checks on the test bot: two platforms on one bot, a persistent topic and Slack thread, deleted and closed topic error strings (error strings and closed or deleted behavior verified 2026-11-24; the end-to-end persistent run remains) | Human | | 12, 16 |
