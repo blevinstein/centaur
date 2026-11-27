@@ -89,6 +89,12 @@ runs:
         GITHUB_TOKEN: ${{ github.token }}
       run: node "$CENTAUR_CLI" plan-pr
 
+    - name: Detect changes
+      id: changes
+      if: steps.prepare.outputs.skip != 'true' && inputs.comment == ''
+      shell: bash
+      run: node "$CENTAUR_CLI" has-changes
+
     - name: Update existing pull request
       id: push_existing
       continue-on-error: true
@@ -116,7 +122,7 @@ runs:
     - name: Open pull request
       id: pr
       continue-on-error: true
-      if: steps.prepare.outputs.skip != 'true' && inputs.comment == '' && (steps.plan.outputs.target == 'thread' || steps.push_existing.outputs.fallback == 'true' || steps.push_direct.outputs.fallback == 'true')
+      if: steps.prepare.outputs.skip != 'true' && inputs.comment == '' && steps.changes.outputs.changed == 'true' && (steps.plan.outputs.target == 'thread' || steps.push_existing.outputs.fallback == 'true' || steps.push_direct.outputs.fallback == 'true')
       uses: peter-evans/create-pull-request@v8
       with:
         token: ${{ github.token }}

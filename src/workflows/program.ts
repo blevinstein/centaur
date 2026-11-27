@@ -18,7 +18,7 @@ import { createPullRequestTargetClient, planForTurn, planOutputs } from "./pr-ta
 import { prepare } from "./prepare.js";
 import { describePullRequest } from "./pull-request.js";
 import { createPullRequestReader, createPullRequestWriter } from "./pull-request-comments.js";
-import { pushChanges, pushNewBranch } from "./push.js";
+import { hasChanges, pushChanges, pushNewBranch } from "./push.js";
 import { pushDirect } from "./push-direct.js";
 import { pushExisting } from "./push-existing.js";
 import { registerRepo } from "./register.js";
@@ -220,6 +220,10 @@ program.command("plan-pr").action(async () => {
     console.log(`::notice::Using the thread's pull request (${plan.fallbackReason})`);
   }
   await writeOutputs(env("GITHUB_OUTPUT"), planOutputs(plan));
+});
+
+program.command("has-changes").action(async () => {
+  await writeOutputs(env("GITHUB_OUTPUT"), { changed: String(await hasChanges(workspace())) });
 });
 
 program.command("push-existing").action(async () => {

@@ -48,6 +48,12 @@ const commitStaged = (git: Git, message: string) =>
 const commitsAhead = async (git: Git) =>
   Number((await git("rev-list", "--count", "@{upstream}..HEAD")).trim());
 
+/** Whether anything would be committed: staged working tree changes, or commits ahead of the upstream. */
+export async function hasChanges(workspace: string, exec: Exec = execCommand): Promise<boolean> {
+  const git = gitIn(workspace, exec);
+  return (await stageChanges(git)) || (await commitsAhead(git)) > 0;
+}
+
 /**
  * Commits the working tree changes (if any) onto the checked-out pull request branch and pushes it
  * with plain `git push`. Returns how many commits the branch gained over its upstream.

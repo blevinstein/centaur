@@ -110,6 +110,31 @@ describe("the workflow CLI", () => {
     });
   });
 
+  describe("has-changes", () => {
+    it.each([
+      ["nothing changed", async () => undefined, "false"],
+      [
+        "only the turn directory changed",
+        (write: (file: string, content: string) => Promise<void>) =>
+          write(".centaur-turn/prompt.md", "x\n"),
+        "false",
+      ],
+      [
+        "a file changed",
+        (write: (file: string, content: string) => Promise<void>) => write("new.md", "hello\n"),
+        "true",
+      ],
+    ])("reports changed for a workspace where %s", async (_name, edit, changed) => {
+      const { work, write } = await createClone();
+      await edit(write);
+      const { env, output } = await createRunnerEnv({ env: { GITHUB_WORKSPACE: work } });
+
+      await runWorkflowCommand("has-changes", env);
+
+      expect(await readOutputs(output)).toEqual({ changed });
+    });
+  });
+
   describe("push-direct", () => {
     const directClone = async () => {
       const clone = await createClone();
@@ -203,6 +228,7 @@ describe("the workflow CLI", () => {
       "resolve-schedule",
       "prepare",
       "plan-pr",
+      "has-changes",
       "push-existing",
       "push-direct",
       "pr-details",

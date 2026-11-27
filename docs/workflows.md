@@ -550,7 +550,10 @@ the repository top, which yields one guide.
    below). Unless the plan chose an existing pull request and `push-existing` updated it, or chose a
    direct push and `push-direct` landed it ([Execution modes](#execution-modes)),
    `create-pull-request` opens (or updates) `centaur/<bot>-<thread>` when files changed, using the
-   title as both commit message and title.
+   title as both commit message and title. `has-changes` runs first and reports `changed`: it is
+   `false` when the workspace has nothing to commit outside `.centaur-turn` and `.centaur-trusted`
+   and no commits ahead of its upstream, and the `Open pull request` step is then skipped, so a turn
+   that edited nothing leaves the thread branch and its pull request alone.
 4. `finish` takes the reply from the action's execution file, appends the pull request link, posts
    it (`post`, or `start-thread` for scheduled prompts and `/new`; `prepare` records the targets in
    the turn state: one `destination` name with its `platform` per target of the prompt, which the poster resolves to a chat approved for the bot, or the originating thread for `/new`), advances the marker and saves the
