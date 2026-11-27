@@ -62,6 +62,7 @@ on the thread the `resolve` job found; a workflow-level group could not, because
 payload has no branch name. This repo's test consumer is
 [`.github/workflows/centaur-pr-comment.yml`](../.github/workflows/centaur-pr-comment.yml); it
 differs from the example below only in setting least-privilege `permissions` per job.
+Each bot has its own copy (`centaur-test-2-pr-comment.yml`, `centaur-dev-pr-comment.yml`), all thin callers of `centaur-comment-turn.yml`; a caller sets `timeout_minutes` (default `30`) for a bot whose turns run longer.
 
 ```yaml
 # .github/workflows/centaur-pr-comment.yml

@@ -76,6 +76,7 @@ The persona sets the voice: terse progress, the outcome first, the pull request 
   `client_payload.bot == 'centaur-dev'`, like `centaur-test-2-message.yml`.
 - `centaur-turn.yml` gains a `timeout_minutes` input (default `30`, used as the job's
   `timeout-minutes`); the dev caller passes `90`.
+- `centaur-dev-pr-comment.yml`: the thin caller of `centaur-comment-turn.yml` for review comments on `centaur/centaur-dev-*` pull requests, with `bot: centaur-dev`, `root: apps/centaur-dev` and `timeout_minutes: 90`; `centaur-comment-turn.yml` gains the same `timeout_minutes` input (default `30`). `resolve` takes the bot from the poster's stored thread record, so the other bots' comment callers skip these pull requests and this one skips theirs.
 - `centaur-register.yml`: `apps/centaur-dev` in the matrix and in `paths`.
 - `centaur-dev-next-task.yml`: the scheduled workflow from
   [Consumer workflows](../workflows.md#consumer-workflows) with `prompt_name: next-task`, a weekday

@@ -9,6 +9,9 @@ on:
       root:
         type: string
         required: true
+      timeout_minutes:
+        type: number
+        default: 30
 
 jobs:
   resolve:
@@ -47,7 +50,7 @@ jobs:
     needs: resolve
     if: needs.resolve.outputs.skip != 'true' && needs.resolve.outputs.bot == inputs.bot
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ inputs.timeout_minutes }}
     permissions:
       contents: write
       pull-requests: write

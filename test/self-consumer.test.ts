@@ -145,6 +145,39 @@ describe("this repo's Centaur config", () => {
       }
     });
 
+    it.each([
+      [SELF_ROOT, "centaur-pr-comment.yml"],
+      [SELF_ROOT_2, "centaur-test-2-pr-comment.yml"],
+      [SELF_ROOT_DEV, "centaur-dev-pr-comment.yml"],
+    ])(
+      "answers %s pull request comments through %s with matching bot and root",
+      async (root, file) => {
+        const config = await loadSelfConfig(root);
+        const workflow = loadWorkflow(file);
+        expect(workflow.jobs.comment?.uses).toBe("./.github/workflows/centaur-comment-turn.yml");
+        expect(workflow.jobs.comment?.with).toMatchObject({ bot: config.bot, root });
+        expect(Object.keys(workflow.on ?? {}).sort()).toEqual([
+          "issue_comment",
+          "pull_request_review",
+        ]);
+      },
+    );
+
+    it("gives every bot's comment caller the timeout of its message caller, used by the comment turn job", () => {
+      const reusable = loadWorkflow("centaur-comment-turn.yml");
+      expect(reusable.on?.workflow_call?.inputs?.timeout_minutes?.type).toBe("number");
+      expect(reusable.jobs.turn?.["timeout-minutes"]).toMatch(/inputs\.timeout_minutes/);
+      for (const [message, comment] of [
+        ["centaur-test-message.yml", "centaur-pr-comment.yml"],
+        ["centaur-test-2-message.yml", "centaur-test-2-pr-comment.yml"],
+        ["centaur-dev-message.yml", "centaur-dev-pr-comment.yml"],
+      ] as const) {
+        expect(loadWorkflow(comment).jobs.comment?.with?.timeout_minutes).toBe(
+          loadWorkflow(message).jobs.turn?.with?.timeout_minutes,
+        );
+      }
+    });
+
     it("runs the dev bot's next-task prompt on a weekday schedule, serialized on the resolved group", async () => {
       const workflow = loadWorkflow("centaur-dev-next-task.yml");
       const { resolve, "next-task": job } = workflow.jobs;
