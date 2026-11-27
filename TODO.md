@@ -202,8 +202,8 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       quotas; deleting a thread's or bot's media on request or when a bot is unregistered;
       whether the workflow role should be limited to its own bot's prefix (today it can read
       every `attachments/*` object); whether media belongs in its own bucket (separate
-      encryption, lifecycle and access); non-image attachments (video, audio, documents); letting
-      the agent fetch images beyond the newest 10 that `prepare` loads (`MAX_PROMPT_IMAGES`); and
+      encryption, lifecycle and access); other attachment types (video, audio, documents beyond
+      PDFs; images and PDFs are stored); letting the agent fetch images beyond the newest 10 that `prepare` loads (`MAX_PROMPT_ATTACHMENTS`); and
       what the privacy story is for stored personal photos.
 - [x] Test how a turn behaves when `--max-budget-usd` stops a run before a structured reply.
 - [ ] Two bots in one group: routing is now guarded (2026-11-26: `ownsMessage` ignores

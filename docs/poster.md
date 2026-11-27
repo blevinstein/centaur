@@ -333,7 +333,7 @@ owner never reach the Lambda.
 
 The session bucket holds `sessions/<bot>/<thread>/<session>.jsonl` (the agent's resumable transcript,
 which contains the chat messages and tool output of that thread) and
-`attachments/<bot>/<thread>/<message>~<n>.<ext>` (images users sent). The GitHub OIDC role grants
+`attachments/<bot>/<thread>/<message>~<n>.<ext>` (images and PDFs users sent). The GitHub OIDC role grants
 `GetObject` and `PutObject` on `sessions/*`, `GetObject` on `attachments/*` and a prefix-limited
 `ListBucket`, to every repository under the owner. A workflow in one repo can therefore read, list
 and overwrite another bot's transcripts and read its attachments, including by planting a
@@ -390,11 +390,11 @@ media group for several files (images arrive as documents, not compressed photos
 ## Attachments
 
 When an enrolled sender's message carries images (JPEG, PNG, GIF or WebP; a Telegram photo or an
-image sent as a file), the receiver downloads them from the platform once and stores them in the
+image sent as a file) or PDFs, the receiver downloads them from the platform once and stores them in the
 session bucket at `attachments/<bot>/<thread>/<message>~<n>.<ext>` before it reacts and
-dispatches (`src/lambda/attachments.ts`). If storing fails (including an image over 20 MB) the
-receiver tells the sender and dispatches nothing. Other attachment types are ignored. `read` lists
-the keys that exist for each message by listing the thread's prefix. An image in a message that has
+dispatches (`src/lambda/attachments.ts`). If storing fails (including a file over 20 MB) the
+receiver tells the sender and dispatches nothing. Other attachment types are ignored, and so is a PDF whose file name does not end in `.pdf` or whose bytes do not start with `%PDF-`. The 20 MB limit (`MAX_ATTACHMENT_BYTES`) is also Telegram's bot download cap. `read` lists
+the keys that exist for each message by listing the thread's prefix. A stored type in a message that has
 no stored copy yet (sent before attachment storage existed, or whose upload failed) is stored by
 `read` itself, rebuilding its downloader from the file ID kept in the thread history; the key is
 deterministic, so a message that is already stored keeps its existing object and is never fetched

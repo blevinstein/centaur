@@ -3,11 +3,20 @@ import type { Attachment, Message } from "chat";
 
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
-const IMAGE_EXTENSIONS: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/gif": "gif",
-  "image/webp": "webp",
+const hasPdfHeader = (body: Buffer) => body.subarray(0, 5).toString("latin1") === "%PDF-";
+
+interface StoredType {
+  extension: string;
+  /** Present for types whose bytes are checked and whose file name must carry the extension. */
+  hasValidContent?: (body: Buffer) => boolean;
+}
+
+const STORED_TYPES: Record<string, StoredType> = {
+  "image/jpeg": { extension: "jpg" },
+  "image/png": { extension: "png" },
+  "image/gif": { extension: "gif" },
+  "image/webp": { extension: "webp" },
+  "application/pdf": { extension: "pdf", hasValidContent: hasPdfHeader },
 };
 
 const safeSegment = (value: string) => value.replaceAll(/[^A-Za-z0-9._-]/g, "_");
@@ -43,14 +52,23 @@ export function createS3ObjectStore(bucket: string, client = new S3Client({})): 
 }
 
 export interface AttachmentStore {
-  /** Copies a message's images into the object store and returns their keys. */
+  /** Copies a message's images and PDFs into the object store and returns their keys. */
   save(bot: string, message: Message): Promise<string[]>;
-  /** Returns, for a thread, a lookup from message ID to the keys of that message's stored images. */
+  /** Returns, for a thread, a lookup from message ID to the keys of that message's stored files. */
   forThread(bot: string, threadId: string): Promise<(messageId: string) => string[]>;
 }
 
-const imageMimeType = (attachment: Attachment) =>
+const storedMimeType = (attachment: Attachment) =>
   attachment.mimeType ?? (attachment.type === "image" ? "image/jpeg" : undefined);
+
+const nameHasExtension = (attachment: Attachment, extension: string) =>
+  attachment.name === undefined || attachment.name.toLowerCase().endsWith(`.${extension}`);
+
+const assertWithinLimit = (bytes: number) => {
+  if (bytes > MAX_ATTACHMENT_BYTES) {
+    throw new Error(`attachment is larger than ${MAX_ATTACHMENT_BYTES} bytes`);
+  }
+};
 
 async function readBytes(attachment: Attachment): Promise<Buffer> {
   const data = attachment.data ?? (await attachment.fetchData?.());
@@ -62,26 +80,25 @@ async function readBytes(attachment: Attachment): Promise<Buffer> {
 export function createAttachmentStore(objects: ObjectStore): AttachmentStore {
   return {
     async save(bot, message) {
-      const images = message.attachments.flatMap((attachment) => {
-        const mimeType = imageMimeType(attachment);
-        const extension = mimeType && IMAGE_EXTENSIONS[mimeType];
-        return mimeType && extension ? [{ attachment, mimeType, extension }] : [];
+      const candidates = message.attachments.flatMap((attachment) => {
+        const mimeType = storedMimeType(attachment);
+        const type = mimeType ? STORED_TYPES[mimeType] : undefined;
+        const nameFits = !type?.hasValidContent || nameHasExtension(attachment, type.extension);
+        return mimeType && type && nameFits ? [{ attachment, mimeType, type }] : [];
       });
       const prefix = attachmentPrefix(bot, message.threadId);
-      return Promise.all(
-        images.map(async ({ attachment, mimeType, extension }, index) => {
-          if ((attachment.size ?? 0) > MAX_ATTACHMENT_BYTES) {
-            throw new Error(`attachment is larger than ${MAX_ATTACHMENT_BYTES} bytes`);
-          }
+      const keys = await Promise.all(
+        candidates.map(async ({ attachment, mimeType, type }, index) => {
+          assertWithinLimit(attachment.size ?? 0);
           const body = await readBytes(attachment);
-          if (body.length > MAX_ATTACHMENT_BYTES) {
-            throw new Error(`attachment is larger than ${MAX_ATTACHMENT_BYTES} bytes`);
-          }
-          const key = `${prefix}${messageStem(message.id)}${index}.${extension}`;
+          assertWithinLimit(body.length);
+          if (type.hasValidContent?.(body) === false) return undefined;
+          const key = `${prefix}${messageStem(message.id)}${index}.${type.extension}`;
           await objects.put(key, body, mimeType);
           return key;
         }),
       );
+      return keys.filter((key) => key !== undefined);
     },
     async forThread(bot, threadId) {
       const prefix = attachmentPrefix(bot, threadId);

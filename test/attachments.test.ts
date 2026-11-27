@@ -18,6 +18,16 @@ const photo = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+const PDF_BYTES = Buffer.from("%PDF-1.7 recipe");
+
+const pdf = (overrides: Record<string, unknown> = {}) => ({
+  type: "file",
+  mimeType: "application/pdf",
+  name: "recipe.pdf",
+  fetchData: async () => PDF_BYTES,
+  ...overrides,
+});
+
 const messageWith = (...attachments: unknown[]) =>
   ({ ...fakeMessage({ attachments }), threadId: THREAD }) as unknown as Message;
 
@@ -61,9 +71,31 @@ describe("attachment store", () => {
     expect([...objects.keys()].map((key) => key.split("~")[1])).toEqual(["0.jpg", "1.webp"]);
   });
 
+  it("stores a PDF next to images", async () => {
+    const { objects, attachments } = setup();
+
+    await attachments.save("garden", messageWith(photo(), pdf()));
+
+    expect([...objects.keys()].map((key) => key.split("~")[1])).toEqual(["0.jpg", "1.pdf"]);
+    expect([...objects.values()][1]).toEqual({ body: PDF_BYTES, contentType: "application/pdf" });
+  });
+
+  it("drops a file named .pdf whose bytes are not a PDF", async () => {
+    const { objects, attachments } = setup();
+
+    const saved = await attachments.save(
+      "garden",
+      messageWith(pdf({ fetchData: async () => Buffer.from("MZ\x90 not a pdf") })),
+    );
+
+    expect(saved).toEqual([]);
+    expect(objects.size).toBe(0);
+  });
+
   it.each([
     ["a video", { type: "video", mimeType: "video/mp4" }],
-    ["a PDF", { type: "file", mimeType: "application/pdf" }],
+    ["a Word document", { type: "file", mimeType: "application/msword", name: "recipe.doc" }],
+    ["a PDF named like another type", { ...pdf(), name: "recipe.exe" }],
     ["an unreadable image format", { type: "image", mimeType: "image/heic" }],
   ])("ignores %s", async (_name, attachment) => {
     const { objects, attachments } = setup();
@@ -90,6 +122,7 @@ describe("attachment store", () => {
       "downloads more bytes than the limit",
       photo({ fetchData: async () => Buffer.alloc(MAX_ATTACHMENT_BYTES + 1) }),
     ],
+    ["is a PDF over the limit", pdf({ size: MAX_ATTACHMENT_BYTES + 1 })],
     ["has no data", { type: "image", mimeType: "image/png" }],
     [
       "fails to download",

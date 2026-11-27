@@ -5,7 +5,7 @@ import { threadKey } from "../src/thread-key.js";
 import { CONFIG_FILES } from "../src/workflows/config-file.js";
 import { finish, notifyFailure } from "../src/workflows/finish.js";
 import {
-  MAX_PROMPT_IMAGES,
+  MAX_PROMPT_ATTACHMENTS,
   MCP_CONFIG_FILE,
   PROMPT_FILE,
   prepare,
@@ -157,7 +157,7 @@ describe("prepare", () => {
 
   it("loads only the newest images, listing older ones as not loaded", async () => {
     const keys = Array.from(
-      { length: MAX_PROMPT_IMAGES + 2 },
+      { length: MAX_PROMPT_ATTACHMENTS + 2 },
       (_, i) => `attachments/sprout/telegram_-100_7/${i + 1}~0.jpg`,
     );
     const { deps, aws, root } = await setup(
@@ -169,9 +169,9 @@ describe("prepare", () => {
 
     const text = await prompt(root);
     expect(text.match(/\[attached image, not loaded\]/g)).toHaveLength(2);
-    expect(text.match(/\[attached image: /g)).toHaveLength(MAX_PROMPT_IMAGES);
+    expect(text.match(/\[attached image: /g)).toHaveLength(MAX_PROMPT_ATTACHMENTS);
     expect(text).not.toContain("attachments/1~0.jpg]");
-    expect(text).toContain(`attachments/${MAX_PROMPT_IMAGES + 2}~0.jpg]`);
+    expect(text).toContain(`attachments/${MAX_PROMPT_ATTACHMENTS + 2}~0.jpg]`);
   });
 
   it("downloads no history images when a resumed session already holds the history", async () => {

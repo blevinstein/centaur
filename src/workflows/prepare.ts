@@ -82,7 +82,7 @@ export const TURN_DIR = ".centaur-turn";
 export const PROMPT_FILE = `${TURN_DIR}/prompt.md`;
 export const MCP_CONFIG_FILE = `${TURN_DIR}/mcp.json`;
 export const ATTACHMENT_DIR = `${TURN_DIR}/attachments`;
-export const MAX_PROMPT_IMAGES = 10;
+export const MAX_PROMPT_ATTACHMENTS = 10;
 
 /**
  * Only the user source (`$HOME/.claude`) loads; the project and local sources, which read the
@@ -208,9 +208,9 @@ interface Turn {
 
 const localAttachment = (key: string) => `${ATTACHMENT_DIR}/${basename(key)}`;
 
-/** Downloads the newest images among the messages the prompt will show. */
+/** Downloads the newest images and PDFs among the messages the prompt will show. */
 async function loadAttachments(deps: PrepareDeps, shown: ChatMessage[]): Promise<AttachmentPath> {
-  const keys = shown.flatMap((m) => m.attachments).slice(-MAX_PROMPT_IMAGES);
+  const keys = shown.flatMap((m) => m.attachments).slice(-MAX_PROMPT_ATTACHMENTS);
   await Promise.all(
     keys.map((key) => deps.attachments.download(key, join(deps.workspace, localAttachment(key)))),
   );

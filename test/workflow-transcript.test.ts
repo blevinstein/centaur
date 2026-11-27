@@ -168,6 +168,15 @@ describe("buildPrompt", () => {
     expect(prompt).toContain("Sam: [attached image: .centaur-turn/attachments/2~0.jpg]");
   });
 
+  it("labels a stored PDF by its path", () => {
+    const key = "attachments/b/t/1~0.pdf";
+    const prompt = buildPrompt({
+      messages: [message("1", "", { attachments: [key] })],
+      attachmentPath: () => ".centaur-turn/attachments/1~0.pdf",
+    });
+    expect(prompt).toContain("Sam: [attached PDF: .centaur-turn/attachments/1~0.pdf]");
+  });
+
   it("lists every image as not loaded when no paths are given", () => {
     const prompt = buildPrompt({
       messages: [message("1", "", { attachments: ["attachments/b/t/1~0.jpg"] })],

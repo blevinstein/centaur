@@ -75,8 +75,9 @@ export function planTurn(input: {
 export type AttachmentPath = (key: string) => string | undefined;
 
 const renderAttachment = (key: string, localPath: AttachmentPath) => {
+  const label = key.toLowerCase().endsWith(".pdf") ? "PDF" : "image";
   const path = localPath(key);
-  return path ? `[attached image: ${path}]` : "[attached image, not loaded]";
+  return path ? `[attached ${label}: ${path}]` : `[attached ${label}, not loaded]`;
 };
 
 export const renderMessages = (messages: ChatMessage[], localPath: AttachmentPath) =>

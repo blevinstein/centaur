@@ -533,9 +533,9 @@ the repository top, which yields one guide.
 
 1. `prepare` reads the config, reads the thread from the poster (`read`), determines the
    unprocessed messages and the context policy, and writes the prompt to `.centaur-turn/prompt.md`.
-   It copies the images attached to the messages the prompt shows (pending ones, plus the earlier
+   It copies the images and PDFs attached to the messages the prompt shows (pending ones, plus the earlier
    ones when the history is included) from the session bucket into `.centaur-turn/attachments/`,
-   newest 10 at most, and lists each by path under its message; older images are listed as not
+   newest 10 at most, and lists each by path under its message; older files are listed as not
    loaded. A failed copy fails the turn.
    When `mcp_servers` is set, it writes `.centaur-turn/mcp.json` (secrets as `${NAME}` references,
    never values) and adds `--mcp-config` to `claude_args`; a referenced secret missing from the
