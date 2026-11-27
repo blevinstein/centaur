@@ -111,6 +111,12 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
       /model must be/,
     ],
   ),
+  [
+    "fast_model that could be a flag",
+    withExtra("fast_model: --max-turns"),
+    "fast_model",
+    /model must be/,
+  ],
   ["unknown effort", withExtra("effort: extreme"), "effort", /./],
   [
     "prompt model that could be a flag",

@@ -198,6 +198,7 @@ export const centaurConfigSchema = z
       }),
     provider: z.enum(PROVIDERS),
     model: modelId,
+    fast_model: modelId.optional(),
     effort: effortLevel.optional(),
     max_turns: z.number().int().min(1).max(200).default(30),
     max_budget_usd: z.number().positive().max(1000).optional(),

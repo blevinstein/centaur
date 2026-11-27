@@ -72,6 +72,7 @@ prompts:
 | `context.transcript_max_chars` | no | `100000` | Characters of message text the earlier transcript may fill, a positive integer. The `context` block governs how a thread's history is rebuilt each turn. See [Context](#context). |
 | `provider` | yes | | API provider: `anthropic` or `openrouter`. Each maps to a base URL and API key secret name in `src/config/providers.ts` (`anthropic` uses the default endpoint); add a provider by adding an entry there. |
 | `model` | yes | | Model passed to the agent (`--model`). A model id or alias (`sonnet`, `claude-opus-4-1`), an OpenRouter preset (`@preset/<slug>`) or a latest-resolution alias (`~anthropic/claude-sonnet-latest[1m]`); it starts with a letter, digit, `@` or `~`, never `-`, so it cannot become a CLI flag. **A consumer's default branch must not carry a leading `@` or `~` until the Lambda that knows it is deployed**: `register` parses the config in the Lambda, which rejects the value. Always set explicitly; the CLI default is never relied on. |
+| `fast_model` | no | | Model for Claude Code's auxiliary side-calls (set as `ANTHROPIC_DEFAULT_HAIKU_MODEL`), same format as `model`. Unset, those calls go to the provider's Haiku model, which an OpenRouter or zero-data-retention bot may not want; set it to a model the provider serves. **A consumer's default branch must not carry `fast_model` until the Lambda that knows it is deployed**: `register` parses the config in the Lambda, which rejects an unknown key. |
 | `effort` | no | | Reasoning effort: `low`, `medium`, `high`, `xhigh` or `max` (`--effort`); unset uses the CLI's default. |
 | `max_turns` | no | `30` | Agentic turn cap per run (`--max-turns`), an integer from 1 to 200. |
 | `max_budget_usd` | no | | Spend cap per run (`--max-budget-usd`), above 0 and at most 1000. A run that hits it ends without a structured reply, so the turn fails with a notice that it hit its spending limit, and is retried with the next message. |
@@ -209,6 +210,17 @@ Each turn is one `claude` run, so cost scales with model price, reasoning, and n
 | `mcp_servers` | Each server adds its tool list to every turn's prompt; allow only the tools needed (`mcp__<name>__<tool>`). |
 | `platforms.<p>.respond_to` | `all` runs a turn for every message from an approved sender, even ones the agent then ignores. |
 | `platforms.<p>.bot_messages` | `mention` lets other bots trigger turns (and their spend) by mentioning the bot; only the caps above bound a loop. |
+
+### Non-Claude models and OpenRouter
+
+The harness is Claude Code, so some of its features assume Anthropic:
+
+- `WebSearch` is an Anthropic server-side tool and does nothing on other models. Use OpenRouter's
+  `:online` model suffix or an MCP search server instead.
+- `max_budget_usd` is computed from Claude Code's local Anthropic price table, so it misprices other
+  models. Also cap spend on the OpenRouter key or workspace.
+- `effort` may be rejected by models without reasoning support; leave it unset for those.
+- Auxiliary side-calls go to Haiku unless `fast_model` is set.
 
 Two ideas are not built: a separate cheaper model
 that only decides whether to reply (triage) would need a second agent run per message, which the

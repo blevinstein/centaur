@@ -366,6 +366,17 @@ describe("prepare", () => {
     expect(await prepare(deps())).toMatchObject({ base_url: baseUrl, api_key_secret: secret });
   });
 
+  it.each([
+    ["fast_model: openai/gpt-5-mini", "openai/gpt-5-mini"],
+    ["", ""],
+  ])("outputs the auxiliary model from %j as %j", async (line, expected) => {
+    const { deps } = await setup(
+      [message("1", "hi")],
+      configText().replace("model: sonnet", `model: sonnet\n${line}`),
+    );
+    expect((await prepare(deps())).fast_model).toBe(expected);
+  });
+
   it("gives a fresh turn only the pending messages", async () => {
     const { deps, root } = await setup(
       [message("1", "old"), botMessage("2", "r"), message("3", "new")],

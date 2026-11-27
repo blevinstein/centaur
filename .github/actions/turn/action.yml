@@ -13,11 +13,14 @@ inputs:
   prompt_name:
     description: Name of a prompt in the Centaur config; starts a new thread instead of answering a dispatched message.
     default: ""
+  api_key:
+    description: API key for the bot's provider, whichever it is. Takes precedence over anthropic_api_key and openrouter_api_key.
+    default: ""
   anthropic_api_key:
-    description: Used when the bot's provider is anthropic.
+    description: Used when the bot's provider is anthropic and api_key is empty.
     default: ""
   openrouter_api_key:
-    description: Used when the bot's provider is openrouter.
+    description: Used when the bot's provider is openrouter and api_key is empty.
     default: ""
 outputs:
   skip:
@@ -52,12 +55,19 @@ runs:
         BASE_URL: ${{ steps.prepare.outputs.base_url }}
       run: echo "ANTHROPIC_BASE_URL=$BASE_URL" >> "$GITHUB_ENV"
 
+    - name: Route auxiliary model calls
+      if: steps.prepare.outputs.skip != 'true' && steps.prepare.outputs.fast_model != ''
+      shell: bash
+      env:
+        FAST_MODEL: ${{ steps.prepare.outputs.fast_model }}
+      run: echo "ANTHROPIC_DEFAULT_HAIKU_MODEL=$FAST_MODEL" >> "$GITHUB_ENV"
+
     - name: Run agent
       id: agent
       if: steps.prepare.outputs.skip != 'true'
       uses: anthropics/claude-code-action@v1
       with:
-        anthropic_api_key: ${{ steps.prepare.outputs.api_key_secret == 'OPENROUTER_API_KEY' && inputs.openrouter_api_key || inputs.anthropic_api_key }}
+        anthropic_api_key: ${{ inputs.api_key || (steps.prepare.outputs.api_key_secret == 'OPENROUTER_API_KEY' && inputs.openrouter_api_key || inputs.anthropic_api_key) }}
         github_token: ${{ github.token }}
         prompt: Read .centaur-turn/prompt.md and follow it.
         claude_args: ${{ steps.prepare.outputs.claude_args }}

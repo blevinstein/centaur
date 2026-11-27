@@ -173,6 +173,7 @@ export interface PrepareOutputs {
   branch: string;
   claude_args: string;
   base_url: string;
+  fast_model: string;
   api_key_secret: string;
   /** The thread's open pull request whose branch is the workspace; empty when the workspace is the default branch. */
   thread_pull_request: string;
@@ -260,6 +261,7 @@ const skipped: PrepareOutputs = {
   branch: "",
   claude_args: "",
   base_url: "",
+  fast_model: "",
   api_key_secret: "",
   thread_pull_request: "",
   config_root: "",
@@ -800,6 +802,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     thread_pull_request: threadBranch ? String(threadBranch.number) : "",
     config_root: threadBranch?.configRoot ?? "",
     base_url: PROVIDER_SETTINGS[config.provider].base_url ?? "",
+    fast_model: config.fast_model ?? "",
     api_key_secret: PROVIDER_SETTINGS[config.provider].api_key_secret,
     claude_args: buildClaudeArgs({
       config: {

@@ -214,6 +214,7 @@ program.command("prepare").action(async () => {
     branch: outputs.branch,
     claude_args: outputs.claude_args,
     base_url: outputs.base_url,
+    fast_model: outputs.fast_model,
     api_key_secret: outputs.api_key_secret,
     thread_pull_request: outputs.thread_pull_request,
     config_root: outputs.config_root,

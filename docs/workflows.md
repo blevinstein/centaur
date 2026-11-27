@@ -454,6 +454,8 @@ that runs the scripts therefore needs `id-token: write`, as the examples above a
 
 The API base URL comes from the bot's `provider` in the config, not from a variable.
 
+The `turn` action also takes a single `api_key` input, used whatever the provider; it wins over `anthropic_api_key` and `openrouter_api_key`, so a provider added in `src/config/providers.ts` needs no new input.
+
 **Secret** the API key named by the bot's `provider` (`ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY`), plus anything the agent's tools need.
 
 ## How the scripts are delivered

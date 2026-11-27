@@ -226,6 +226,13 @@ describe("parseCentaurConfig", () => {
     });
   });
 
+  it("accepts a fast_model", () => {
+    expect(parseCentaurConfig(yamlOf({ fast_model: "openai/gpt-5-mini" }))).toMatchObject({
+      ok: true,
+      config: { fast_model: "openai/gpt-5-mini" },
+    });
+  });
+
   it.each(["@preset/foo", "~anthropic/claude-sonnet-latest[1m]", "claude-opus-4-1"])(
     "accepts the model %s",
     (model) => {
