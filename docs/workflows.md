@@ -350,6 +350,28 @@ The secret is also in the environment of the agent process, so an allowed `Bash`
 Keep `Bash` out of `allowed_tools` for repos that pass MCP secrets, or accept that the agent can
 read them.
 
+## Local MCP servers built by a toolchain
+
+A server installed with `cargo` or `go` is built in a caller step before `turn`, so the version is
+pinned in the reviewed workflow; the config launches the binary by name
+([Launching servers](mcp.md#launching-servers)). For `command: example-mcp-server` with
+`args: ["--stdio"]`:
+
+```yaml
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: |
+          go install example.com/mcp/example-mcp-server@v1.4.2
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - uses: <owner>/centaur/.github/actions/turn@main
+```
+
+For Rust, replace the first two steps with `cargo install --locked --version 1.4.2
+example-mcp-server` (then add `~/.cargo/bin` to `GITHUB_PATH` if the runner does not already have
+it). The matching permit is `installed-binary` in the
+[cookbook](mcp.md#a-local-server-launched-by-command-name).
+
 ## Approval-required MCP servers
 
 When the [operator policy](mcp.md#operator-policy) makes a server approval-required, `prepare` calls

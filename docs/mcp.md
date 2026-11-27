@@ -581,6 +581,35 @@ permit. A pinned package still runs arbitrary code with the job's secrets in its
 source works the same way, with the full argument list as in
 [Pinned git sources](#operator-policy).
 
+### A local server launched by command name
+
+Use it for an installed binary (a `cargo install` or `go install` result) that an earlier workflow
+step puts on `PATH`; see [Launching servers](#launching-servers). `pinned` is always `false` for
+such a command, so the permit names the command and the whole argument list instead.
+
+```cedar
+// cookbook: installed-binary
+permit(principal, action == Action::"UseServer", resource)
+  when {
+    resource.transport == "stdio" && resource.command == "example-mcp-server" &&
+    resource.args == ["--stdio"]
+  };
+```
+
+```cedar
+// cookbook: installed-binary-approved
+permit(principal, action == Action::"UseServer", resource)
+  when {
+    resource.transport == "stdio" && resource.command == "example-mcp-server" &&
+    resource.args == ["--stdio"] && context.approved
+  };
+```
+
+Security: the policy sees the command name and arguments, not which binary `PATH` resolves it to
+or what version the workflow installed, so the version is pinned only by the reviewed workflow
+step. A different command, an extra argument or a missing one does not match, and the command
+must be the bare name: a path to the binary does not match.
+
 ### Any pinned local server
 
 See [Allow any pinned local server](#operator-policy) for both forms (with and without

@@ -22,6 +22,11 @@ const cases: Case[] = [
     stdioArgs("npx", ["-y", "@example/docs-mcp@1.4.3"]),
   ],
   ["uvx-package", stdioArgs("uvx", ["example-mcp==1.4.2"]), stdioArgs("uvx", ["other-mcp==1.4.2"])],
+  [
+    "installed-binary",
+    stdioArgs("example-mcp-server", ["--stdio"]),
+    stdioArgs("other-mcp-server", ["--stdio"]),
+  ],
 ];
 
 const bypasses: [id: string, servers: ReturnType<typeof remoteAt>][] = [
@@ -32,6 +37,9 @@ const bypasses: [id: string, servers: ReturnType<typeof remoteAt>][] = [
   ["npx-package", stdioArgs("npx", ["-y", "@example/docs-mcp@1.4.2", "--", "x"])],
   ["uvx-package", stdioArgs("uvx", ["other==1.0.0", "example-mcp==1.4.2"])],
   ["uvx-package", stdioArgs("uvx", ["example-mcp==1.4.2", "--extra"])],
+  ["installed-binary", stdioArgs("example-mcp-server", ["--stdio", "--extra"])],
+  ["installed-binary", stdioArgs("example-mcp-server", ["--other"])],
+  ["installed-binary", stdioArgs("/tmp/example-mcp-server", ["--stdio"])],
 ];
 
 describe("docs/mcp.md permit cookbook", () => {
