@@ -51,6 +51,10 @@
   (`src/cli/parameter-store.ts`) are separate interfaces; adding a method means updating
   `fakeParameterStore` (`test/helpers/receiver-fixtures.ts`) or `FakeParameterStore`.
 - Run `yarn lint:cfn` after IAM or template changes.
+- Run `actionlint` on `.github/workflows/*.yml` only; it rejects composite `action.yml` files.
+- `cookbookSnippets` (`test/helpers/cookbook-fixtures.ts`) reads every `// cookbook:`-tagged cedar
+  block after `## Permit cookbook` in `docs/mcp.md`: put new sections before that heading, or tag
+  each block with a tested id.
 - `src/lambda/handler.ts` builds the receiver and poster lazily at module scope. Test it with
   `importFreshHandler()` from `test/helpers/handler-fixtures.ts`, which resets modules. Declare the
   `vi.mock` calls for the factory modules in the test file, because `vi.mock` only hoists there.
@@ -179,6 +183,9 @@
 - A scheduled workflow's concurrency group comes from `resolve-schedule`
   (`src/workflows/schedule-group.ts`). A change to its key must update the template in
   `docs/workflows.md` and `.github/workflows/centaur-hello.yml`.
+- A scheduled caller (`centaur-hello.yml`, `centaur-dev-next-task.yml`) has no `notify-timeout` job
+  because a scheduled run has no dispatch `client_payload`: a timeout posts no notice, and only the
+  in-job `notify-failure` step reports a failure.
 - Every poster post path (`post`, `start-thread`, a reused persistent thread) posts through
   `postInThread` (`src/lambda/channel-history.ts`), which also records the sent message in the
   chat-level history list on Telegram; a new post path must use it. A failed record only logs.
