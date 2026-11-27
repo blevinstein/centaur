@@ -102,7 +102,6 @@ describe("this repo's Centaur config", () => {
       expect(new Set([first.bot, second.bot, dev.bot]).size).toBe(SELF_ROOTS.length);
       expect(dev.platforms).toEqual({
         slack: { respond_to: "mention", bot_messages: "ignore" },
-        telegram: { respond_to: "mention", bot_messages: "ignore" },
       });
       expect(dev.execution.mode).toBe("pull_request");
       expect(dev.mcp_servers).toEqual({});

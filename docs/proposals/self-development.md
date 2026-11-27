@@ -1,7 +1,7 @@
 # Self-development bot
 
 Status: **slice 1 (the repo side) is built; slices 2 to 5 are open**. A bot that develops this repository: the maintainer asks it for a
-change in Slack or Telegram, or a scheduled prompt picks the next task, and the agent runs shell
+change in Slack, or a scheduled prompt picks the next task, and the agent runs shell
 commands, reads the web, verifies its work and opens a pull request. Terms (turn, poster, root) are in
 [workflows.md](../workflows.md); the sub-folder layout it follows is in
 [two-bot-test.md](two-bot-test.md).
@@ -27,8 +27,6 @@ participant (and every pasted page) would steer a shell.
 bot: centaur-dev
 platforms:
   slack:
-    respond_to: mention
-  telegram:
     respond_to: mention
 context:
   default: transcript
@@ -115,7 +113,7 @@ conditions:
 
 - **Admin only.** Only the maintainer is approved for `centaur-dev`, through a direct message or a
   private chat with no one else in it. Approving a shared chat approves everyone in it.
-- **Mention only.** `respond_to: mention` on both platforms, so no unaddressed message runs a turn.
+- **Mention only.** `respond_to: mention` on Slack, so no unaddressed message runs a turn.
 - **Review is the gate.** Pull request mode; `main` is protected so a stray `git push` with the job
   token cannot land there. Merging deploys nothing: the Lambda changes only on `yarn deploy-prod`,
   and changes to the composite actions take effect on the next turn of every bot in this repository,
@@ -144,9 +142,9 @@ In order of cost, each tracked as its own task:
    matrix; `test/self-consumer.test.ts` validates the config. The config must not reach `main` before
    the deployed Lambda parses it (`repository_instructions.include_repo_root` is already deployed).
 2. **Maintainer setup.** The same steps as for `centaur-test-2`
-   ([two-bot-test.md](two-bot-test.md#step-2-the-second-bot)): create the Slack app and Telegram bot,
+   ([two-bot-test.md](two-bot-test.md#step-2-the-second-bot)): create the Slack app (`centaur-dev` has no Telegram bot),
    `centaur bot add`, merge slice 1 so `register` binds the bot, nudge the receiver, and approve only
-   the maintainer's private chat on each platform.
+   the maintainer's private chat.
 3. **First runs.** Ask for a small, known change (a `TODO.md` item with a clear test) and tune
    `model`, `max_turns`, `max_budget_usd` and the timeout from the run.
 4. **Scheduled `next-task`.** The workflow and its destination.

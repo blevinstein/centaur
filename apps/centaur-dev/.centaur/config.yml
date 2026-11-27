@@ -2,8 +2,6 @@ bot: centaur-dev
 platforms:
   slack:
     respond_to: mention
-  telegram:
-    respond_to: mention
 context:
   default: transcript
 repository_instructions:
