@@ -604,6 +604,79 @@ write the ceiling for every spelling of what you mean to block, or invert it wit
 `forbid ... unless { ... }` so that only what you list can pass, which is how the global ceiling is
 written.
 
+## Launching servers
+
+A local (stdio) server is a process the turn starts on the runner, so what it can launch depends on
+the toolchains on that runner. This section covers `command` servers; remote servers need none of
+it.
+
+### Runner toolchains
+
+A turn job runs on the caller's `runs-on` (`ubuntu-latest` in the [example workflows](workflows.md)).
+Centaur installs only what its own scripts need, in `setup-runtime`:
+
+- Node, `npx` and `yarn`: `actions/setup-node` with the version in Centaur's `.nvmrc`, then
+  `corepack enable`.
+- `uv` and `uvx`: `astral-sh/setup-uv` (the action's version is pinned; it is not told a `uv` version).
+
+Everything else is whatever the runner image ships, which Centaur neither selects nor pins and
+which changes with the image. The [Ubuntu 24.04 image list](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md)
+includes Python 3 with `pip`, Rust with `cargo` and `rustup`, and Docker. It lists Go under cached
+tools (several versions); whether `go` is on `PATH` by default is not something Centaur checks, so
+install it explicitly. The `ubuntu-latest` label moves to a new image over time, and a
+self-hosted runner has none of this.
+
+Centaur does not provide a Python, Go or Rust toolchain at a version of your choosing. A consumer
+that needs one installs it in its own workflow, in a step before the `turn` action (for example
+`actions/setup-python`, `actions/setup-go` with a `go.mod`, or a Rust toolchain action or
+`rust-toolchain.toml`), so the version is pinned in the reviewed workflow.
+
+### Launcher, policy and pinning
+
+Which launchers the policy can reason about:
+
+| `command` | `pinned` | What the policy sees |
+|---|---|---|
+| `npx` | recognised | the package is an exact version or a commit SHA, or `pinned` is `false` |
+| `uvx` | recognised | the same, for `pkg==1.4.2` or a commit SHA |
+| `cargo`, `go`, anything else | always `false` | the command and its arguments, nothing about what they build or run |
+
+[`isPinned`](#operator-policy) (`src/config/mcp-policy.ts`) recognises only `npx` and `uvx`, so
+`cargo run`, `go run` and an installed binary are all "any other command". They are allowed only by
+a `permit` that does not need `resource.pinned`: one that names the `command` (and, for an exact
+match, `args`), preferably with `context.approved` so the admin or an approver confirms the exact
+definition. The broad "any pinned local server" permit never matches them. Cedar cannot verify a
+version, a module or crate source, or the checksum of what they fetch, so the pin is whatever the
+reviewed workflow and arguments say.
+
+The practical pattern for a Rust or Go server is to build or fetch a fixed version in an earlier
+workflow step and let the server entry launch the resulting binary:
+
+```yaml
+mcp_servers:
+  example:
+    command: example-mcp-server
+    args: ["--stdio"]
+```
+
+with the install in the caller workflow before the `turn` step, for example
+`cargo install --locked --version 1.4.2 example-mcp-server` or
+`go install example.com/mcp/example-mcp-server@v1.4.2`, plus the toolchain's bin directory on
+`PATH`. The policy then permits that command by name (and `args`) rather than a package, so the
+version lives in the workflow, not in anything the policy checks. Launching with `cargo run` or
+`go run` in the config instead compiles and runs at turn time, and nothing pins it. Containers
+(`docker run`) are [out of scope](#out-of-scope).
+
+### Install scripts
+
+Whatever installs or launches a server can run code before the server starts: npm `postinstall`,
+a Rust `build.rs`, `go generate` and `cgo`, Python `setup.py` or build backends. That code runs in
+the turn with the job's credentials and the server's `env` in reach. Pinning fixes which code
+runs; it does not make it safe. Keep `Bash` out of `allowed_tools` for a bot that runs local
+servers ([Residual exposure](#secrets)), use the narrow permits in the
+[cookbook](#permit-cookbook) with `context.approved`, and prefer a pinned git SHA or exact version
+as described in [Trust model](#trust-model).
+
 ## Out of scope
 
 - Per-turn or per-prompt server sets (all prompts and chat turns share `mcp_servers`).
