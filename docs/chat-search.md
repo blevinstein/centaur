@@ -1,9 +1,10 @@
 # Searching chat history
 
 > **Status: decisions accepted (2026-11-22); slices 1 to 3 are implemented. Slice 4 (Slack-native
-> search) design approved 2026-11-26; slices 4.1 to 4.5 (receiver capture, poster `search-chat`,
-> deploy, live check, MCP `search_chat`) are done, and 4.6 (the end-to-end check on one bot) is a
-> human live check.** See the [Implementation plan](#implementation-plan). It
+> search) design approved 2026-11-26; slices 4.1 to 4.6 (receiver capture, poster `search-chat`,
+> deploy, live check, MCP `search_chat`, the end-to-end check on one bot) are done, as is slice 6
+> (both confirmed by the maintainer 2026-11-27). The `action_token` lifetime has no final number
+> (see [live results](#slice-4-live-results)).** See the [Implementation plan](#implementation-plan). It
 > extends [chat-context.md](chat-context.md), which keeps search out of scope, and feeds the bounded transcript ([workflows.md](workflows.md#transcript-budget)). Terms (poster,
 > receiver, turn, state table) are defined in [plan.md](plan.md), [poster.md](poster.md) and
 > [workflows.md](workflows.md).
@@ -188,9 +189,9 @@ Ordered slices; each lands with tests and docs.
 | 1 | Poster: `scanned: { oldest, exhausted }` in `read-channel` and `list-threads` results | none | `src/lambda/chat-context.ts`, `docs/poster.md`, `test/chat-context.test.ts`, `test/helpers/chat-context-fixtures.ts` | done |
 | 2 | Config key under `chat_tools`: the Slack-native search opt-in | none | `src/config/`, `docs/config.md`, `test/config.test.ts` | done |
 | 3 | MCP server: render `scanned` in `read_channel` and `list_threads` output, and tell the agent in the prompt block that results come from a bounded window | 1 | `src/mcp/chat-server.ts`, `src/mcp/chat-poster-client.ts`, `src/workflows/` prompt block, `docs/chat-context.md` | done |
-| 4 | Slack-native search: receiver captures the `action_token`, poster operation `search-chat`, MCP `search_chat` tool | 2, 3 | [Slice 4: build plan](#slice-4-build-plan) (4.1 to 4.6) | design approved 2026-11-26; 4.1 to 4.5 done, 4.6 open |
-| 5 | Telegram stored-history window (`history.thread`) | none | `src/lambda/chat.ts`, `infra/`, docs | separate worker |
-| 6 | Verify on a real install: Slack rate limits for a single-workspace app, `action_token` lifetime, AI-feature availability, Telegram window cost (the Slack items are slice 4.4) | 4.2, 5 | none | open, **[HUMAN ACTION]** |
+| 4 | Slack-native search: receiver captures the `action_token`, poster operation `search-chat`, MCP `search_chat` tool | 2, 3 | [Slice 4: build plan](#slice-4-build-plan) (4.1 to 4.6) | design approved 2026-11-26; done (4.6 confirmed by the maintainer 2026-11-27) |
+| 5 | Telegram stored-history window (`history.thread`) | none | `src/lambda/chat.ts`, `infra/`, docs | done |
+| 6 | Verify on a real install: Slack rate limits for a single-workspace app, `action_token` lifetime, AI-feature availability, Telegram window cost (the Slack items are slice 4.4) | 4.2, 5 | none | done (confirmed by the maintainer 2026-11-27; no results recorded) |
 
 `scanned.exhausted` is `true` when the source (the stored Telegram list, or the one Slack page with no
 older cursor) was fully read, and `false` when the read stopped at `limit` or Slack reported an
@@ -364,7 +365,7 @@ small enough to fail the idea cheaply. Each slice lands with tests and docs.
 | 4.3 | Deploy 4.1 and 4.2; reinstall the Slack app so the token has `search:read.public` | human | manifest already has the scope (done) |
 | 4.4 | Live check: mention the bot and call `search-chat` at increasing delays; record token presence, lifetime (`tokenAgeSeconds`), rate-limit behavior, whether it works without `features.agent_view`, the `in:` syntax, `feature_not_enabled`; apply the stop conditions | human | none (done; see [live results](#slice-4-live-results)) |
 | 4.5 | MCP `search_chat`, client method, prompt guidance, registered only with `chat_tools.slack_search` (done) | agent | `src/mcp/chat-server.ts`, `src/mcp/chat-poster-client.ts`, `src/mcp/poster-chat-client.ts`, `src/mcp/server-config.ts`, `src/workflows/mcp-config.ts`, `src/workflows/prepare.ts`, `src/workflows/prompt.ts`, `src/lambda/slack-search.ts`, `docs/chat-context.md`, `docs/config.md`, tests |
-| 4.6 | Enable `slack_search: true` on one bot; end to end: search finds a known older message, no other channel's message ever appears, a turn without a mention degrades with guidance | human | consumer config (the test bot `centaur-test-2` has the key on, in `apps/centaur-test-2/.centaur/config.yml`) |
+| 4.6 | Enable `slack_search: true` on one bot; end to end: search finds a known older message, no other channel's message ever appears, a turn without a mention degrades with guidance | human, done (confirmed by the maintainer 2026-11-27; no results recorded) | consumer config (the test bot `centaur-test-2` has the key on, in `apps/centaur-test-2/.centaur/config.yml`) |
 
 ## Slack search requirements
 

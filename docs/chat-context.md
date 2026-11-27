@@ -1,10 +1,11 @@
 # Chat context tools (design)
 
-> **Status: implemented behind `chat_tools.scope: chat`, not yet run against a real chat.** The
+> **Status: implemented behind `chat_tools.scope: chat`; verified live on Slack.** The
 > config key, the poster operations (`list-threads`, `read-channel`, the repo-binding check on
 > `read`), the platform support, the MCP server and its stdio entry, the `prepare` wiring and the
 > prompt block exist; see [poster.md](poster.md#list-threads-and-read-channel). Open: the live
-> confirmation of the tool gate (see [Tool gate](#tool-gate)), and the live test on each platform.
+> confirmation of the tool gate under `claude-code-action` (see [Tool gate](#tool-gate)), and the
+> real run on Telegram.
 >
 > This repo's own `.centaur/config.yml` enables `scope: chat` for the live run.
 
@@ -253,7 +254,7 @@ per call, [Tool-call policy](mcp.md#tool-call-policy)) covers this server when t
   own approval design; see [mcp-approval.md](mcp-approval.md)).
 - Seeing other threads' turn state, in-flight runs or PRs.
 - Other chats the bot is in, DMs, and history from before the bot joined on Telegram.
-- Search, embeddings or summarization of history (search is proposed in
+- Search, embeddings or summarization of history (search is described in
   [chat-search.md](chat-search.md)).
 - Adding all of this to `fresh`/`resume` prompts automatically.
 
@@ -268,14 +269,14 @@ Each step lands with tests and docs.
 3. **Done** (Slack limits still to verify). Telegram: group stored history into threads for `list-threads`; Slack: map `listThreads` and
    `fetchChannelMessages`. Verify Slack limits on a real app (**[HUMAN ACTION]**).
 4. **Done.** `src/mcp/chat-server.ts` (`createChatServer`, `serveChatServer`) with the handle and cursor mapping, fenced output and caps, using the MCP SDK and a `ChatPosterClient` interface; unit-tested against a fake client over an in-memory transport.
-5. **Done.** The poster-backed client, the stdio entry `src/mcp/chat-server-main.js` (spawned-process test against a fake `aws` and token endpoint), `prepare` writing the server into `mcp.json`, extending the allowlist and adding the prompt block; `dist/` builds it and the Lambda bundle does not contain it.
-6. **Partly done.** The per-call gate honors a `CallTool` `forbid` on `centaur-chat` (unit-tested; see [Tool gate](#tool-gate)), but only for a config with `mcp_servers`. Open: the live confirmation under `claude-code-action`.
-7. Real run on `centaur-hello` in each platform: the agent in one thread summarizes another
-   (**[HUMAN ACTION]**).
+5. **Done.** The poster-backed client, the stdio entry `src/mcp/chat-server-main.ts` (spawned-process test against a fake `aws` and token endpoint), `prepare` writing the server into `mcp.json`, extending the allowlist and adding the prompt block; `dist/` builds it and the Lambda bundle does not contain it.
+6. **Partly done.** The per-call gate honors a `CallTool` `forbid` on `centaur-chat` (unit-tested; see [Tool gate](#tool-gate)), but only for a config with `mcp_servers`. Open: the live confirmation that a denial reaches the agent as a tool error under `claude-code-action` (a Backlog `[HUMAN ACTION]` item in [TODO.md](../TODO.md)).
+7. **Partly done.** Real run on `centaur-hello` in each platform: the agent in one thread summarizes another
+   (**[HUMAN ACTION]**). Slack is verified live (reply and log checks); Telegram is open. Tracked as a Backlog item in [TODO.md](../TODO.md).
 
 ## Decisions
 
-Recommendations in bold; each needs the maintainer's approval before building.
+Recommendations in bold; all accepted by the maintainer 2026-11-27.
 
 1. **Scope: one chat, never all chats.** Wider scope turns one bot into a read path across every
    audience it serves.

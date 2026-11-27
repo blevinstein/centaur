@@ -504,6 +504,75 @@ branch from `main` after it; a runner slice merges only after the Lambda it call
       on a record with no thread creates and binds one; `thread` applies to every fan-out target;
       `persistent` rejected by the schema until slice 16).
 
+## 17. Chat context tools
+
+- [x] Chat context tools: let the agent read other threads in its chat through a built-in MCP server
+      backed by new poster operations. Decisions accepted 2026-11-27
+      ([docs/chat-context.md](docs/chat-context.md)).
+  - [x] Config key, poster operations, platform support and the MCP server (steps 1 to 4).
+  - [x] Poster-backed client, stdio entry (`dist/mcp/chat-server-main.js`), `prepare` wiring and
+        prompt block (step 5); `scope: thread` is unchanged.
+  - [x] Tool gate (step 6): the per-call MCP policy
+        ([docs/proposals/mcp-tool-policy.md](docs/proposals/mcp-tool-policy.md)) is built, with a
+        test that a `forbid` on `centaur-chat` is honored. It installs only when `mcp_servers` is
+        non-empty, so a config with only the chat server has no gate.
+  - [x] Chat context 7 real run: moved to Backlog 2026-11-26 as an optional manual check.
+- [x] Telegram chat tools miss the bot's own posts and bot-only threads. Done: option A. The poster
+      records each sent message in the chat's list (`postInThread`, `src/lambda/channel-history.ts`),
+      and the readers (`read-channel`, `list-threads`, `centaur chat tail`) now read that list
+      through `chat.history.thread.collect(channelId)`, because the SDK's `chat.channel(id).messages`
+      never reads the stored list (the Telegram adapter's `fetchChannelMessages` compares
+      `decoded.chatId` with `telegram:<chatId>`). Posts made before this deploy stay thread-only.
+  - [x] (A) Append the sent message to the chat list after `post` and `start-thread`.
+  - [x] (B) Not needed.
+
+## 18. Chat search
+
+- [x] Chat search: the Chat SDK has no history search, so any search is ours. Decisions accepted
+      2026-11-22 ([docs/chat-search.md](docs/chat-search.md)): no poster-side filter (the poster
+      scans the whole window and the Telegram window fits in one call), report the scanned range,
+      and add opt-in Slack-native search; no secondary index (SQLite FTS, OpenSearch, embeddings)
+      because of the infrastructure cost. Slices, in order:
+  - [x] Chat search 1: `scanned: { oldest, exhausted }` range in `read-channel` and
+        `list-threads` results.
+  - [x] Chat search 2: `chat_tools` config key for the Slack search opt-in.
+  - [x] Chat search 3: MCP server renders the scanned range and the bounded-window note.
+  - [x] Chat search 4: Slack-native search. Design in
+        [docs/chat-search.md](docs/chat-search.md#slice-4-decisions); the design was approved
+        2026-11-26 (nothing retrieved from Slack is stored beyond the short-lived token). Agent slices, in order (stop after 4.4 if its stop conditions hold):
+    - [x] 4.1 Receiver captures the `action_token` into the state table (TTL, never logged). Merged
+          as a7f0259.
+    - [x] 4.2 Poster `search-chat` operation (caller check, public-channel and sender filters, clip,
+          `unavailable` results, client method). Merged as a7f0259.
+    - [x] **[HUMAN ACTION]** 4.3 Deploy 4.1 and 4.2; reinstall the Slack app so the token has
+          `search:read.public`. Done 2026-11-27.
+    - [x] **[HUMAN ACTION]** 4.4 Live check (2026-11-27): the token arrives only with the agent view
+          enabled; search is workspace-wide (post-filter kept); `in:<#C...>` scopes it; a burst gets
+          429 with `Retry-After: 60`; lifetime still being measured. Details in
+          [chat-search.md](docs/chat-search.md#slice-4-live-results).
+    - [x] 4.5 MCP `search_chat` tool, registered only with `chat_tools.slack_search` (built; the
+          poster scopes the query with `in:<#ID>`).
+    - [x] **[HUMAN ACTION]** 4.6 Enable `slack_search: true` on one bot and run the end-to-end
+          check. Confirmed done by the maintainer 2026-11-27 (no results recorded here).
+  - [x] Chat search 5: the stored-history window, tracked in the next item.
+  - [x] **[HUMAN ACTION]** Chat search 6: verify the Telegram window cost on a real install (the
+        Slack items moved to 4.4). Confirmed done by the maintainer 2026-11-27 (no results recorded
+        here).
+- [x] Decide and set the stored-history window (`history.thread` `maxMessages` and `ttlMs`)
+      explicitly in `src/lambda/chat.ts`. The window is the `HistoryMaxMessages` (default 100,
+      max 5000) and `HistoryTtlDays` (default 7, max 365) stack parameters, read by
+      `src/lambda/history-window.ts`; the dead `STORED_HISTORY_SCAN_MAX` is gone. Measured on
+      DynamoDB Local (which reports no capacity), the adapter's trim reads the whole list on every
+      append: 20 / 25 / 31 / 49 / 109 ms p50 per append at 100 / 500 / 1000 / 2000 / 5000
+      messages (N+1 items read; two queries at 5000). At 1 KB per message and two lists per
+      message that is about N/2 read units, roughly $0.000006 / $0.00003 / $0.0003 per message at
+      100 / 500 / 5000 on-demand (estimate). Recommended: 500 messages, 7 days.
+- [x] **[HUMAN APPROVAL]** Raise the deployed stored-history window to the recommended 500
+      messages (`HistoryMaxMessages=500`, `HistoryTtlDays` stays 7): a CloudFormation parameter
+      change. Approved and deployed 2026-11-22; `HistoryMaxMessages` is set in the private
+      `parameters-prod.json`, so later deploys keep it. Unblocks chat search and `list-threads`
+      seeing more than the newest 100 messages of a Telegram chat.
+
 ## 19. Agent skills
 
 Design and decisions: [docs/skills-rules.md](docs/skills-rules.md).

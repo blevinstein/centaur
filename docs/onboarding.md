@@ -373,8 +373,8 @@ Telegram topic is recreated on the next run and starts without the old transcrip
 - [x] A consumer repo different from the centaur repo (`job.workflow_*` contexts, repo access).
 - [x] Slack end to end, including acknowledging webhooks within Slack's 3 seconds (receiver
       durations stayed under it; the cold start has the closest margin, see `TODO.md`).
-- [ ] Slack search (`slack_search`) and the Slack history rate limits on a real install (`TODO.md`,
-      Chat search 4 and 6).
+- [x] Slack search (`slack_search`) and the Slack history rate limits on a real install (confirmed
+      done by the maintainer 2026-11-27; see [DONE.md](../DONE.md), Chat search 4 and 6).
 - [ ] Bot-to-bot mentions in the reverse direction.
 
 Validated in the first live run: deploy, a Telegram bot with a Topics group, registration,
