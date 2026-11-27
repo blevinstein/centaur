@@ -26,7 +26,7 @@
   `package.json`.
 - Yarn does not auto-install peer dependencies; when a tool fails with `ERR_MODULE_NOT_FOUND` for a
   peer (e.g. `vite` for vitest), add it to devDependencies explicitly. Yarn Berry has no `--silent`
-  flag.
+  flag (or any quiet flag): run plain `yarn lint`, `yarn test` and the like.
 - `yarn lint` (Biome check: lint, format, import order; `yarn format` fixes), `yarn typecheck`,
   `yarn test` (Vitest, `test/**/*.test.ts`), `yarn build` (tsc to `dist/`).
 - `yarn test` starts `amazon/dynamodb-local` through Docker, or uses `DYNAMODB_ENDPOINT` if set.
@@ -75,6 +75,8 @@
 - A new field in the agent's structured output goes in three places: `replySchema`
   (`src/workflows/prompt.ts`), `resultMessage` and `extractResult` (`src/workflows/finish.ts`), and
   `docs/workflows.md`. The PR step in `.github/actions/turn/action.yml` reads the `pr-details` outputs.
+  A new CLI step in a composite action also goes in `COMMANDS` in `test/workflow-cli.test.ts`; a step
+  that gates "Open pull request" must keep `PULL_REQUEST_FAILED` reading `.outcome == 'failure'`.
 - Agent prompt guidance lives in `src/workflows/instructions/*.md` (copied to `dist/` by
   `yarn build`) and is overridable via the config's `instructions`. Anything the code parses or
   that guards untrusted input stays in `prompt.ts`, not in those files.
@@ -169,6 +171,8 @@
   raw chat ID there.
 - A new `TelegramApi` method also needs adding to `fakeTelegram` in
   `test/helpers/poster-fixtures.ts`.
+- A new `GitHubRequester` method (`src/workflows/resolve.ts`) needs a stub in
+  `test/helpers/mcp-policy-fixtures.ts`.
 - Per-platform thread behavior lives in `THREAD_PLATFORMS` (`src/lambda/thread-starter.ts`); a new
   platform adds an entry there instead of branching inline. Build thread IDs with `buildThreadId`
   (`src/config`), never by string.
@@ -184,8 +188,8 @@
   with `queue: max`; scheduled workflows read it from `resolve-schedule`
   (`src/workflows/bot-group.ts`). A change to the group or its options must update every workflow
   under `.github/workflows/` that sets `concurrency` (including the `centaur-dev-merged-branch.yml`, `centaur-test-merged-branch.yml` and `centaur-test-2-merged-branch.yml` cleanup workflows), and the templates in `docs/workflows.md` and
-  `docs/pr-comments.md`. Recovery of a cancelled pending run relies on the per-thread marker and
-  `pendingComments`.
+  `docs/pr-comments.md`. Pending runs can be cancelled, so recovery relies on the per-thread marker and
+  `pendingComments`; keep both intact.
 - A scheduled caller (`centaur-hello.yml`, `centaur-dev-next-task.yml`) has no `notify-timeout` job
   because a scheduled run has no dispatch `client_payload`: a timeout posts no notice, and only the
   in-job `notify-failure` step reports a failure.
