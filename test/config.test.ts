@@ -18,6 +18,7 @@ import {
   withExtra,
   withMcp,
   withPlatforms,
+  yamlOf,
 } from "./helpers/config-fixtures.js";
 
 describe("parseCentaurConfig", () => {
@@ -220,6 +221,16 @@ describe("parseCentaurConfig", () => {
       },
     });
   });
+
+  it.each(["@preset/foo", "~anthropic/claude-sonnet-latest[1m]", "claude-opus-4-1"])(
+    "accepts the model %s",
+    (model) => {
+      expect(parseCentaurConfig(yamlOf({ model: JSON.stringify(model) }))).toMatchObject({
+        ok: true,
+        config: { model },
+      });
+    },
+  );
 
   it.each([
     ["by default", "prompts: {weekly: {destination: household}}", "new"],

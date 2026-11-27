@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { PROVIDERS } from "./providers.js";
 
-const MODEL_ID = /^[A-Za-z0-9][\w.:/@[\]-]*$/;
+const MODEL_ID = /^[A-Za-z0-9@~][\w.:/@[\]-]*$/;
 
 export const PLATFORMS = ["telegram", "slack"] as const;
 export const CONTEXT_POLICIES = ["fresh", "transcript", "resume"] as const;

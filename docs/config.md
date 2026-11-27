@@ -71,7 +71,7 @@ prompts:
 | `context.scheduled` | no | `fresh` | Policy for threads started by a scheduled prompt. |
 | `context.transcript_max_chars` | no | `100000` | Characters of message text the earlier transcript may fill, a positive integer. The `context` block governs how a thread's history is rebuilt each turn. See [Context](#context). |
 | `provider` | yes | | API provider: `anthropic` or `openrouter`. Each maps to a base URL and API key secret name in `src/config/providers.ts` (`anthropic` uses the default endpoint); add a provider by adding an entry there. |
-| `model` | yes | | Model passed to the agent (`--model`). Always set explicitly; the CLI default is never relied on. |
+| `model` | yes | | Model passed to the agent (`--model`). A model id or alias (`sonnet`, `claude-opus-4-1`), an OpenRouter preset (`@preset/<slug>`) or a latest-resolution alias (`~anthropic/claude-sonnet-latest[1m]`); it starts with a letter, digit, `@` or `~`, never `-`, so it cannot become a CLI flag. **A consumer's default branch must not carry a leading `@` or `~` until the Lambda that knows it is deployed**: `register` parses the config in the Lambda, which rejects the value. Always set explicitly; the CLI default is never relied on. |
 | `effort` | no | | Reasoning effort: `low`, `medium`, `high`, `xhigh` or `max` (`--effort`); unset uses the CLI's default. |
 | `max_turns` | no | `30` | Agentic turn cap per run (`--max-turns`), an integer from 1 to 200. |
 | `max_budget_usd` | no | | Spend cap per run (`--max-budget-usd`), above 0 and at most 1000. A run that hits it ends without a structured reply, so the turn fails with a notice that it hit its spending limit, and is retried with the next message. |

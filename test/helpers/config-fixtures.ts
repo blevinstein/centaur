@@ -103,6 +103,14 @@ export const localServerYaml = `  docs-search:
 `;
 
 export const invalidConfigs: [name: string, text: string, path: string, message: RegExp][] = [
+  ...["--max-turns", "-x", "-@preset/foo", "a b", "#x"].map(
+    (model): [string, string, string, RegExp] => [
+      `model ` + JSON.stringify(model),
+      yamlOf({ model: JSON.stringify(model) }),
+      "model",
+      /model must be/,
+    ],
+  ),
   ["unknown effort", withExtra("effort: extreme"), "effort", /./],
   ["zero max_turns", withExtra("max_turns: 0"), "max_turns", /./],
   ["fractional max_turns", withExtra("max_turns: 2.5"), "max_turns", /./],
