@@ -227,6 +227,9 @@ export const centaurConfigSchema = z
         existing: "bot",
         comment_authors: [...DEFAULT_COMMENT_AUTHORS],
       }),
+    attachments: z
+      .strictObject({ outbound: z.boolean().default(false) })
+      .default({ outbound: false }),
     execution: z
       .strictObject({ mode: z.enum(EXECUTION_MODES).default("pull_request") })
       .default({ mode: "pull_request" }),

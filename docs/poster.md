@@ -11,7 +11,7 @@ to a repo (a connection's secrets under `bots/<bot>/platforms/<platform>/` plus 
 
 | `operation` | Fields | Result |
 |---|---|---|
-| `post` | optional `token` (GitHub OIDC JWT), `bot`, `threadId`, `text` | `{ messageId }` |
+| `post` | optional `token` (GitHub OIDC JWT), `bot`, `threadId`, `text`, optional `files` (at most 4 of `{ filename, data }`, `data` base64, 3 MiB per file and 4 MiB in total; `filename` is a bare name without separators or a leading dot) | `{ messageId }`; the files are uploaded through the platform adapter with the text (see [Reply files](#reply-files)) |
 | `start-thread` | optional `token` (GitHub OIDC JWT), `bot`, `text`, optional `title`, optional `context` (`fresh`, `transcript` or `resume`: the policy stored on the new thread), exactly one of `destination` (a destination name, with `platform`: required when the bot has several connections, and optional `thread`: `new` (default) or `persistent`) or `fromThreadId` (implies the platform; `platform` and `thread` are rejected with it) | `{ threadId }` |
 | `resolve-destination` | `token` (GitHub OIDC JWT), `bot`, `name`, optional `platform` (as for `start-thread`), optional `thread` | `{ chatId }`, plus `threadId` when `thread` is `persistent` and the destination has a bound thread, or `{ found: false }` when the name holds nothing; creates nothing |
 | `read` | `token` (GitHub OIDC JWT), `bot`, `threadId`, optional `visibleOnly` | `{ messages: [{ id, userId, userName, fromBot, text, attachments, sentAt }], policy? }`, oldest first; `policy` is the context policy stored on the thread by `start-thread`, absent when none is stored (reading refreshes its expiry); `attachments` are the S3 keys of the message's stored images (see [Attachments](#attachments)); with `visibleOnly: true` the poster drops messages from senders who are not enrolled and from other bots, the same filter as `list-threads` and `read-channel`, and the thread's chat must be approved and not blocked. Without it every stored message is returned, as `prepare` needs for the dispatched thread |
@@ -375,6 +375,17 @@ Environment variables (set by `infra/centaur.yml`; see [deploy.md](deploy.md)):
 The public function URL, used to build webhook URLs, is read from the SSM parameter
 `/centaur/function-url` that the template writes (an environment variable can't reference the
 function's own URL).
+
+## Reply files
+
+`post` posts the text, then uploads `files` through the Chat SDK adapter (a second
+`thread.post({ files })`), never hand-built multipart. The text goes first and alone, so Telegram's
+1024-character caption limit never cuts a reply. The bytes travel in the request, so the caps keep it under the Lambda's 6 MB payload
+limit once base64-encoded; the schema enforces them again, whatever the caller checked. Slack
+uploads the files to the thread with `files.uploadV2`; Telegram sends one document, or a document
+media group for several files (images arrive as documents, not compressed photos). The returned
+`messageId` and the chat history record are the text message's. The runner's `finish` decides which workspace files qualify
+([Reply files](workflows.md#reply-files)); `start-thread` takes no files.
 
 ## Attachments
 

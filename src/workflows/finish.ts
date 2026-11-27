@@ -1,10 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
-import { MCP_APPROVAL_SERVERS_MAX } from "../poster-contract.js";
+import {
+  MCP_APPROVAL_SERVERS_MAX,
+  OUTBOUND_FILES_MAX,
+  type OutboundFile,
+} from "../poster-contract.js";
 import { threadKey } from "../thread-key.js";
 import type { PosterClient, ThreadStore } from "./aws.js";
 import { cleanBody, cleanTitle } from "./clean-text.js";
 import { approvalsRequest } from "./mcp-approval.js";
+import { readOutboundFiles } from "./outbound-files.js";
 import { dispatchPayload, type StartTarget, type TurnState } from "./prepare.js";
 import { pullRequestDetails } from "./pull-request.js";
 import type { PullRequestWriter } from "./pull-request-comments.js";
@@ -33,6 +38,7 @@ const resultMessage = z.object({
       pr_action: z.enum(["update", "new"]).optional(),
       existing_pr_number: z.number().int().positive().optional(),
       suspend_for: z.array(z.string()).max(MCP_APPROVAL_SERVERS_MAX).optional(),
+      files: z.array(z.string().min(1)).max(OUTBOUND_FILES_MAX).optional(),
     })
     .refine((output) => {
       const replied = output.reply !== undefined;
@@ -55,6 +61,7 @@ export function extractResult(executionFileText: string) {
     prAction: parsed.data.structured_output.pr_action,
     existingPr: parsed.data.structured_output.existing_pr_number,
     suspendFor: parsed.data.structured_output.suspend_for,
+    files: parsed.data.structured_output.files,
     sessionId: parsed.data.session_id,
   };
 }
@@ -140,6 +147,8 @@ export interface FinishDeps {
   fallbackReason?: string | undefined;
   comment?: CommentFinishDeps | undefined;
   stateDir: string;
+  /** The checkout the agent worked in; the root its `files` must resolve inside. */
+  workspace?: string | undefined;
   executionFile: string;
   pullRequestUrl?: string | undefined;
   /** The step that opens or updates the pull request failed; the reply says the changes were not saved. */
@@ -170,9 +179,16 @@ async function deliver(
   state: TurnState,
   text: string,
   title: string | undefined,
+  files: OutboundFile[],
 ): Promise<Delivery> {
   if (state.mode === "reply" && state.threadId) {
-    await poster.call({ operation: "post", bot: state.bot, threadId: state.threadId, text });
+    await poster.call({
+      operation: "post",
+      bot: state.bot,
+      threadId: state.threadId,
+      text,
+      ...(files.length > 0 ? { files } : {}),
+    });
     return { threadIds: [state.threadId], failed: [] };
   }
   if (!state.start?.length) throw new Error("the turn names no chat to start a thread in");
@@ -203,14 +219,35 @@ async function deliver(
 const pullRequestFailureNote = (runUrl: string | undefined) =>
   `I couldn't open the pull request, so the changes were not saved.${runUrl ? ` Details: ${runUrl}.` : ""}`;
 
+/** The agent's `files`, read only for a chat reply turn that offered the field; a stray list is dropped with a warning. */
+async function attachedFiles(
+  deps: FinishDeps,
+  state: TurnState,
+  result: ReturnType<typeof extractResult>,
+) {
+  const none = { files: [], skipped: 0 };
+  if (!result.files?.length) return none;
+  if (state.mode !== "reply" || !state.outboundFiles || !deps.workspace) {
+    console.warn("::warning::ignoring files, which do not apply to this turn");
+    return none;
+  }
+  const attached = await readOutboundFiles(deps.workspace, result.files);
+  if (attached.skipped > 0) {
+    console.warn(`::warning::${attached.skipped} named files could not be attached`);
+  }
+  return attached;
+}
+
 async function deliverReply(
   deps: FinishDeps,
   state: TurnState,
   result: ReturnType<typeof extractResult>,
 ) {
   const { pullRequestUrl, updatedPullRequest, fallbackReason, directPush } = deps;
+  const attached = await attachedFiles(deps, state, result);
   const text = [
     result.reply,
+    attached.skipped > 0 && `${attached.skipped} of the files I meant to attach could not be sent.`,
     directPush?.commitUrl && `Pushed to ${directPush.branch}: ${directPush.commitUrl}`,
     pullRequestUrl &&
       `${updatedPullRequest ? "Updated pull request" : "Pull request"}: ${pullRequestUrl}`,
@@ -226,7 +263,7 @@ async function deliverReply(
   ]
     .filter(Boolean)
     .join("\n\n");
-  if (text) return deliver(deps.poster, state, text, result.title);
+  if (text) return deliver(deps.poster, state, text, result.title, attached.files);
   if (!state.threadId) throw new Error("the agent can only stay silent in an existing thread");
   return { threadIds: [state.threadId], failed: [] };
 }

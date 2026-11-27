@@ -117,7 +117,8 @@ One agent turn:
 1. Check out the consumer repo; read its config (`.centaur.yml` or `.centaur/config.yml`).
 2. Assemble context according to the thread's [context policy](#context-management).
 3. Run `claude-code-action` with the consumer repo's tool allowlist and a `--json-schema` that
-   requires `reply` (text for chat) and optionally `new_thread_title`, `pr_title` and `pr_body`.
+   requires `reply` (text for chat) and optionally `new_thread_title`, `pr_title` and `pr_body`
+   (and `files`, workspace files to attach, when `attachments.outbound` is on).
    When the bot's `respond_to` is `all`, `reply` becomes optional and the agent may instead return
    `ignore: true` to stay silent. Model, effort, turn and budget limits come from the config
    (see [config](config.md)).

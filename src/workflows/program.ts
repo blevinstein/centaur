@@ -347,6 +347,7 @@ program.command("finish").action(async () => {
   const comment = commentFinishDeps();
   return finish({
     stateDir: turnStateDir(),
+    workspace: workspace(),
     executionFile: env("EXECUTION_FILE"),
     comment: comment && { ...comment, newPullRequest: await newPullRequestDeps() },
     updatedPullRequest: updatedPullRequestDeps(),

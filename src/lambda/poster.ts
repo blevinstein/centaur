@@ -11,6 +11,7 @@ import {
 import {
   listThreadsRequestSchema,
   mcpApprovalsRequestSchema,
+  outboundFilesSchema,
   readChannelRequestSchema,
   searchChatRequestSchema,
   UNREACT_MAX_MESSAGES,
@@ -44,7 +45,15 @@ const pullRequest = z.number().int().positive();
 const optionalToken = z.string().min(1).optional();
 
 export const posterRequestSchema = z.discriminatedUnion("operation", [
-  z.strictObject({ operation: z.literal("post"), token: optionalToken, bot: slug, threadId, text }),
+  z.strictObject({
+    operation: z.literal("post"),
+    token: optionalToken,
+    bot: slug,
+    threadId,
+    text,
+    /** Uploaded with the text through the platform adapter. */
+    files: outboundFilesSchema.optional(),
+  }),
   z
     .strictObject({
       operation: z.literal("start-thread"),
@@ -273,6 +282,10 @@ export async function createPoster(deps: PosterDeps) {
           { chat, botName: bot.name, logger },
           request.threadId,
           request.text,
+          request.files?.map(({ filename, data }) => ({
+            filename,
+            data: Buffer.from(data, "base64"),
+          })),
         );
         return { messageId: sent.id };
       }

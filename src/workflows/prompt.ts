@@ -1,11 +1,19 @@
 import type { CentaurConfig, Platform } from "../config/index.js";
-import { type ChatMessage, MCP_APPROVAL_SERVERS_MAX } from "../poster-contract.js";
+import {
+  type ChatMessage,
+  MCP_APPROVAL_SERVERS_MAX,
+  OUTBOUND_FILE_BYTES,
+  OUTBOUND_FILES_MAX,
+  OUTBOUND_TOTAL_BYTES,
+} from "../poster-contract.js";
 import type { SelfIdentity } from "../self-identity.js";
 import { fence } from "./clean-text.js";
 import { DEFAULT_INSTRUCTIONS, type Instructions } from "./instructions.js";
 import type { McpApprovalNotice } from "./mcp-approval.js";
 import type { TurnState } from "./prepare.js";
 import { type AttachmentPath, renderMessages } from "./transcript.js";
+
+const MIB = 1024 * 1024;
 
 const NO_ATTACHMENTS: AttachmentPath = () => undefined;
 
@@ -233,6 +241,8 @@ export interface ReplySchemaOptions {
   executionMode?: ExecutionMode | undefined;
   /** Pending MCP servers the agent may suspend for; the field is offered only when non-empty. */
   suspendable?: string[] | undefined;
+  /** Offers `files`, workspace files to attach to the reply; only for a chat reply turn. */
+  outboundFiles?: boolean | undefined;
 }
 
 export const replySchema = ({
@@ -242,6 +252,7 @@ export const replySchema = ({
   allowExisting,
   executionMode = "pull_request",
   suspendable = [],
+  outboundFiles = false,
 }: ReplySchemaOptions) => ({
   type: "object",
   properties: {
@@ -289,6 +300,16 @@ export const replySchema = ({
             minimum: 1,
             description:
               "Number of an open pull request listed in the prompt to land your changes on instead of the one this thread is on. Omit it to keep the default.",
+          },
+        }
+      : {}),
+    ...(outboundFiles && mode === "reply"
+      ? {
+          files: {
+            type: "array",
+            items: { type: "string", minLength: 1 },
+            maxItems: OUTBOUND_FILES_MAX,
+            description: `Paths of files in your working tree (relative to it) to attach to the reply, such as images you generated. At most ${OUTBOUND_FILES_MAX} files, ${OUTBOUND_FILE_BYTES / MIB} MiB each and ${OUTBOUND_TOTAL_BYTES / MIB} MiB in total; hidden files and directories and anything outside the working tree are dropped.`,
           },
         }
       : {}),

@@ -41,6 +41,7 @@ describe("parseCentaurConfig", () => {
           comment_authors: ["OWNER", "MEMBER", "COLLABORATOR"],
         },
         execution: { mode: "pull_request" },
+        attachments: { outbound: false },
         chat_tools: DEFAULT_CHAT_TOOLS,
         repository_instructions: { enabled: true, max_bytes: 32768, include_repo_root: false },
         skills: { builtin: true, consumer: true },
@@ -93,6 +94,14 @@ describe("parseCentaurConfig", () => {
     });
   });
 
+  it("parses the outbound attachments opt-in and rejects unknown keys", () => {
+    expect(parseCentaurConfig(withExtra("attachments: {outbound: true}"))).toMatchObject({
+      ok: true,
+      config: { attachments: { outbound: true } },
+    });
+    expect(parseCentaurConfig(withExtra("attachments: {other: 1}")).ok).toBe(false);
+  });
+
   it("parses the slack_search opt-in", () => {
     expect(
       parseCentaurConfig(withExtra("chat_tools: {scope: chat, slack_search: true}")),
@@ -132,6 +141,7 @@ describe("parseCentaurConfig", () => {
           comment_authors: ["OWNER", "MEMBER", "COLLABORATOR"],
         },
         execution: { mode: "pull_request" },
+        attachments: { outbound: false },
         chat_tools: DEFAULT_CHAT_TOOLS,
         repository_instructions: { enabled: true, max_bytes: 32768, include_repo_root: false },
         skills: { builtin: true, consumer: true },

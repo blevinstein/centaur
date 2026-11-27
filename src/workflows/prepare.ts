@@ -126,6 +126,8 @@ export interface TurnState {
   source?: ReactionSource;
   /** Pending servers the agent may suspend the turn for; absent when the turn never suspends. */
   suspend?: SuspendableServers;
+  /** The agent may name workspace files to attach to its reply; `finish` honors `files` only when set. */
+  outboundFiles?: boolean;
   sessionDirectory: string;
   /** Set once `finish` has delivered the reply, so a later failure does not read as an unanswered turn. */
   replied?: boolean;
@@ -604,6 +606,7 @@ export function buildClaudeArgs(input: {
   allowExisting: boolean;
   executionMode?: ExecutionMode | undefined;
   suspendable?: string[] | undefined;
+  outboundFiles?: boolean | undefined;
   chatTools?: boolean | undefined;
   /** Some skill is installed, so the `Skill` tool is allowed. */
   skills?: boolean | undefined;
@@ -631,7 +634,7 @@ export function buildClaudeArgs(input: {
     ...(config.max_budget_usd
       ? [`--max-budget-usd ${shellArg(String(config.max_budget_usd))}`]
       : []),
-    `--json-schema ${singleQuote(JSON.stringify(replySchema({ canStaySilent, mode, allowNewPr, allowExisting, executionMode, suspendable })))}`,
+    `--json-schema ${singleQuote(JSON.stringify(replySchema({ canStaySilent, mode, allowNewPr, allowExisting, executionMode, suspendable, outboundFiles: input.outboundFiles })))}`,
     ...(mcpConfig ? [`--mcp-config ${shellArg(mcpConfig)}`] : []),
     ...(settings ? [`--settings ${shellArg(settings)}`] : []),
     ...(persona ? [`--append-system-prompt-file ${shellArg(persona)}`] : []),
@@ -715,6 +718,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
       ? { thread: turn.approvalThread, servers: pendingServers }
       : undefined;
 
+  const outboundFiles = turn.mode === "reply" && config.attachments.outbound;
   const state: TurnState = {
     mode: turn.mode,
     bot: config.bot,
@@ -730,6 +734,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     ...(turn.suspendMarker ? { suspendMarker: turn.suspendMarker } : {}),
     ...(turn.source ? { source: turn.source } : {}),
     ...(suspend ? { suspend } : {}),
+    ...(outboundFiles ? { outboundFiles } : {}),
   };
   const projectFolder = relative(configRoot, rootDir);
   const guides = await existing(rootDir, PROJECT_GUIDES);
@@ -818,6 +823,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
       allowExisting: turn.allowExisting,
       executionMode,
       suspendable: suspend?.servers.map(({ name }) => name),
+      outboundFiles,
       chatTools,
       skills: skills.builtin.length + skills.consumer.length > 0,
       mcpConfig: hasMcpServers ? MCP_CONFIG_FILE : undefined,

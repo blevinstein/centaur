@@ -557,7 +557,7 @@ the repository top, which yields one guide.
    fields the workflow parses (`reply`, `ignore`, `pr_title`, ...), which a repo cannot override.
    Chat and scheduled turns also get a generated `# Execution mode` section after the instructions
    ([Execution modes](#execution-modes)).
-   It outputs the `claude_args` (model and tuning flags, `--allowedTools`, `--json-schema` requiring `reply` (or, for `respond_to: all` threads, `reply` or `ignore: true`; optionally `pr_title`, `pr_body`, and the `pr_action` or `existing_pr_number` target field when enabled, `suspend_for` when approval-required servers are pending), persona
+   It outputs the `claude_args` (model and tuning flags, `--allowedTools`, `--json-schema` requiring `reply` (or, for `respond_to: all` threads, `reply` or `ignore: true`; optionally `pr_title`, `pr_body`, and the `pr_action` or `existing_pr_number` target field when enabled, `suspend_for` when approval-required servers are pending, `files` when `attachments.outbound` is on for a chat reply), persona
    via `--append-system-prompt-file`, `--resume <id>`). When there is nothing to do (everything
    processed, or only a `/resume` or `/transcript` command, which is acknowledged in the thread),
    the remaining steps are skipped.
@@ -640,6 +640,21 @@ for `pr-details`, `finish` and `notify-failure` (see [Turn state](#turn-state)).
 (acknowledged policy commands, a bare `/new`) clear the reactions there. Removing reactions is
 best-effort: a failure is logged as a warning and never fails the job or holds back the reply. If
 `prepare` itself fails before writing the state, `notify-failure` falls back to the dispatch payload (see [Failure notices](#failure-notices)).
+
+### Reply files
+
+With `attachments.outbound: true` (see [config](config.md)), a chat turn that replies in an existing
+thread gets one more optional output field, `files`: workspace-relative paths (at most 4) of files,
+such as images the agent generated, to attach to the reply. `prepare` records the opt-in in the turn
+state (`outboundFiles`), and `finish` reads `files` only when it is set; on a scheduled, `/new` seed
+or pull request comment turn, or without the opt-in, the field is ignored with a warning. `finish`
+resolves each path with `readOutboundFiles` (`src/workflows/outbound-files.ts`): the real path (after
+symlinks) must be a non-empty regular file inside the workspace with no hidden segment (so not
+`.git`, `.centaur-turn`, `.centaur-trusted` or a dotfile such as `.env`), at most 3 MiB, and the
+files together at most 4 MiB. A file that fails any check is skipped, and the reply says how many
+could not be sent, never which. The remaining files are base64-encoded into the poster's `post`
+request (see [poster](poster.md)); the limits live in `src/poster-contract.ts`. A turn that opens a
+new thread, or answers a pull request, never attaches files.
 
 The schema also accepts optional `pr_title` and `pr_body`, which the prompt tells the agent to set
 when it edits files. `pr-details` treats them as untrusted: the title is flattened to one line and

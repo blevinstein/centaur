@@ -10,6 +10,11 @@ export const SEARCH_CHAT_MAX = 20;
 export const SEARCH_CONTEXT_MAX = 2;
 export const MCP_APPROVAL_SERVERS_MAX = 20;
 export const MCP_SUMMARY_MAX = 2000;
+export const OUTBOUND_FILES_MAX = 4;
+export const OUTBOUND_FILE_BYTES = 3 * 1024 * 1024;
+/** Bounds the request, which the Lambda carries base64-encoded under its 6 MB payload limit. */
+export const OUTBOUND_TOTAL_BYTES = 4 * 1024 * 1024;
+export const OUTBOUND_FILENAME_MAX = 100;
 
 /** The operations whose token is optional while `REQUIRE_POSTER_TOKEN` is off; the others always take one. */
 export const OPTIONAL_TOKEN_OPERATIONS: ReadonlySet<string> = new Set([
@@ -21,6 +26,30 @@ export const OPTIONAL_TOKEN_OPERATIONS: ReadonlySet<string> = new Set([
 
 const nonEmpty = z.string().min(1);
 const count = (max: number) => z.number().int().positive().max(max);
+
+/** A bare name: no path separators, control characters or leading dot. */
+const PLAIN_FILENAME = /^[^./\\\p{Cc}][^/\\\p{Cc}]*$/u;
+
+const base64Length = (bytes: number) => Math.ceil(bytes / 3) * 4;
+
+/** A file the poster uploads next to a reply; the bytes travel base64-encoded. */
+export const outboundFileSchema = z.strictObject({
+  filename: z.string().regex(PLAIN_FILENAME).max(OUTBOUND_FILENAME_MAX),
+  data: z.base64().min(1).max(base64Length(OUTBOUND_FILE_BYTES)),
+});
+
+export const outboundFilesSchema = z
+  .array(outboundFileSchema)
+  .max(OUTBOUND_FILES_MAX)
+  .refine(
+    (files) =>
+      files.reduce((sum, { data }) => sum + data.length, 0) <= base64Length(OUTBOUND_TOTAL_BYTES),
+    {
+      message: `files exceed ${OUTBOUND_TOTAL_BYTES} bytes in total`,
+    },
+  );
+
+export type OutboundFile = z.infer<typeof outboundFileSchema>;
 
 const target = {
   token: nonEmpty,
