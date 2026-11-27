@@ -183,7 +183,7 @@
 - Every turn workflow (message, PR comment, scheduled) uses the one per-bot group `centaur-<bot>`
   with `queue: max`; scheduled workflows read it from `resolve-schedule`
   (`src/workflows/bot-group.ts`). A change to the group or its options must update every workflow
-  under `.github/workflows/` that sets `concurrency` (including `centaur-dev-merged-branch.yml`), and the templates in `docs/workflows.md` and
+  under `.github/workflows/` that sets `concurrency` (including the `centaur-dev-merged-branch.yml`, `centaur-test-merged-branch.yml` and `centaur-test-2-merged-branch.yml` cleanup workflows), and the templates in `docs/workflows.md` and
   `docs/pr-comments.md`. Recovery of a cancelled pending run relies on the per-thread marker and
   `pendingComments`.
 - A scheduled caller (`centaur-hello.yml`, `centaur-dev-next-task.yml`) has no `notify-timeout` job

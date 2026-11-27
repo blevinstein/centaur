@@ -1,0 +1,28 @@
+name: Centaur test 2 merged branch
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  delete:
+    if: github.event.pull_request.merged && startsWith(github.event.pull_request.head.ref, 'centaur/centaur-test-2-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: centaur-centaur-test-2
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: ./.github/actions/setup-runtime
+        with:
+          assume_role: "false"
+      - uses: ./.github/actions/delete-merged-branch
+        with:
+          root: apps/centaur-test-2
