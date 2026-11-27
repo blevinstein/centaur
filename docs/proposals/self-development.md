@@ -121,27 +121,24 @@ conditions:
   which is why they need the same review as any other change.
 - **Spend caps.** `max_budget_usd` per turn and a spend limit on the Anthropic key.
 
-### Hardening, later
+### Residual exposure
 
-Built: every git call in the push steps (`gitIn`, `src/workflows/push.ts`) overrides, on the command
+Every git call in the push steps (`gitIn`, `src/workflows/push.ts`) overrides, on the command
 line, the workspace config an agent could plant to run code with the push-time token: `core.hooksPath`
-(`/dev/null`), `core.fsmonitor`, `core.sshCommand`, `credential.helper` and `commit.gpgsign`. Not
-covered: `url.<base>.insteadOf` and other keys that redirect the push, and filter drivers named by a
-committed `.gitattributes`; the items below close that gap by removing the credential from the
-agent's reach.
+(`/dev/null`), `core.fsmonitor`, `core.sshCommand`, `credential.helper` and `commit.gpgsign`.
 
-In order of cost, each tracked as its own task:
+The rest is accepted on the conditions above, and none of it is planned work:
 
-1. **Remove credentials from the agent step.** `persist-credentials: false` on the checkout, and
-   clear the AWS variables and `GITHUB_MCP_TOKEN` in the `Run agent` step's `env`. `push-existing`
-   and `push-direct` push with plain `git` on the persisted credential, so they would need the token
-   configured after the agent step. Leaves the files in `$RUNNER_TEMP` reachable.
-2. **Claude Code's sandbox.** Filesystem and network allowlists for `Bash` through `--settings`. Needs
-   a live check that `claude-code-action` honors it, and an exception to the rule in
-   [skills-rules.md](../skills-rules.md) that `prepare` passes no `--settings`.
-3. **Split the job.** The agent runs in a job with read-only permissions and only the model key; it
-   hands the diff and its output file to a trusted job that runs `pr-details`, `plan-pr`, the push and
-   `finish`. This is the real fix and a sizable change to `.github/actions/turn/action.yml`.
+- **Credentials in the agent step.** The checkout persists the job token, the AWS variables and the
+  files in `$RUNNER_TEMP` are reachable, and `claude-code-action` runs on the same token. A separate
+  fine-grained token for the action, or moving the push and `finish` into a trusted job and leaving
+  the agent a read-only job with only the model key, would close it.
+- **Remaining git config.** `url.<base>.insteadOf`, `http.*` and other keys that redirect the push,
+  and filter drivers named by a committed `.gitattributes`, are not overridden. The same job split
+  closes them.
+- **`Bash` itself.** Sandboxing it (Claude Code's filesystem and network allowlists through
+  `--settings`, which `prepare` does not pass; see [skills-rules.md](../skills-rules.md)) would limit
+  all of the above.
 
 ## Implementation slices
 
@@ -156,7 +153,6 @@ In order of cost, each tracked as its own task:
 3. **First runs.** Ask for a small, known change (a `TODO.md` item with a clear test) and tune
    `model`, `max_turns`, `max_budget_usd` and the timeout from the run.
 4. **Scheduled `next-task`** (built). `centaur-dev-next-task.yml`; the destination is the `centaur-dev` Slack name, bound by slice 2 (approving the maintainer's chat, or `centaur destination set`). Do not enable it before slice 2.
-5. **Hardening.** The three items above (the push-step config override is built).
 
 ## Test plan
 
@@ -172,8 +168,8 @@ In order of cost, each tracked as its own task:
 
 - **A new bot, not `centaur-slack`.** Its access list, chats and `respond_to` differ, and the existing
   bot stays a low-privilege smoke test.
-- **Accept the credential exposure for v1.** Conditions above; the hardening items are tracked, not
-  required to start.
+- **Accept the credential exposure for v1.** Conditions above; the residual exposure is
+  accepted, not scheduled for hardening.
 - **No `direct` mode.** This repository holds the bot's own harness and infrastructure; unreviewed
   self-modification is out of scope even with branch protection.
 
