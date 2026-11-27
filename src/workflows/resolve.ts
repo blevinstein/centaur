@@ -159,6 +159,7 @@ export interface GitHubRequester {
   text(path: string, accept: string): Promise<string>;
   post(path: string, body: unknown): Promise<void>;
   postJson<T>(path: string, body: unknown, schema: z.ZodType<T>): Promise<T>;
+  delete(path: string): Promise<void>;
 }
 
 const repositoryResponse = z.object({ default_branch: z.string().min(1) });
@@ -217,6 +218,17 @@ export function createGitHubRequester(
     },
     async postJson(path, body, schema) {
       return schema.parse(await (await send(path, body)).json());
+    },
+    async delete(path) {
+      const response = await fetchImpl(`${apiUrl}${path}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+      });
+      if (!response.ok) throw new GitHubRequestError(response.status);
     },
   };
 }

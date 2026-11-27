@@ -11,6 +11,7 @@ operations they invoke, and [config.md](config.md) for the config.
 | `register` | Validates the config (at `root`, default the repo root), requests a GitHub OIDC token for the poster's audience and invokes `register`. |
 | `resolve-pr-comment` | Decides whether a pull request comment event starts a turn and which bot and thread it belongs to; see [Comment turns](#comment-turns). |
 | `resolve-schedule` | Outputs the bot's concurrency group (`centaur-<bot>`, config at `root`) for a scheduled prompt's turn job; see [One turn per bot](#one-turn-per-bot). |
+| `delete-merged-branch` | On `pull_request: closed`, deletes the bot's thread branch when its pull request was merged; see [Thread pull request](#thread-pull-request). |
 | `turn` | One agent turn: answers a dispatched chat message, or (with `prompt_name`) starts a new thread from a scheduled prompt, or (with `comment`) answers the comments on a pull request. Outputs `skip` and `pull-request-url`. Reads the config from `root`; see [Bots in sub-folders](#bots-in-sub-folders). |
 | `notify-failure` | Posts a failure notice in the thread (and, with `comment`, on the pull request) and clears the 👀 reactions. Use with `if: failure()` in the turn job, and in a follow-up job that runs when the turn job was cancelled (a timeout); see [Failure notices](#failure-notices). |
 
@@ -444,7 +445,7 @@ centaur repo must be readable by the consumer's `GITHUB_TOKEN` (public, or grant
 read the variables above through the `vars` context; API keys are inputs of `turn` because
 composite actions cannot read secrets.
 
-Commands: `register`, `resolve`, `resolve-schedule`, `prepare`, `audit-tool-calls`, `pr-details`, `finish`, `notify-failure`; `tool-gate` is the agent's hook, not a step.
+Commands: `register`, `resolve`, `resolve-schedule`, `delete-merged-branch`, `prepare`, `audit-tool-calls`, `pr-details`, `finish`, `notify-failure`; `tool-gate` is the agent's hook, not a step.
 
 ## Skills
 
@@ -770,6 +771,43 @@ starts a turn from the branch tip whenever that branch has an open pull request 
   and `create-pull-request` resets the branch name to it, which loses nothing an open pull request
   holds. Scheduled prompts and `/new` start a thread under a new branch name (`<prompt>-<run id>` or
   `new-<run id>`), so they never start from an existing branch.
+- **Cleanup after a merge.** The `delete-merged-branch` action deletes the thread branch once its
+  pull request is merged, so the next message in the thread starts a fresh branch from the default
+  branch. Add a workflow per bot (`root` for a sub-folder bot), after a checkout of the default
+  branch, with `contents: write` only (`setup-runtime` takes `assume_role: "false"`, so no
+  `id-token` or AWS variables) and the bot's concurrency group, so it never overlaps a turn:
+
+  ```yaml
+  # .github/workflows/centaur-merged-branch.yml
+  name: Centaur merged branch
+  on:
+    pull_request:
+      types: [closed]
+  permissions:
+    contents: write
+  jobs:
+    delete:
+      if: github.event.pull_request.merged && startsWith(github.event.pull_request.head.ref, 'centaur/<bot>-')
+      runs-on: ubuntu-latest
+      concurrency:
+        group: centaur-<bot>
+        cancel-in-progress: false
+        queue: max
+      steps:
+        - uses: actions/checkout@v7
+          with:
+            ref: ${{ github.event.repository.default_branch }}
+        - uses: <owner>/centaur/.github/actions/setup-runtime@main
+          with:
+            assume_role: "false"
+        - uses: <owner>/centaur/.github/actions/delete-merged-branch@main
+  ```
+
+  The command reads the bot from the default branch config and deletes only a branch of the form
+  `centaur/<bot>-<thread key>` whose merged pull request is in this repository and was opened by
+  the workflow bot, and only while the branch still points at the merged head, so a later commit
+  is never discarded. A closed, unmerged pull request keeps its branch. Without the workflow
+  nothing breaks: the branch is reset on the next turn as before.
 
 ### Execution modes
 

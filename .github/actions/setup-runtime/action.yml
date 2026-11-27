@@ -1,5 +1,9 @@
 name: Centaur runtime
 description: Build the centaur workflow scripts from this action's checkout and assume the AWS role through OIDC. Run it once per job, after checking out the consumer repository.
+inputs:
+  assume_role:
+    description: "Set to 'false' for a job that never calls AWS (it then needs no id-token permission or CENTAUR_ROLE_ARN)."
+    default: "true"
 runs:
   using: composite
   steps:
@@ -23,7 +27,8 @@ runs:
     - uses: astral-sh/setup-uv@v10.4.0
       with:
         enable-cache: false
-    - uses: aws-actions/configure-aws-credentials@v6
+    - if: inputs.assume_role != 'false'
+      uses: aws-actions/configure-aws-credentials@v6
       with:
         role-to-assume: ${{ env.CENTAUR_ROLE_ARN }}
         aws-region: ${{ env.CENTAUR_AWS_REGION }}

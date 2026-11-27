@@ -11,6 +11,7 @@ import {
 import { botConcurrencyGroup } from "./bot-group.js";
 import { cleanTitle } from "./clean-text.js";
 import { committedExecutionMode, parseConfigOrThrow, readConfigText } from "./config-file.js";
+import { createBranchClientFor, deleteMergedBranch } from "./delete-merged-branch.js";
 import { requireEnv as env } from "./env.js";
 import { finish, notifyFailure } from "./finish.js";
 import { maskValue, writeOutputs } from "./github-output.js";
@@ -100,6 +101,19 @@ program.command("resolve").action(async () => {
     head_ref: outcome.headRef,
     pull_request: String(outcome.pullRequest),
   });
+});
+
+program.command("delete-merged-branch").action(async () => {
+  const config = parseConfigOrThrow(await configText());
+  const outcome = await deleteMergedBranch({
+    event: await readEvent(),
+    repository: env("GITHUB_REPOSITORY"),
+    bot: config.bot,
+    github: createBranchClientFor(env("GITHUB_TOKEN"), process.env.GITHUB_API_URL),
+  });
+  console.log(
+    outcome.deleted ? `Deleted merged branch ${outcome.branch}` : `Kept: ${outcome.reason}`,
+  );
 });
 
 program.command("resolve-schedule").action(async () => {

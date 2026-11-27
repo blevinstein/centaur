@@ -214,6 +214,7 @@ describe("the workflow CLI", () => {
       "register",
       "resolve",
       "resolve-schedule",
+      "delete-merged-branch",
       "prepare",
       "plan-pr",
       "has-changes",

@@ -1,0 +1,19 @@
+name: Centaur delete merged branch
+description: Delete a bot's thread branch after its pull request is merged. Run on pull_request closed, after a checkout of the default branch and the centaur setup-runtime step with assume_role off. Needs contents write.
+inputs:
+  root:
+    description: Directory, relative to the repository root, that holds the Centaur config and the files it references. Set it for a bot that lives in a sub-folder; the default is the repository root.
+    default: "."
+runs:
+  using: composite
+  steps:
+    - name: Locate the Centaur CLI
+      shell: bash
+      run: echo "CENTAUR_CLI=$(cd "${{ github.action_path }}/../../.." && pwd)/dist/workflows/cli.js" >> "$GITHUB_ENV"
+
+    - name: Delete the merged thread branch
+      shell: bash
+      env:
+        CENTAUR_ROOT: ${{ inputs.root }}
+        GITHUB_TOKEN: ${{ github.token }}
+      run: node "$CENTAUR_CLI" delete-merged-branch

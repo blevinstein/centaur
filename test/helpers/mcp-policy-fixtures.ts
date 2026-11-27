@@ -201,6 +201,7 @@ export function fakePolicyGitHub(
     }),
     post: unused,
     postJson: unused,
+    delete: unused,
   };
   const posterRequests: unknown[] = [];
   const poster: PosterClient = {

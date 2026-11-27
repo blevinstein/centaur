@@ -5,6 +5,7 @@ describe.each([
   ["register", ["Register the bot"]],
   ["resolve-pr-comment", ["resolve"]],
   ["resolve-schedule", ["resolve"]],
+  ["delete-merged-branch", ["Delete the merged thread branch"]],
 ])("the %s action", (name, readers) => {
   const action = loadAction(name);
 
