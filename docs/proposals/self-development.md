@@ -137,8 +137,250 @@ The rest is accepted on the conditions above, and none of it is planned work:
   and filter drivers named by a committed `.gitattributes`, are not overridden. The same job split
   closes them.
 - **`Bash` itself.** Sandboxing it (Claude Code's filesystem and network allowlists through
-  `--settings`, which `prepare` does not pass; see [skills-rules.md](../skills-rules.md)) would limit
-  all of the above.
+  `--settings`) would limit most of the above; see [Hardening 2](#hardening-2-sandbox-bash), which
+  is evaluated but not built.
+
+## Hardening 2: sandbox `Bash`
+
+Status: evaluated from the documentation only; **not verified on a runner**. Nothing here is built.
+The live check below is the gate, and the rule exception needs the maintainer's approval.
+
+Sources (raw pages, read 2026-11-27): [Sandboxing](https://code.claude.com/docs/en/sandboxing.md),
+[Settings reference](https://code.claude.com/docs/en/settings-reference.md),
+[Settings](https://code.claude.com/docs/en/settings.md), and the action's
+[`parse-sdk-options.ts`](https://github.com/anthropics/claude-code-action/blob/main/base-action/src/parse-sdk-options.ts),
+[`docs/usage.md`](https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md) and
+[`docs/security.md`](https://github.com/anthropics/claude-code-action/blob/main/docs/security.md).
+
+### What the sandbox protects
+
+An operating-system boundary around every `Bash` command and the processes it starts
+([What the sandbox restricts](https://code.claude.com/docs/en/sandboxing.md#what-the-sandbox-restricts)):
+
+| Surface | Inside the sandbox | Closes (from the table under [Accepted risk](#accepted-risk)) |
+|---|---|---|
+| Writes | The working directory, a per-user temp directory and `--add-dir` directories only. Settings files, `.claude/skills`, `.mcp.json`, `.git/hooks`, `.git/config` and most of `~/.claude` stay write-denied ([Protected paths](https://code.claude.com/docs/en/sandboxing.md#protected-paths)) | A planted git config or hook, and the user-scope settings file the sandbox itself and the tool gate depend on. This covers most of the "Remaining git config" bullet above; confirm in the live check |
+| Reads | Most of the machine by default, credentials included. `sandbox.filesystem.denyRead` and `sandbox.credentials.files` narrow it | The OIDC credentials file and the turn state in `$RUNNER_TEMP`, once listed |
+| Environment | Inherited by default; `sandbox.credentials.envVars` with `"mode": "deny"` unsets named variables for sandboxed commands only ([Protect credentials](https://code.claude.com/docs/en/sandboxing.md#protect-credentials)) | `ANTHROPIC_API_KEY` and the AWS variables from `Bash` |
+| Network | No direct route; the commands reach only hosts the proxy allows. `network.strictAllowlist` refuses everything else without prompting ([Network isolation](https://code.claude.com/docs/en/sandboxing.md#network-isolation)) | Exfiltration and calls to the poster or AWS from `Bash` |
+
+The job `GITHUB_TOKEN` is the exception: `actions/checkout` persists it in the workspace `.git/config`,
+which a sandboxed `git` must read, so denying the variable does not hide it. With `github.com`
+allowed, a steered agent can still push with it (to any unprotected branch, as in the table above),
+so the sandbox narrows the token's reach to the allowed hosts and does not remove it. Removing the
+persisted credential (checkout `persist-credentials: false`, with `finish` pushing through its own
+credential) is a separate change that this evaluation did not look at.
+
+### How it is turned on
+
+The sandbox is off by default and is enabled by `sandbox.enabled` in any settings source
+([Settings reference](https://code.claude.com/docs/en/settings-reference.md#sandbox-enabled)).
+The action reaches it two ways, and only the second is suitable:
+
+- The action's `settings` input is merged into `~/.claude/settings.json` (user scope) by
+  `setup-claude-code-settings.ts`. The turn action uses no `settings` input, and the sandbox would
+  not be admin-required from there.
+- `--settings <file-or-json>` in `claude_args` is passed through to the CLI untouched (the action
+  forwards unknown flags as `extraArgs`, `parse-sdk-options.ts`). It ranks above user, project and
+  local settings and below managed ([Settings precedence](https://code.claude.com/docs/en/settings.md#settings-precedence)).
+  Setting `allowUnsandboxedCommands: false` through it makes the sandbox **admin-required**
+  (Claude Code 2.1.285 or later), so the repository's `.claude/settings*.json` can no longer add
+  `excludedCommands`, `allowedDomains` or `allowWrite`
+  ([Repository settings under an admin-required sandbox](https://code.claude.com/docs/en/sandboxing.md#repository-settings-under-an-admin-required-sandbox)).
+
+`prepare` already builds one `--settings` file, for the tool gate (`toolGateSettings`,
+`src/workflows/tool-gate.ts`), together with `--setting-sources user`. The docs do not say whether
+repeating `--settings` merges the values, so the sandbox keys go into that same file and `prepare`
+writes it whenever either feature is on. Because `--setting-sources user` already applies, the
+workspace's own settings, which a pull request branch controls on a comment turn, are not read, and
+the docs say excluded sources' `sandbox.filesystem` and `credentials` entries are ignored
+([Configure sandboxing](https://code.claude.com/docs/en/sandboxing.md#configure-sandboxing)).
+
+### Proposed settings
+
+```json
+{
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "filesystem": {
+      "denyRead": ["<RUNNER_TEMP>", "~/.aws", "~/.config/gh"]
+    },
+    "network": {
+      "strictAllowlist": true,
+      "allowedDomains": ["github.com", "api.github.com", "registry.yarnpkg.com", "registry.npmjs.org"]
+    },
+    "credentials": {
+      "envVars": [
+        { "name": "ANTHROPIC_API_KEY", "mode": "deny" },
+        { "name": "AWS_ACCESS_KEY_ID", "mode": "deny" },
+        { "name": "AWS_SECRET_ACCESS_KEY", "mode": "deny" },
+        { "name": "AWS_SESSION_TOKEN", "mode": "deny" }
+      ]
+    }
+  }
+}
+```
+
+- `failIfUnavailable` makes a runner without a working sandbox fail the turn instead of running
+  `Bash` unsandboxed, which is the documented default
+  ([Settings reference](https://code.claude.com/docs/en/settings-reference.md#sandbox-failifunavailable)).
+  A failure that happens after startup refuses each command instead of exiting.
+- `allowUnsandboxedCommands: false` removes the `dangerouslyDisableSandbox` retry; with it on, an
+  allow rule such as `Bash` in `allowed_tools` would approve the unsandboxed retry with no prompt
+  ([The unsandboxed retry escape hatch](https://code.claude.com/docs/en/sandboxing.md#the-unsandboxed-retry-escape-hatch)).
+  This matters here because `allowed_tools` lists `Bash`.
+- `<RUNNER_TEMP>` is a placeholder: `prepare` substitutes the runner's literal temp path (the docs
+  give no environment-variable expansion in these lists). The turn state also holds the
+  tool-gate policy, so denying reads of it keeps the policy private from `Bash`.
+- The domain list is a starting guess from what `yarn install`, `gh` and git over HTTPS need. It is
+  not derived from a run; the live check records the hosts the sandbox actually refuses and the
+  list is adjusted from that. Wildcards and ports are supported.
+- No `excludedCommands`, no `allowWrite`, no `allowNestedUserNamespaces`, no `filesystem.disabled`;
+  each one reopens a hole (see Risks).
+- `autoAllowBashIfSandboxed` is not set: `allowed_tools` already approves `Bash`.
+- Not settled: whether `gh` can authenticate with `GITHUB_TOKEN` denied. The settings keep the
+  variable so `gh` works, and the persisted copy in `.git/config` is reachable anyway. The `mask`
+  mode would hide the value, but it needs `network.tlsTerminate` (experimental), and the docs list
+  that key as "User or managed", without saying whether `--settings` counts.
+
+### Runner prerequisites
+
+- Linux needs `bubblewrap` and `socat` ([Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing.md#set-up-linux-and-wsl2));
+  `sudo apt-get install bubblewrap socat` on Ubuntu. The runner image README read (Ubuntu 24.04, image `20261122.23.1`) does not list them, so install
+  them before the agent step (for example in `setup-runtime`). `sudo apt-get` is not used there
+  today.
+- The optional seccomp filter (`npm install -g @anthropic-ai/sandbox-runtime`) adds Unix domain
+  socket blocking. Without it the sandbox starts, with that one protection missing.
+- Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor
+  (`kernel.apparmor_restrict_unprivileged_userns`), which stops `bwrap`; Claude Code reports it
+  since 2.1.310 ([Ubuntu's AppArmor restriction stops bubblewrap](https://code.claude.com/docs/en/sandboxing.md#ubuntus-apparmor-restriction-stops-bubblewrap)).
+  The runner-images repository has an issue about the restriction breaking `unshare` on
+  `ubuntu-24.04` ([actions/runner-images#10443](https://github.com/actions/runner-images/issues/10443)),
+  with `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` as the workaround people
+  use. Whether the current hosted image has it on **cannot be determined from the docs**; the live
+  check reads the value. The narrower fix is the AppArmor profile for `/usr/bin/bwrap` the docs give
+  (needs `sudo tee` and `systemctl reload apparmor`); the sysctl lifts the restriction for every
+  program on the runner.
+- Claude Code must be 2.1.285 or later for the admin-required semantics, 2.1.246 or later for
+  `--setting-sources` to drop excluded sources' sandbox entries, and 2.1.310 or later for the
+  AppArmor message. The tool-gate evidence was gathered on 2.1.332; the live check prints the
+  version the action installs.
+- Running as a self-hosted or containerized runner (a job `container:`) would need
+  `enableWeakerNestedSandbox` ([Bubblewrap fails to start inside a container](https://code.claude.com/docs/en/sandboxing.md#bubblewrap-fails-to-start-inside-a-container)),
+  which weakens the boundary. Hosted `ubuntu-latest` is not a container job, so it is not needed.
+- Whether the sandbox applies in the action's non-interactive (SDK/`-p`) sessions is **not stated**
+  in the pages read; they describe `/sandbox` and interactive prompts. The live check answers it.
+
+### Risks and what it does not cover
+
+- **File tools.** `Read`, `Write`, `Edit`, `Glob` and `Grep` follow permission rules, not the
+  sandbox; `denyRead` does not stop `Read`
+  ([What runs outside the sandbox](https://code.claude.com/docs/en/sandboxing.md#what-runs-outside-the-sandbox)).
+  `allowed_tools` grants `Write` and `Edit` for this bot, so a steered agent can still reach
+  whatever those rules allow, including files the sandbox write-denies. Whether they can write
+  outside the working directory in a headless run is not covered by the pages read.
+- **`WebFetch` and `WebSearch`.** Run outside the sandbox; `allowedDomains` does not limit
+  `WebFetch`. This is the injection path and it stays open. Denying them is a `config` decision, not
+  a sandbox one.
+- **MCP servers.** Local (stdio) MCP servers and hooks run with full access. `centaur-dev` declares
+  none, but the action sets `enableAllProjectMcpServers: true` in the user settings, and the docs
+  read do not say whether `--setting-sources user` also stops a workspace `.mcp.json` from loading;
+  verify, and treat a project `.mcp.json` as outside the sandbox. A server that `mcp_servers` adds
+  runs unsandboxed too.
+- **Commands that leave the sandbox.** `excludedCommands` run with no filesystem or network limit,
+  and a script or file the agent can write may be run through them
+  ([Run commands outside the sandbox](https://code.claude.com/docs/en/sandboxing.md#run-commands-outside-the-sandbox-with-excludedcommands)).
+  This is the main cost for this bot: `yarn test` starts Docker for DynamoDB Local, and the docs say
+  `docker` is incompatible with the sandbox, and that on Linux a sandboxed command's `localhost` is
+  private ([A command fails to reach a server on localhost](https://code.claude.com/docs/en/sandboxing.md#a-command-fails-to-reach-a-server-on-localhost)).
+  So `yarn verify` and `yarn test` cannot pass inside the sandbox, and excluding them gives the
+  agent an unsandboxed path through any test file it writes. Candidates, none tested: have the
+  agent run only lint, typecheck and build and leave tests to CI on the pull request; start
+  DynamoDB Local in a trusted step before the agent and give `Bash` a route to it
+  (`allowedDomains` takes an IP such as `127.0.0.1:8000`, but the SDK must go through the proxy,
+  which the AWS SDK for Node does not do by default); or accept `excludedCommands: ["yarn test *"]`.
+  This changes the instruction that the bot runs `yarn verify` before finishing.
+- **Domain fronting.** The proxy filters by hostname and does not inspect TLS
+  ([Security limitations](https://code.claude.com/docs/en/sandboxing.md#security-limitations)); a broad
+  entry such as `github.com` is an exfiltration path (a push to any repository with the persisted
+  token).
+- **Unix sockets and `unshare`.** Leave `allowUnixSockets` and `allowNestedUserNamespaces` unset; the
+  docs say the second turns off the security boundary.
+- **Everything after the agent.** `finish`, `audit-tool-calls` and the push steps run outside the
+  sandbox, and `claude-code-action` itself runs on the job token. The agent's workspace edits are
+  read by them, as they are today.
+- **Native tooling that breaks.** The docs name `watchman` and `docker` as incompatible; anything
+  that needs a host not in the list fails with a refusal naming the host, which the agent can read.
+  A tighter list costs retries and turns.
+- **Fail-open default.** Without `failIfUnavailable`, a runner that cannot start `bwrap` silently runs
+  everything unsandboxed. The settings above set it.
+
+### The rule exception (needs maintainer approval)
+
+[skills-rules.md](../skills-rules.md) states, in "What the code does today", that `claude_args`
+carries no `--settings` and that the turn passes no `settings` input. That row is already out of
+date for turns with `mcp_servers`, where `prepare` passes `--settings` and `--setting-sources user`
+for the tool gate (AGENTS.md, [mcp.md](../mcp.md)). The narrowest exception, proposed wording:
+
+> `--settings` is passed only as one file that `prepare` writes into the turn state directory,
+> outside the workspace; its content comes from Centaur code and the config, never from repository
+> files or the pull request, and it is always paired with `--setting-sources user`. It carries only
+> the tool-gate hook and the `sandbox` keys, and the action's `settings` input stays unused.
+
+Why this is the narrowest form: a file in the state directory is out of the workspace, so a pull
+request cannot change it. A sibling `settings` input would write user scope instead and does not make
+the sandbox admin-required.
+
+This evaluation did not change `docs/skills-rules.md`; adopting the wording, and updating that row,
+is the maintainer's decision.
+
+### Live check procedure
+
+Run it once, on an `experiment/*` branch with a `workflow_dispatch` stub on `main`, as AGENTS.md
+describes (`gh workflow run sandbox-check.yml --ref experiment/sandbox-check`). The workflow is one
+job on `ubuntu-latest` with `permissions: contents: read`, a checkout, and:
+
+1. **Prerequisites.** Print `lsb_release -ds`, `sysctl kernel.apparmor_restrict_unprivileged_userns`
+   and `which bwrap socat`. Then `sudo apt-get install -y bubblewrap socat`. If the sysctl prints
+   `1`, install the AppArmor profile from the docs (or, for the check only, set it to `0`) and record
+   which fix was needed.
+2. **Agent step.** `anthropics/claude-code-action@v1`, a throwaway `ANTHROPIC_API_KEY`, `env` of
+   dummy `AWS_SECRET_ACCESS_KEY=probe-secret`, a prompt that asks for the probes below verbatim and
+   to report each result, and
+   `claude_args: --allowedTools "Bash" --max-turns 12 --setting-sources user --settings '<the JSON above>'`.
+3. **Report.** Print the tool results from `steps.agent.outputs.execution_file` with `jq`.
+
+Probes the agent runs, and the expected observable result if the action honors the settings:
+
+| # | Probe | Expected with the sandbox | Without it |
+|---|---|---|---|
+| 1 | `touch ~/sandbox-probe` | `Read-only file system` | succeeds |
+| 2 | `curl --noproxy '*' -sS https://example.com` | `Could not resolve host` | returns HTML |
+| 3 | `curl -sS https://example.com` (through the proxy, host not listed) | refused, with the host named in the result | returns HTML |
+| 4 | `curl -sS -o /dev/null -w '%{http_code}' https://api.github.com` | `200` or `401`, not a refusal | same |
+| 5 | `echo "${AWS_SECRET_ACCESS_KEY:-unset}" "${ANTHROPIC_API_KEY:-unset}"` | `unset unset` | both set |
+| 6 | `echo x >> .git/config` | denied | succeeds |
+| 7 | `echo x >> ~/.claude/settings.json` | denied | succeeds |
+| 8 | `ls "$RUNNER_TEMP"` | denied or empty | listed |
+| 9 | Retry probe 1 with `dangerouslyDisableSandbox: true` | refused | succeeds |
+| 10 | `git status && yarn install --immutable` | succeeds, or refusals that name hosts to add | succeeds |
+| 11 | `docker ps` and the DynamoDB test path | fails, as the risks section expects | succeeds |
+
+Then a negative control: repeat the run after `sudo apt-get remove -y bubblewrap` (or without the
+install step). Expected: the action fails at startup because of `failIfUnavailable`; if the run
+instead proceeds and probe 1 succeeds, the setting is not honored and the proposal stops here.
+
+Record: the Claude Code version, the sysctl value, which fix made `bwrap` start, the hosts that
+probe 10 needed, whether probes ran in a non-interactive session at all (probes 1 to 3 failing as
+expected answer that), and whether a workspace `.mcp.json` server started. If probe 1 succeeds, check that the action log shows `--settings` on the command line and that
+the JSON is valid.
+
+If the run passes, the follow-ups are: `prepare` merges the sandbox keys into `toolGateSettings`
+(a code change with a test that the sandbox keys and the hook coexist and that the settings path
+stays under the state directory), `setup-runtime` installs the packages, `docs/skills-rules.md`
+gets the exception above, and `docs/mcp.md` and `AGENTS.md` mention the shared settings file.
 
 ## Implementation slices
 
