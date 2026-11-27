@@ -1,6 +1,12 @@
-import type { ChannelMessage, ChatMessage, Scanned, ThreadSummary } from "../poster-contract.js";
+import type {
+  ChannelMessage,
+  ChatMessage,
+  Scanned,
+  SearchChatResult,
+  ThreadSummary,
+} from "../poster-contract.js";
 
-export type { ChannelMessage, Scanned, ThreadSummary };
+export type { ChannelMessage, Scanned, SearchChatResult, ThreadSummary };
 
 /** The poster's chat-context operations, already bound to the bot, chat and caller identity. */
 export interface ChatPosterClient {
@@ -15,4 +21,10 @@ export interface ChatPosterClient {
     limit: number;
     before?: string | undefined;
   }): Promise<{ messages: ChatMessage[]; scanned: Scanned }>;
+  searchChat(request: {
+    query: string;
+    limit: number;
+    after?: string | undefined;
+    before?: string | undefined;
+  }): Promise<SearchChatResult>;
 }

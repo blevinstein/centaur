@@ -209,7 +209,9 @@ receiver logs only that one was captured), and the poster reads it by the verifi
 dispatched thread, never returns it, and does not delete it. Nothing retrieved from Slack is stored.
 
 **The call.** A plain `fetch` POST (`src/lambda/slack-search.ts`) with the bot token, the stored
-`action_token`, `channel_types: ["public_channel"]`, `context_channel_id` set to the chat,
+`action_token`, `channel_types: ["public_channel"]`, `context_channel_id` set to the chat, the query
+prefixed with `in:<#CHANNEL_ID>` after every `in:` clause of the agent's own query is removed
+(Slack searches the whole workspace, and a bare `in:C...` matches nothing),
 `include_context_messages`, `limit`, and `after` and `before` in Unix seconds. One Slack call per
 request: no pagination and no retry.
 

@@ -15,6 +15,13 @@ features:
     display_name: "{{BOT_NAME}}"
     always_online: true
 
+  # OPTIONAL, only for `chat_tools.slack_search`: Slack sends the `action_token` that search needs
+  # only to an app with the agent view. Uncomment this block, the `assistant:write` scope and the
+  # `assistant_thread_started` event below. It changes how the bot's DMs look (the Messages tab
+  # becomes an agent conversation view). Leave it out otherwise.
+  # agent_view:
+  #   agent_description: "Centaur agent for the {{BOT_NAME}} repo"
+
 oauth_config:
   scopes:
     bot:
@@ -34,6 +41,8 @@ oauth_config:
       - reactions:write
       # Opt-in Slack-native search of public channels (assistant.search.context).
       - search:read.public
+      # OPTIONAL, with the agent view above:
+      # - assistant:write
       - users:read
 
 settings:
@@ -46,6 +55,8 @@ settings:
       - message.im
       - message.mpim
       - reaction_added
+      # OPTIONAL, with the agent view above:
+      # - assistant_thread_started
   interactivity:
     is_enabled: false
   org_deploy_enabled: false

@@ -19,6 +19,7 @@ async function main() {
     currentThreadId: state.threadId,
     maxThreads: Number(requireEnv(CHAT_SERVER_ENV.maxThreads)),
     maxMessages: Number(requireEnv(CHAT_SERVER_ENV.maxMessages)),
+    slackSearch: process.env[CHAT_SERVER_ENV.slackSearch] === "1",
   });
 }
 

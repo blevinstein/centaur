@@ -9,6 +9,7 @@ context:
   default: transcript
 chat_tools:
   scope: chat
+  slack_search: true
 provider: anthropic
 model: sonnet
 allowed_tools: "Read,Glob,Grep,Write,Edit"

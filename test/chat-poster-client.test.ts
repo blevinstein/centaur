@@ -48,6 +48,26 @@ describe("poster chat client", () => {
     ]);
   });
 
+  it("binds search_chat to the bot, chat and thread", async () => {
+    const { client, requests } = fakePosterChat();
+
+    await expect(client.searchChat({ query: "blight", limit: 3 })).resolves.toEqual({
+      status: "unavailable",
+      reason: "no_token",
+    });
+    expect(requests).toEqual([
+      {
+        operation: "search-chat",
+        token: "jwt-1",
+        bot: BOT,
+        chatId: CHAT,
+        threadId: CURRENT,
+        query: "blight",
+        limit: 3,
+      },
+    ]);
+  });
+
   it("translates a message ID cursor into the poster's ISO instant", async () => {
     const channel = [channelMessage("3", OTHER), channelMessage("2", OTHER)];
     const { client, requests } = fakePosterChat({ channel });

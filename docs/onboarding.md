@@ -240,7 +240,13 @@ and access requests need, and disables the Home tab. Interactivity and slash com
 registered.
 
 `search:read.public` is optional: only the opt-in Slack search ([chat-search.md](chat-search.md))
-uses it, and it is the only search scope the manifest requests. To change the scopes of an
+uses it, and it is the only search scope the manifest requests. That search also needs the agent
+view, because Slack sends the `action_token` it requires only to an app that has it: uncomment the
+clearly marked optional block in the manifest (`features.agent_view.agent_description`, the
+`assistant:write` scope and the `assistant_thread_started` event) and reinstall. It changes how the
+bot's DMs look, so enable it only for a bot with `chat_tools.slack_search`. Search is rate limited:
+a burst of about 5 to 10 calls in a minute gets a 429 with a 60 second wait, which the tool reports
+to the agent. To change the scopes of an
 installed app, add the scope under **OAuth & Permissions** (or update the manifest in the app
 settings), then reinstall the app to the workspace; Slack adds scopes to the existing token on a
 reinstall, so the bot token should stay valid (unverified here; if Slack issues a new one, update

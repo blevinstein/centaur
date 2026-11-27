@@ -49,6 +49,12 @@ export type SlackSearchResponse =
 
 export type SlackSearchApi = (params: SlackSearchParams) => Promise<SlackSearchResponse>;
 
+const IN_CLAUSE = /-?\bin:[^\s)]*/gi;
+
+/** Slack searches the whole workspace; only `in:<#ID>` restricts it, so the agent's own `in:` clauses are dropped. */
+export const scopedQuery = (query: string, channelId: string) =>
+  `in:<#${channelId}> ${query.replaceAll(IN_CLAUSE, " ").replaceAll(/\s+/g, " ").trim()}`.trim();
+
 /** One `assistant.search.context` call over public channels; Slack failures come back as `ok: false`, never thrown. */
 export function createSlackSearchApi(fetchImpl: typeof fetch = fetch): SlackSearchApi {
   return async ({ botToken, actionToken, query, channelId, limit, after, before }) => {
@@ -59,7 +65,7 @@ export function createSlackSearchApi(fetchImpl: typeof fetch = fetch): SlackSear
         "content-type": "application/json; charset=utf-8",
       },
       body: JSON.stringify({
-        query,
+        query: scopedQuery(query, channelId),
         action_token: actionToken,
         context_channel_id: channelId,
         channel_types: ["public_channel"],

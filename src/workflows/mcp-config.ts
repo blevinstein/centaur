@@ -78,9 +78,10 @@ const CHAT_SERVER_FORWARDED_ENV = [
 export function buildChatServerConfig(input: {
   env: Record<string, string | undefined>;
   stateDir: string;
-  chatTools: ChatToolsConfig;
+  chatTools: Pick<ChatToolsConfig, "max_threads" | "max_messages">;
+  slackSearch: boolean;
 }) {
-  const { env, stateDir, chatTools } = input;
+  const { env, stateDir, chatTools, slackSearch } = input;
   return {
     type: "stdio",
     command: "node",
@@ -92,6 +93,7 @@ export function buildChatServerConfig(input: {
       [CHAT_SERVER_ENV.stateDir]: stateDir,
       [CHAT_SERVER_ENV.maxThreads]: String(chatTools.max_threads),
       [CHAT_SERVER_ENV.maxMessages]: String(chatTools.max_messages),
+      ...(slackSearch ? { [CHAT_SERVER_ENV.slackSearch]: "1" } : {}),
     },
   };
 }

@@ -1,8 +1,9 @@
 # Searching chat history
 
 > **Status: decisions accepted (2026-11-22); slices 1 to 3 are implemented. Slice 4 (Slack-native
-> search) design approved 2026-11-26; slices 4.1 and 4.2 (receiver capture, poster `search-chat`) are
-> built, the rest is not.** See the [Implementation plan](#implementation-plan). It
+> search) design approved 2026-11-26; slices 4.1 to 4.5 (receiver capture, poster `search-chat`,
+> deploy, live check, MCP `search_chat`) are done, and 4.6 (the end-to-end check on one bot) is a
+> human live check.** See the [Implementation plan](#implementation-plan). It
 > extends [chat-context.md](chat-context.md), which keeps search out of scope, and feeds the bounded transcript ([workflows.md](workflows.md#transcript-budget)). Terms (poster,
 > receiver, turn, state table) are defined in [plan.md](plan.md), [poster.md](poster.md) and
 > [workflows.md](workflows.md).
@@ -187,7 +188,7 @@ Ordered slices; each lands with tests and docs.
 | 1 | Poster: `scanned: { oldest, exhausted }` in `read-channel` and `list-threads` results | none | `src/lambda/chat-context.ts`, `docs/poster.md`, `test/chat-context.test.ts`, `test/helpers/chat-context-fixtures.ts` | done |
 | 2 | Config key under `chat_tools`: the Slack-native search opt-in | none | `src/config/`, `docs/config.md`, `test/config.test.ts` | done |
 | 3 | MCP server: render `scanned` in `read_channel` and `list_threads` output, and tell the agent in the prompt block that results come from a bounded window | 1 | `src/mcp/chat-server.ts`, `src/mcp/chat-poster-client.ts`, `src/workflows/` prompt block, `docs/chat-context.md` | done |
-| 4 | Slack-native search: receiver captures the `action_token`, poster operation `search-chat`, MCP `search_chat` tool | 2, 3 | [Slice 4: build plan](#slice-4-build-plan) (4.1 to 4.6) | design approved 2026-11-26; 4.1 and 4.2 built |
+| 4 | Slack-native search: receiver captures the `action_token`, poster operation `search-chat`, MCP `search_chat` tool | 2, 3 | [Slice 4: build plan](#slice-4-build-plan) (4.1 to 4.6) | design approved 2026-11-26; 4.1 to 4.5 done, 4.6 open |
 | 5 | Telegram stored-history window (`history.thread`) | none | `src/lambda/chat.ts`, `infra/`, docs | separate worker |
 | 6 | Verify on a real install: Slack rate limits for a single-workspace app, `action_token` lifetime, AI-feature availability, Telegram window cost (the Slack items are slice 4.4) | 4.2, 5 | none | open, **[HUMAN ACTION]** |
 
@@ -195,7 +196,7 @@ Ordered slices; each lands with tests and docs.
 older cursor) was fully read, and `false` when the read stopped at `limit` or Slack reported an
 older page.
 
-### Slice 4: decisions (proposed)
+### Slice 4: decisions
 
 Approved by the maintainer on 2026-11-26. Evidence is from the Slack pages listed under
 [Slack search requirements](#slack-search-requirements), re-read on 2026-11-26. "Unverified" means
@@ -211,7 +212,7 @@ still be valid after dispatch, runner start and the agent's first search call; i
    `assistant.search.context` ("Bot token: search:read.files search:read.public
    search:read.users"), but "All API calls made using a bot token require an `action_token`"; with a
    user token none is needed. The `action_token` is in the `app_mention` payload "when the app is
-   mentioned using @app-name", and in `message.im`, `message.mpim`, `message.groups` and
+   mentioned using @app-name" (live check: only for an app with the agent view enabled), and in `message.im`, `message.mpim`, `message.groups` and
    `message.channels` (the last only when the app is mentioned); in a DM no mention is needed.
    Consequence: a message that does not mention the bot (`respond_to: all`, or a later reply in an
    addressed thread) carries no token, so search is unavailable for that turn unless an earlier
@@ -219,8 +220,9 @@ still be valid after dispatch, runner start and the agent's first search call; i
    unverified (not in the adapter types; `raw` is untyped).
    The method has no `channel` argument; it has `context_channel_id` ("to support scoping the
    search when applicable"). So the earlier "channel filter on the call" is replaced by: scope
-   through an `in:` search filter in the query (syntax for a channel ID unverified), and always drop
-   results whose `channel_id` differs.
+   through an `in:<#CHANNEL_ID>` clause the poster puts in the query (the live check confirmed that
+   syntax; the agent's own `in:` clauses are removed), and always drop results whose `channel_id`
+   differs (search is workspace-wide even with `context_channel_id`).
 2. **Lifetime, limits, requirements.**
    - Lifetime: not documented. `invalid_action_token`: "not valid, has expired, or was not issued to
      the app whose token accompanies it". Unverified; measured in 4.4.
@@ -285,8 +287,10 @@ still be valid after dispatch, runner start and the agent's first search call; i
    and Slack). Input `{ query, after?, before?, limit? }`, `limit` clamped to `max_messages`. Output
    uses the existing fenced rendering and "untrusted data" wording, with the permalink per result
    and no thread handles. On `unavailable` it returns a normal (not error) result naming the reason,
-   telling the agent to use `read_channel` and `read_thread`, and for `rate_limited` the wait. The
-   prompt block says results are public-channel matches of this chat only and may be missing.
+   telling the agent to use `read_channel` and `list_threads`, and for `rate_limited` to stop searching
+   and not retry in the turn. A separate prompt block (`SEARCH_GUIDANCE`, `src/workflows/prompt.ts`) says
+   results are public-channel matches of this chat only, need a recent mention, and must not be stored
+   (Slack's terms); the maintainer accepted the agent reproducing results from memory in its reply.
 6. **Degradation.** An absent, expired or rejected token, `feature_not_enabled`, a guest sender, a
    rate limit, or a missing scope on an install that has not re-authorized all return
    `unavailable`; the turn continues with the read tools and a search never fails a turn. Telegram
@@ -327,6 +331,26 @@ still be valid after dispatch, runner start and the agent's first search call; i
     rejected on this install. Then do not build 4.5 and 4.6, record the result here, and leave the
     opt-in key unread.
 
+### Slice 4: live results
+
+Measured on a real workspace on 2026-11-27 (slice 4.4); each changed the build:
+
+- **The token needs the agent view.** Slack sent no `action_token` in events to an app without
+  `features.agent_view` (with a required `agent_description`), the `assistant:write` scope and the
+  `assistant_thread_started` event; with them it arrived on mentions. Neither a human's nor a bot's
+  mention carried one before. The manifest therefore has an optional agent-view block, needed only
+  for `chat_tools.slack_search`, and it changes how the bot's DMs look.
+- **Search is workspace-wide.** A call with `context_channel_id` set still returned another
+  channel's messages, so the poster's post-filter to the dispatched chat is the real guard.
+- **Channel scoping syntax.** `in:<#C...>` in the query restricts the search to that channel; a
+  bare `in:C...` matches nothing. The poster puts `in:<#CHANNEL_ID>` before the agent's terms and
+  removes every `in:` clause the agent wrote (`scopedQuery`, `src/lambda/slack-search.ts`), so the
+  agent cannot name another channel; the post-filter still applies.
+- **Rate limit.** A burst gets HTTP 429 with `Retry-After: 60` after about 5 to 10 calls in a
+  minute. The poster answers `rate_limited` with `retryAfterSeconds`, and the tool tells the agent
+  to stop searching and not retry in the same turn.
+- **Token lifetime** is still being measured; `SEARCH_TOKEN_TTL_MS` is unchanged.
+
 ### Slice 4: build plan
 
 Rollout order: Lambda (4.1, 4.2, deploy), live check (4.4), then runner (4.5), then the config key
@@ -337,10 +361,10 @@ small enough to fail the idea cheaply. Each slice lands with tests and docs.
 |---|---|---|---|
 | 4.1 | Receiver captures the token into the state table (key, TTL, value never logged), logs presence only (done) | agent | `src/lambda/message-handler.ts`, a small store beside `thread-meta.ts`, `docs/poster.md`, tests |
 | 4.2 | Poster `search-chat`: schema, caller check, Slack call, filters, `unavailable` results, client method (done; see [poster.md](poster.md#search-chat)) | agent | `src/lambda/search-chat.ts`, `src/lambda/poster.ts`, `src/workflows/aws.ts`, `docs/poster.md`, tests |
-| 4.3 | Deploy 4.1 and 4.2; reinstall the Slack app so the token has `search:read.public` | human | manifest already has the scope |
-| 4.4 | Live check: mention the bot and call `search-chat` at increasing delays; record token presence, lifetime (`tokenAgeSeconds`), rate-limit behavior, whether it works without `features.agent_view`, the `in:` syntax, `feature_not_enabled`; apply the stop conditions | human | none |
-| 4.5 | MCP `search_chat`, client method, prompt guidance, registered only with `chat_tools.slack_search` | agent | `src/mcp/chat-server.ts`, `src/mcp/chat-poster-client.ts`, `src/mcp/poster-chat-client.ts`, `src/workflows/prepare.ts`, bundled `chat_tools` instructions, `docs/chat-context.md`, `docs/config.md`, tests |
-| 4.6 | Enable `slack_search: true` on one bot; end to end: search finds a known older message, no other channel's message ever appears, a turn without a mention degrades with guidance | human | consumer config |
+| 4.3 | Deploy 4.1 and 4.2; reinstall the Slack app so the token has `search:read.public` | human | manifest already has the scope (done) |
+| 4.4 | Live check: mention the bot and call `search-chat` at increasing delays; record token presence, lifetime (`tokenAgeSeconds`), rate-limit behavior, whether it works without `features.agent_view`, the `in:` syntax, `feature_not_enabled`; apply the stop conditions | human | none (done; see [live results](#slice-4-live-results)) |
+| 4.5 | MCP `search_chat`, client method, prompt guidance, registered only with `chat_tools.slack_search` (done) | agent | `src/mcp/chat-server.ts`, `src/mcp/chat-poster-client.ts`, `src/mcp/poster-chat-client.ts`, `src/mcp/server-config.ts`, `src/workflows/mcp-config.ts`, `src/workflows/prepare.ts`, `src/workflows/prompt.ts`, `src/lambda/slack-search.ts`, `docs/chat-context.md`, `docs/config.md`, tests |
+| 4.6 | Enable `slack_search: true` on one bot; end to end: search finds a known older message, no other channel's message ever appears, a turn without a mention degrades with guidance | human | consumer config (the test bot `centaur-test-2` has the key on, in `apps/centaur-test-2/.centaur/config.yml`) |
 
 ## Slack search requirements
 
@@ -370,7 +394,9 @@ Read from the raw Slack docs on 2026-11-22:
   apps only" and that guests cannot use it. The method page calls it usable "with an app using AI
   features" ([/ai](https://docs.slack.dev/ai/)); it does not say which manifest feature that
   means. `features.agent_view` (`assistant_view` is legacy) turns the Messages tab into an agent
-  conversation view, which would change how the bot's DMs look, so the manifest does not add it.
+  conversation view, which changes how the bot's DMs look. The live check showed the
+  `action_token` arrives only with it (plus `assistant:write` and the `assistant_thread_started`
+  event), so the manifest carries it as an optional block.
 - **Applying a scope change.** Installing again is additive: "each installation can result in
   additive scopes" assigned "to the token". Every response carries an `x-oauth-scopes` header
   listing the calling token's scopes.
@@ -378,15 +404,11 @@ Read from the raw Slack docs on 2026-11-22:
 
 ## What could not be verified
 
-- Slack limits for a single-workspace app on a real install; the lifetime of an `action_token`;
-  whether Slack puts it in the event bodies the receiver gets (the docs say it does for the events
-  above, but this has not been seen on a real event) and whether the Chat SDK keeps it in
-  `message.raw`; whether a personal workspace has the AI features `assistant.search.context`
-  requires; whether `search:read.public` suffices without an agent view; the `in:` filter syntax
-  for a channel ID; whether `assistant.search.info` needs an `action_token`; whether a result
-  carries a thread timestamp (the response examples are illustrative, not a schema); whether
-  retained run logs count as "storing" results; whether the bot token string is unchanged after a
-  reinstall (the OAuth doc implies it, since scopes are added to the token).
+- The lifetime of an `action_token` (being measured); whether `assistant.search.info` needs an
+  `action_token`; whether a result carries a thread timestamp (the response examples are
+  illustrative, not a schema); whether retained run logs count as "storing" results; whether the
+  bot token string is unchanged after a reinstall (the OAuth doc implies it, since scopes are added
+  to the token).
 - Current Voyage AI pricing and OpenSearch Serverless minimum cost (not fetched).
 - Real chat sizes; the figures above are estimates.
 - Cost of `appendToList` on a list of thousands of rows (the adapter queries the whole list to

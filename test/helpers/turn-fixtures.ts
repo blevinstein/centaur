@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { buildThreadId } from "../../src/config/index.js";
 import type { PosterRequest } from "../../src/lambda/poster.js";
 import { parseConfigOrThrow } from "../../src/workflows/config-file.js";
 import { finish } from "../../src/workflows/finish.js";
@@ -7,6 +8,7 @@ import type { PrepareDeps } from "../../src/workflows/prepare.js";
 import { PROMPT_FILE, prepare } from "../../src/workflows/prepare.js";
 import { scheduleGroup } from "../../src/workflows/schedule-group.js";
 import { scannedRange } from "./chat-context-fixtures.js";
+import { yamlOf } from "./config-fixtures.js";
 import {
   botMessage,
   configText,
@@ -19,6 +21,7 @@ import {
 
 export const PRIMARY_THREAD = "telegram:-100:99";
 export const BOUND_THREAD = "telegram:-100:55";
+export const SLACK_THREAD = buildThreadId("slack", "C0123", "1700000000.000100");
 export const prefixOf = (threadId: string) => `sessions/sprout/${threadId.replaceAll(":", "_")}/`;
 
 export async function setup(
@@ -67,6 +70,14 @@ export async function setup(
 }
 
 export const CHAT_CONFIG = "chat_tools: { scope: chat, max_threads: 7, max_messages: 30 }";
+
+export const searchConfigText = () =>
+  yamlOf({
+    bot: "sprout",
+    platforms: "{telegram: {}, slack: {}}",
+    allowed_tools: "Read,Edit",
+    chat_tools: "{scope: chat, slack_search: true}",
+  });
 
 export const chatConfigText = (extra = "") => configText(`${CHAT_CONFIG}\n${extra}`);
 

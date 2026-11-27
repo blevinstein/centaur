@@ -5,4 +5,5 @@ export const CHAT_SERVER_ENV = {
   stateDir: "CENTAUR_TURN_STATE_DIR",
   maxThreads: "CENTAUR_CHAT_MAX_THREADS",
   maxMessages: "CENTAUR_CHAT_MAX_MESSAGES",
+  slackSearch: "CENTAUR_CHAT_SLACK_SEARCH",
 } as const;

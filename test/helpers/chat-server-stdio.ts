@@ -10,7 +10,7 @@ import { CHAT_SERVER_ENV } from "../../src/mcp/server-config.js";
 import type { TurnState } from "../../src/workflows/prepare.js";
 import { writeOidcCredentials, writeTurnState } from "../../src/workflows/turn-state.js";
 import { scannedRange } from "./chat-context-fixtures.js";
-import { CURRENT, summary } from "./chat-server-fixtures.js";
+import { CURRENT, searchHit, summary } from "./chat-server-fixtures.js";
 
 const ENTRY = join(import.meta.dirname, "../../src/mcp/chat-server-main.ts");
 
@@ -24,7 +24,7 @@ writeFileSync(args.at(-1), JSON.stringify(responses[payload.operation]));
 process.stdout.write(JSON.stringify({ StatusCode: 200 }));
 `;
 
-export async function startChatServerProcess() {
+export async function startChatServerProcess(options: { slackSearch?: boolean } = {}) {
   const dir = await mkdtemp(join(tmpdir(), "centaur-chat-stdio-"));
   const bundle = join(dir, "chat-server-main.mjs");
   await build({
@@ -63,6 +63,10 @@ export async function startChatServerProcess() {
       threads: [summary(CURRENT), summary("telegram:-1001234567890:9")],
       scanned: scannedRange(3, true),
     },
+    "search-chat": {
+      status: "ok",
+      results: [searchHit()],
+    },
   };
   const transport = new StdioClientTransport({
     command: process.execPath,
@@ -76,6 +80,7 @@ export async function startChatServerProcess() {
       [CHAT_SERVER_ENV.stateDir]: join(dir, "state"),
       [CHAT_SERVER_ENV.maxThreads]: "5",
       [CHAT_SERVER_ENV.maxMessages]: "10",
+      ...(options.slackSearch ? { [CHAT_SERVER_ENV.slackSearch]: "1" } : {}),
     },
   });
   const mcp = new Client({ name: "test", version: "0.0.0" });

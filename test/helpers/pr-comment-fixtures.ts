@@ -71,6 +71,7 @@ export async function commentSetup(
     configFile?: string;
     files?: Record<string, string>;
     bot?: string;
+    threadId?: string;
     found?: boolean;
     details?: Partial<PullRequestDetails>;
     mcpPolicy?: PrepareDeps["mcpPolicy"];
@@ -80,7 +81,12 @@ export async function commentSetup(
     if (request.operation === "resolve-pull-request") {
       return options.found === false
         ? { found: false }
-        : { found: true, bot: options.bot ?? "sprout", threadKey: "k", threadId: THREAD };
+        : {
+            found: true,
+            bot: options.bot ?? "sprout",
+            threadKey: "k",
+            threadId: options.threadId ?? THREAD,
+          };
     }
     if (request.operation === "read")
       return {

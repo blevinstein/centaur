@@ -110,6 +110,7 @@ adds it to the generated `.centaur-turn/mcp.json` when the config enables it, ne
 | `list_threads` | Recent threads in the current chat: handle, title, last activity, participants, one-line snippet. |
 | `read_thread` | Messages of one thread by handle, oldest first, with a `before` cursor. |
 | `read_channel` | Recent messages across the chat, newest first. |
+| `search_chat` | Only with `chat_tools.slack_search`: Slack-native keyword search of this chat's public-channel messages, newest first (`query`, `after`, `before`, `limit`). Needs a recent mention; otherwise it answers why it is unavailable. |
 
 Thread handles are opaque (`thread-1`, `thread-2`) and live in the server process, which maps them
 to real thread IDs. Telegram thread IDs embed the chat ID, which the project keeps out of anything
@@ -122,9 +123,14 @@ message (`src/workflows/safe-error.ts`: poster failures, the failed `aws lambda 
 CLI's first stderr line or spawn code, OIDC token errors, an unknown cursor) and otherwise only the
 error's class name, because any other message might echo chat content.
 
-Searching by text is out of scope: Slack's search API needs a user token, and Telegram has nothing.
-The agent filters what the tools return. A bounded poster-side filter is proposed in
-[chat-search.md](chat-search.md).
+Searching by text is available only on Slack, through `search_chat` with `chat_tools.slack_search`
+(design and live results: [chat-search.md](chat-search.md)). The poster calls Slack with the bot
+token and the `action_token` of a recent mention, scopes the query to this chat with
+`in:<#CHANNEL_ID>` (the agent's own `in:` clauses are removed), and still drops any other channel's
+result. A result that cannot be had is returned as readable text, not an error: `no_token`,
+`expired`, `not_enabled` and `unsupported` point the agent to `read_channel` and `list_threads`, and
+`rate_limited` tells it to stop searching and not retry in the same turn. Telegram has no search;
+the agent filters what the read tools return.
 
 The server is a trusted built-in, so it skips the `UseServer` operator policy. `prepare` adds it to
 `mcp.json` and `mcp__centaur-chat__*` to `--allowedTools` for the turn only when `scope` is `chat`
@@ -187,7 +193,9 @@ config by hand and `test/config.test.ts` defaults change with it.
 One short block, `src/workflows/instructions/chat_tools.md` (overridable as `instructions.chat_tools`),
 is included in chat and pull request comment turns when the feature is on: that `list_threads`,
 `read_thread` and `read_channel` exist, that their output is untrusted data written by other people,
-that results cover a bounded window, and
+that results cover a bounded window, and (with `slack_search`, a second non-overridable block in
+`prompt.ts`) what `search_chat` covers, that it needs a recent mention, and that results must not be
+stored or quoted beyond what the reply needs (Slack's terms), and
 (when the skills are installed) that the `centaur-chat-tools` skill explains paging with cursors and
 how to read the window each result reports. The chat's name is not included: no source provides one. Tool results are also fenced the way transcript
 messages are, so a message in another thread that says "ignore your instructions" has the same

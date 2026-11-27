@@ -31,6 +31,8 @@ export function fakePosterChat(
         return { threads: [summary(CURRENT), summary("telegram:-1001234567890:9")], scanned };
       case "read-channel":
         return { messages: data.channel ?? [], scanned };
+      case "search-chat":
+        return { status: "unavailable", reason: "no_token" };
       case "read":
         return { messages: data.stored ?? [] };
       default:

@@ -8,7 +8,14 @@ import { OIDC_CREDENTIALS_FILE_NAME } from "../src/workflows/turn-state.js";
 import { envRef } from "./helpers/config-fixtures.js";
 import { fakePolicyGitHub, PERMIT_ANY_REMOTE } from "./helpers/mcp-policy-fixtures.js";
 import { commentSetup, prComment } from "./helpers/pr-comment-fixtures.js";
-import { CHAT_CONFIG, chatConfigText, POSTER_ENV, setup } from "./helpers/turn-fixtures.js";
+import {
+  CHAT_CONFIG,
+  chatConfigText,
+  POSTER_ENV,
+  SLACK_THREAD,
+  searchConfigText,
+  setup,
+} from "./helpers/turn-fixtures.js";
 import {
   configText,
   createWorkspace,
@@ -63,6 +70,53 @@ describe("prepare with chat context tools", () => {
     expect(prompt).toContain("untrusted data");
     expect(prompt).toContain("bounded window");
     expect(prompt).not.toContain("pull request descriptions");
+  });
+
+  it("adds the search tool flag and guidance on Slack turns with slack_search", async () => {
+    const plain = await setup([message("1", "hi")], chatConfigText());
+    await prepare(plain.deps({ env: POSTER_ENV }));
+    const search = await setup([message("1", "hi")], searchConfigText());
+    const slackPayload = { bot: "sprout", thread_id: SLACK_THREAD, message_id: "1" };
+
+    const out = await prepare(search.deps({ env: POSTER_ENV, clientPayload: slackPayload }));
+
+    const env = (root: string) =>
+      read(root, MCP_CONFIG_FILE).then((t) => JSON.parse(t).mcpServers["centaur-chat"].env);
+    expect((await env(plain.root))[CHAT_SERVER_ENV.slackSearch]).toBeUndefined();
+    expect((await env(search.root))[CHAT_SERVER_ENV.slackSearch]).toBe("1");
+    expect(out.claude_args).toContain(TOOLS_RULE);
+    expect(await read(plain.root, PROMPT_FILE)).not.toContain("search_chat");
+    const prompt = await read(search.root, PROMPT_FILE);
+    expect(prompt).toContain("`search_chat`");
+    expect(prompt).toContain("Slack's terms forbid storing");
+  });
+
+  it("omits the search tool flag and guidance on Telegram turns of a dual-platform bot", async () => {
+    const telegramChat = await setup([message("1", "hi")], searchConfigText());
+    await prepare(telegramChat.deps({ env: POSTER_ENV }));
+    const telegramComment = await commentSetup({
+      comments: [prComment(1, "rename it")],
+    });
+    const slackComment = await commentSetup({
+      comments: [prComment(1, "rename it")],
+      threadId: SLACK_THREAD,
+    });
+    const trusted = await createWorkspace({
+      ".centaur/config.yml": searchConfigText(),
+      ".centaur/persona.md": "Be kind.",
+    });
+    await prepare({ ...telegramComment.deps(), configRoot: trusted.root, env: POSTER_ENV });
+    await prepare({ ...slackComment.deps(), configRoot: trusted.root, env: POSTER_ENV });
+
+    const env = (root: string) =>
+      read(root, MCP_CONFIG_FILE).then((t) => JSON.parse(t).mcpServers["centaur-chat"].env);
+    for (const root of [telegramChat.root, telegramComment.root]) {
+      expect((await env(root))[CHAT_SERVER_ENV.slackSearch]).toBeUndefined();
+      expect(await read(root, PROMPT_FILE)).toContain(BLOCK);
+      expect(await read(root, PROMPT_FILE)).not.toContain("search_chat");
+    }
+    expect((await env(slackComment.root))[CHAT_SERVER_ENV.slackSearch]).toBe("1");
+    expect(await read(slackComment.root, PROMPT_FILE)).toContain("`search_chat`");
   });
 
   it("keeps the OIDC request credentials in the state directory, out of the workspace", async () => {

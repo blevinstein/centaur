@@ -4,9 +4,11 @@ import type {
   ChannelMessage,
   ChatPosterClient,
   Scanned,
+  SearchChatResult,
   ThreadSummary,
 } from "../../src/mcp/chat-poster-client.js";
 import { type ChatServerDeps, createChatServer } from "../../src/mcp/chat-server.js";
+import type { SearchResult } from "../../src/poster-contract.js";
 import { scannedRange } from "./chat-context-fixtures.js";
 import { message } from "./workflow-fixtures.js";
 
@@ -36,12 +38,24 @@ export const channelMessage = (
   threadId,
 });
 
+export const searchHit = (overrides: Partial<SearchResult> = {}): SearchResult => ({
+  channelId: "C0123",
+  ts: "1700000000.000200",
+  userId: "U1",
+  userName: "pat",
+  fromBot: false,
+  text: "blight on the tomatoes",
+  permalink: "https://example.slack.com/archives/C0123/p1700000000000200",
+  ...overrides,
+});
+
 export function fakeChatClient(
   data: {
     threads?: ThreadSummary[];
     channel?: ChannelMessage[];
     thread?: ReturnType<typeof message>[];
     scanned?: Scanned;
+    search?: SearchChatResult;
     failure?: unknown;
   } = {},
 ) {
@@ -62,6 +76,11 @@ export function fakeChatClient(
       calls.push({ op: "readThread", request });
       if (data.failure !== undefined) throw data.failure;
       return { messages: data.thread ?? [], scanned };
+    },
+    async searchChat(request) {
+      calls.push({ op: "searchChat", request });
+      if (data.failure !== undefined) throw data.failure;
+      return data.search ?? { status: "ok", results: [] };
     },
   };
   return { client, calls };

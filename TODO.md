@@ -59,13 +59,14 @@ A section moves to [DONE.md](DONE.md) once every item in it is checked; whole se
           as a7f0259.
     - [x] 4.2 Poster `search-chat` operation (caller check, public-channel and sender filters, clip,
           `unavailable` results, client method). Merged as a7f0259.
-    - [ ] **[HUMAN ACTION]** 4.3 Deploy 4.1 and 4.2; reinstall the Slack app so the token has
-          `search:read.public` (the manifests already list it; see
-          [onboarding](docs/onboarding.md#slack-personal-projects)).
-    - [ ] **[HUMAN ACTION]** 4.4 Live check: token present in real events, its lifetime, rate
-          limits, works without `features.agent_view`, `in:` filter syntax, AI-feature
-          availability; also confirm run logs do not count as storing results.
-    - [ ] 4.5 MCP `search_chat` tool, registered only with `chat_tools.slack_search`.
+    - [x] **[HUMAN ACTION]** 4.3 Deploy 4.1 and 4.2; reinstall the Slack app so the token has
+          `search:read.public`. Done 2026-11-27.
+    - [x] **[HUMAN ACTION]** 4.4 Live check (2026-11-27): the token arrives only with the agent view
+          enabled; search is workspace-wide (post-filter kept); `in:<#C...>` scopes it; a burst gets
+          429 with `Retry-After: 60`; lifetime still being measured. Details in
+          [chat-search.md](docs/chat-search.md#slice-4-live-results).
+    - [x] 4.5 MCP `search_chat` tool, registered only with `chat_tools.slack_search` (built; the
+          poster scopes the query with `in:<#ID>`).
     - [ ] **[HUMAN ACTION]** 4.6 Enable `slack_search: true` on one bot and run the end-to-end
           check.
   - [x] Chat search 5: the stored-history window, tracked in the next item.

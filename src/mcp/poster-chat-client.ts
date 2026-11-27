@@ -47,6 +47,7 @@ export function createPosterChatClient(
 
   return {
     listThreads: async ({ limit }) => poster.listThreads({ ...(await target()), limit }),
+    searchChat: async (request) => poster.searchChat({ ...(await target()), ...request }),
     async readChannel({ limit, before }) {
       const result = await poster.readChannel({
         ...(await target()),

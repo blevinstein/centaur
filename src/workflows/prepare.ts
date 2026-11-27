@@ -448,6 +448,7 @@ async function chatTurn(
           canStaySilent,
           ...targets,
           chatTools: chatToolsEnabled(config),
+          slackSearch: slackSearchEnabled(config, threadId),
           instructions,
           self: payload.self && { ...payload.self, platform: threadPlatform(threadId) },
           history,
@@ -523,6 +524,7 @@ async function commentTurn(
       attachmentPath,
       instructions,
       chatTools: chatToolsEnabled(config),
+      slackSearch: slackSearchEnabled(config, threadId),
       ...prTargetFlags(config, NO_EXISTING_TARGETS, "pull_request"),
       pullRequest: {
         title: details.title,
@@ -575,6 +577,9 @@ const prTargetFlags = (
 });
 
 const chatToolsEnabled = (config: CentaurConfig) => config.chat_tools.scope === "chat";
+
+const slackSearchEnabled = (config: CentaurConfig, threadId: string) =>
+  config.chat_tools.slack_search && threadPlatform(threadId) === "slack";
 
 export function buildClaudeArgs(input: {
   config: CentaurConfig;
@@ -729,7 +734,8 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     await writeToolPolicy(deps.stateDir, { bot: config.bot, layers: policyLayers });
     await writeHookSettings(deps.stateDir, toolGateSettings(deps.stateDir));
   }
-  const chatTools = Boolean(turn.threadId) && chatToolsEnabled(config);
+  const chatTools = turn.threadId !== undefined && chatToolsEnabled(config);
+  const slackSearch = turn.threadId !== undefined && slackSearchEnabled(config, turn.threadId);
   if (chatTools) await writeOidcCredentials(deps.stateDir, deps.env);
   const mcpServers = {
     ...kept.servers,
@@ -739,6 +745,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
             env: deps.env,
             stateDir: deps.stateDir,
             chatTools: config.chat_tools,
+            slackSearch,
           }),
         }
       : {}),
