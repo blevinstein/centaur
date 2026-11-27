@@ -1057,7 +1057,6 @@ describe("prepare pull request candidates", () => {
 
   it.each([
     ["there are no candidates", { open: [] }],
-    ["GitHub fails", { open: [candidatePr(3)], listFails: true }],
     ["no candidate is valid", { open: [candidatePr(3, { author: "sam" })] }],
   ])("omits the section, field and sentence when %s", async (_name, options) => {
     const { root, out } = await prepared(options);
@@ -1068,13 +1067,22 @@ describe("prepare pull request candidates", () => {
     expect(out.claude_args).not.toContain("existing_pr_number");
   });
 
+  it("fails the turn when GitHub cannot say whether the thread's branch has a pull request", async () => {
+    const target = targetSetup({ open: [candidatePr(3)], listFails: true });
+    const turn = await setup([message("1", "hi")]);
+
+    await expect(prepare(turn.deps({ targets: target.targets }))).rejects.toThrow(
+      "GitHub request failed",
+    );
+  });
+
   it("does not list candidates when existing is off or no GitHub access is configured", async () => {
     const off = await prepared(
       { open: [candidatePr(3)] },
       configText("pull_requests: {existing: off}"),
     );
-    expect(off.github.listOpenPullRequests).not.toHaveBeenCalled();
     expect(await prompt(off.root)).not.toContain(section);
+    expect(off.out.claude_args).not.toContain("existing_pr_number");
 
     const turn = await setup([message("1", "hi")]);
     const out = await prepare(turn.deps());

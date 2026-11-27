@@ -201,11 +201,20 @@ program.command("prepare").action(async () => {
     claude_args: outputs.claude_args,
     base_url: outputs.base_url,
     api_key_secret: outputs.api_key_secret,
+    thread_pull_request: outputs.thread_pull_request,
+    config_root: outputs.config_root,
   });
 });
 
 const trustedExecutionMode = () =>
   committedExecutionMode(process.env.CENTAUR_CONFIG_ROOT || workspace(), centaurRoot());
+
+const threadPullRequest = () => {
+  const number = Number(process.env.THREAD_PULL_REQUEST);
+  return Number.isInteger(number) && number > 0
+    ? { number, headRef: env("THREAD_BRANCH") }
+    : undefined;
+};
 
 program.command("plan-pr").action(async () => {
   const config = parseConfigOrThrow(await configText());
@@ -215,6 +224,7 @@ program.command("plan-pr").action(async () => {
     config.pull_requests.existing,
     await readFile(env("EXECUTION_FILE"), "utf8"),
     await trustedExecutionMode(),
+    threadPullRequest(),
   );
   if (plan.target === "thread" && plan.fallbackReason) {
     console.log(`::notice::Using the thread's pull request (${plan.fallbackReason})`);
@@ -248,6 +258,11 @@ program.command("push-existing").action(async () => {
         }
       : {}),
   });
+  if (!result.ok && threadPullRequest()) {
+    throw new Error(
+      `could not update the pull request (${result.reason}); the workspace is the thread's branch, so no new pull request is opened in its place`,
+    );
+  }
 });
 
 program.command("push-direct").action(async () => {

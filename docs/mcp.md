@@ -150,7 +150,7 @@ Which config a turn reads: `prepare` reads the config from the workspace, which 
 which GitHub only runs from the default branch, and check out its head. So turns read config from
 the default branch, never from a pull request branch. The agent's own pull requests
 (`centaur/<bot>-<thread>`) can edit the config, but the edit has no effect until a human merges
-it. `register` also runs on pushes to the default branch.
+it. A turn that starts from the thread's own open pull request branch ([Thread pull request](workflows.md#thread-pull-request)) still reads the config from a copy of the default branch. `register` also runs on pushes to the default branch.
 
 Consequences:
 

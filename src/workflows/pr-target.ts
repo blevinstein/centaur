@@ -21,6 +21,12 @@ export interface PullRequestTargetClient {
   pullRequest(repository: string, number: number): Promise<CandidatePullRequest>;
 }
 
+/** The thread's own open pull request, whose branch `prepare` checked out as the workspace. */
+export interface ThreadPullRequest {
+  number: number;
+  headRef: string;
+}
+
 export type Rejection = "not_open" | "not_candidate" | "not_allowed" | "lookup_failed";
 
 export interface TargetDeps {
@@ -35,10 +41,19 @@ export interface CandidateDeps extends TargetDeps {
   poster: PosterClient;
 }
 
-export type PrTarget =
-  | { target: "thread"; fallbackReason?: Rejection }
-  | { target: "existing"; number: number; headRef: string; title: string }
-  | { target: "direct" };
+export interface ExistingTarget {
+  target: "existing";
+  number: number;
+  headRef: string;
+  fallbackReason?: Rejection;
+}
+
+export interface ThreadTarget {
+  target: "thread";
+  fallbackReason?: Rejection;
+}
+
+export type PrTarget = ThreadTarget | ExistingTarget | { target: "direct" };
 
 const candidateResponse = z.object({
   number: z.number().int().positive(),
@@ -125,6 +140,28 @@ export async function checkCandidate(
 const byRecency = (a: CandidatePullRequest, b: CandidatePullRequest) =>
   Date.parse(b.updatedAt) - Date.parse(a.updatedAt) || b.number - a.number;
 
+/**
+ * The open pull request on `branch` that `checkCandidate` accepts, newest first, or undefined when
+ * there is none. A failed poster lookup throws: the caller must not mistake it for "no pull request".
+ */
+export async function findPullRequestOnBranch(
+  deps: CandidateDeps,
+  branch: string,
+): Promise<CandidatePullRequest | undefined> {
+  const shared = { ...deps, fetchToken: once(deps.fetchToken) };
+  const onBranch = (await deps.github.listOpenPullRequests(deps.repository)).filter(
+    (pullRequest) => pullRequest.headRef === branch,
+  );
+  for (const pullRequest of onBranch.toSorted(byRecency)) {
+    const rejection = await checkCandidate(shared, pullRequest);
+    if (rejection === "lookup_failed") {
+      throw new Error(`could not verify pull request #${pullRequest.number} on ${branch}`);
+    }
+    if (rejection === undefined) return pullRequest;
+  }
+  return undefined;
+}
+
 /** The newest `limit` open pull requests, by update time, that pass `checkCandidate`. */
 export async function listCandidates(
   deps: CandidateDeps,
@@ -141,6 +178,15 @@ export async function listCandidates(
 }
 
 /**
+ * The turn's default target: the thread's own open pull request when `prepare` checked its branch
+ * out (`threadPullRequest`), otherwise the thread's branch, which `create-pull-request` opens.
+ */
+const defaultTarget = (
+  threadPullRequest: ThreadPullRequest | undefined,
+): ThreadTarget | ExistingTarget =>
+  threadPullRequest ? { target: "existing", ...threadPullRequest } : { target: "thread" };
+
+/**
  * Resolves the agent's `existing_pr_number` against candidates recomputed from GitHub; anything
  * absent, malformed, or outside that set falls back to the thread's own pull request. The
  * fallback reason is a generic code that carries no pull request content.
@@ -148,27 +194,32 @@ export async function listCandidates(
 export async function planTarget(
   deps: CandidateDeps,
   existingPr: number | undefined,
+  threadPullRequest?: ThreadPullRequest,
 ): Promise<PrTarget> {
+  const fallback = defaultTarget(threadPullRequest);
   if (existingPr === undefined || !Number.isInteger(existingPr) || existingPr <= 0) {
-    return { target: "thread" };
+    return fallback;
   }
   try {
     const hit = (await listCandidates(deps)).find((c) => c.number === existingPr);
-    if (hit) {
-      return { target: "existing", number: hit.number, headRef: hit.headRef, title: hit.title };
-    }
+    if (hit) return { target: "existing", number: hit.number, headRef: hit.headRef };
     const pullRequest = await deps.github.pullRequest(deps.repository, existingPr);
     const rejection = await checkCandidate(deps, pullRequest);
-    return { target: "thread", fallbackReason: rejection ?? "not_allowed" };
+    return { ...fallback, fallbackReason: rejection ?? "not_allowed" };
   } catch {
-    return { target: "thread", fallbackReason: "lookup_failed" };
+    return { ...fallback, fallbackReason: "lookup_failed" };
   }
 }
 
 export const planOutputs = (plan: PrTarget): Record<string, string> => {
   switch (plan.target) {
     case "existing":
-      return { target: "existing", number: String(plan.number), head_ref: plan.headRef };
+      return {
+        target: "existing",
+        number: String(plan.number),
+        head_ref: plan.headRef,
+        ...(plan.fallbackReason ? { fallback_reason: plan.fallbackReason } : {}),
+      };
     case "direct":
       return { target: "direct" };
     case "thread":
@@ -194,8 +245,9 @@ export async function planForTurn(
   existing: "bot" | "off",
   executionFileText: string,
   mode: CentaurConfig["execution"]["mode"] = "pull_request",
+  threadPullRequest?: ThreadPullRequest,
 ): Promise<PrTarget> {
   if (mode === "direct") return { target: "direct" };
-  if (!deps || existing === "off") return { target: "thread" };
-  return planTarget(deps, requestedPullRequest(executionFileText));
+  if (!deps || existing === "off") return defaultTarget(threadPullRequest);
+  return planTarget(deps, requestedPullRequest(executionFileText), threadPullRequest);
 }

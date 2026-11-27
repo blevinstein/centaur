@@ -536,6 +536,23 @@ the repository top, which yields one guide.
    via `--append-system-prompt-file`, `--resume <id>`). When there is nothing to do (everything
    processed, or only a `/resume` or `/transcript` command, which is acknowledged in the thread),
    the remaining steps are skipped.
+   For a chat reply (not `direct`, not a scheduled or `/new` turn) `prepare` then looks for an open
+   pull request whose head is the thread's own branch `centaur/<bot>-<thread key>`, using the same
+   validity check as the update targets below (open, this repository, opened by
+   `github-actions[bot]`, linked to this bot when the poster has a record). When there is one, it
+   fetches the branch and switches the workspace to it, tracking `origin`, so the agent starts from
+   the tip and sees earlier turns' commits, and outputs `thread_pull_request` (its number) and
+   `config_root`. A turn with no such pull request (none yet, or merged or closed, whether or not the
+   branch still exists) keeps the default-branch checkout; nothing is reused from a merged or closed
+   pull request's branch. A failed lookup, fetch or switch fails the turn: it never starts from the
+   default branch instead, because the push would then replace the pull request's earlier commits. The
+   lookup runs whatever `pull_requests.existing` says, which only governs the agent's choice of other
+   pull requests, and needs `GITHUB_REPOSITORY` and `GITHUB_TOKEN` like the candidate list.
+   The branch holds what earlier turns wrote, so it does not decide what runs: before switching,
+   `prepare` adds a detached worktree of the default-branch checkout under the turn state directory
+   and outputs it as `config_root`, which the persona path and the later steps that read the config
+   (`plan-pr`) use, unless the step already has a `config_root`. The turn also gets `--setting-sources
+   user`, as comment turns do, so the branch's `.claude` settings and `CLAUDE.md` do not load.
 2. `claude-code-action` runs with a constant prompt telling it to read the prompt file. If
    `allowed_tools` lacks `Read`, `Read(./.centaur-turn/**)` is added so it can.
    With `mcp_servers`, `prepare` also passes `--settings` with the `PreToolUse` hook that runs
@@ -546,8 +563,12 @@ the repository top, which yields one guide.
    `pr_body` structured output (see below). `plan-pr` then decides where the changes land (see
    below). Unless the plan chose an existing pull request and `push-existing` updated it, or chose a
    direct push and `push-direct` landed it ([Execution modes](#execution-modes)),
-   `create-pull-request` opens (or updates) `centaur/<bot>-<thread>` when files changed, using the
-   title as both commit message and title. `has-changes` runs first and reports `changed`: it is
+   `create-pull-request` opens `centaur/<bot>-<thread>` (resetting the branch to the default branch
+   plus the changes when it already exists) when files changed, using the
+   title as both commit message and title. When `prepare` started the turn from the thread's open
+   pull request, the plan is that pull request (unless the agent names another valid target) and
+   `create-pull-request` never runs: the changes land as one more commit on its branch, pushed
+   without force ([Thread pull request](#thread-pull-request)). `has-changes` runs first and reports `changed`: it is
    `false` when the workspace has nothing to commit outside `.centaur-turn` and `.centaur-trusted`
    and no commits ahead of its upstream, and the `Open pull request` step is then skipped, so a turn
    that edited nothing leaves the thread branch and its pull request alone.
@@ -713,7 +734,42 @@ approved. In repositories that require approvals, enable "Dismiss stale pull req
 new commits are pushed" in the branch protection rule or ruleset for the default branch, so an
 agent update cannot ride an earlier approval. Also protect the default branch (required reviews or
 rulesets), since Centaur never merges and relies on that review. Setting `pull_requests.existing:
-off` removes the path.
+off` removes the agent's choice of other pull requests; the thread's own open pull request still
+receives its later turns ([Thread pull request](#thread-pull-request)).
+
+### Thread pull request
+
+`create-pull-request` resets `centaur/<bot>-<thread key>` to the default branch plus the current
+turn's changes whenever the branch exists, so on its own a second turn in a thread would never see
+the first turn's commit and its push would replace it on the open pull request. `prepare` therefore
+starts a turn from the branch tip whenever that branch has an open pull request (see
+[Agent turn](#agent-turn), step 1), and the turn's changes are added on top of it.
+
+- The target is deterministic: the branch is derived from the bot and thread key, the pull request
+  comes from GitHub's list and `checkCandidate`, and nothing comes from the agent's output.
+  `prepare` outputs `thread_pull_request` (number, or empty), `branch` and `config_root`; the
+  action passes the first two to `plan-pr` and `push-existing` as `THREAD_PULL_REQUEST` and
+  `THREAD_BRANCH`.
+- `plan-pr` plans that pull request (`existing`, `number` = the thread's, `head_ref` = the branch)
+  wherever it would otherwise plan `thread`: no request from the agent, `existing: off`, or a
+  request it rejected (the `fallback_reason` output is still set for the rejection). A valid
+  `existing_pr_number` for another pull request still wins, and `direct` mode is unchanged (no
+  lookup, no switch).
+- `push-existing` commits the turn's changes (staged diff against the checked-out tip) from a
+  detached worktree at the freshly fetched tip and pushes with plain `git push`, so a branch that
+  moved meanwhile is rebuilt on, never overwritten. The pull request's title and body are left
+  alone; `finish` posts the turn's title and body as a conversation comment and the reply says
+  `Updated pull request: <url>`. The pull request is already linked to the thread.
+- With the thread's branch checked out, `create-pull-request` could not open anything useful (its
+  base is the checked-out branch), so a failed `push-existing` does not fall back to it: the step
+  fails after writing its outputs, the `Open pull request` step is skipped and `finish` reports
+  `I couldn't open the pull request, so the changes were not saved.`. The agent's changes stay in the
+  workspace of the failed run only.
+- A branch that is behind the default branch is used as it is; nothing is rebased or merged.
+- When the branch's pull request is merged or closed, the next turn starts from the default branch
+  and `create-pull-request` resets the branch name to it, which loses nothing an open pull request
+  holds. Scheduled prompts and `/new` start a thread under a new branch name (`<prompt>-<run id>` or
+  `new-<run id>`), so they never start from an existing branch.
 
 ### Execution modes
 

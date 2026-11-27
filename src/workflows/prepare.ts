@@ -60,6 +60,7 @@ import { installRepositoryInstructions } from "./repository-instructions.js";
 import { safeDetail } from "./safe-error.js";
 import { doubleQuote, shellArg, singleQuote } from "./shell-arg.js";
 import { installSkills } from "./skills.js";
+import { startFromThreadBranch } from "./thread-branch.js";
 import { toolGateSettings } from "./tool-gate.js";
 import {
   type AttachmentPath,
@@ -173,6 +174,10 @@ export interface PrepareOutputs {
   claude_args: string;
   base_url: string;
   api_key_secret: string;
+  /** The thread's open pull request whose branch is the workspace; empty when the workspace is the default branch. */
+  thread_pull_request: string;
+  /** Where later steps read the config from when `prepare` replaced the workspace's checkout; else empty. */
+  config_root: string;
 }
 
 interface Turn {
@@ -253,6 +258,8 @@ const skipped: PrepareOutputs = {
   claude_args: "",
   base_url: "",
   api_key_secret: "",
+  thread_pull_request: "",
+  config_root: "",
 };
 
 type ScheduledPrompt = CentaurConfig["prompts"][string];
@@ -596,6 +603,8 @@ export function buildClaudeArgs(input: {
   mcpConfig?: string | undefined;
   /** A Claude Code settings file passed with `--settings`. */
   settings?: string | undefined;
+  /** The workspace is a branch earlier turns wrote, so its project settings must not load. */
+  branchCheckedOut?: boolean | undefined;
 }) {
   const { config, persona, resumeSessionId, canStaySilent, mode, allowExisting, mcpConfig } = input;
   const { settings } = input;
@@ -610,7 +619,7 @@ export function buildClaudeArgs(input: {
     `--model ${shellArg(config.model)}`,
     ...(config.effort ? [`--effort ${shellArg(config.effort)}`] : []),
     `--allowedTools ${doubleQuote(tools)}`,
-    ...(mode === "comment" || settings ? [USER_SETTING_SOURCES] : []),
+    ...(mode === "comment" || settings || input.branchCheckedOut ? [USER_SETTING_SOURCES] : []),
     `--max-turns ${shellArg(String(config.max_turns))}`,
     ...(config.max_budget_usd
       ? [`--max-budget-usd ${shellArg(String(config.max_budget_usd))}`]
@@ -757,18 +766,34 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     });
   }
 
+  const branch =
+    turn.branch ??
+    `centaur/${config.bot}-${turn.threadId ? threadKey(config.bot, turn.threadId) : safeRef(`${deps.promptName ?? "new"}-${deps.runId}`)}`;
+  const threadBranch =
+    turn.mode === "reply" && executionMode !== "direct" && deps.targets
+      ? await startFromThreadBranch(
+          { ...deps.targets, bot: config.bot, poster: deps.poster },
+          {
+            workspace: deps.workspace,
+            stateDir: deps.stateDir,
+            branch,
+            configRoot: deps.configRoot,
+          },
+        )
+      : undefined;
+  const trustedRoot = threadBranch?.configRoot ?? deps.configRoot;
   const personaPath = join(rootDir, config.persona);
   const persona = (await exists(personaPath))
-    ? deps.configRoot
-      ? personaPath
+    ? trustedRoot
+      ? join(trustedRoot, relative(configRoot, personaPath))
       : relative(configRoot, personaPath)
     : undefined;
   return {
     skip: false,
     thread_id: turn.mode === "comment" ? "" : (turn.threadId ?? ""),
-    branch:
-      turn.branch ??
-      `centaur/${config.bot}-${turn.threadId ? threadKey(config.bot, turn.threadId) : safeRef(`${deps.promptName ?? "new"}-${deps.runId}`)}`,
+    branch,
+    thread_pull_request: threadBranch ? String(threadBranch.number) : "",
+    config_root: threadBranch?.configRoot ?? "",
     base_url: PROVIDER_SETTINGS[config.provider].base_url ?? "",
     api_key_secret: PROVIDER_SETTINGS[config.provider].api_key_secret,
     claude_args: buildClaudeArgs({
@@ -784,6 +809,7 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
       skills: skills.builtin.length + skills.consumer.length > 0,
       mcpConfig: hasMcpServers ? MCP_CONFIG_FILE : undefined,
       settings: policyLayers ? hookSettingsPath(deps.stateDir) : undefined,
+      branchCheckedOut: threadBranch !== undefined,
     }),
   };
 }

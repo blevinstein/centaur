@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   checkCandidate,
+  findPullRequestOnBranch,
   listCandidates,
   MAX_CANDIDATES,
   planForTurn,
@@ -142,6 +143,44 @@ describe("listCandidates", () => {
   });
 });
 
+describe("findPullRequestOnBranch", () => {
+  const branch = candidatePr(5).headRef;
+
+  it("finds the newest accepted open pull request on the branch", async () => {
+    const { candidateDeps } = targetSetup({
+      open: [
+        candidatePr(5),
+        candidatePr(6, { headRef: branch, updatedAt: "2026-12-01T00:00:00Z" }),
+      ],
+    });
+
+    await expect(findPullRequestOnBranch(candidateDeps, branch)).resolves.toMatchObject({
+      number: 6,
+    });
+  });
+
+  it.each([
+    ["no pull request is open on it", []],
+    ["the pull request is from a fork", [candidatePr(5, { headRepository: "fork/sprout" })]],
+    ["a person opened the pull request", [candidatePr(5, { author: "sam" })]],
+    ["it belongs to another branch", [candidatePr(6)]],
+  ])("returns nothing when %s", async (_name, open) => {
+    const { candidateDeps } = targetSetup({ open });
+
+    await expect(findPullRequestOnBranch(candidateDeps, branch)).resolves.toBeUndefined();
+  });
+
+  it("fails loudly when the poster lookup or the GitHub listing fails", async () => {
+    const poster = targetSetup({ open: [candidatePr(5)], links: { 5: new Error("poster down") } });
+    await expect(findPullRequestOnBranch(poster.candidateDeps, branch)).rejects.toThrow(
+      "could not verify pull request #5",
+    );
+
+    const github = targetSetup({ listFails: true });
+    await expect(findPullRequestOnBranch(github.candidateDeps, branch)).rejects.toThrow();
+  });
+});
+
 describe("planTarget", () => {
   const open = [candidatePr(7, { title: "Weekly tasks" }), candidatePr(8)];
 
@@ -152,8 +191,23 @@ describe("planTarget", () => {
       target: "existing",
       number: 7,
       headRef: open[0]?.headRef,
-      title: "Weekly tasks",
     });
+  });
+
+  it("falls back to the checked-out thread pull request, keeping the rejection reason", async () => {
+    const { candidateDeps } = targetSetup({ open });
+    const thread = { number: 3, headRef: "centaur/sprout-0123456789ab" };
+
+    await expect(planTarget(candidateDeps, undefined, thread)).resolves.toEqual({
+      target: "existing",
+      ...thread,
+    });
+    await expect(planTarget(candidateDeps, 99, thread)).resolves.toEqual({
+      target: "existing",
+      ...thread,
+      fallbackReason: "lookup_failed",
+    });
+    await expect(planTarget(candidateDeps, 7, thread)).resolves.toMatchObject({ number: 7 });
   });
 
   it.each([undefined, 0, -3, 1.5, Number.NaN])("returns the default for %s", async (value) => {
@@ -215,11 +269,26 @@ describe("planTarget", () => {
 
 describe("planOutputs", () => {
   it("maps plans to workflow outputs without the title", () => {
-    expect(
-      planOutputs({ target: "existing", number: 7, headRef: "centaur/sprout-a", title: "t" }),
-    ).toEqual({ target: "existing", number: "7", head_ref: "centaur/sprout-a" });
+    expect(planOutputs({ target: "existing", number: 7, headRef: "centaur/sprout-a" })).toEqual({
+      target: "existing",
+      number: "7",
+      head_ref: "centaur/sprout-a",
+    });
     expect(planOutputs({ target: "thread", fallbackReason: "not_open" })).toEqual({
       target: "thread",
+      fallback_reason: "not_open",
+    });
+    expect(
+      planOutputs({
+        target: "existing",
+        number: 3,
+        headRef: "centaur/sprout-a",
+        fallbackReason: "not_open",
+      }),
+    ).toEqual({
+      target: "existing",
+      number: "3",
+      head_ref: "centaur/sprout-a",
       fallback_reason: "not_open",
     });
     expect(planOutputs({ target: "thread" })).toEqual({ target: "thread", fallback_reason: "" });
@@ -270,6 +339,29 @@ describe("planForTurn", () => {
     await expect(
       planForTurn(candidateDeps, "bot", executionText({ reply: "ok" })),
     ).resolves.toEqual({ target: "thread" });
+  });
+
+  it("targets the checked-out thread pull request unless the agent names another", async () => {
+    const { candidateDeps } = targetSetup({ open: [candidatePr(5)] });
+    const thread = { number: 3, headRef: "centaur/sprout-0123456789ab" };
+    const quiet = executionText({ reply: "ok" });
+
+    await expect(planForTurn(candidateDeps, "off", quiet, "pull_request", thread)).resolves.toEqual(
+      {
+        target: "existing",
+        ...thread,
+      },
+    );
+    await expect(planForTurn(undefined, "bot", quiet, "pull_request", thread)).resolves.toEqual({
+      target: "existing",
+      ...thread,
+    });
+    await expect(
+      planForTurn(candidateDeps, "bot", execution, "pull_request", thread),
+    ).resolves.toMatchObject({ number: 5 });
+    await expect(planForTurn(candidateDeps, "bot", execution, "direct", thread)).resolves.toEqual({
+      target: "direct",
+    });
   });
 
   it("plans a direct push from the trusted mode without reading the agent or GitHub", async () => {

@@ -84,8 +84,10 @@ runs:
       shell: bash
       env:
         EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
-        CENTAUR_CONFIG_ROOT: ${{ inputs.config_root }}
+        CENTAUR_CONFIG_ROOT: ${{ steps.prepare.outputs.config_root || inputs.config_root }}
         CENTAUR_ROOT: ${{ inputs.root }}
+        THREAD_PULL_REQUEST: ${{ steps.prepare.outputs.thread_pull_request }}
+        THREAD_BRANCH: ${{ steps.prepare.outputs.branch }}
         GITHUB_TOKEN: ${{ github.token }}
       run: node "$CENTAUR_CLI" plan-pr
 
@@ -104,6 +106,8 @@ runs:
         TARGET_HEAD_REF: ${{ steps.plan.outputs.head_ref }}
         TARGET_PR_NUMBER: ${{ steps.plan.outputs.number }}
         PR_TITLE: ${{ steps.pr_details.outputs.title }}
+        THREAD_PULL_REQUEST: ${{ steps.prepare.outputs.thread_pull_request }}
+        THREAD_BRANCH: ${{ steps.prepare.outputs.branch }}
       run: node "$CENTAUR_CLI" push-existing
 
     - name: Push to the default branch
@@ -122,7 +126,7 @@ runs:
     - name: Open pull request
       id: pr
       continue-on-error: true
-      if: steps.prepare.outputs.skip != 'true' && inputs.comment == '' && steps.changes.outputs.changed == 'true' && (steps.plan.outputs.target == 'thread' || steps.push_existing.outputs.fallback == 'true' || steps.push_direct.outputs.fallback == 'true')
+      if: steps.prepare.outputs.skip != 'true' && inputs.comment == '' && steps.changes.outputs.changed == 'true' && steps.prepare.outputs.thread_pull_request == '' && (steps.plan.outputs.target == 'thread' || steps.push_existing.outputs.fallback == 'true' || steps.push_direct.outputs.fallback == 'true')
       uses: peter-evans/create-pull-request@v8
       with:
         token: ${{ github.token }}
