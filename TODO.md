@@ -301,6 +301,13 @@ Every item here is **[HUMAN APPROVAL]**: do not start one without the maintainer
       [docs/proposals/mid-turn-tool.md](docs/proposals/mid-turn-tool.md); builds on the
       `centaur-chat` MCP server in [docs/chat-context.md](docs/chat-context.md)). It would let a
       long turn post a progress message before it finishes; questions end the turn with a reply.
+- [ ] Reusable read-only Playwright harness, bounded in-turn 2FA/OTP code consumer and residential
+      egress guide (status: proposal,
+      [docs/proposals/browser-and-otp.md](docs/proposals/browser-and-otp.md); complements
+      [docs/proposals/mid-turn-tool.md](docs/proposals/mid-turn-tool.md)). Captures `consume-code`
+      transcript redaction and duplicate-turn suppression, default-deny Playwright route guarding +
+      S3 `storageState` reuse, and Tailscale userspace SOCKS5 egress for portals that block cloud
+      runner ASNs.
 - [ ] Redact slash-command text in the Chat SDK error logs. When a slash command handler throws
       (for example the admin claim command, whose argument is a one-time claim code) or the SDK
       logs an error, the command text can appear in the Lambda's error logs; found live when an

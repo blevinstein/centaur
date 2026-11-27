@@ -153,6 +153,11 @@ marker behind so the thread replays old messages. The cost of the plain route is
 cannot attach to a *specific* pending message, and nothing stops a person answering after the next
 unrelated message; that is how every other reply in a thread works.
 
+*Exception — ephemeral 2FA / OTP codes:* when deterministic login tooling holds an open browser or
+TLS session that prompted for a short-lived verification code, ending the turn destroys the session
+and forces a new code on the next turn. That case uses a bounded, non-LLM code consumer rather than
+a general `ask_thread` tool; see [browser-and-otp.md](browser-and-otp.md).
+
 If the maintainer wants the explicit tool ([Decision 3](#decisions)), `ask_thread` would take
 `question` (1 to 600 characters), post it with the same checks, record `asked: true` in the turn
 state and return "Question posted. End your turn now; the answer arrives as your next message." `finish`
