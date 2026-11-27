@@ -112,6 +112,18 @@ export const invalidConfigs: [name: string, text: string, path: string, message:
     ],
   ),
   ["unknown effort", withExtra("effort: extreme"), "effort", /./],
+  [
+    "prompt model that could be a flag",
+    withExtra("prompts: {weekly: {destination: household, model: --max-turns}}"),
+    "prompts.weekly.model",
+    /model must be/,
+  ],
+  [
+    "unknown prompt effort",
+    withExtra("prompts: {weekly: {destination: household, effort: extreme}}"),
+    "prompts.weekly.effort",
+    /./,
+  ],
   ["zero max_turns", withExtra("max_turns: 0"), "max_turns", /./],
   ["fractional max_turns", withExtra("max_turns: 2.5"), "max_turns", /./],
   ["excessive max_turns", withExtra("max_turns: 500"), "max_turns", /./],

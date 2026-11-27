@@ -86,7 +86,7 @@ prompts:
 | `skills` | no | `{}` | Strict block `{ builtin, consumer }`, both booleans defaulting to `true`. `builtin` installs the Centaur repository's `skills/centaur-*` into the runner's `$HOME/.claude/skills` each turn; `consumer` also installs the skills in the trusted checkout's `.claude/skills` (the default branch for a pull request comment turn, the workspace for a chat turn) as `centaur-consumer-<name>`. See [Skills](workflows.md#skills). **A consumer's default branch must not carry this key until the Lambda that knows it is deployed**: `register` parses the config in the Lambda, which rejects an unknown key. |
 | `prompts` | no | `{}` | Scheduled prompts by name (see below). |
 
-Each prompt takes `file` (default `.centaur/prompts/<name>.md`), `context` (default
+Each prompt takes `file` (default `.centaur/prompts/<name>.md`), `model` and `effort` (default the top-level values; see [Prompts](#prompts)), `context` (default
 `context.scheduled`), `thread` (`new`, the default), `destination` (required); see [Prompts](#prompts). The
 parser only checks the shape; a destination name is resolved when the run starts (see
 [Access](#access)).
@@ -220,7 +220,7 @@ single `claude` invocation per turn cannot do; and a thinking-token budget has n
 `prompts` names the scheduled prompts a repo owns. The cron expression stays in the consumer's
 caller workflow (`schedule:`), which passes the prompt name to the shared workflow. Each
 entry has a required `destination`, an optional `file` (default
-`.centaur/prompts/<name>.md`), an optional `context` policy and an optional `thread`.
+`.centaur/prompts/<name>.md`), an optional `context` policy, an optional `thread`, and optional `model` and `effort`.
 
 `destination` is a name or a map from platform to name:
 
@@ -231,14 +231,15 @@ entry has a required `destination`, an optional `file` (default
   platform; a one-entry map is a single target. A prompt-level `platforms` key is not supported.
 - Every platform used must be declared in the top-level `platforms`, and `context: resume` with more
   than one target is an error: a session belongs to one thread.
+- `model` and `effort` override the top-level values for the turn a scheduled run starts, so a triage prompt can use a cheaper model while conversational turns keep a stronger one. They take the same values as the top-level fields. The override applies to the scheduled turn only, including `context: resume`; it does not carry over to replies in the thread the run opened (including a `thread: persistent` thread), to `/new` seed turns, or to pull request comment turns, which use the top-level `model` and `effort`. **A consumer's default branch must not carry prompt `model` or `effort` until the Lambda that knows them is deployed**: `register` parses the config in the Lambda, which rejects an unknown key.
 - `thread` is `new` (the default) or `persistent`, for every target of the prompt. `new` opens a fresh
   thread on every run. `persistent` posts every run into the destination's one thread (created and bound on first use;
   see [poster.md](poster.md#destinations)), and the run sees that thread's earlier messages and
   replies as context ([workflows.md](workflows.md#persistent-scheduled-threads)). The poster must be
   deployed with persistent thread support before a config uses `thread: persistent`.
 
-The parser resolves the file, context and targets, so consumers see every prompt with a concrete
-`file`, `context`, `thread` and `targets` (a list of `{ platform, destination }`). A prompt with several
+The parser resolves the file, model, effort, context and targets, so consumers see every prompt with a concrete
+`file`, `model`, `effort` (absent when neither is set), `context`, `thread` and `targets` (a list of `{ platform, destination }`). A prompt with several
 targets runs one agent turn and posts the same reply to each; see [workflows.md](workflows.md#turn-state).
 
 ## Pull request targets

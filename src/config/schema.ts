@@ -114,8 +114,16 @@ const removedPromptPlatforms = z
   })
   .optional();
 
+const modelId = z
+  .string()
+  .regex(MODEL_ID, "model must be a model id or alias such as sonnet or claude-opus-4-1");
+
+const effortLevel = z.enum(EFFORT_LEVELS);
+
 const promptSchema = z.strictObject({
   file: repoPath.optional(),
+  model: modelId.optional(),
+  effort: effortLevel.optional(),
   context: contextPolicy.optional(),
   thread: z.enum(THREAD_MODES).default("new"),
   platforms: removedPromptPlatforms,
@@ -189,10 +197,8 @@ export const centaurConfigSchema = z
         transcript_max_chars: DEFAULT_TRANSCRIPT_MAX_CHARS,
       }),
     provider: z.enum(PROVIDERS),
-    model: z
-      .string()
-      .regex(MODEL_ID, "model must be a model id or alias such as sonnet or claude-opus-4-1"),
-    effort: z.enum(EFFORT_LEVELS).optional(),
+    model: modelId,
+    effort: effortLevel.optional(),
     max_turns: z.number().int().min(1).max(200).default(30),
     max_budget_usd: z.number().positive().max(1000).optional(),
     allowed_tools: toolList,
@@ -327,6 +333,8 @@ export const centaurConfigSchema = z
         name,
         {
           file: prompt.file ?? `.centaur/prompts/${name}.md`,
+          model: prompt.model ?? config.model,
+          effort: prompt.effort ?? config.effort,
           context: prompt.context ?? config.context.scheduled,
           thread: prompt.thread,
           targets: promptTargets(prompt, declaredPlatforms(config)),

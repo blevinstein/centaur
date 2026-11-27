@@ -139,6 +139,8 @@ describe("parseCentaurConfig", () => {
         prompts: {
           "weekly-tasks": {
             file: ".centaur/prompts/weekly-tasks.md",
+            model: "sonnet",
+            effort: "low",
             context: "transcript",
             thread: "new",
             targets: [
@@ -148,6 +150,8 @@ describe("parseCentaurConfig", () => {
           },
           seasonal: {
             file: ".centaur/prompts/season.md",
+            model: "sonnet",
+            effort: "low",
             context: "fresh",
             thread: "new",
             targets: [
@@ -244,6 +248,17 @@ describe("parseCentaurConfig", () => {
     expect(parseCentaurConfig(withExtra(prompts))).toMatchObject({
       ok: true,
       config: { prompts: { weekly: { thread: mode } } },
+    });
+  });
+
+  it("resolves a prompt's model and effort over the bot-wide ones", () => {
+    expect(
+      parseCentaurConfig(
+        withExtra("prompts: {weekly: {destination: household, model: haiku, effort: max}}"),
+      ),
+    ).toMatchObject({
+      ok: true,
+      config: { model: "sonnet", prompts: { weekly: { model: "haiku", effort: "max" } } },
     });
   });
 

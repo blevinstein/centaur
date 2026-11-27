@@ -511,6 +511,18 @@ describe("prepare", () => {
     });
   });
 
+  it.each([
+    ["the prompt's model and effort", "model: haiku, effort: high", "--model haiku --effort high"],
+    ["the bot-wide values by default", "", "--model sonnet"],
+  ])("runs a scheduled turn with %s", async (_name, fields, args) => {
+    const { deps } = await setup(
+      [],
+      configText(`prompts: {weekly: {destination: household, ${fields}}}`),
+    );
+    const out = await prepare(deps({ promptName: "weekly", clientPayload: undefined }));
+    expect(out.claude_args).toContain(args);
+  });
+
   it("uses the prompt's own destination", async () => {
     const { deps, stateDir } = await setup(
       [],

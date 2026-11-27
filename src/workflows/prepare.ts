@@ -195,6 +195,9 @@ interface Turn {
   prompt: string;
   /** Where an approval request for this turn is raised; absent when the turn has no thread. */
   approvalThread?: ApprovalThread | undefined;
+  /** Overrides the bot-wide model and effort for this turn. */
+  model?: string;
+  effort?: CentaurConfig["effort"];
   resumeSessionId?: string;
   canStaySilent?: boolean;
   allowExisting: boolean;
@@ -332,6 +335,8 @@ async function scheduledTurn(
       ? { marker: persistent.marker, markerThreadId: persistent.threadId }
       : {}),
     ...(persistent?.resumeSessionId ? { resumeSessionId: persistent.resumeSessionId } : {}),
+    model: prompt.model,
+    effort: prompt.effort,
     prompt: buildPrompt({
       scheduledTask,
       instructions,
@@ -797,7 +802,12 @@ export async function prepare(deps: PrepareDeps): Promise<PrepareOutputs> {
     base_url: PROVIDER_SETTINGS[config.provider].base_url ?? "",
     api_key_secret: PROVIDER_SETTINGS[config.provider].api_key_secret,
     claude_args: buildClaudeArgs({
-      config: { ...config, allowed_tools: kept.allowedTools },
+      config: {
+        ...config,
+        allowed_tools: kept.allowedTools,
+        model: turn.model ?? config.model,
+        effort: turn.effort ?? config.effort,
+      },
       persona,
       resumeSessionId: turn.resumeSessionId,
       canStaySilent: turn.canStaySilent === true,
