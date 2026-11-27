@@ -20,6 +20,9 @@ runs:
       shell: bash
       working-directory: ${{ github.action_path }}/../../..
       run: yarn install --immutable && yarn build
+    - uses: astral-sh/setup-uv@v10.4.0
+      with:
+        enable-cache: false
     - uses: aws-actions/configure-aws-credentials@v6
       with:
         role-to-assume: ${{ env.CENTAUR_ROLE_ARN }}
