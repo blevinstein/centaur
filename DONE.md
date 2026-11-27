@@ -607,6 +607,27 @@ Design and decisions: [docs/skills-rules.md](docs/skills-rules.md).
       (The trusted `CLAUDE.md` question under `--setting-sources user` is answered: it does not
       reach a comment turn on its own; see the harness instructions item in Needs triage.)
 
+## 20. Sub-folder support
+
+Design: [docs/proposals/subfolder-support.md](docs/proposals/subfolder-support.md).
+
+- [x] Sub-folder 1 to 4: `resolveRoot` and root-aware config discovery, the root read in `prepare`
+      (project-folder line in the prompt), the MCP policy path, `register` and `config check`, the
+      `root` input on the actions, and the multi-bot workflow guidance.
+- [x] **[HUMAN ACTION]** Sub-folder 5, live check with two sub-folder bots. Confirmed done by the
+      maintainer 2026-11-27: two sub-folder bots are live in this repository, so no scratch monorepo
+      is needed.
+      Partly done 2026-11-26 on the self-consumer repo (`apps/centaur-test` and `apps/centaur-test-2`).
+      Verified: a sub-folder bot registers (a matrix per root); a scheduled prompt and a comment
+      turn run on a sub-folder root; with two bots in one repo, each comment is answered by exactly
+      one workflow (the other copy's turn is skipped). Note: Claude Code strips HTML comments from
+      the guide, so guide labels are headings.
+      1. [x] Nested guides under the root: abandoned 2026-11-26: nested guides are not supported.
+      2. [x] Two bots in shared Slack and Telegram chats: a message to both (the `client_payload.bot`
+         filter and concurrency groups). Confirmed done by the maintainer 2026-11-27: two
+         sub-folder bots are live in this repository.
+- Decided 2026-11-25: auto-detecting sub-folder bots is not wanted; the explicit `root` input stays.
+
 ## 21. Poster caller check
 
 Implemented: the poster verifies the caller's GitHub OIDC token on `post`, `unreact`,

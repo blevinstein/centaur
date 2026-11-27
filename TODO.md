@@ -18,26 +18,6 @@ Unlabeled items are free for an agent to complete.
 
 A section moves to [DONE.md](DONE.md) once every item in it is checked; whole sections only.
 
-## 20. Sub-folder support
-
-Design: [docs/proposals/subfolder-support.md](docs/proposals/subfolder-support.md).
-
-- [x] Sub-folder 1 to 4: `resolveRoot` and root-aware config discovery, the root read in `prepare`
-      (project-folder line in the prompt), the MCP policy path, `register` and `config check`, the
-      `root` input on the actions, and the multi-bot workflow guidance.
-- [ ] **[HUMAN ACTION]** Sub-folder 5, live check on a scratch monorepo with two sub-folder bots.
-      Partly done 2026-11-26 on the self-consumer repo (`apps/centaur-test` and `apps/centaur-test-2`).
-      Verified: a sub-folder bot registers (a matrix per root); a scheduled prompt and a comment
-      turn run on a sub-folder root; with two bots in one repo, each comment is answered by exactly
-      one workflow (the other copy's turn is skipped). Note: Claude Code strips HTML comments from
-      the guide, so guide labels are headings.
-      Still open:
-      1. [x] Nested guides under the root: abandoned 2026-11-26: nested guides are not supported.
-      2. Two bots in shared Slack and Telegram chats: a message to both (the `client_payload.bot`
-         filter and concurrency groups). Needs messages from the maintainer: the queen cannot
-         puppet `centaur-test` (`centaur-o7u`).
-- Decided 2026-11-25: auto-detecting sub-folder bots is not wanted; the explicit `root` input stays.
-
 ## Needs triage
 
 Some of these are items that can be implemented in a single task; others require planning and
@@ -68,8 +48,8 @@ for detailed tracking.
         the role files and the generated prompt sections.
 - [x] Better guides - basic response-only bot, adding scheduled actions
 - [x] Support for centaur in a sub-folder? Explored and planned in
-      [docs/proposals/subfolder-support.md](docs/proposals/subfolder-support.md); slices 1 to 4 are
-      built, the live check is tracked in section 20.
+      [docs/proposals/subfolder-support.md](docs/proposals/subfolder-support.md); slices 1 to 5 are
+      built; the live check is done (section 20 in [DONE.md](DONE.md)).
 - [x] `centaur chat tail <bot> [--platform <platform>] [--minutes <n>]`: a read-only CLI command
       that lists a bot's recent messages from the state table through the poster's reader and
       sender filter, so verifying a live run needs no ad hoc scans or Slack API calls. Done.

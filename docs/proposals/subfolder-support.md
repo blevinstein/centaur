@@ -1,6 +1,6 @@
 # Centaur rooted in a sub-folder
 
-Status: **slices 1 to 4 are built on `main`; slice 5 (the live check) is open**. This document is the plan behind the TODO item "Support for
+Status: **all five slices are done**. Slices 1 to 4 are built on `main`; the slice 5 live check was confirmed by the maintainer on 2026-11-27 (two sub-folder bots are live in this repository), with no per-case results recorded beyond [two-bot-test](two-bot-test.md). This document is the plan behind the TODO item "Support for
 centaur in a sub-folder". It builds on [config.md](../config.md#location) and
 [workflows.md](../workflows.md).
 
@@ -186,7 +186,7 @@ at `@main`, and an older runner ignores an unknown input (a warning), so land th
   config (`configRepoRoot` already does).
 - `test/turn-action.test.ts`: the `root` input reaches `prepare`, `plan-pr` and `finish` as
   `CENTAUR_ROOT`.
-- A live check on a scratch monorepo with two sub-folder bots: a message to each produces a PR
+- A live check with two sub-folder bots (run in this repository): a message to each produces a PR
   touching its sub-folder, the comment turn answers it, the two bots do not run each other's turns
   and their concurrency groups do not collide.
 
@@ -201,7 +201,7 @@ at `@main`, and an older runner ignores an unknown input (a warning), so land th
    templates in `docs/workflows.md` (per-bot `if` filter, reusable `workflow_call` workflow, distinct
    concurrency groups, one `register` per root and a `paths` filter covering every sub-folder); a guide
    section in `docs/onboarding.md`.
-5. **Open.** Live check on a scratch monorepo with two bots; docs wrap-up in `docs/config.md` (location section).
+5. **Done.** Live check with two sub-folder bots in this repository (no scratch monorepo): partly verified 2026-11-26, the rest confirmed by the maintainer 2026-11-27; docs wrap-up in `docs/config.md` (location section).
 
 ## Decisions
 

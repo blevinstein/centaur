@@ -1,7 +1,7 @@
 # Two test bots in this repo
 
 Status: step 1 is built (the live bot `centaur-slack` lives in `apps/centaur-test`); step 2 (a second
-bot, `centaur-test-2`) is built on the repo side; the maintainer actions below are open. It uses the sub-folder support in
+bot, `centaur-test-2`) is built on the repo side. The maintainer confirmed 2026-11-27 that both sub-folder bots are live; the per-case results of the shared-chat checks below were not recorded. It uses the sub-folder support in
 [subfolder-support](subfolder-support.md) and the templates in
 [workflows](../workflows.md#bots-in-sub-folders).
 
@@ -113,8 +113,10 @@ the current deployed Lambda); a Lambda without it rejects the unknown key.
 
 ## Live checks (sub-folder slice 5)
 
-One check remains from [subfolder-support](subfolder-support.md): a message that reaches both bots. It
-needs messages from the maintainer: the queen cannot puppet `centaur-test` (bead `centaur-o7u`).
+One check from [subfolder-support](subfolder-support.md): a message that reaches both bots.
+The maintainer confirmed it done on 2026-11-27 (two sub-folder bots are live in this repository);
+the per-case reply counts and run ids were not recorded, so the expectations below are unverified
+in detail.
 
 ### One message to both bots
 
