@@ -144,5 +144,24 @@ describe("this repo's Centaur config", () => {
         expect(turn.with.timeout_minutes).toBeGreaterThan(0);
       }
     });
+
+    it("runs the dev bot's next-task prompt on a weekday schedule, serialized on the resolved group", async () => {
+      const workflow = loadWorkflow("centaur-dev-next-task.yml");
+      const { resolve, "next-task": job } = workflow.jobs;
+      const dev = await loadSelfConfig(SELF_ROOT_DEV);
+      const resolveStep = resolve?.steps?.find((step) => step.id === "resolve");
+      const turnStep = job?.steps?.find((step) => step.uses?.endsWith("actions/turn"));
+      expect(workflow.on?.schedule).toHaveLength(1);
+      expect(workflow.on?.schedule?.[0]?.cron.split(" ").at(-1)).toBe("1-5");
+      expect(Object.keys(dev.prompts)).toContain("next-task");
+      for (const step of [resolveStep, turnStep]) {
+        expect(step?.with).toMatchObject({ root: SELF_ROOT_DEV, prompt_name: "next-task" });
+      }
+      expect(job?.needs).toBe("resolve");
+      expect(job?.concurrency?.group).toMatch(/^\$\{\{ needs\.resolve\.outputs\.group \}\}$/);
+      expect(job?.["timeout-minutes"]).toBe(
+        loadWorkflow("centaur-dev-message.yml").jobs.turn?.with?.timeout_minutes,
+      );
+    });
   });
 });

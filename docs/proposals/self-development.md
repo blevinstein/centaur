@@ -1,6 +1,6 @@
 # Self-development bot
 
-Status: **slice 1 (the repo side) is built; slices 2 to 5 are open**. A bot that develops this repository: the maintainer asks it for a
+Status: **slices 1 and 4 (the repo side and the scheduled workflow) are built; slices 2, 3 and 5 are open**. A bot that develops this repository: the maintainer asks it for a
 change in Slack, or a scheduled prompt picks the next task, and the agent runs shell
 commands, reads the web, verifies its work and opens a pull request. Terms (turn, poster, root) are in
 [workflows.md](../workflows.md); the sub-folder layout it follows is in
@@ -79,7 +79,7 @@ The persona sets the voice: terse progress, the outcome first, the pull request 
 - `centaur-register.yml`: `apps/centaur-dev` in the matrix and in `paths`.
 - `centaur-dev-next-task.yml`: the scheduled workflow from
   [Consumer workflows](../workflows.md#consumer-workflows) with `prompt_name: next-task`, a weekday
-  cron and `workflow_dispatch`. Built after the chat path has been used by hand.
+  cron and `workflow_dispatch`; its concurrency group comes from `resolve-schedule`, and the job timeout is `90` like the message caller. A failed run posts through the in-job `notify-failure`; there is no `notify-timeout` job because a scheduled run has no dispatch payload to post to.
 
 The runtime is already there: `setup-runtime` runs `yarn install --immutable && yarn build` in the
 action's checkout, which for this repository is the workspace, and `ubuntu-latest` has Docker for
@@ -147,7 +147,7 @@ In order of cost, each tracked as its own task:
    the maintainer's private chat.
 3. **First runs.** Ask for a small, known change (a `TODO.md` item with a clear test) and tune
    `model`, `max_turns`, `max_budget_usd` and the timeout from the run.
-4. **Scheduled `next-task`.** The workflow and its destination.
+4. **Scheduled `next-task`** (built). `centaur-dev-next-task.yml`; the destination is the `centaur-dev` Slack name, bound by slice 2 (approving the maintainer's chat, or `centaur destination set`). Do not enable it before slice 2.
 5. **Hardening.** The three items above.
 
 ## Test plan

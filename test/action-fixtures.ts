@@ -44,12 +44,14 @@ export interface WorkflowJob {
   with?: Record<string, unknown>;
   strategy?: { matrix?: { root?: string[] } };
   "timeout-minutes"?: number | string;
-  steps?: { if?: string; uses?: string }[];
+  steps?: { id?: string; if?: string; uses?: string; with?: Record<string, unknown> }[];
+  concurrency?: { group?: string };
 }
 
 export interface Workflow {
   on?: {
     push?: { paths?: string[] };
+    schedule?: { cron: string }[];
     workflow_call?: { inputs?: Record<string, WorkflowInput> };
   };
   jobs: Record<string, WorkflowJob>;

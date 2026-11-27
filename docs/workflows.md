@@ -138,7 +138,7 @@ for the agent's pull request. Enable "Allow GitHub Actions to create and approve
 repo settings. Pull requests opened with the default token do not trigger other workflows.
 
 To add another scheduled prompt, add a `prompts:` entry to the config and a workflow like the
-last one. Because the consumer owns the job, it can add its own steps before or after the actions
+last one. This repository's `centaur-dev-next-task.yml` is one, with `timeout-minutes: 90` and the cron `0 14 * * 1-5`. Because the consumer owns the job, it can add its own steps before or after the actions
 (for example to fetch data the prompt needs).
 
 ## Persistent scheduled threads

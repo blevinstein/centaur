@@ -1,0 +1,58 @@
+name: Centaur dev next task
+
+on:
+  schedule:
+    - cron: "0 14 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      group: ${{ steps.resolve.outputs.group }}
+    env:
+      CENTAUR_ROLE_ARN: ${{ vars.CENTAUR_ROLE_ARN }}
+      CENTAUR_AWS_REGION: ${{ vars.CENTAUR_AWS_REGION }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-runtime
+      - id: resolve
+        uses: ./.github/actions/resolve-schedule
+        with:
+          root: apps/centaur-dev
+          prompt_name: next-task
+
+  next-task:
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    concurrency:
+      group: ${{ needs.resolve.outputs.group }}
+      cancel-in-progress: false
+    env:
+      CENTAUR_ROLE_ARN: ${{ vars.CENTAUR_ROLE_ARN }}
+      CENTAUR_AWS_REGION: ${{ vars.CENTAUR_AWS_REGION }}
+      CENTAUR_FUNCTION_NAME: ${{ vars.CENTAUR_FUNCTION_NAME }}
+      CENTAUR_OIDC_AUDIENCE: ${{ vars.CENTAUR_OIDC_AUDIENCE }}
+      CENTAUR_SESSION_BUCKET: ${{ vars.CENTAUR_SESSION_BUCKET }}
+      GITHUB_MCP_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-runtime
+      - uses: ./.github/actions/turn
+        with:
+          root: apps/centaur-dev
+          prompt_name: next-task
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+      - if: failure()
+        uses: ./.github/actions/notify-failure
