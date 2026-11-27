@@ -78,6 +78,10 @@
   ID. `COMMENT_PULL_REQUEST` enables comment-mode `prepare`; `src/workflows/pull-request-comments.ts`
   owns PR reading and comment rendering. Every comment the agent posts to a PR carries
   `REPLY_MARKER`, and `finish` pushes with plain `git`.
+- Every git call that runs after the agent with a push token (`push.ts`, `transplant.ts`) goes through
+  `gitIn` (`src/workflows/push.ts`), which overrides hooks, fsmonitor, ssh command, credential helper
+  and signing on the command line; a new such call uses it, never `exec("git", ...)`. Don't disable
+  includes: the checkout stores the credential through one.
 - `pull_requests.comment_authors` (default OWNER/MEMBER/COLLABORATOR) gates comment turns twice:
   `resolve` checks the event's `author_association` through the lazy `commentAuthors` dep (config
   read from the default-branch checkout), and `prepare` filters pending comments and inline thread

@@ -122,6 +122,13 @@ conditions:
 
 ### Hardening, later
 
+Built: every git call in the push steps (`gitIn`, `src/workflows/push.ts`) overrides, on the command
+line, the workspace config an agent could plant to run code with the push-time token: `core.hooksPath`
+(`/dev/null`), `core.fsmonitor`, `core.sshCommand`, `credential.helper` and `commit.gpgsign`. Not
+covered: `url.<base>.insteadOf` and other keys that redirect the push, and filter drivers named by a
+committed `.gitattributes`; the items below close that gap by removing the credential from the
+agent's reach.
+
 In order of cost, each tracked as its own task:
 
 1. **Remove credentials from the agent step.** `persist-credentials: false` on the checkout, and
@@ -148,7 +155,7 @@ In order of cost, each tracked as its own task:
 3. **First runs.** Ask for a small, known change (a `TODO.md` item with a clear test) and tune
    `model`, `max_turns`, `max_budget_usd` and the timeout from the run.
 4. **Scheduled `next-task`** (built). `centaur-dev-next-task.yml`; the destination is the `centaur-dev` Slack name, bound by slice 2 (approving the maintainer's chat, or `centaur destination set`). Do not enable it before slice 2.
-5. **Hardening.** The three items above.
+5. **Hardening.** The three items above (the push-step config override is built).
 
 ## Test plan
 

@@ -656,7 +656,10 @@ touching the workspace. It reads `TARGET_HEAD_REF` and `TARGET_PR_NUMBER` (the `
 and `PR_TITLE` for the commit message. It stages everything except `.centaur-turn` and
 `.centaur-trusted`, writes a binary patch to the runner temp directory, fetches the branch, adds a
 detached worktree at its tip, runs `git apply --3way --index`, commits as `github-actions[bot]` and
-pushes with plain `git push` (never forced). It validates `TARGET_HEAD_REF` first (`centaur/`
+pushes with plain `git push` (never forced). Every git call runs through `gitIn`, which overrides
+`core.hooksPath`, `core.fsmonitor`, `core.sshCommand`, `credential.helper` and `commit.gpgsign` on the
+command line, so a hook or config the agent planted in the workspace does not run with the push token.
+It validates `TARGET_HEAD_REF` first (`centaur/`
 prefix, no `..`, no whitespace or leading dash). Outputs: `fallback` (`true` on any failure),
 `reason` (`invalid_ref`, `patch_failed`, `fetch_failed`, `conflict`, `push_rejected`; never file
 contents), and on success `pull-request-url` and `pull-request-number`. With no changes it succeeds

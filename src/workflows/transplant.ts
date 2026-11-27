@@ -2,7 +2,7 @@ import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Exec, execCommand } from "./aws.js";
-import { BOT_IDENTITY, NEVER_COMMITTED } from "./push.js";
+import { BOT_IDENTITY, gitIn, NEVER_COMMITTED } from "./push.js";
 
 const SAFE_REF = /^[A-Za-z0-9._/-]+$/;
 
@@ -45,7 +45,7 @@ export const isSafeRef = (ref: string) =>
 export async function transplantAndPush(options: TransplantOptions): Promise<TransplantResult> {
   const { workspace, ref, message, isProtectedPath, exec = execCommand } = options;
   if (!isSafeRef(ref)) return { ok: false, reason: "invalid_ref" };
-  const git = (...args: string[]) => exec("git", ["-C", workspace, ...args]);
+  const git = gitIn(workspace, exec);
   const scratch = await mkdtemp(join(options.tempDir ?? tmpdir(), "centaur-push-"));
   const patch = join(scratch, "changes.patch");
   const worktree = join(scratch, "pr");
@@ -63,7 +63,7 @@ export async function transplantAndPush(options: TransplantOptions): Promise<Tra
     const prepared = await attempt("patch_failed", async () => {
       await git("add", "--all");
       await git("reset", "--quiet", "--", ...NEVER_COMMITTED);
-      await git("diff", "--cached", "--binary", `--output=${patch}`, "HEAD");
+      await git("diff", "--cached", "--no-ext-diff", "--binary", `--output=${patch}`, "HEAD");
       if (isProtectedPath) {
         touched = (await git("diff", "--cached", "--name-only", "--no-renames", "-z", "HEAD"))
           .split("\0")
@@ -77,7 +77,7 @@ export async function transplantAndPush(options: TransplantOptions): Promise<Tra
     }
 
     const remoteRef = `refs/remotes/origin/${ref}`;
-    const inWorktree = (...args: string[]) => exec("git", ["-C", worktree, ...args]);
+    const inWorktree = gitIn(worktree, exec);
     const steps: [TransplantFailure, () => Promise<unknown>][] = [
       ["fetch_failed", () => git("fetch", "origin", `+refs/heads/${ref}:${remoteRef}`)],
       [

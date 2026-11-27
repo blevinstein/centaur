@@ -8,10 +8,30 @@ export const BOT_IDENTITY = [
 ];
 export const NEVER_COMMITTED = [".centaur-turn", ".centaur-trusted"];
 
-const gitIn =
-  (workspace: string, exec: Exec) =>
+const NEUTRALIZED_CONFIG = [
+  "core.hooksPath=/dev/null",
+  "core.fsmonitor=false",
+  "core.sshCommand=ssh",
+  "credential.helper=",
+  "commit.gpgsign=false",
+];
+
+/**
+ * Runs `git` in `directory` with the config an agent can plant in the workspace's `.git/config`
+ * (hooks, fsmonitor, ssh command, credential helpers, signing) overridden on the command line,
+ * which outranks every config file, included ones too. Includes stay enabled because the checkout
+ * stores the push credential through one. Every git call that runs with the push-time token goes
+ * through this.
+ */
+export const gitIn =
+  (directory: string, exec: Exec) =>
   (...args: string[]) =>
-    exec("git", ["-C", workspace, ...args]);
+    exec("git", [
+      ...NEUTRALIZED_CONFIG.flatMap((entry) => ["-c", entry]),
+      "-C",
+      directory,
+      ...args,
+    ]);
 
 type Git = ReturnType<typeof gitIn>;
 

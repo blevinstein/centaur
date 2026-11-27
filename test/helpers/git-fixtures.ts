@@ -1,4 +1,4 @@
-import { appendFile, chmod, mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { appendFile, chmod, copyFile, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { type Exec, execCommand } from "../../src/workflows/aws.js";
@@ -55,9 +55,34 @@ export async function createClone(options: { ignoreTurnDir?: boolean } = {}) {
     await writeFile(hook, "#!/bin/sh\necho 'protected branch' >&2\nexit 1\n");
     await chmod(hook, 0o755);
   };
+  /** Plants hooks, fsmonitor, hooksPath, sshCommand and an included config in the work tree that each append their name to a marker file; returns the marker's path. */
+  const plantHostileConfig = async () => {
+    const marker = join(base, "ran.txt");
+    const script = async (name: string) => {
+      const path = join(base, `${name}.sh`);
+      await writeFile(path, `#!/bin/sh\necho ${name} >> "${marker}"\n`);
+      await chmod(path, 0o755);
+      return path;
+    };
+    const hooksDir = join(base, "hooks");
+    await mkdir(hooksDir);
+    for (const hook of ["pre-commit", "commit-msg", "post-commit", "pre-push", "post-checkout"]) {
+      await copyFile(await script(hook), join(hooksDir, hook));
+      await copyFile(await script(hook), join(work, ".git", "hooks", hook));
+    }
+    const included = join(base, "included.config");
+    await writeFile(included, `[core]\n\tfsmonitor = ${await script("included-fsmonitor")}\n`);
+    await git(work, "config", "core.hooksPath", hooksDir);
+    await git(work, "config", "core.fsmonitor", await script("fsmonitor"));
+    await git(work, "config", "core.sshCommand", await script("ssh"));
+    await git(work, "config", "include.path", included);
+    await git(work, "config", "credential.helper", await script("credential"));
+    return marker;
+  };
   return {
     work,
     base,
+    plantHostileConfig,
     remote,
     write,
     remoteLog,
